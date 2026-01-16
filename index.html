@@ -32,7 +32,7 @@
 <body class="light">
 <div id="root"></div>
 <script type="text/babel">
-const{useState,useEffect,createContext,useContext}=React;
+const{useState,useEffect,useRef,createContext,useContext}=React;
 
 // CONFIG
 const CONFIG={
@@ -75,25 +75,25 @@ const ACTIONS=[
 ];
 
 const TASKS=[
-    {id:'t1',actionId:'a1',month:0,startDate:'2026-01-01',title:'Vœux nouvel an',description:'Post LinkedIn + Instagram',status:'completed',priority:'high',dueDate:'2026-01-15',checklist:[{id:'c1',text:'Créer visuel',done:true},{id:'c2',text:'Rédiger texte',done:true}],comments:[{id:'cm1',author:'Fabien',text:'Bon engagement!',date:'2026-01-16'}],attachments:[]},
-    {id:'t2',actionId:'a1',month:9,startDate:'2026-10-01',title:'Pink October',description:'Campagne Octobre Rose',status:'todo',priority:'medium',dueDate:'2026-10-01',checklist:[],comments:[],attachments:[]},
-    {id:'t3',actionId:'a1',month:10,startDate:'2026-11-01',title:'Movember',description:'Campagne Movember',status:'todo',priority:'medium',dueDate:'2026-11-01',checklist:[],comments:[],attachments:[]},
-    {id:'t4',actionId:'a1',month:11,startDate:'2026-12-01',title:'Vœux + Video Recap',description:'Vidéo récap année',status:'todo',priority:'high',dueDate:'2026-12-20',checklist:[],comments:[],attachments:[]},
-    {id:'t5',actionId:'a2',month:1,startDate:'2026-02-01',title:'Content Février',description:'Contenu marque employeur',status:'inprogress',priority:'medium',dueDate:'2026-02-28',checklist:[{id:'c3',text:'Brief',done:true},{id:'c4',text:'Production',done:false}],comments:[],attachments:[]},
-    {id:'t6',actionId:'a2',month:3,startDate:'2026-04-01',title:'Content Avril',description:'Contenu marque employeur',status:'todo',priority:'medium',dueDate:'2026-04-30',checklist:[],comments:[],attachments:[]},
-    {id:'t7',actionId:'a3',month:1,startDate:'2026-02-01',title:'Google Ads Fév',description:'Budget 2000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:2000,checklist:[{id:'c5',text:'Setup',done:true}],comments:[],attachments:[]},
-    {id:'t8',actionId:'a3',month:2,startDate:'2026-03-01',title:'Google Ads Mar',description:'Budget 2000€',status:'creating',priority:'high',dueDate:'2026-03-31',budget:2000,checklist:[],comments:[],attachments:[]},
-    {id:'t9',actionId:'a3',month:3,startDate:'2026-04-01',title:'Google Ads Avr',description:'Budget 2000€',status:'todo',priority:'high',dueDate:'2026-04-30',budget:2000,checklist:[],comments:[],attachments:[]},
-    {id:'t10',actionId:'a4',month:1,startDate:'2026-02-01',title:'LinkedIn Ads Fév',description:'Budget 3000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:3000,checklist:[],comments:[],attachments:[]},
-    {id:'t11',actionId:'a4',month:2,startDate:'2026-03-01',title:'LinkedIn Ads Mar',description:'Budget 3000€',status:'creating',priority:'high',dueDate:'2026-03-31',budget:3000,checklist:[],comments:[],attachments:[]},
-    {id:'t12',actionId:'a5',month:2,startDate:'2026-03-01',title:'PR Mars',description:'Relations presse Q1',status:'todo',priority:'medium',dueDate:'2026-03-31',budget:10000,checklist:[],comments:[],attachments:[]},
-    {id:'t13',actionId:'a6',month:2,startDate:'2026-03-01',title:'OTD Content Mars',description:'Contenu OTD',status:'creating',priority:'high',dueDate:'2026-03-15',checklist:[{id:'c6',text:'Research',done:true},{id:'c7',text:'Writing',done:false}],comments:[],attachments:[]},
-    {id:'t14',actionId:'a6',month:3,startDate:'2026-04-01',title:'OTD Content Avril',description:'Contenu OTD',status:'todo',priority:'high',dueDate:'2026-04-15',checklist:[],comments:[],attachments:[]},
-    {id:'t15',actionId:'a7',month:8,startDate:'2026-09-01',title:'TTM Content Sep',description:'Contenu TTM',status:'todo',priority:'medium',dueDate:'2026-09-15',checklist:[],comments:[],attachments:[]},
-    {id:'t16',actionId:'a9',month:1,startDate:'2026-02-01',title:'Google Lead Gen Fév',description:'Budget 2000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:2000,checklist:[],comments:[],attachments:[]},
-    {id:'t17',actionId:'a10',month:2,startDate:'2026-03-01',title:'LinkedIn Lead Gen Mar',description:'Budget 3000€',status:'todo',priority:'high',dueDate:'2026-03-31',budget:3000,checklist:[],comments:[],attachments:[]},
-    {id:'t18',actionId:'a11',month:3,startDate:'2026-04-01',title:'Event In-House Avril',description:'Événement interne',status:'todo',priority:'high',dueDate:'2026-04-15',budget:10000,checklist:[{id:'c8',text:'Lieu',done:false},{id:'c9',text:'Invitations',done:false}],comments:[],attachments:[]},
-    {id:'t19',actionId:'a12',month:3,startDate:'2026-04-01',title:'Salon Avril',description:'Participation salon',status:'todo',priority:'medium',dueDate:'2026-04-10',checklist:[],comments:[],attachments:[]}
+    {id:'t1',actionId:'a1',month:0,startDate:'2026-01-01',title:'Vœux nouvel an',description:'Post LinkedIn + Instagram',status:'completed',priority:'high',dueDate:'2026-01-15',checklist:[{id:'c1',text:'Créer visuel',done:true},{id:'c2',text:'Rédiger texte',done:true}],comments:[{id:'cm1',author:'Fabien',text:'Bon engagement!',date:'2026-01-16'}],attachments:[],channels:['social']},
+    {id:'t2',actionId:'a1',month:9,startDate:'2026-10-01',title:'Pink October',description:'Campagne Octobre Rose',status:'todo',priority:'medium',dueDate:'2026-10-01',checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t3',actionId:'a1',month:10,startDate:'2026-11-01',title:'Movember',description:'Campagne Movember',status:'todo',priority:'medium',dueDate:'2026-11-01',checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t4',actionId:'a1',month:11,startDate:'2026-12-01',title:'Vœux + Video Recap',description:'Vidéo récap année',status:'todo',priority:'high',dueDate:'2026-12-20',checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t5',actionId:'a2',month:1,startDate:'2026-02-01',title:'Content Février',description:'Contenu marque employeur',status:'inprogress',priority:'medium',dueDate:'2026-02-28',checklist:[{id:'c3',text:'Brief',done:true},{id:'c4',text:'Production',done:false}],comments:[],attachments:[],channels:['social']},
+    {id:'t6',actionId:'a2',month:3,startDate:'2026-04-01',title:'Content Avril',description:'Contenu marque employeur',status:'todo',priority:'medium',dueDate:'2026-04-30',checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t7',actionId:'a3',month:1,startDate:'2026-02-01',title:'Google Ads Fév',description:'Budget 2000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:2000,checklist:[{id:'c5',text:'Setup',done:true}],comments:[],attachments:[],channels:['social']},
+    {id:'t8',actionId:'a3',month:2,startDate:'2026-03-01',title:'Google Ads Mar',description:'Budget 2000€',status:'creating',priority:'high',dueDate:'2026-03-31',budget:2000,checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t9',actionId:'a3',month:3,startDate:'2026-04-01',title:'Google Ads Avr',description:'Budget 2000€',status:'todo',priority:'high',dueDate:'2026-04-30',budget:2000,checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t10',actionId:'a4',month:1,startDate:'2026-02-01',title:'LinkedIn Ads Fév',description:'Budget 3000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:3000,checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t11',actionId:'a4',month:2,startDate:'2026-03-01',title:'LinkedIn Ads Mar',description:'Budget 3000€',status:'creating',priority:'high',dueDate:'2026-03-31',budget:3000,checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t12',actionId:'a5',month:2,startDate:'2026-03-01',title:'PR Mars',description:'Relations presse Q1',status:'todo',priority:'medium',dueDate:'2026-03-31',budget:10000,checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t13',actionId:'a6',month:2,startDate:'2026-03-01',title:'OTD Content Mars',description:'Contenu OTD',status:'creating',priority:'high',dueDate:'2026-03-15',checklist:[{id:'c6',text:'Research',done:true},{id:'c7',text:'Writing',done:false}],comments:[],attachments:[],channels:['social']},
+    {id:'t14',actionId:'a6',month:3,startDate:'2026-04-01',title:'OTD Content Avril',description:'Contenu OTD',status:'todo',priority:'high',dueDate:'2026-04-15',checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t15',actionId:'a7',month:8,startDate:'2026-09-01',title:'TTM Content Sep',description:'Contenu TTM',status:'todo',priority:'medium',dueDate:'2026-09-15',checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t16',actionId:'a9',month:1,startDate:'2026-02-01',title:'Google Lead Gen Fév',description:'Budget 2000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:2000,checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t17',actionId:'a10',month:2,startDate:'2026-03-01',title:'LinkedIn Lead Gen Mar',description:'Budget 3000€',status:'todo',priority:'high',dueDate:'2026-03-31',budget:3000,checklist:[],comments:[],attachments:[],channels:['social']},
+    {id:'t18',actionId:'a11',month:3,startDate:'2026-04-01',title:'Event In-House Avril',description:'Événement interne',status:'todo',priority:'high',dueDate:'2026-04-15',budget:10000,checklist:[{id:'c8',text:'Lieu',done:false},{id:'c9',text:'Invitations',done:false}],comments:[],attachments:[],channels:['social']},
+    {id:'t19',actionId:'a12',month:3,startDate:'2026-04-01',title:'Salon Avril',description:'Participation salon',status:'todo',priority:'medium',dueDate:'2026-04-10',checklist:[],comments:[],attachments:[],channels:['social']}
 ];
 
 const AppContext=createContext();
@@ -257,8 +257,86 @@ const TaskDetailModal=({task,action,onClose,onUpdate,onDelete})=>{
     );
 };
 
+const ActionDetailModal=({action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask})=>{
+    const{darkMode}=useApp();
+    const[form,setForm]=useState({...action});
+    const actionTasks=tasks.filter(t=>t.actionId===action.id);
+    const completedTasks=actionTasks.filter(t=>t.status==='completed').length;
+    const progressPct=actionTasks.length>0?Math.round((completedTasks/actionTasks.length)*100):0;
+    const category=CONFIG.CATEGORIES.find(c=>c.id===action.categoryId);
+    const totalBudget=actionTasks.reduce((s,t)=>s+(t.budget||0),0);
+
+    const handleSave=()=>{onUpdateAction(action.id,form);onClose();};
+    const handleStatusChange=(taskId,newStatus)=>{onUpdateTask(taskId,{status:newStatus});};
+    const addChannel=(id)=>setForm({...form,channels:[...(form.channels||[]),id]});
+    const removeChannel=(id)=>setForm({...form,channels:(form.channels||[]).filter(c=>c!==id)});
+
+    return(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up`} onClick={e=>e.stopPropagation()}>
+                <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
+                <div className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                            <span className="text-xs text-gray-500">📁 ACTION</span>
+                            <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border mt-1 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/>
+                        </div>
+                        <button onClick={onClose} className="ml-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
+                    </div>
+                    <div className={`${darkMode?'bg-gray-800':'bg-gray-50'} rounded-xl p-4 mb-4`}>
+                        <div className="flex justify-between mb-3">
+                            <div><span className="text-xs text-gray-500">💰 Budget</span><p className="text-lg font-bold text-secondary">{(action.budget||totalBudget).toLocaleString()}€</p></div>
+                            <div><span className="text-xs text-gray-500">📊 Progression</span><p className="text-lg font-bold">{progressPct}%</p></div>
+                            <div><span className="text-xs text-gray-500">📋 Tâches</span><p className="text-lg font-bold">{completedTasks}/{actionTasks.length}</p></div>
+                        </div>
+                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${category?.gradient}`} style={{width:`${progressPct}%`}}/></div>
+                    </div>
+                    <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🏷️ Tags Canal</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
+                    <div className="mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <label className="text-sm font-medium">📋 TÂCHES ({actionTasks.length})</label>
+                            <button onClick={()=>onAddTask(action.id)} className="px-3 py-1 bg-secondary text-white rounded-lg text-xs flex items-center space-x-1"><Icon.Plus/><span>Ajouter</span></button>
+                        </div>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {actionTasks.length>0?actionTasks.map(task=>{
+                                const status=CONFIG.STATUSES.find(s=>s.id===task.status);
+                                return(
+                                    <div key={task.id} className={`${darkMode?'bg-gray-800':'bg-gray-50'} rounded-lg p-3 border ${darkMode?'border-gray-700':'border-gray-200'}`}>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                                <select value={task.status} onChange={e=>handleStatusChange(task.id,e.target.value)} className="px-2 py-1 rounded text-xs text-white border-0 cursor-pointer" style={{backgroundColor:status?.color}}>
+                                                    {CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
+                                                </select>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-sm truncate">{task.title}</p>
+                                                    <p className="text-xs text-gray-500">📅 {task.startDate?new Date(task.startDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'} → {task.dueDate?new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                {task.budget>0&&<span className="text-xs font-semibold text-secondary">{task.budget}€</span>}
+                                                <button onClick={()=>onOpenTask(task)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"><Icon.External/></button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            }):<p className="text-center text-gray-500 py-4 text-sm">Aucune tâche</p>}
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <button className="px-4 py-2 text-accent-red hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
+                        <div className="flex space-x-2">
+                            <button onClick={onClose} className={`px-4 py-2 rounded-lg text-sm ${darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}>Annuler</button>
+                            <button onClick={handleSave} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Sauvegarder</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // KANBAN VIEW
-const KanbanView=({actions,tasks,onOpenTask,onUpdateTask,filters,setFilters})=>{
+const KanbanView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters,setFilters})=>{
     const{darkMode}=useApp();
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
@@ -270,6 +348,7 @@ const KanbanView=({actions,tasks,onOpenTask,onUpdateTask,filters,setFilters})=>{
         if(filters.category.length>0&&!filters.category.includes(action?.categoryId))return false;
         if(filters.priority.length>0&&!filters.priority.includes(t.priority))return false;
         if(filters.action.length>0&&!filters.action.includes(t.actionId))return false;
+        if(filters.channel&&filters.channel.length>0&&!(t.channels||[]).some(c=>filters.channel.includes(c)))return false;
         return true;
     });
 
@@ -319,7 +398,7 @@ const KanbanView=({actions,tasks,onOpenTask,onUpdateTask,filters,setFilters})=>{
                                     const pct=actionTasks.length>0?Math.round((completed/actionTasks.length)*100):0;
                                     const cat=CONFIG.CATEGORIES.find(c=>c.id===action.categoryId);
                                     return(
-                                        <div key={action.id} onClick={()=>{setViewMode('action');setSelectedAction(action.id);}} className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover`}>
+                                        <div key={action.id} onClick={()=>onOpenAction(action)} className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover`}>
                                             <div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${cat?.gradient}`}/>
                                             <h4 className="font-semibold text-sm mb-2">{action.name}</h4>
                                             <div className="mb-2"><div className="flex justify-between text-xs text-gray-500 mb-1"><span>{completed}/{actionTasks.length} tâches</span><span>{pct}%</span></div><div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat?.gradient}`} style={{width:`${pct}%`}}/></div></div>
@@ -545,6 +624,25 @@ const DashboardView=({actions,tasks})=>{
                     </div>
                 </div>
             </div>
+            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${darkMode?'border-gray-800':'border-gray-200'}`}>
+                <h3 className="font-semibold mb-4">📢 Par canal</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {CONFIG.CHANNELS.slice(0,8).map(ch=>{
+                        const chTasks=tasks.filter(t=>(t.channels||[]).includes(ch.id));
+                        const chCompleted=chTasks.filter(t=>t.status==='completed').length;
+                        return(
+                            <div key={ch.id} className={`p-3 rounded-lg border ${darkMode?'border-gray-700 bg-gray-800/50':'border-gray-200 bg-gray-50'}`}>
+                                <div className="flex items-center space-x-2 mb-2">
+                                    <div className="w-3 h-3 rounded-full" style={{backgroundColor:ch.color}}/>
+                                    <span className="text-sm font-medium truncate">{ch.name}</span>
+                                </div>
+                                <div className="text-2xl font-bold">{chTasks.length}</div>
+                                <div className="text-xs text-gray-500">{chCompleted} terminées</div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
         </div>
     );
 };
@@ -579,15 +677,24 @@ const App=()=>{
     const[currentView,setCurrentView]=useState('kanban');
     const[actions]=useState(ACTIONS);
     const[tasks,setTasks]=useState(TASKS);
-    const[filters,setFilters]=useState({search:'',status:[],category:[],priority:[],action:[]});
+    const[filters,setFilters]=useState({search:'',status:[],category:[],priority:[],action:[],channel:[]});
     const[syncing,setSyncing]=useState(false);
     const[selectedTask,setSelectedTask]=useState(null);
+    const[selectedAction,setSelectedAction]=useState(null);
     const[notification,setNotification]=useState(null);
 
     useEffect(()=>{document.body.className=darkMode?'dark':'light';},[darkMode]);
 
     const handleSync=async()=>{setSyncing(true);await new Promise(r=>setTimeout(r,1500));setSyncing(false);showNotification('✅ Synchronisation terminée');};
     const handleUpdateTask=(taskId,updates)=>{setTasks(prev=>prev.map(t=>t.id===taskId?{...t,...updates}:t));showNotification('✅ Tâche mise à jour');};
+    const handleUpdateAction=(actionId,updates)=>{setActions(prev=>prev.map(a=>a.id===actionId?{...a,...updates}:a));showNotification('✅ Action mise à jour');};
+    const handleAddTask=(actionId)=>{
+        const action=actions.find(a=>a.id===actionId);
+        const newTask={id:`t${Date.now()}`,actionId,month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],title:'Nouvelle tâche',description:'',status:'todo',priority:'medium',dueDate:'',budget:0,channels:action?.channels||[],checklist:[],comments:[],attachments:[]};
+        setTasks(prev=>[...prev,newTask]);
+        setSelectedTask(newTask);
+        showNotification('✅ Tâche créée');
+    };
     const handleDeleteTask=(taskId)=>{setTasks(prev=>prev.filter(t=>t.id!==taskId));showNotification('🗑️ Tâche supprimée');};
     const showNotification=(msg)=>{setNotification(msg);setTimeout(()=>setNotification(null),3000);};
 
@@ -604,11 +711,12 @@ const App=()=>{
                         <button className="px-4 py-2 bg-primary text-white rounded-lg flex items-center space-x-2 hover:bg-primary/90 shadow-md"><Icon.Plus/><span>Nouvelle tâche</span></button>
                     </div>
                     <FilterBar filters={filters} setFilters={setFilters}/>
-                    {currentView==='kanban'&&<KanbanView actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='kanban'&&<KanbanView actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} filters={filters} setFilters={setFilters}/>}
                     {currentView==='timeline'&&<TimelineView actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask}/>}
                     {currentView==='dashboard'&&<DashboardView actions={actions} tasks={tasks}/>}
                 </main>
                 {selectedTask&&<TaskDetailModal task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask}/>}
+                {selectedAction&&<ActionDetailModal action={selectedAction} tasks={tasks} onClose={()=>setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t=>{setSelectedAction(null);setSelectedTask(t);}} onAddTask={handleAddTask}/>}
                 {notification&&<div className="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg bg-primary text-white animate-slide-in">{notification}</div>}
             </div>
         </AppContext.Provider>
