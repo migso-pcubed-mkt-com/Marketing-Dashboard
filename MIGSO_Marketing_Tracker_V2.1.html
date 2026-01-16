@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIGSO-PCUBED Marketing Tracker V2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root{--primary:#2c2b64;--secondary:#3781ec;--green:#5cc29d;--red:#ff5338;--yellow:#f2cb13}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Plus Jakarta Sans',sans-serif}
+        body.light{background:#f8f9fc;color:#1a1a2e}
+        body.dark{background:#0f0f1a;color:#f0f0f5}
+        ::-webkit-scrollbar{width:6px;height:6px}
+        ::-webkit-scrollbar-thumb{background:#888;border-radius:3px}
+        @keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        .animate-slide-in{animation:slideIn .3s ease-out}
+        .animate-slide-up{animation:slideUp .3s ease-out}
+        .card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,.15)}
+        .kanban-column{min-height:400px}
+        .modal-backdrop{backdrop-filter:blur(8px)}
+        .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+        .drag-over{border:2px dashed var(--secondary)!important;background:rgba(55,129,236,.1)!important}
+    </style>
+    <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#2c2b64',secondary:'#3781ec',accent:{green:'#5cc29d',red:'#ff5338',yellow:'#f2cb13'}}}}}</script>
+</head>
+<body class="light">
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,createContext,useContext}=React;
+
+// CONFIG
+const CONFIG={
+    MONTHS:['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'],
+    MONTHS_FULL:['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
+    STATUSES:[
+        {id:'todo',name:'À faire',color:'#94a3b8',icon:'📋'},
+        {id:'creating',name:'En création',color:'#f2cb13',icon:'✏️'},
+        {id:'inprogress',name:'En cours',color:'#3781ec',icon:'🔄'},
+        {id:'review',name:'En revue',color:'#a855f7',icon:'👀'},
+        {id:'completed',name:'Terminé',color:'#5cc29d',icon:'✅'},
+        {id:'paused',name:'En pause',color:'#ff5338',icon:'⏸️'}
+    ],
+    CATEGORIES:[
+        {id:'brand-awareness',name:'Brand Awareness',color:'#3781ec',gradient:'from-blue-500 to-indigo-700'},
+        {id:'consideration',name:'Consideration / Engagement',color:'#5cc29d',gradient:'from-emerald-400 to-cyan-500'},
+        {id:'conversion',name:'Conversion',color:'#f2cb13',gradient:'from-yellow-400 to-orange-500'}
+    ],
+    CHANNELS:[{id:'social',name:'Social Media',color:'#3b82f6'},{id:'gads',name:'Google Ads',color:'#ea4335'},{id:'lads',name:'LinkedIn Ads',color:'#0077b5'},{id:'email',name:'Email',color:'#f59e0b'},{id:'press',name:'Press',color:'#8b5cf6'},{id:'events',name:'Events',color:'#ec4899'},{id:'seo',name:'Article/SEO',color:'#10b981'},{id:'web',name:'Website',color:'#6366f1'},{id:'video',name:'Video',color:'#ef4444'},{id:'lp',name:'Landing Page',color:'#14b8a6'},{id:'ia',name:'IA',color:'#a855f7'},{id:'auto',name:'Automation',color:'#f97316'},{id:'other',name:'Other',color:'#6b7280'}],PRIORITIES:[
+        {id:'high',name:'Haute',color:'#ff5338',icon:'🔴'},
+        {id:'medium',name:'Moyenne',color:'#f2cb13',icon:'🟡'},
+        {id:'low',name:'Basse',color:'#5cc29d',icon:'🟢'}
+    ]
+};
+
+// DEMO DATA
+const ACTIONS=[
+    {id:'a1',name:'Global MP Brand (Social Media)',categoryId:'brand-awareness',budget:0,priority:'high',tags:['social']},
+    {id:'a2',name:'Employeur Brand',categoryId:'brand-awareness',budget:0,priority:'medium',tags:['employer']},
+    {id:'a3',name:'Google Ads - Brand',categoryId:'brand-awareness',budget:12000,priority:'high',tags:['paid','google']},
+    {id:'a4',name:'LinkedIn Ads - Brand',categoryId:'brand-awareness',budget:18000,priority:'high',tags:['paid','linkedin']},
+    {id:'a5',name:'Press Relations',categoryId:'brand-awareness',budget:30000,priority:'medium',tags:['press']},
+    {id:'a6',name:'On-Time-Delivery Campaign',categoryId:'consideration',budget:0,priority:'high',tags:['campaign']},
+    {id:'a7',name:'Time-To-Market Campaign',categoryId:'consideration',budget:0,priority:'medium',tags:['campaign']},
+    {id:'a8',name:'SEO Optimizations',categoryId:'consideration',budget:5000,priority:'medium',tags:['SEO']},
+    {id:'a9',name:'Google Ads - Lead Gen',categoryId:'conversion',budget:12000,priority:'high',tags:['paid']},
+    {id:'a10',name:'LinkedIn Ads - Lead Gen',categoryId:'conversion',budget:9000,priority:'high',tags:['paid']},
+    {id:'a11',name:'Business Events',categoryId:'conversion',budget:10000,priority:'high',tags:['event']},
+    {id:'a12',name:'Event Participation',categoryId:'conversion',budget:5000,priority:'medium',tags:['event']}
+];
+
+const TASKS=[
+    {id:'t1',actionId:'a1',month:0,startDate:'2026-01-01',title:'Vœux nouvel an',description:'Post LinkedIn + Instagram',status:'completed',priority:'high',dueDate:'2026-01-15',checklist:[{id:'c1',text:'Créer visuel',done:true},{id:'c2',text:'Rédiger texte',done:true}],comments:[{id:'cm1',author:'Fabien',text:'Bon engagement!',date:'2026-01-16'}],attachments:[]},
+    {id:'t2',actionId:'a1',month:9,startDate:'2026-10-01',title:'Pink October',description:'Campagne Octobre Rose',status:'todo',priority:'medium',dueDate:'2026-10-01',checklist:[],comments:[],attachments:[]},
+    {id:'t3',actionId:'a1',month:10,startDate:'2026-11-01',title:'Movember',description:'Campagne Movember',status:'todo',priority:'medium',dueDate:'2026-11-01',checklist:[],comments:[],attachments:[]},
+    {id:'t4',actionId:'a1',month:11,startDate:'2026-12-01',title:'Vœux + Video Recap',description:'Vidéo récap année',status:'todo',priority:'high',dueDate:'2026-12-20',checklist:[],comments:[],attachments:[]},
+    {id:'t5',actionId:'a2',month:1,startDate:'2026-02-01',title:'Content Février',description:'Contenu marque employeur',status:'inprogress',priority:'medium',dueDate:'2026-02-28',checklist:[{id:'c3',text:'Brief',done:true},{id:'c4',text:'Production',done:false}],comments:[],attachments:[]},
+    {id:'t6',actionId:'a2',month:3,startDate:'2026-04-01',title:'Content Avril',description:'Contenu marque employeur',status:'todo',priority:'medium',dueDate:'2026-04-30',checklist:[],comments:[],attachments:[]},
+    {id:'t7',actionId:'a3',month:1,startDate:'2026-02-01',title:'Google Ads Fév',description:'Budget 2000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:2000,checklist:[{id:'c5',text:'Setup',done:true}],comments:[],attachments:[]},
+    {id:'t8',actionId:'a3',month:2,startDate:'2026-03-01',title:'Google Ads Mar',description:'Budget 2000€',status:'creating',priority:'high',dueDate:'2026-03-31',budget:2000,checklist:[],comments:[],attachments:[]},
+    {id:'t9',actionId:'a3',month:3,startDate:'2026-04-01',title:'Google Ads Avr',description:'Budget 2000€',status:'todo',priority:'high',dueDate:'2026-04-30',budget:2000,checklist:[],comments:[],attachments:[]},
+    {id:'t10',actionId:'a4',month:1,startDate:'2026-02-01',title:'LinkedIn Ads Fév',description:'Budget 3000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:3000,checklist:[],comments:[],attachments:[]},
+    {id:'t11',actionId:'a4',month:2,startDate:'2026-03-01',title:'LinkedIn Ads Mar',description:'Budget 3000€',status:'creating',priority:'high',dueDate:'2026-03-31',budget:3000,checklist:[],comments:[],attachments:[]},
+    {id:'t12',actionId:'a5',month:2,startDate:'2026-03-01',title:'PR Mars',description:'Relations presse Q1',status:'todo',priority:'medium',dueDate:'2026-03-31',budget:10000,checklist:[],comments:[],attachments:[]},
+    {id:'t13',actionId:'a6',month:2,startDate:'2026-03-01',title:'OTD Content Mars',description:'Contenu OTD',status:'creating',priority:'high',dueDate:'2026-03-15',checklist:[{id:'c6',text:'Research',done:true},{id:'c7',text:'Writing',done:false}],comments:[],attachments:[]},
+    {id:'t14',actionId:'a6',month:3,startDate:'2026-04-01',title:'OTD Content Avril',description:'Contenu OTD',status:'todo',priority:'high',dueDate:'2026-04-15',checklist:[],comments:[],attachments:[]},
+    {id:'t15',actionId:'a7',month:8,startDate:'2026-09-01',title:'TTM Content Sep',description:'Contenu TTM',status:'todo',priority:'medium',dueDate:'2026-09-15',checklist:[],comments:[],attachments:[]},
+    {id:'t16',actionId:'a9',month:1,startDate:'2026-02-01',title:'Google Lead Gen Fév',description:'Budget 2000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:2000,checklist:[],comments:[],attachments:[]},
+    {id:'t17',actionId:'a10',month:2,startDate:'2026-03-01',title:'LinkedIn Lead Gen Mar',description:'Budget 3000€',status:'todo',priority:'high',dueDate:'2026-03-31',budget:3000,checklist:[],comments:[],attachments:[]},
+    {id:'t18',actionId:'a11',month:3,startDate:'2026-04-01',title:'Event In-House Avril',description:'Événement interne',status:'todo',priority:'high',dueDate:'2026-04-15',budget:10000,checklist:[{id:'c8',text:'Lieu',done:false},{id:'c9',text:'Invitations',done:false}],comments:[],attachments:[]},
+    {id:'t19',actionId:'a12',month:3,startDate:'2026-04-01',title:'Salon Avril',description:'Participation salon',status:'todo',priority:'medium',dueDate:'2026-04-10',checklist:[],comments:[],attachments:[]}
+];
+
+const AppContext=createContext();
+const useApp=()=>useContext(AppContext);
+
+// ICONS
+const Icon={
+    Menu:()=><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>,
+    Close:()=><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>,
+    Sun:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>,
+    Moon:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>,
+    Kanban:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>,
+    Timeline:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>,
+    Dashboard:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z"/></svg>,
+    Filter:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>,
+    Plus:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>,
+    Trash:()=><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>,
+    Refresh:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>,
+    Check:()=><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>,
+    Comment:()=><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>,
+    Calendar:()=><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>,
+    Folder:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>,
+    List:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>,
+    TrendUp:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>,
+    Dollar:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
+    Alert:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
+    Hand:()=><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"/></svg>,
+    External:()=><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+};
+
+// HEADER
+const Header=({darkMode,setDarkMode,currentView,setCurrentView,onSync,syncing})=>{
+    const[mobileMenu,setMobileMenu]=useState(false);
+    const navItems=[{id:'kanban',icon:Icon.Kanban,label:'Kanban'},{id:'timeline',icon:Icon.Timeline,label:'Timeline'},{id:'dashboard',icon:Icon.Dashboard,label:'KPIs'}];
+    return(
+        <header className={`sticky top-0 z-50 ${darkMode?'bg-gray-900/95':'bg-white/95'} backdrop-blur-sm border-b ${darkMode?'border-gray-800':'border-gray-200'}`}>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-between h-16">
+                    <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg"><span className="text-white font-bold text-lg">M</span></div>
+                        <div><h1 className="font-bold text-lg text-primary dark:text-white">Marketing Tracker</h1><p className="text-xs text-gray-500">MIGSO-PCUBED • V2.1</p></div>
+                    </div>
+                    <nav className="hidden md:flex items-center space-x-1">
+                        {navItems.map(({id,icon:I,label})=>(
+                            <button key={id} onClick={()=>setCurrentView(id)} className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${currentView===id?'bg-primary text-white shadow-md':darkMode?'text-gray-300 hover:bg-gray-800':'text-gray-600 hover:bg-gray-100'}`}><I/><span className="font-medium">{label}</span></button>
+                        ))}
+                    </nav>
+                    <div className="flex items-center space-x-2">
+                        <button onClick={onSync} disabled={syncing} className={`p-2 rounded-lg ${darkMode?'hover:bg-gray-800':'hover:bg-gray-100'} ${syncing?'animate-spin':''}`}><Icon.Refresh/></button>
+                        <button onClick={()=>setDarkMode(!darkMode)} className={`p-2 rounded-lg ${darkMode?'hover:bg-gray-800 text-yellow-400':'hover:bg-gray-100'}`}>{darkMode?<Icon.Sun/>:<Icon.Moon/>}</button>
+                        <button onClick={()=>setMobileMenu(!mobileMenu)} className="md:hidden p-2 rounded-lg">{mobileMenu?<Icon.Close/>:<Icon.Menu/>}</button>
+                    </div>
+                </div>
+                {mobileMenu&&(<div className="md:hidden py-4 border-t border-gray-200 dark:border-gray-800 animate-slide-in">{navItems.map(({id,icon:I,label})=>(<button key={id} onClick={()=>{setCurrentView(id);setMobileMenu(false);}} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-lg ${currentView===id?'bg-primary text-white':''}`}><I/><span>{label}</span></button>))}</div>)}
+            </div>
+        </header>
+    );
+};
+
+// TASK CARD
+const ChannelTags=({channels=[],onAdd,onRemove,editable=true})=>{
+    const{darkMode}=useApp();
+    const[showPicker,setShowPicker]=useState(false);
+    const available=CONFIG.CHANNELS.filter(c=>!channels.includes(c.id));
+    return(
+        <div className="flex flex-wrap gap-1 items-center">
+            {channels.map(chId=>{const ch=CONFIG.CHANNELS.find(c=>c.id===chId);return ch?(<span key={chId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:ch.color}}>{ch.name}{editable&&<button onClick={()=>onRemove(chId)} className="ml-1 hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
+            {editable&&available.length>0&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?"bg-gray-700 hover:bg-gray-600":"bg-gray-200 hover:bg-gray-300"} flex items-center space-x-1`}><Icon.Plus/><span>Tag</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 ${darkMode?"bg-gray-800":"bg-white"} rounded-lg shadow-xl border ${darkMode?"border-gray-700":"border-gray-200"} p-2 z-50 min-w-[150px] max-h-48 overflow-y-auto`}>{available.map(ch=>(<button key={ch.id} onClick={()=>{onAdd(ch.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs ${darkMode?"hover:bg-gray-700":"hover:bg-gray-100"} flex items-center space-x-2`}><span className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:ch.color}}/><span>{ch.name}</span></button>))}</div>)}</div>)}
+        </div>
+    );
+};
+
+const TaskCard=({task,action,onOpen,showAction=false})=>{
+    const{darkMode}=useApp();
+    const status=CONFIG.STATUSES.find(s=>s.id===task.status);
+    const priority=CONFIG.PRIORITIES.find(p=>p.id===task.priority);
+    const category=CONFIG.CATEGORIES.find(c=>c.id===action?.categoryId);
+    const checklistPct=task.checklist?.length>0?Math.round((task.checklist.filter(c=>c.done).length/task.checklist.length)*100):null;
+
+    return(
+        <div onClick={()=>onOpen(task)} className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover transition-all`}>
+            {showAction&&category&&<div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${category.gradient}`}/>}
+            <div className="flex items-start justify-between mb-2">
+                <span className="px-2 py-1 rounded-lg text-xs font-medium text-white" style={{backgroundColor:status?.color}}>{status?.icon} {status?.name}</span>
+                <span className="text-sm">{priority?.icon}</span>
+            </div>
+            <h4 className="font-semibold text-sm mb-2 line-clamp-2">{task.title}</h4>
+            {showAction&&action&&<p className="text-xs text-gray-500 mb-2 truncate">📁 {action.name}</p>}
+            {task.description&&<p className="text-xs text-gray-500 mb-2 line-clamp-2">{task.description}</p>}
+            {task.channels&&task.channels.length>0&&<div className="mb-2"><ChannelTags channels={task.channels} editable={false}/></div>}
+            {checklistPct!==null&&(<div className="mb-3"><div className="flex items-center justify-between text-xs text-gray-500 mb-1"><span>Checklist</span><span>{checklistPct}%</span></div><div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div></div>)}
+            <div className="flex items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center space-x-3">
+                    {task.comments?.length>0&&<span className="flex items-center space-x-1"><Icon.Comment/><span>{task.comments.length}</span></span>}
+                    {task.checklist?.length>0&&<span className="flex items-center space-x-1"><Icon.Check/><span>{task.checklist.filter(c=>c.done).length}/{task.checklist.length}</span></span>}
+                </div>
+                {task.dueDate&&<span className="flex items-center space-x-1"><Icon.Calendar/><span>{new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</span></span>}
+            </div>
+            {task.budget&&<div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700"><span className="text-sm font-semibold text-secondary">{task.budget.toLocaleString()}€</span></div>}
+        </div>
+    );
+};
+
+// TASK DETAIL MODAL
+const TaskDetailModal=({task,action,onClose,onUpdate,onDelete})=>{
+    const{darkMode}=useApp();
+    const[form,setForm]=useState({...task});
+    const[newComment,setNewComment]=useState('');
+    const[newChecklistItem,setNewChecklistItem]=useState('');
+    const category=CONFIG.CATEGORIES.find(c=>c.id===action?.categoryId);
+
+    const handleSave=()=>{onUpdate(task.id,form);onClose();};
+    const addComment=()=>{if(!newComment.trim())return;setForm({...form,comments:[...(form.comments||[]),{id:`cm${Date.now()}`,author:'Vous',text:newComment,date:new Date().toISOString()}]});setNewComment('');};
+    const addChecklistItem=()=>{if(!newChecklistItem.trim())return;setForm({...form,checklist:[...(form.checklist||[]),{id:`cl${Date.now()}`,text:newChecklistItem,done:false}]});setNewChecklistItem('');};
+    const toggleChecklistItem=(id)=>setForm({...form,checklist:form.checklist.map(i=>i.id===id?{...i,done:!i.done}:i)});
+    const removeChecklistItem=(id)=>setForm({...form,checklist:form.checklist.filter(i=>i.id!==id)});
+    const addChannel=(id)=>setForm({...form,channels:[...(form.channels||[]),id]});
+    const removeChannel=(id)=>setForm({...form,channels:(form.channels||[]).filter(c=>c!==id)});
+    const checklistPct=form.checklist?.length>0?Math.round((form.checklist.filter(c=>c.done).length/form.checklist.length)*100):0;
+
+    return(
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 modal-backdrop bg-black/60 overflow-y-auto" onClick={onClose}>
+            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-2xl shadow-2xl w-full max-w-2xl animate-slide-up mb-8`} onClick={e=>e.stopPropagation()}>
+                <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
+                <div className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                            <input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/>
+                            <p className="text-sm text-gray-500 mt-1">📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
+                        </div>
+                        <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
+                    </div>
+                    <div className="flex flex-wrap gap-3 mb-6">
+                        <div><label className="block text-xs text-gray-500 mb-1">Statut</label><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Début</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Fin</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-24 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
+                    </div>
+                    <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🏷️ Tags Canal</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
+                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={form.description||''} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Description..." rows={3} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'} resize-none`}/></div>
+                    <div className="mb-6">
+                        <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm text-gray-500">{checklistPct}%</span>}</div>
+                        {form.checklist?.length>0&&<div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full mb-3"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div>}
+                        <div className="space-y-2 mb-3">{form.checklist?.map(item=>(<div key={item.id} className={`flex items-center space-x-3 p-2 rounded-lg ${darkMode?'bg-gray-800':'bg-gray-50'}`}><button onClick={()=>toggleChecklistItem(item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':'border-gray-400'}`}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through text-gray-400':''}`}>{item.text}</span><button onClick={()=>removeChecklistItem(item.id)} className="text-gray-400 hover:text-accent-red"><Icon.Trash/></button></div>))}</div>
+                        <div className="flex space-x-2"><input type="text" value={newChecklistItem} onChange={e=>setNewChecklistItem(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addChecklistItem()} placeholder="Ajouter..." className={`flex-1 px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/><button onClick={addChecklistItem} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>
+                    </div>
+                    <div className="mb-6">
+                        <label className="block text-sm font-medium mb-2">💬 Commentaires ({form.comments?.length||0})</label>
+                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{form.comments?.map(c=>(<div key={c.id} className={`p-3 rounded-lg ${darkMode?'bg-gray-800':'bg-gray-50'}`}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs text-gray-500">{new Date(c.date).toLocaleDateString('fr-FR')}</span></div><p className="text-sm text-gray-600 dark:text-gray-300">{c.text}</p></div>))}</div>
+                        <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Écrire..." className={`flex-1 px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Envoyer</button></div>
+                    </div>
+                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📎 Pièces jointes</label><div className={`border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg p-6 text-center`}><p className="text-sm text-gray-500">Glissez des fichiers ici</p><p className="text-xs text-gray-400">(Disponible avec Google Drive)</p></div></div>
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
+                        <div className="flex space-x-2"><button onClick={onClose} className={`px-4 py-2 rounded-lg text-sm ${darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}>Annuler</button><button onClick={handleSave} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Sauvegarder</button></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// KANBAN VIEW
+const KanbanView=({actions,tasks,onOpenTask,onUpdateTask,filters,setFilters})=>{
+    const{darkMode}=useApp();
+    const[viewMode,setViewMode]=useState('month');
+    const[selectedAction,setSelectedAction]=useState(null);
+
+    const filteredTasks=tasks.filter(t=>{
+        const action=actions.find(a=>a.id===t.actionId);
+        if(filters.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
+        if(filters.status.length>0&&!filters.status.includes(t.status))return false;
+        if(filters.category.length>0&&!filters.category.includes(action?.categoryId))return false;
+        if(filters.priority.length>0&&!filters.priority.includes(t.priority))return false;
+        if(filters.action.length>0&&!filters.action.includes(t.actionId))return false;
+        return true;
+    });
+
+    const getColumns=()=>{
+        if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:filteredTasks.filter(t=>t.month===idx)}));
+        if(viewMode==='category')return CONFIG.CATEGORIES.map(cat=>({key:cat.id,name:cat.name,gradient:cat.gradient,items:actions.filter(a=>a.categoryId===cat.id)}));
+        if(viewMode==='action'&&selectedAction)return CONFIG.STATUSES.map(s=>({key:s.id,name:s.name,color:s.color,icon:s.icon,items:filteredTasks.filter(t=>t.actionId===selectedAction&&t.status===s.id)}));
+        return[];
+    };
+
+    return(
+        <div className="animate-slide-in">
+            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-4 border ${darkMode?'border-gray-800':'border-gray-200'} mb-4`}>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-500">Vue:</span>
+                        <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                            {[{id:'month',label:'Par Mois',icon:Icon.Calendar},{id:'category',label:'Par Catégorie',icon:Icon.Folder},{id:'action',label:'Par Action',icon:Icon.List}].map(v=>(
+                                <button key={v.id} onClick={()=>setViewMode(v.id)} className={`px-4 py-2 text-sm flex items-center space-x-2 ${viewMode===v.id?'bg-primary text-white':darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}><v.icon/><span className="hidden sm:inline">{v.label}</span></button>
+                            ))}
+                        </div>
+                    </div>
+                    {viewMode==='action'&&(<select value={selectedAction||''} onChange={e=>setSelectedAction(e.target.value)} className={`px-4 py-2 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}><option value="">Sélectionner une action...</option>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>)}
+                </div>
+                {viewMode==='month'&&(
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <p className="text-xs text-gray-500 mb-2">Filtrer par action:</p>
+                        <div className="flex flex-wrap gap-2">
+                            <button onClick={()=>setFilters({...filters,action:[]})} className={`px-3 py-1.5 rounded-full text-xs ${filters.action.length===0?'bg-primary text-white':darkMode?'bg-gray-800':'bg-gray-100'}`}>Toutes</button>
+                            {actions.map(a=>(<button key={a.id} onClick={()=>{const newA=filters.action.includes(a.id)?filters.action.filter(x=>x!==a.id):[...filters.action,a.id];setFilters({...filters,action:newA});}} className={`px-3 py-1.5 rounded-full text-xs truncate max-w-[140px] ${filters.action.includes(a.id)?'bg-secondary text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} title={a.name}>{a.name.length>18?a.name.substring(0,18)+'...':a.name}</button>))}
+                        </div>
+                    </div>
+                )}
+            </div>
+            <div className="overflow-x-auto pb-4">
+                <div className="flex gap-4" style={{minWidth:viewMode==='month'?'2800px':'1200px'}}>
+                    {getColumns().map(col=>(
+                        <div key={col.key} className={`kanban-column flex-shrink-0 ${viewMode==='category'?'w-80':'w-64'} ${darkMode?'bg-gray-900/50':'bg-gray-100/50'} rounded-xl p-3`}>
+                            <div className="mb-3">
+                                {col.gradient&&<div className={`h-1 rounded-full bg-gradient-to-r ${col.gradient} mb-2`}/>}
+                                <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{col.icon&&<span className="mr-1">{col.icon}</span>}{col.name}</h3><span className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-800':'bg-gray-200'}`}>{col.items.length}</span></div>
+                            </div>
+                            <div className="space-y-3">
+                                {viewMode==='category'?col.items.map(action=>{
+                                    const actionTasks=tasks.filter(t=>t.actionId===action.id);
+                                    const completed=actionTasks.filter(t=>t.status==='completed').length;
+                                    const pct=actionTasks.length>0?Math.round((completed/actionTasks.length)*100):0;
+                                    const cat=CONFIG.CATEGORIES.find(c=>c.id===action.categoryId);
+                                    return(
+                                        <div key={action.id} onClick={()=>{setViewMode('action');setSelectedAction(action.id);}} className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover`}>
+                                            <div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${cat?.gradient}`}/>
+                                            <h4 className="font-semibold text-sm mb-2">{action.name}</h4>
+                                            <div className="mb-2"><div className="flex justify-between text-xs text-gray-500 mb-1"><span>{completed}/{actionTasks.length} tâches</span><span>{pct}%</span></div><div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat?.gradient}`} style={{width:`${pct}%`}}/></div></div>
+                                            {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=><span key={t} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-700':'bg-gray-100'}`}>{t}</span>)}</div>}
+                                        </div>
+                                    );
+                                }):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} showAction={viewMode==='month'}/>)}
+                                {col.items.length===0&&<div className={`text-center py-8 border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg`}><p className="text-xs text-gray-400">Aucune tâche</p></div>}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// TIMELINE VIEW
+const TimelineView=({actions,tasks,onOpenTask,onUpdateTask})=>{
+    const{darkMode}=useApp();
+    const timelineRef=useRef(null);
+    const[zoom,setZoom]=useState('month');
+    const[isPanning,setIsPanning]=useState(false);
+    const[startX,setStartX]=useState(0);
+    const[scrollLeft,setScrollLeft]=useState(0);
+    const[spacePressed,setSpacePressed]=useState(false);
+    const currentMonth=new Date().getMonth();
+
+    useEffect(()=>{
+        const handleKeyDown=(e)=>{if(e.code==='Space'&&!e.target.tagName.match(/INPUT|TEXTAREA/)){e.preventDefault();setSpacePressed(true);}};
+        const handleKeyUp=(e)=>{if(e.code==='Space')setSpacePressed(false);};
+        window.addEventListener('keydown',handleKeyDown);
+        window.addEventListener('keyup',handleKeyUp);
+        return()=>{window.removeEventListener('keydown',handleKeyDown);window.removeEventListener('keyup',handleKeyUp);};
+    },[]);
+
+    const handleMouseDown=(e)=>{if(!spacePressed)return;setIsPanning(true);setStartX(e.pageX-timelineRef.current.offsetLeft);setScrollLeft(timelineRef.current.scrollLeft);};
+    const handleMouseMove=(e)=>{if(!isPanning)return;e.preventDefault();const x=e.pageX-timelineRef.current.offsetLeft;timelineRef.current.scrollLeft=scrollLeft-(x-startX)*2;};
+    const handleMouseUp=()=>setIsPanning(false);
+
+    const colWidth=zoom==='week'?60:zoom==='quarter'?280:100;
+
+    const getTaskPosition=(task)=>{
+        if(!task.startDate||!task.dueDate)return null;
+        const start=new Date(task.startDate);
+        const end=new Date(task.dueDate);
+        const startMonth=start.getMonth();
+        const endMonth=end.getMonth();
+        const startDay=start.getDate();
+        const endDay=end.getDate();
+        const daysInStartMonth=new Date(2026,startMonth+1,0).getDate();
+        const daysInEndMonth=new Date(2026,endMonth+1,0).getDate();
+        if(zoom==='month'){
+            const startOffset=(startDay/daysInStartMonth)*colWidth;
+            const totalMonths=endMonth-startMonth;
+            const endOffset=((daysInEndMonth-endDay)/daysInEndMonth)*colWidth;
+            const width=(totalMonths+1)*colWidth-startOffset-endOffset;
+            return{left:startMonth*colWidth+startOffset,width:Math.max(width,30)};
+        }
+        return{left:startMonth*colWidth,width:colWidth};
+    };
+
+    const headers=zoom==='quarter'?[{q:1,label:'Q1',months:[0,1,2]},{q:2,label:'Q2',months:[3,4,5]},{q:3,label:'Q3',months:[6,7,8]},{q:4,label:'Q4',months:[9,10,11]}]:CONFIG.MONTHS.map((m,i)=>({month:i,label:m}));
+    const groupedByCategory=CONFIG.CATEGORIES.map(cat=>({category:cat,actions:actions.filter(a=>a.categoryId===cat.id).map(action=>({action,tasks:tasks.filter(t=>t.actionId===action.id)}))}));
+    const scrollToQuarter=(q)=>{if(timelineRef.current)timelineRef.current.scrollLeft=(q-1)*3*colWidth;};
+
+    const handleDrop=(e,monthIdx)=>{
+        e.preventDefault();e.currentTarget.classList.remove('drag-over');
+        const taskId=e.dataTransfer.getData('taskId');
+        if(taskId&&onUpdateTask){
+            const year=2026;
+            const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
+            const lastDay=new Date(year,monthIdx+1,0).getDate();
+            const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
+            onUpdateTask(taskId,{startDate,dueDate,month:monthIdx});
+        }
+    };
+    const handleDragOver=(e)=>{e.preventDefault();e.currentTarget.classList.add('drag-over');};
+    const handleDragLeave=(e)=>{e.currentTarget.classList.remove('drag-over');};
+
+    return(
+        <div className="animate-slide-in">
+            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-4 border ${darkMode?'border-gray-800':'border-gray-200'} mb-4`}>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-2">
+                            <span className="text-sm text-gray-500">Zoom:</span>
+                            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                                {[{id:'week',label:'Semaine'},{id:'month',label:'Mois'},{id:'quarter',label:'Trimestre'}].map(z=>(
+                                    <button key={z.id} onClick={()=>setZoom(z.id)} className={`px-3 py-1.5 text-sm ${zoom===z.id?'bg-primary text-white':darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}>{z.label}</button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                            {[1,2,3,4].map(q=>(<button key={q} onClick={()=>scrollToQuarter(q)} className={`px-3 py-1.5 text-sm rounded ${darkMode?'bg-gray-800 hover:bg-gray-700':'bg-gray-100 hover:bg-gray-200'}`}>Q{q}</button>))}
+                        </div>
+                    </div>
+                    <div className="flex items-center space-x-2 text-sm text-gray-500"><Icon.Hand/><span>Espace+Clic pour naviguer</span></div>
+                </div>
+            </div>
+            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl border ${darkMode?'border-gray-800':'border-gray-200'} overflow-hidden`}>
+                <div ref={timelineRef} className={`overflow-x-auto ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+                    <div style={{minWidth:`${headers.length*colWidth+250}px`}}>
+                        <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} sticky top-0 z-10 ${darkMode?'bg-gray-900':'bg-white'}`}>
+                            <div className="w-[250px] flex-shrink-0 p-3 font-semibold text-sm">Actions</div>
+                            {zoom==='quarter'?headers.map(h=>(
+                                <div key={h.q} className={`flex-shrink-0 p-3 text-center font-semibold border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}}>
+                                    <div>{h.label}</div>
+                                    <div className="flex justify-around text-xs text-gray-500 mt-1">{h.months.map(m=><span key={m}>{CONFIG.MONTHS[m]}</span>)}</div>
+                                </div>
+                            )):headers.map((h,i)=>(
+                                <div key={i} className={`flex-shrink-0 p-2 text-center text-xs font-medium border-l ${darkMode?'border-gray-800':'border-gray-200'} ${h.month===currentMonth?'bg-secondary/10 text-secondary':''}`} style={{width:colWidth}}>{h.label}</div>
+                            ))}
+                        </div>
+                        {groupedByCategory.map(({category,actions:catActions})=>(
+                            <div key={category.id}>
+                                <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'}`}>
+                                    <div className={`w-[250px] flex-shrink-0 p-3 font-bold text-white text-sm bg-gradient-to-r ${category.gradient}`}>{category.name}</div>
+                                    <div className="flex-1" style={{background:darkMode?'rgba(55,65,81,0.3)':'rgba(243,244,246,0.5)'}}/>
+                                </div>
+                                {catActions.map(({action,tasks:actionTasks})=>(
+                                    <div key={action.id} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30`}>
+                                        <div className="w-[250px] flex-shrink-0 p-2">
+                                            <p className="text-sm font-medium truncate">{action.name}</p>
+                                            <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
+                                        </div>
+                                        <div className="flex-1 relative" style={{height:'60px'}}>
+                                            <div className="absolute inset-0 flex">
+                                                {headers.map((_,i)=>(
+                                                    <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}} onDrop={(e)=>handleDrop(e,zoom==='month'?i:zoom==='quarter'?i*3:Math.floor(i/4))} onDragOver={handleDragOver} onDragLeave={handleDragLeave}/>
+                                                ))}
+                                            </div>
+                                            {zoom==='month'&&actionTasks.map(task=>{
+                                                const pos=getTaskPosition(task);
+                                                if(!pos)return null;
+                                                const status=CONFIG.STATUSES.find(s=>s.id===task.status);
+                                                return(
+                                                    <div key={task.id} onClick={()=>onOpenTask(task)} draggable onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');}} className="absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs cursor-pointer shadow-sm overflow-hidden hover:brightness-110 transition-all" style={{left:pos.left,width:pos.width,backgroundColor:status?.color}} title={task.title}>
+                                                        <span className="truncate">{task.title}</span>
+                                                        {task.budget>0&&<span className="ml-1 opacity-75">({(task.budget/1000).toFixed(0)}k)</span>}
+                                                    </div>
+                                                );
+                                            })}
+                                            {zoom!=='month'&&actionTasks.map(task=>{
+                                                const month=task.month;
+                                                const status=CONFIG.STATUSES.find(s=>s.id===task.status);
+                                                const left=zoom==='quarter'?Math.floor(month/3)*colWidth+(month%3)*(colWidth/3):0;
+                                                return(
+                                                    <div key={task.id} onClick={()=>onOpenTask(task)} className="absolute top-2 h-10 rounded flex items-center justify-center text-white text-xs cursor-pointer hover:brightness-110" style={{left,width:zoom==='quarter'?colWidth/3-4:colWidth-4,backgroundColor:status?.color}} title={task.title}>{status?.icon}</div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+            <div className={`mt-4 ${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-4 border ${darkMode?'border-gray-800':'border-gray-200'}`}>
+                <p className="text-sm text-gray-500 mb-2">Légende:</p>
+                <div className="flex flex-wrap gap-4">{CONFIG.STATUSES.map(s=><div key={s.id} className="flex items-center space-x-2"><div className="w-4 h-4 rounded" style={{backgroundColor:s.color}}/><span className="text-sm">{s.icon} {s.name}</span></div>)}</div>
+            </div>
+        </div>
+    );
+};
+
+// DASHBOARD VIEW// DASHBOARD VIEW
+const DashboardView=({actions,tasks})=>{
+    const{darkMode}=useApp();
+    const totalTasks=tasks.length;
+    const completedTasks=tasks.filter(t=>t.status==='completed').length;
+    const totalBudget=tasks.reduce((s,t)=>s+(t.budget||0),0);
+    const spentBudget=tasks.filter(t=>['completed','inprogress'].includes(t.status)).reduce((s,t)=>s+(t.budget||0),0);
+    const progressPct=totalTasks>0?Math.round((completedTasks/totalTasks)*100):0;
+    const currentMonth=new Date().getMonth();
+    const currentTasks=tasks.filter(t=>t.month===currentMonth);
+    const overdueTasks=tasks.filter(t=>t.status!=='completed'&&(t.month<currentMonth||(t.dueDate&&new Date(t.dueDate)<new Date())));
+
+    const KPICard=({title,value,subtitle,icon:I,color})=>(
+        <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${darkMode?'border-gray-800':'border-gray-200'} shadow-sm`}>
+            <div className="flex items-start justify-between"><div><p className="text-sm text-gray-500 mb-1">{title}</p><p className="text-3xl font-bold" style={{color}}>{value}</p>{subtitle&&<p className="text-sm text-gray-400 mt-1">{subtitle}</p>}</div><div className="p-3 rounded-xl" style={{backgroundColor:`${color}20`}}><I/></div></div>
+        </div>
+    );
+
+    return(
+        <div className="space-y-6 animate-slide-in">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <KPICard title="Avancement" value={`${progressPct}%`} subtitle={`${completedTasks}/${totalTasks} tâches`} icon={Icon.TrendUp} color="#5cc29d"/>
+                <KPICard title="Budget" value={`${(spentBudget/1000).toFixed(0)}k€`} subtitle={`sur ${(totalBudget/1000).toFixed(0)}k€`} icon={Icon.Dollar} color="#3781ec"/>
+                <KPICard title="Ce mois" value={currentTasks.length} subtitle="tâches actives" icon={Icon.Calendar} color="#f2cb13"/>
+                <KPICard title="En retard" value={overdueTasks.length} subtitle={overdueTasks.length>0?'à traiter':'Tout OK!'} icon={Icon.Alert} color={overdueTasks.length>0?'#ff5338':'#5cc29d'}/>
+            </div>
+            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${darkMode?'border-gray-800':'border-gray-200'}`}>
+                <h3 className="font-semibold mb-4">Progression par catégorie</h3>
+                <div className="space-y-4">
+                    {CONFIG.CATEGORIES.map(cat=>{
+                        const catActions=actions.filter(a=>a.categoryId===cat.id);
+                        const catTasks=tasks.filter(t=>catActions.some(a=>a.id===t.actionId));
+                        const catCompleted=catTasks.filter(t=>t.status==='completed').length;
+                        const catPct=catTasks.length>0?Math.round((catCompleted/catTasks.length)*100):0;
+                        const catBudget=catTasks.reduce((s,t)=>s+(t.budget||0),0);
+                        return(
+                            <div key={cat.id}>
+                                <div className="flex items-center justify-between mb-2"><div className="flex items-center space-x-3"><div className={`w-3 h-3 rounded-full bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium text-sm">{cat.name}</span></div><div className="flex items-center space-x-4 text-sm"><span className="text-gray-500">{catCompleted}/{catTasks.length}</span><span className="font-semibold text-secondary">{(catBudget/1000).toFixed(0)}k€</span><span className="font-bold">{catPct}%</span></div></div>
+                                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat.gradient}`} style={{width:`${catPct}%`}}/></div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${darkMode?'border-gray-800':'border-gray-200'}`}>
+                    <h3 className="font-semibold mb-4">Par statut</h3>
+                    <div className="space-y-3">
+                        {CONFIG.STATUSES.map(s=>{const count=tasks.filter(t=>t.status===s.id).length;const pct=totalTasks>0?Math.round((count/totalTasks)*100):0;return(<div key={s.id} className="flex items-center"><div className="w-28 flex items-center space-x-2"><span>{s.icon}</span><span className="text-sm">{s.name}</span></div><div className="flex-1 h-4 bg-gray-200 dark:bg-gray-700 rounded-full mx-3"><div className="h-full rounded-full" style={{width:`${pct}%`,backgroundColor:s.color}}/></div><span className="w-8 text-right text-sm font-medium">{count}</span></div>);})}
+                    </div>
+                </div>
+                <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${overdueTasks.length>0?'border-accent-red':darkMode?'border-gray-800':'border-gray-200'}`}>
+                    <h3 className="font-semibold mb-4">🚨 En retard</h3>
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {overdueTasks.length>0?overdueTasks.slice(0,8).map(t=>{const action=actions.find(a=>a.id===t.actionId);return<div key={t.id} className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"><p className="font-medium text-sm">{t.title}</p><p className="text-xs text-red-600">{action?.name} • {CONFIG.MONTHS_FULL[t.month]}</p></div>;}):<div className="text-center py-8"><span className="text-4xl">✅</span><p className="text-gray-500 text-sm mt-2">Tout est à jour!</p></div>}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// FILTER BAR
+const FilterBar=({filters,setFilters})=>{
+    const{darkMode}=useApp();
+    const[showFilters,setShowFilters]=useState(false);
+    const activeCount=Object.values(filters).filter(v=>Array.isArray(v)?v.length>0:v).length;
+
+    return(
+        <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl shadow-sm border ${darkMode?'border-gray-800':'border-gray-200'} p-4 mb-4`}>
+            <div className="flex flex-wrap items-center gap-3">
+                <div className="flex-1 min-w-[200px]"><input type="text" placeholder="Rechercher..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className={`w-full px-4 py-2 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700 text-white':'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-secondary`}/></div>
+                <button onClick={()=>setShowFilters(!showFilters)} className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${showFilters||activeCount>0?'bg-secondary text-white border-secondary':darkMode?'border-gray-700':'border-gray-200'}`}><Icon.Filter/><span>Filtres</span>{activeCount>0&&<span className="bg-white text-secondary px-2 py-0.5 rounded-full text-xs font-bold">{activeCount}</span>}</button>
+                {activeCount>0&&<button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],action:[]})} className="text-accent-red text-sm">Effacer</button>}
+            </div>
+            {showFilters&&(
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-slide-in">
+                    <div><label className="block text-xs text-gray-500 mb-2">Statut</label><div className="flex flex-wrap gap-1">{CONFIG.STATUSES.map(s=>(<button key={s.id} onClick={()=>{const n=filters.status.includes(s.id)?filters.status.filter(x=>x!==s.id):[...filters.status,s.id];setFilters({...filters,status:n});}} className={`px-2 py-1 rounded text-xs ${filters.status.includes(s.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.status.includes(s.id)?{backgroundColor:s.color}:{}}>{s.icon}</button>))}</div></div>
+                    <div><label className="block text-xs text-gray-500 mb-2">Catégorie</label><div className="flex flex-wrap gap-1">{CONFIG.CATEGORIES.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`px-2 py-1 rounded text-xs ${filters.category.includes(c.id)?'text-white bg-gradient-to-r '+c.gradient:darkMode?'bg-gray-800':'bg-gray-100'}`}>{c.name.split(' ')[0]}</button>))}</div></div>
+                    <div><label className="block text-xs text-gray-500 mb-2">Priorité</label><div className="flex gap-1">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`px-2 py-1 rounded text-xs ${filters.priority.includes(p.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.priority.includes(p.id)?{backgroundColor:p.color}:{}}>{p.icon}</button>))}</div></div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// MAIN APP
+const App=()=>{
+    const[darkMode,setDarkMode]=useState(false);
+    const[currentView,setCurrentView]=useState('kanban');
+    const[actions]=useState(ACTIONS);
+    const[tasks,setTasks]=useState(TASKS);
+    const[filters,setFilters]=useState({search:'',status:[],category:[],priority:[],action:[]});
+    const[syncing,setSyncing]=useState(false);
+    const[selectedTask,setSelectedTask]=useState(null);
+    const[notification,setNotification]=useState(null);
+
+    useEffect(()=>{document.body.className=darkMode?'dark':'light';},[darkMode]);
+
+    const handleSync=async()=>{setSyncing(true);await new Promise(r=>setTimeout(r,1500));setSyncing(false);showNotification('✅ Synchronisation terminée');};
+    const handleUpdateTask=(taskId,updates)=>{setTasks(prev=>prev.map(t=>t.id===taskId?{...t,...updates}:t));showNotification('✅ Tâche mise à jour');};
+    const handleDeleteTask=(taskId)=>{setTasks(prev=>prev.filter(t=>t.id!==taskId));showNotification('🗑️ Tâche supprimée');};
+    const showNotification=(msg)=>{setNotification(msg);setTimeout(()=>setNotification(null),3000);};
+
+    const totalBudget=tasks.reduce((s,t)=>s+(t.budget||0),0);
+    const completedCount=tasks.filter(t=>t.status==='completed').length;
+
+    return(
+        <AppContext.Provider value={{darkMode}}>
+            <div className={`min-h-screen ${darkMode?'bg-gray-950':'bg-gray-50'}`}>
+                <Header darkMode={darkMode} setDarkMode={setDarkMode} currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing}/>
+                <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                        <div><h2 className="text-2xl font-bold">{currentView==='kanban'?'📋 Kanban':currentView==='timeline'?'📅 Timeline':'📊 KPIs'}</h2><p className="text-gray-500 text-sm">{tasks.length} tâches • {completedCount} terminées • Budget: {(totalBudget/1000).toFixed(0)}k€</p></div>
+                        <button className="px-4 py-2 bg-primary text-white rounded-lg flex items-center space-x-2 hover:bg-primary/90 shadow-md"><Icon.Plus/><span>Nouvelle tâche</span></button>
+                    </div>
+                    <FilterBar filters={filters} setFilters={setFilters}/>
+                    {currentView==='kanban'&&<KanbanView actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='timeline'&&<TimelineView actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask}/>}
+                    {currentView==='dashboard'&&<DashboardView actions={actions} tasks={tasks}/>}
+                </main>
+                {selectedTask&&<TaskDetailModal task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask}/>}
+                {notification&&<div className="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg bg-primary text-white animate-slide-in">{notification}</div>}
+            </div>
+        </AppContext.Provider>
+    );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
