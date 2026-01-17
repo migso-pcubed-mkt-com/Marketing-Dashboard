@@ -444,7 +444,7 @@ const ChannelTags=({channels=[],onAdd,onRemove,editable=true})=>{
     );
 };
 
-const TaskCard=({task,action,onOpen,showAction=false,onTouchDrag})=>{
+const TaskCard=({task,action,onOpen,showAction=false,onTouchDrag,categories})=>{
     const{darkMode}=useApp();
     const[touching,setTouching]=useState(false);
     const touchTimeout=useRef(null);
@@ -473,7 +473,7 @@ const TaskCard=({task,action,onOpen,showAction=false,onTouchDrag})=>{
     };
     const status=CONFIG.STATUSES.find(s=>s.id===task.status);
     const priority=CONFIG.PRIORITIES.find(p=>p.id===task.priority);
-    const category=CONFIG.CATEGORIES.find(c=>c.id===action?.categoryId);
+    const category=categories?.find(c=>c.id===action?.categoryId);
     const checklistPct=task.checklist?.length>0?Math.round((task.checklist.filter(c=>c.done).length/task.checklist.length)*100):null;
 
     return(
@@ -509,12 +509,12 @@ const TaskCard=({task,action,onOpen,showAction=false,onTouchDrag})=>{
 };
 
 // TASK DETAIL MODAL
-const TaskDetailModal=({task,action,onClose,onUpdate,onDelete,onBackToAction})=>{
+const TaskDetailModal=({categories,task,action,onClose,onUpdate,onDelete,onBackToAction})=>{
     const{darkMode}=useApp();
     const[form,setForm]=useState({...task});
     const[newComment,setNewComment]=useState('');
     const[newChecklistItem,setNewChecklistItem]=useState('');
-    const category=CONFIG.CATEGORIES.find(c=>c.id===action?.categoryId);
+    const category=categories?.find(c=>c.id===action?.categoryId);
 
     const handleSave=()=>{onUpdate(task.id,form);onClose();};
     const addComment=()=>{if(!newComment.trim())return;setForm({...form,comments:[...(form.comments||[]),{id:`cm${Date.now()}`,author:'Vous',text:newComment,date:new Date().toISOString()}]});setNewComment('');};
@@ -571,14 +571,14 @@ const TaskDetailModal=({task,action,onClose,onUpdate,onDelete,onBackToAction})=>
     );
 };
 
-const ActionDetailModal=({action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask,onDeleteAction})=>{
+const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask,onDeleteAction})=>{
     const{darkMode}=useApp();
     const[form,setForm]=useState({...action});
     const[showConfirmDelete,setShowConfirmDelete]=useState(false);
     const actionTasks=tasks.filter(t=>t.actionId===action.id);
     const completedTasks=actionTasks.filter(t=>t.status==='completed').length;
     const progressPct=actionTasks.length>0?Math.round((completedTasks/actionTasks.length)*100):0;
-    const category=CONFIG.CATEGORIES.find(c=>c.id===form.categoryId);
+    const category=categories?.find(c=>c.id===form.categoryId);
     const totalBudget=actionTasks.reduce((s,t)=>s+(t.budget||0),0);
 
     const handleSave=()=>{onUpdateAction(action.id,form);onClose();};
@@ -600,7 +600,7 @@ const ActionDetailModal=({action,tasks,onClose,onUpdateAction,onUpdateTask,onOpe
                         <button onClick={onClose} className="ml-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-4">
-                        <div><label className="block text-xs text-gray-500 mb-1">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{CONFIG.CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                         <div><label className="block text-xs text-gray-500 mb-1">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
                         <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-32 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
                     </div>
@@ -667,7 +667,7 @@ const ActionDetailModal=({action,tasks,onClose,onUpdateAction,onUpdateTask,onOpe
 };
 
 // KANBAN VIEW
-const KanbanView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters,setFilters})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,filters,setFilters})=>{
     const{darkMode}=useApp();
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
@@ -684,9 +684,19 @@ const KanbanView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters,se
         return true;
     });
 
+    const handleActionDrop=(e,categoryId)=>{
+        e.preventDefault();e.currentTarget.classList.remove('drag-over');
+        const actionId=e.dataTransfer.getData('actionId');
+        if(actionId&&onUpdateAction){
+            onUpdateAction(actionId,{categoryId});
+        }
+    };
+    const handleDragOver=(e)=>{e.preventDefault();e.currentTarget.classList.add('drag-over');};
+    const handleDragLeave=(e)=>{e.currentTarget.classList.remove('drag-over');};
+
     const getColumns=()=>{
         if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:filteredTasks.filter(t=>t.month===idx)}));
-        if(viewMode==='category')return CONFIG.CATEGORIES.map(cat=>({key:cat.id,name:cat.name,gradient:cat.gradient,items:actions.filter(a=>a.categoryId===cat.id)}));
+        if(viewMode==='category')return categories.map(cat=>({key:cat.id,name:cat.name,gradient:cat.gradient,items:actions.filter(a=>a.categoryId===cat.id)}));
         if(viewMode==='action'){
             if(selectedAction){
                 return CONFIG.STATUSES.map(s=>({key:s.id,name:s.name,color:s.color,icon:s.icon,items:filteredTasks.filter(t=>t.actionId===selectedAction&&t.status===s.id)}));
@@ -732,10 +742,10 @@ const KanbanView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters,se
             <div className="overflow-x-auto pb-4">
                 <div className="flex gap-4" style={{minWidth:viewMode==='month'?'2800px':'1200px'}}>
                     {getColumns().map(col=>(
-                        <div 
-                            key={col.key} 
+                        <div
+                            key={col.key}
                             data-drop-month={viewMode==='month'?col.key:null}
-                            onDragOver={(e)=>{e.preventDefault();if(viewMode==='month')e.currentTarget.classList.add('drag-over');}}
+                            onDragOver={(e)=>{e.preventDefault();if(viewMode==='month'||viewMode==='category')e.currentTarget.classList.add('drag-over');}}
                             onDragLeave={(e)=>e.currentTarget.classList.remove('drag-over')}
                             onDrop={(e)=>{
                                 e.preventDefault();
@@ -750,6 +760,11 @@ const KanbanView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters,se
                                         const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
                                         onUpdateTask(taskId,{startDate,dueDate,month:monthIdx});
                                     }
+                                }else if(viewMode==='category'){
+                                    const actionId=e.dataTransfer.getData('actionId');
+                                    if(actionId&&onUpdateAction){
+                                        onUpdateAction(actionId,{categoryId:col.key});
+                                    }
                                 }
                             }}
                             className={`kanban-column flex-shrink-0 ${viewMode==='category'?'w-80':'w-64'} ${darkMode?'bg-gray-900/50':'bg-gray-100/50'} rounded-xl p-3 min-h-[200px]`}>
@@ -762,17 +777,35 @@ const KanbanView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters,se
                                     const actionTasks=tasks.filter(t=>t.actionId===action.id);
                                     const completed=actionTasks.filter(t=>t.status==='completed').length;
                                     const pct=actionTasks.length>0?Math.round((completed/actionTasks.length)*100):0;
-                                    const cat=CONFIG.CATEGORIES.find(c=>c.id===action.categoryId);
+                                    const cat=categories.find(c=>c.id===action.categoryId);
                                     return(
-                                        <div key={action.id} onClick={()=>onOpenAction(action)} className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover`}>
+                                        <div key={action.id} draggable onDragStart={(e)=>{e.dataTransfer.setData('actionId',action.id);e.target.classList.add('dragging');}} onDragEnd={(e)=>e.target.classList.remove('dragging')} onClick={(e)=>{if(!e.defaultPrevented)onOpenAction(action);}} className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-move card-hover`}>
                                             <div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${cat?.gradient}`}/>
                                             <h4 className="font-semibold text-sm mb-2">{action.name}</h4>
                                             <div className="mb-2"><div className="flex justify-between text-xs text-gray-500 mb-1"><span>{completed}/{actionTasks.length} tâches</span><span>{pct}%</span></div><div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat?.gradient}`} style={{width:`${pct}%`}}/></div></div>
                                             {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=><span key={t} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-700':'bg-gray-100'}`}>{t}</span>)}</div>}
                                         </div>
                                     );
-                                }):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} showAction={viewMode==='month'}/>)}
+                                }):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} showAction={viewMode==='month'} categories={categories}/>)}
                                 {col.items.length===0&&<div className={`text-center py-8 border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg`}><p className="text-xs text-gray-400">Aucune tâche</p></div>}
+                                <button onClick={()=>{
+                                    if(viewMode==='month'){
+                                        const monthIdx=col.key;
+                                        const year=2026;
+                                        const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
+                                        const newTask={id:`t${Date.now()}`,title:'Nouvelle tâche',actionId:actions[0]?.id||'',month:monthIdx,startDate,dueDate:startDate,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:[]};
+                                        onUpdateTask(newTask.id,newTask);
+                                    }else if(viewMode==='category'){
+                                        const newAction={id:`a${Date.now()}`,name:'Nouvelle action',categoryId:col.key,budget:0,priority:'medium',tags:[]};
+                                        if(onUpdateAction)onUpdateAction(newAction.id,newAction);
+                                    }else if(viewMode==='action'){
+                                        const newTask={id:`t${Date.now()}`,title:'Nouvelle tâche',actionId:selectedAction||actions[0]?.id||'',month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],dueDate:new Date().toISOString().split('T')[0],status:col.key,priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:[]};
+                                        onUpdateTask(newTask.id,newTask);
+                                    }
+                                }} className={`w-full mt-3 px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-1 ${darkMode?'bg-gray-800 hover:bg-gray-700 text-gray-300':'bg-gray-100 hover:bg-gray-200 text-gray-600'} transition-colors`}>
+                                    <Icon.Plus size={16}/>
+                                    <span>Ajouter une carte</span>
+                                </button>
                             </div>
                         </div>
                     ))}
@@ -783,7 +816,7 @@ const KanbanView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters,se
 };
 
 // TIMELINE VIEW
-const TimelineView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters})=>{
     const{darkMode}=useApp();
     const timelineRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -871,7 +904,21 @@ const TimelineView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask})=>{
 
     const headers=zoom==='quarter'?[{q:1,label:'Q1',months:[0,1,2]},{q:2,label:'Q2',months:[3,4,5]},{q:3,label:'Q3',months:[6,7,8]},{q:4,label:'Q4',months:[9,10,11]}]:zoom==='week'?getWeekHeaders().weeks:CONFIG.MONTHS.map((m,i)=>({month:i,label:m}));
     const monthHeaders=zoom==='week'?getWeekHeaders().months:null;
-    const groupedByCategory=CONFIG.CATEGORIES.map(cat=>({category:cat,actions:actions.filter(a=>a.categoryId===cat.id).map(action=>({action,tasks:tasks.filter(t=>t.actionId===action.id)}))}));
+
+    const filteredTasks=tasks.filter(t=>{
+        const action=actions.find(a=>a.id===t.actionId);
+        if(filters?.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
+        if(filters?.status.length>0&&!filters.status.includes(t.status))return false;
+        if(filters?.priority.length>0&&!filters.priority.includes(t.priority))return false;
+        if(filters?.category.length>0&&action&&!filters.category.includes(action.categoryId))return false;
+        if(filters?.channel.length>0){
+            const taskChannels=t.channels||action?.tags||[];
+            if(!filters.channel.some(c=>taskChannels.includes(c)))return false;
+        }
+        return true;
+    });
+
+    const groupedByCategory=categories.map(cat=>({category:cat,actions:actions.filter(a=>a.categoryId===cat.id).map(action=>({action,tasks:filteredTasks.filter(t=>t.actionId===action.id)}))})).filter(g=>g.actions.some(a=>a.tasks.length>0));
     const scrollToQuarter=(q)=>{if(timelineRef.current)timelineRef.current.scrollLeft=(q-1)*3*colWidth;};
 
     const handleDrop=(e,monthIdx)=>{
@@ -990,7 +1037,7 @@ const TimelineView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask})=>{
 };
 
 // DASHBOARD VIEW// DASHBOARD VIEW
-const DashboardView=({actions,tasks})=>{
+const DashboardView=({categories,actions,tasks})=>{
     const{darkMode}=useApp();
     const totalTasks=tasks.length;
     const completedTasks=tasks.filter(t=>t.status==='completed').length;
@@ -1018,7 +1065,7 @@ const DashboardView=({actions,tasks})=>{
             <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${darkMode?'border-gray-800':'border-gray-200'}`}>
                 <h3 className="font-semibold mb-4">Progression par catégorie</h3>
                 <div className="space-y-4">
-                    {CONFIG.CATEGORIES.map(cat=>{
+                    {categories.map(cat=>{
                         const catActions=actions.filter(a=>a.categoryId===cat.id);
                         const catTasks=tasks.filter(t=>catActions.some(a=>a.id===t.actionId));
                         const catCompleted=catTasks.filter(t=>t.status==='completed').length;
@@ -1132,7 +1179,9 @@ const App=()=>{
             const response=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`,{headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}});
             if(response.ok){
                 const data=await response.json();
-                const content=JSON.parse(atob(data.content));
+                const binaryString=atob(data.content);
+                const bytes=Uint8Array.from(binaryString,c=>c.charCodeAt(0));
+                const content=JSON.parse(new TextDecoder().decode(bytes));
                 setCategories(content.categories||CONFIG.CATEGORIES);
                 setActions(content.actions||ACTIONS);
                 setTasks(content.tasks||TASKS);
@@ -1151,7 +1200,9 @@ const App=()=>{
         if(!githubToken){showNotification('⚠️ Token GitHub manquant');return;}
         setSyncing(true);
         try{
-            const content=btoa(JSON.stringify({categories,actions,tasks},null,2));
+            const jsonString=JSON.stringify({categories,actions,tasks},null,2);
+            const utf8Bytes=new TextEncoder().encode(jsonString);
+            const content=btoa(String.fromCharCode(...utf8Bytes));
             const body={message:'Update data from Marketing Tracker V2.2',content,sha:fileSha,branch:GITHUB_CONFIG.branch};
             const response=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`,{method:'PUT',headers:{Authorization:`token ${githubToken}`,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
             if(response.ok){
@@ -1284,12 +1335,12 @@ const App=()=>{
                         </div>
                     </div>
                     <FilterBar filters={filters} setFilters={setFilters} actions={actions}/>
-                    {currentView==='kanban'&&<KanbanView actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} filters={filters} setFilters={setFilters}/>}
-                    {currentView==='timeline'&&<TimelineView actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask}/>}
-                    {currentView==='dashboard'&&<DashboardView actions={actions} tasks={tasks}/>}
+                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} filters={filters}/>}
+                    {currentView==='dashboard'&&<DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
-                {selectedTask&&<TaskDetailModal task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null}/>}
-                {selectedAction&&<ActionDetailModal action={selectedAction} tasks={tasks} onClose={()=>setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t=>{setSelectedTask(t);}} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
+                {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null}/>}
+                {selectedAction&&<ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={()=>setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t=>{setSelectedTask(t);}} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
                 {showGithubSettings&&<GitHubSettingsModal onClose={()=>setShowGithubSettings(false)} githubToken={githubToken} setGithubToken={setGithubToken} darkMode={darkMode}/>}
                 {showCategoriesModal&&<CategoriesManagementModal categories={categories} onClose={()=>setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} darkMode={darkMode}/>}
                 {showNewActionModal&&<NewActionModal categories={categories} onClose={()=>setShowNewActionModal(false)} onAdd={handleAddAction} darkMode={darkMode}/>}
