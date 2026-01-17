@@ -364,7 +364,7 @@ const TaskCard=({task,action,onOpen,showAction=false,onTouchDrag})=>{
 };
 
 // TASK DETAIL MODAL
-const TaskDetailModal=({task,action,onClose,onUpdate,onDelete})=>{
+const TaskDetailModal=({task,action,onClose,onUpdate,onDelete,onBackToAction})=>{
     const{darkMode}=useApp();
     const[form,setForm]=useState({...task});
     const[newComment,setNewComment]=useState('');
@@ -388,7 +388,10 @@ const TaskDetailModal=({task,action,onClose,onUpdate,onDelete})=>{
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
                             <input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/>
-                            <p className="text-sm text-gray-500 mt-1">📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                                <p className="text-sm text-gray-500">📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
+                                {onBackToAction&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Retour à l'action</button>}
+                            </div>
                         </div>
                         <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
                     </div>
@@ -635,7 +638,7 @@ const KanbanView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters,se
 };
 
 // TIMELINE VIEW
-const TimelineView=({actions,tasks,onOpenTask,onUpdateTask})=>{
+const TimelineView=({actions,tasks,onOpenTask,onOpenAction,onUpdateTask})=>{
     const{darkMode}=useApp();
     const timelineRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -794,8 +797,8 @@ const TimelineView=({actions,tasks,onOpenTask,onUpdateTask})=>{
                                 </div>
                                 {catActions.map(({action,tasks:actionTasks})=>(
                                     <div key={action.id} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30`}>
-                                        <div className="w-[250px] flex-shrink-0 p-2">
-                                            <p className="text-sm font-medium truncate">{action.name}</p>
+                                        <div className="w-[250px] flex-shrink-0 p-2 cursor-pointer" onClick={()=>onOpenAction&&onOpenAction(action)}>
+                                            <p className="text-sm font-medium truncate hover:text-secondary">{action.name}</p>
                                             <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
                                         </div>
                                         <div className="flex-1 relative" style={{height:'60px'}}>
@@ -1015,6 +1018,16 @@ const App=()=>{
         }
     };
 
+    const autoSaveTimeoutRef=useRef(null);
+
+    const autoSave=()=>{
+        if(!githubToken)return;
+        if(autoSaveTimeoutRef.current)clearTimeout(autoSaveTimeoutRef.current);
+        autoSaveTimeoutRef.current=setTimeout(()=>{
+            saveToGitHub();
+        },2000);
+    };
+
     const handleSync=()=>saveToGitHub();
 
     const handleUpdateTask=(taskId,updates)=>{
@@ -1028,30 +1041,48 @@ const App=()=>{
             return newTask;
         }));
         showNotification('✅ Tâche mise à jour');
+        autoSave();
     };
 
     const handleUpdateAction=(actionId,updates)=>{
         setActions(prev=>prev.map(a=>a.id===actionId?{...a,...updates}:a));
         showNotification('✅ Action mise à jour');
+        autoSave();
     };
 
     const handleDeleteAction=(actionId)=>{
         setActions(prev=>prev.filter(a=>a.id!==actionId));
         setTasks(prev=>prev.filter(t=>t.actionId!==actionId));
         showNotification('🗑️ Action supprimée');
+        autoSave();
     };
 
     const handleAddTask=(actionId)=>{
         const action=actions.find(a=>a.id===actionId);
-        const newTask={id:`t${Date.now()}`,actionId,month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],title:'Nouvelle tâche',description:'',status:'todo',priority:'medium',dueDate:'',budget:0,channels:action?.tags||[],checklist:[],comments:[],attachments:[]};
+        const month=new Date().getMonth();
+        const startDate=new Date().toISOString().split('T')[0];
+        const endOfMonth=new Date(2026,month+1,0).getDate();
+        const dueDate=`2026-${String(month+1).padStart(2,'0')}-${endOfMonth}`;
+        const newTask={id:`t${Date.now()}`,actionId,month,startDate,title:'Nouvelle tâche',description:'',status:'todo',priority:'medium',dueDate,budget:0,channels:action?.tags||[],checklist:[],comments:[],attachments:[]};
         setTasks(prev=>[...prev,newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Tâche créée');
+        autoSave();
     };
 
     const handleDeleteTask=(taskId)=>{
         setTasks(prev=>prev.filter(t=>t.id!==taskId));
         showNotification('🗑️ Tâche supprimée');
+        autoSave();
+    };
+
+    const handleCreateNewTask=()=>{
+        if(actions.length===0){
+            showNotification('⚠️ Créez d\'abord une action');
+            return;
+        }
+        const firstAction=actions[0];
+        handleAddTask(firstAction.id);
     };
 
     const showNotification=(msg)=>{setNotification(msg);setTimeout(()=>setNotification(null),3000);};
@@ -1068,15 +1099,15 @@ const App=()=>{
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                         <div><h2 className="text-2xl font-bold">{currentView==='kanban'?'📋 Kanban':currentView==='timeline'?'📅 Timeline':'📊 KPIs'}</h2><p className="text-gray-500 text-sm">{tasks.length} tâches • {completedCount} terminées • Budget: {(totalBudget/1000).toFixed(0)}k€</p></div>
-                        <button className="px-4 py-2 bg-primary text-white rounded-lg flex items-center space-x-2 hover:bg-primary/90 shadow-md"><Icon.Plus/><span>Nouvelle tâche</span></button>
+                        <button onClick={handleCreateNewTask} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center space-x-2 hover:bg-primary/90 shadow-md"><Icon.Plus/><span>Nouvelle tâche</span></button>
                     </div>
                     <FilterBar filters={filters} setFilters={setFilters} actions={actions}/>
                     {currentView==='kanban'&&<KanbanView actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} filters={filters} setFilters={setFilters}/>}
-                    {currentView==='timeline'&&<TimelineView actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask}/>}
+                    {currentView==='timeline'&&<TimelineView actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask}/>}
                     {currentView==='dashboard'&&<DashboardView actions={actions} tasks={tasks}/>}
                 </main>
-                {selectedTask&&<TaskDetailModal task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask}/>}
-                {selectedAction&&<ActionDetailModal action={selectedAction} tasks={tasks} onClose={()=>setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t=>{setSelectedAction(null);setSelectedTask(t);}} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
+                {selectedTask&&<TaskDetailModal task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null}/>}
+                {selectedAction&&<ActionDetailModal action={selectedAction} tasks={tasks} onClose={()=>setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t=>{setSelectedTask(t);}} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
                 {showGithubSettings&&<GitHubSettingsModal onClose={()=>setShowGithubSettings(false)} githubToken={githubToken} setGithubToken={setGithubToken} darkMode={darkMode}/>}
                 {notification&&<div className="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg bg-primary text-white animate-slide-in">{notification}</div>}
             </div>
