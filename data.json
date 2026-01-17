@@ -147,6 +147,14 @@
       "tags": [
         "events"
       ]
+    },
+    {
+      "name": "Test activation",
+      "categoryId": "cat1768676841551",
+      "budget": 0,
+      "priority": "medium",
+      "tags": [],
+      "id": "a1768676873817"
     }
   ],
   "tasks": [
