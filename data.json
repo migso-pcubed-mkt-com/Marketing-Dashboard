@@ -23,7 +23,9 @@
       "categoryId": "brand-awareness",
       "budget": 0,
       "priority": "high",
-      "tags": ["social"]
+      "tags": [
+        "social"
+      ]
     },
     {
       "id": "a2",
@@ -31,7 +33,10 @@
       "categoryId": "brand-awareness",
       "budget": 0,
       "priority": "medium",
-      "tags": ["social", "video"]
+      "tags": [
+        "social",
+        "video"
+      ]
     },
     {
       "id": "a3",
@@ -39,7 +44,9 @@
       "categoryId": "brand-awareness",
       "budget": 12000,
       "priority": "high",
-      "tags": ["gads"]
+      "tags": [
+        "gads"
+      ]
     },
     {
       "id": "a4",
@@ -47,7 +54,9 @@
       "categoryId": "brand-awareness",
       "budget": 18000,
       "priority": "high",
-      "tags": ["lads"]
+      "tags": [
+        "lads"
+      ]
     },
     {
       "id": "a5",
@@ -55,7 +64,9 @@
       "categoryId": "brand-awareness",
       "budget": 30000,
       "priority": "medium",
-      "tags": ["press"]
+      "tags": [
+        "press"
+      ]
     },
     {
       "id": "a6",
@@ -63,7 +74,10 @@
       "categoryId": "consideration",
       "budget": 0,
       "priority": "high",
-      "tags": ["seo", "social"]
+      "tags": [
+        "seo",
+        "social"
+      ]
     },
     {
       "id": "a7",
@@ -71,7 +85,9 @@
       "categoryId": "consideration",
       "budget": 0,
       "priority": "medium",
-      "tags": ["seo"]
+      "tags": [
+        "seo"
+      ]
     },
     {
       "id": "a8",
@@ -79,7 +95,10 @@
       "categoryId": "consideration",
       "budget": 5000,
       "priority": "medium",
-      "tags": ["seo", "web"]
+      "tags": [
+        "seo",
+        "web"
+      ]
     },
     {
       "id": "a9",
@@ -87,7 +106,10 @@
       "categoryId": "conversion",
       "budget": 12000,
       "priority": "high",
-      "tags": ["gads", "lp"]
+      "tags": [
+        "gads",
+        "lp"
+      ]
     },
     {
       "id": "a10",
@@ -95,7 +117,10 @@
       "categoryId": "conversion",
       "budget": 9000,
       "priority": "high",
-      "tags": ["lads", "lp"]
+      "tags": [
+        "lads",
+        "lp"
+      ]
     },
     {
       "id": "a11",
@@ -103,7 +128,9 @@
       "categoryId": "conversion",
       "budget": 10000,
       "priority": "high",
-      "tags": ["events"]
+      "tags": [
+        "events"
+      ]
     },
     {
       "id": "a12",
@@ -111,7 +138,9 @@
       "categoryId": "conversion",
       "budget": 5000,
       "priority": "medium",
-      "tags": ["events"]
+      "tags": [
+        "events"
+      ]
     }
   ],
   "tasks": [
@@ -126,8 +155,16 @@
       "priority": "high",
       "dueDate": "2026-01-15",
       "checklist": [
-        { "id": "c1", "text": "Créer visuel", "done": true },
-        { "id": "c2", "text": "Rédiger texte", "done": true }
+        {
+          "id": "c1",
+          "text": "Créer visuel",
+          "done": true
+        },
+        {
+          "id": "c2",
+          "text": "Rédiger texte",
+          "done": true
+        }
       ],
       "comments": [
         {
@@ -138,7 +175,9 @@
         }
       ],
       "attachments": [],
-      "channels": ["social"]
+      "channels": [
+        "social"
+      ]
     },
     {
       "id": "t2",
@@ -153,7 +192,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["social"]
+      "channels": [
+        "social"
+      ]
     },
     {
       "id": "t3",
@@ -168,7 +209,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["social"]
+      "channels": [
+        "social"
+      ]
     },
     {
       "id": "t4",
@@ -183,7 +226,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["social"]
+      "channels": [
+        "social"
+      ]
     },
     {
       "id": "t5",
@@ -196,12 +241,23 @@
       "priority": "medium",
       "dueDate": "2026-02-28",
       "checklist": [
-        { "id": "c3", "text": "Brief", "done": true },
-        { "id": "c4", "text": "Production", "done": false }
+        {
+          "id": "c3",
+          "text": "Brief",
+          "done": true
+        },
+        {
+          "id": "c4",
+          "text": "Production",
+          "done": false
+        }
       ],
       "comments": [],
       "attachments": [],
-      "channels": ["social", "video"]
+      "channels": [
+        "social",
+        "video"
+      ]
     },
     {
       "id": "t6",
@@ -216,7 +272,10 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["social", "video"]
+      "channels": [
+        "social",
+        "video"
+      ]
     },
     {
       "id": "t7",
@@ -229,10 +288,18 @@
       "priority": "high",
       "dueDate": "2026-02-28",
       "budget": 2000,
-      "checklist": [{ "id": "c5", "text": "Setup", "done": true }],
+      "checklist": [
+        {
+          "id": "c5",
+          "text": "Setup",
+          "done": true
+        }
+      ],
       "comments": [],
       "attachments": [],
-      "channels": ["gads"]
+      "channels": [
+        "gads"
+      ]
     },
     {
       "id": "t8",
@@ -248,7 +315,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["gads"]
+      "channels": [
+        "gads"
+      ]
     },
     {
       "id": "t9",
@@ -264,7 +333,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["gads"]
+      "channels": [
+        "gads"
+      ]
     },
     {
       "id": "t10",
@@ -280,7 +351,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["lads"]
+      "channels": [
+        "lads"
+      ]
     },
     {
       "id": "t11",
@@ -296,7 +369,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["lads"]
+      "channels": [
+        "lads"
+      ]
     },
     {
       "id": "t12",
@@ -312,7 +387,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["press"]
+      "channels": [
+        "press"
+      ]
     },
     {
       "id": "t13",
@@ -325,12 +402,23 @@
       "priority": "high",
       "dueDate": "2026-03-15",
       "checklist": [
-        { "id": "c6", "text": "Research", "done": true },
-        { "id": "c7", "text": "Writing", "done": false }
+        {
+          "id": "c6",
+          "text": "Research",
+          "done": true
+        },
+        {
+          "id": "c7",
+          "text": "Writing",
+          "done": false
+        }
       ],
       "comments": [],
       "attachments": [],
-      "channels": ["seo", "social"]
+      "channels": [
+        "seo",
+        "social"
+      ]
     },
     {
       "id": "t14",
@@ -345,7 +433,10 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["seo", "social"]
+      "channels": [
+        "seo",
+        "social"
+      ]
     },
     {
       "id": "t15",
@@ -360,7 +451,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["seo"]
+      "channels": [
+        "seo"
+      ]
     },
     {
       "id": "t16",
@@ -376,7 +469,10 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["gads", "lp"]
+      "channels": [
+        "gads",
+        "lp"
+      ]
     },
     {
       "id": "t17",
@@ -392,7 +488,10 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["lads", "lp"]
+      "channels": [
+        "lads",
+        "lp"
+      ]
     },
     {
       "id": "t18",
@@ -406,12 +505,22 @@
       "dueDate": "2026-04-15",
       "budget": 10000,
       "checklist": [
-        { "id": "c8", "text": "Lieu", "done": false },
-        { "id": "c9", "text": "Invitations", "done": false }
+        {
+          "id": "c8",
+          "text": "Lieu",
+          "done": false
+        },
+        {
+          "id": "c9",
+          "text": "Invitations",
+          "done": false
+        }
       ],
       "comments": [],
       "attachments": [],
-      "channels": ["events"]
+      "channels": [
+        "events"
+      ]
     },
     {
       "id": "t19",
@@ -426,7 +535,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": ["events"]
+      "channels": [
+        "events"
+      ]
     }
   ]
 }
