@@ -21,14 +21,18 @@
         @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
         .animate-slide-in{animation:slideIn .3s ease-out}
         .animate-slide-up{animation:slideUp .3s ease-out}
+        .card-hover{transition:all .2s ease}
         .card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,.15)}
+        .dragging{opacity:0.5!important;cursor:grabbing!important;transform:rotate(2deg)}
         .touch-dragging{opacity:0.7;transform:scale(1.02);z-index:1000}
+        [draggable=true]{cursor:grab}
+        [draggable=true]:active{cursor:grabbing}
         @media(hover:none){.card-hover:active{transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,.15)}}
         .kanban-column{min-height:400px}
         .modal-backdrop{backdrop-filter:blur(8px)}
         .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-        .drag-over{border:2px dashed var(--secondary)!important;background:rgba(55,129,236,.1)!important}
-        .timeline-bar{position:relative;cursor:move}
+        .drag-over{border:2px dashed var(--secondary)!important;background:rgba(55,129,236,.1)!important;transition:all .2s}
+        .timeline-bar{position:relative;cursor:move;transition:opacity .2s}
         .timeline-bar:hover .resize-handle{opacity:1}
         .resize-handle{position:absolute;top:0;bottom:0;width:8px;opacity:0;transition:opacity 0.2s;z-index:10;cursor:col-resize}
         .resize-handle:hover{background:rgba(255,255,255,0.3)}
@@ -66,20 +70,20 @@ const CONFIG={
     ]
 };
 
-// DEMO DATA
+// DEMO DATA - Synchronized with data.json
 const ACTIONS=[
     {id:'a1',name:'Global MP Brand (Social Media)',categoryId:'brand-awareness',budget:0,priority:'high',tags:['social']},
-    {id:'a2',name:'Employeur Brand',categoryId:'brand-awareness',budget:0,priority:'medium',tags:['employer']},
-    {id:'a3',name:'Google Ads - Brand',categoryId:'brand-awareness',budget:12000,priority:'high',tags:['paid','google']},
-    {id:'a4',name:'LinkedIn Ads - Brand',categoryId:'brand-awareness',budget:18000,priority:'high',tags:['paid','linkedin']},
+    {id:'a2',name:'Employeur Brand',categoryId:'brand-awareness',budget:0,priority:'medium',tags:['social','video']},
+    {id:'a3',name:'Google Ads - Brand',categoryId:'brand-awareness',budget:12000,priority:'high',tags:['gads']},
+    {id:'a4',name:'LinkedIn Ads - Brand',categoryId:'brand-awareness',budget:18000,priority:'high',tags:['lads']},
     {id:'a5',name:'Press Relations',categoryId:'brand-awareness',budget:30000,priority:'medium',tags:['press']},
-    {id:'a6',name:'On-Time-Delivery Campaign',categoryId:'consideration',budget:0,priority:'high',tags:['campaign']},
-    {id:'a7',name:'Time-To-Market Campaign',categoryId:'consideration',budget:0,priority:'medium',tags:['campaign']},
-    {id:'a8',name:'SEO Optimizations',categoryId:'consideration',budget:5000,priority:'medium',tags:['SEO']},
-    {id:'a9',name:'Google Ads - Lead Gen',categoryId:'conversion',budget:12000,priority:'high',tags:['paid']},
-    {id:'a10',name:'LinkedIn Ads - Lead Gen',categoryId:'conversion',budget:9000,priority:'high',tags:['paid']},
-    {id:'a11',name:'Business Events',categoryId:'conversion',budget:10000,priority:'high',tags:['event']},
-    {id:'a12',name:'Event Participation',categoryId:'conversion',budget:5000,priority:'medium',tags:['event']}
+    {id:'a6',name:'On-Time-Delivery Campaign',categoryId:'consideration',budget:0,priority:'high',tags:['seo','social']},
+    {id:'a7',name:'Time-To-Market Campaign',categoryId:'consideration',budget:0,priority:'medium',tags:['seo']},
+    {id:'a8',name:'SEO Optimizations',categoryId:'consideration',budget:5000,priority:'medium',tags:['seo','web']},
+    {id:'a9',name:'Google Ads - Lead Gen',categoryId:'conversion',budget:12000,priority:'high',tags:['gads','lp']},
+    {id:'a10',name:'LinkedIn Ads - Lead Gen',categoryId:'conversion',budget:9000,priority:'high',tags:['lads','lp']},
+    {id:'a11',name:'Business Events',categoryId:'conversion',budget:10000,priority:'high',tags:['events']},
+    {id:'a12',name:'Event Participation',categoryId:'conversion',budget:5000,priority:'medium',tags:['events']}
 ];
 
 const TASKS=[
@@ -87,21 +91,21 @@ const TASKS=[
     {id:'t2',actionId:'a1',month:9,startDate:'2026-10-01',title:'Pink October',description:'Campagne Octobre Rose',status:'todo',priority:'medium',dueDate:'2026-10-01',checklist:[],comments:[],attachments:[],channels:['social']},
     {id:'t3',actionId:'a1',month:10,startDate:'2026-11-01',title:'Movember',description:'Campagne Movember',status:'todo',priority:'medium',dueDate:'2026-11-01',checklist:[],comments:[],attachments:[],channels:['social']},
     {id:'t4',actionId:'a1',month:11,startDate:'2026-12-01',title:'Vœux + Video Recap',description:'Vidéo récap année',status:'todo',priority:'high',dueDate:'2026-12-20',checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t5',actionId:'a2',month:1,startDate:'2026-02-01',title:'Content Février',description:'Contenu marque employeur',status:'inprogress',priority:'medium',dueDate:'2026-02-28',checklist:[{id:'c3',text:'Brief',done:true},{id:'c4',text:'Production',done:false}],comments:[],attachments:[],channels:['social']},
-    {id:'t6',actionId:'a2',month:3,startDate:'2026-04-01',title:'Content Avril',description:'Contenu marque employeur',status:'todo',priority:'medium',dueDate:'2026-04-30',checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t7',actionId:'a3',month:1,startDate:'2026-02-01',title:'Google Ads Fév',description:'Budget 2000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:2000,checklist:[{id:'c5',text:'Setup',done:true}],comments:[],attachments:[],channels:['social']},
-    {id:'t8',actionId:'a3',month:2,startDate:'2026-03-01',title:'Google Ads Mar',description:'Budget 2000€',status:'creating',priority:'high',dueDate:'2026-03-31',budget:2000,checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t9',actionId:'a3',month:3,startDate:'2026-04-01',title:'Google Ads Avr',description:'Budget 2000€',status:'todo',priority:'high',dueDate:'2026-04-30',budget:2000,checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t10',actionId:'a4',month:1,startDate:'2026-02-01',title:'LinkedIn Ads Fév',description:'Budget 3000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:3000,checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t11',actionId:'a4',month:2,startDate:'2026-03-01',title:'LinkedIn Ads Mar',description:'Budget 3000€',status:'creating',priority:'high',dueDate:'2026-03-31',budget:3000,checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t12',actionId:'a5',month:2,startDate:'2026-03-01',title:'PR Mars',description:'Relations presse Q1',status:'todo',priority:'medium',dueDate:'2026-03-31',budget:10000,checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t13',actionId:'a6',month:2,startDate:'2026-03-01',title:'OTD Content Mars',description:'Contenu OTD',status:'creating',priority:'high',dueDate:'2026-03-15',checklist:[{id:'c6',text:'Research',done:true},{id:'c7',text:'Writing',done:false}],comments:[],attachments:[],channels:['social']},
-    {id:'t14',actionId:'a6',month:3,startDate:'2026-04-01',title:'OTD Content Avril',description:'Contenu OTD',status:'todo',priority:'high',dueDate:'2026-04-15',checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t15',actionId:'a7',month:8,startDate:'2026-09-01',title:'TTM Content Sep',description:'Contenu TTM',status:'todo',priority:'medium',dueDate:'2026-09-15',checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t16',actionId:'a9',month:1,startDate:'2026-02-01',title:'Google Lead Gen Fév',description:'Budget 2000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:2000,checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t17',actionId:'a10',month:2,startDate:'2026-03-01',title:'LinkedIn Lead Gen Mar',description:'Budget 3000€',status:'todo',priority:'high',dueDate:'2026-03-31',budget:3000,checklist:[],comments:[],attachments:[],channels:['social']},
-    {id:'t18',actionId:'a11',month:3,startDate:'2026-04-01',title:'Event In-House Avril',description:'Événement interne',status:'todo',priority:'high',dueDate:'2026-04-15',budget:10000,checklist:[{id:'c8',text:'Lieu',done:false},{id:'c9',text:'Invitations',done:false}],comments:[],attachments:[],channels:['social']},
-    {id:'t19',actionId:'a12',month:3,startDate:'2026-04-01',title:'Salon Avril',description:'Participation salon',status:'todo',priority:'medium',dueDate:'2026-04-10',checklist:[],comments:[],attachments:[],channels:['social']}
+    {id:'t5',actionId:'a2',month:1,startDate:'2026-02-01',title:'Content Février',description:'Contenu marque employeur',status:'inprogress',priority:'medium',dueDate:'2026-02-28',checklist:[{id:'c3',text:'Brief',done:true},{id:'c4',text:'Production',done:false}],comments:[],attachments:[],channels:['social','video']},
+    {id:'t6',actionId:'a2',month:3,startDate:'2026-04-01',title:'Content Avril',description:'Contenu marque employeur',status:'todo',priority:'medium',dueDate:'2026-04-30',checklist:[],comments:[],attachments:[],channels:['social','video']},
+    {id:'t7',actionId:'a3',month:1,startDate:'2026-02-01',title:'Google Ads Fév',description:'Budget 2000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:2000,checklist:[{id:'c5',text:'Setup',done:true}],comments:[],attachments:[],channels:['gads']},
+    {id:'t8',actionId:'a3',month:2,startDate:'2026-03-01',title:'Google Ads Mar',description:'Budget 2000€',status:'creating',priority:'high',dueDate:'2026-03-31',budget:2000,checklist:[],comments:[],attachments:[],channels:['gads']},
+    {id:'t9',actionId:'a3',month:3,startDate:'2026-04-01',title:'Google Ads Avr',description:'Budget 2000€',status:'todo',priority:'high',dueDate:'2026-04-30',budget:2000,checklist:[],comments:[],attachments:[],channels:['gads']},
+    {id:'t10',actionId:'a4',month:1,startDate:'2026-02-01',title:'LinkedIn Ads Fév',description:'Budget 3000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:3000,checklist:[],comments:[],attachments:[],channels:['lads']},
+    {id:'t11',actionId:'a4',month:2,startDate:'2026-03-01',title:'LinkedIn Ads Mar',description:'Budget 3000€',status:'creating',priority:'high',dueDate:'2026-03-31',budget:3000,checklist:[],comments:[],attachments:[],channels:['lads']},
+    {id:'t12',actionId:'a5',month:2,startDate:'2026-03-01',title:'PR Mars',description:'Relations presse Q1',status:'todo',priority:'medium',dueDate:'2026-03-31',budget:10000,checklist:[],comments:[],attachments:[],channels:['press']},
+    {id:'t13',actionId:'a6',month:2,startDate:'2026-03-01',title:'OTD Content Mars',description:'Contenu OTD',status:'creating',priority:'high',dueDate:'2026-03-15',checklist:[{id:'c6',text:'Research',done:true},{id:'c7',text:'Writing',done:false}],comments:[],attachments:[],channels:['seo','social']},
+    {id:'t14',actionId:'a6',month:3,startDate:'2026-04-01',title:'OTD Content Avril',description:'Contenu OTD',status:'todo',priority:'high',dueDate:'2026-04-15',checklist:[],comments:[],attachments:[],channels:['seo','social']},
+    {id:'t15',actionId:'a7',month:8,startDate:'2026-09-01',title:'TTM Content Sep',description:'Contenu TTM',status:'todo',priority:'medium',dueDate:'2026-09-15',checklist:[],comments:[],attachments:[],channels:['seo']},
+    {id:'t16',actionId:'a9',month:1,startDate:'2026-02-01',title:'Google Lead Gen Fév',description:'Budget 2000€',status:'inprogress',priority:'high',dueDate:'2026-02-28',budget:2000,checklist:[],comments:[],attachments:[],channels:['gads','lp']},
+    {id:'t17',actionId:'a10',month:2,startDate:'2026-03-01',title:'LinkedIn Lead Gen Mar',description:'Budget 3000€',status:'todo',priority:'high',dueDate:'2026-03-31',budget:3000,checklist:[],comments:[],attachments:[],channels:['lads','lp']},
+    {id:'t18',actionId:'a11',month:3,startDate:'2026-04-01',title:'Event In-House Avril',description:'Événement interne',status:'todo',priority:'high',dueDate:'2026-04-15',budget:10000,checklist:[{id:'c8',text:'Lieu',done:false},{id:'c9',text:'Invitations',done:false}],comments:[],attachments:[],channels:['events']},
+    {id:'t19',actionId:'a12',month:3,startDate:'2026-04-01',title:'Salon Avril',description:'Participation salon',status:'todo',priority:'medium',dueDate:'2026-04-10',checklist:[],comments:[],attachments:[],channels:['events']}
 ];
 
 // Touch Drag Support
@@ -667,7 +671,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 };
 
 // KANBAN VIEW
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,filters,setFilters})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,filters,setFilters})=>{
     const{darkMode}=useApp();
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
@@ -793,14 +797,16 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         const monthIdx=col.key;
                                         const year=2026;
                                         const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
-                                        const newTask={id:`t${Date.now()}`,title:'Nouvelle tâche',actionId:actions[0]?.id||'',month:monthIdx,startDate,dueDate:startDate,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:[]};
-                                        onUpdateTask(newTask.id,newTask);
+                                        const lastDay=new Date(year,monthIdx+1,0).getDate();
+                                        const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
+                                        const newTask={id:`t${Date.now()}`,title:'Nouvelle tâche',actionId:actions[0]?.id||'',month:monthIdx,startDate,dueDate,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[]};
+                                        onAddTask(newTask);
                                     }else if(viewMode==='category'){
                                         const newAction={id:`a${Date.now()}`,name:'Nouvelle action',categoryId:col.key,budget:0,priority:'medium',tags:[]};
-                                        if(onUpdateAction)onUpdateAction(newAction.id,newAction);
+                                        onAddAction(newAction);
                                     }else if(viewMode==='action'){
-                                        const newTask={id:`t${Date.now()}`,title:'Nouvelle tâche',actionId:selectedAction||actions[0]?.id||'',month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],dueDate:new Date().toISOString().split('T')[0],status:col.key,priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:[]};
-                                        onUpdateTask(newTask.id,newTask);
+                                        const newTask={id:`t${Date.now()}`,title:'Nouvelle tâche',actionId:selectedAction||actions[0]?.id||'',month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],dueDate:new Date().toISOString().split('T')[0],status:col.key,priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions.find(a=>a.id===(selectedAction||actions[0]?.id))?.tags||[]};
+                                        onAddTask(newTask);
                                     }
                                 }} className={`w-full mt-3 px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-1 ${darkMode?'bg-gray-800 hover:bg-gray-700 text-gray-300':'bg-gray-100 hover:bg-gray-200 text-gray-600'} transition-colors`}>
                                     <Icon.Plus size={16}/>
@@ -816,7 +822,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 };
 
 // TIMELINE VIEW
-const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters,setFilters})=>{
     const{darkMode}=useApp();
     const timelineRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -918,7 +924,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         return true;
     });
 
-    const groupedByCategory=categories.map(cat=>({category:cat,actions:actions.filter(a=>a.categoryId===cat.id).map(action=>({action,tasks:filteredTasks.filter(t=>t.actionId===action.id)}))})).filter(g=>g.actions.some(a=>a.tasks.length>0));
+    const groupedByCategory=categories.map(cat=>({category:cat,actions:actions.filter(a=>a.categoryId===cat.id).map(action=>({action,tasks:filteredTasks.filter(t=>t.actionId===action.id)}))}));
     const scrollToQuarter=(q)=>{if(timelineRef.current)timelineRef.current.scrollLeft=(q-1)*3*colWidth;};
 
     const handleDrop=(e,monthIdx)=>{
@@ -1004,7 +1010,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 if(!pos)return null;
                                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
                                                 return(
-                                                    <div key={task.id} onClick={()=>onOpenTask(task)} draggable onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');}} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all" style={{left:pos.left,width:pos.width,backgroundColor:status?.color}} title={task.title}>
+                                                    <div key={task.id} onClick={()=>onOpenTask(task)} draggable onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');}} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all" style={{left:pos.left,width:pos.width,backgroundColor:status?.color}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget?'\nBudget: '+task.budget+'€':''}`}>
                                                         <div className="resize-handle resize-handle-left" onMouseDown={(e)=>{e.stopPropagation();}} title="Redimensionner début"/>
                                                         <span className="truncate flex-1 px-1">{task.title}</span>
                                                         {task.budget>0&&zoom==='month'&&<span className="ml-1 opacity-75">({(task.budget/1000).toFixed(0)}k)</span>}
@@ -1165,7 +1171,36 @@ const App=()=>{
 
     const GITHUB_CONFIG={owner:'FbnCrr',repo:'Dashboard-marketing',branch:'main',path:'data.json'};
 
+    // UTF-8 safe Base64 encoding/decoding
+    const base64EncodeUnicode=(str)=>{
+        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,(match,p1)=>String.fromCharCode('0x'+p1)));
+    };
+    const base64DecodeUnicode=(str)=>{
+        return decodeURIComponent(atob(str).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    };
+
     useEffect(()=>{document.body.className=darkMode?'dark':'light';},[darkMode]);
+
+    // Keyboard shortcuts
+    useEffect(()=>{
+        const handleKeyPress=(e)=>{
+            if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
+            if(e.key==='Escape'){
+                if(selectedTask)setSelectedTask(null);
+                else if(selectedAction)setSelectedAction(null);
+                else if(showGithubSettings)setShowGithubSettings(false);
+                else if(showCategoriesModal)setShowCategoriesModal(false);
+                else if(showNewActionModal)setShowNewActionModal(false);
+                else if(showNewTaskModal)setShowNewTaskModal(false);
+            }
+            if(e.key==='n'&&!e.ctrlKey&&!e.metaKey)handleCreateNewTask();
+            if((e.key==='1'||e.key==='&')&&!e.ctrlKey&&!e.metaKey)setCurrentView('kanban');
+            if((e.key==='2'||e.key==='é')&&!e.ctrlKey&&!e.metaKey)setCurrentView('timeline');
+            if((e.key==='3'||e.key==='"')&&!e.ctrlKey&&!e.metaKey)setCurrentView('dashboard');
+        };
+        document.addEventListener('keydown',handleKeyPress);
+        return()=>document.removeEventListener('keydown',handleKeyPress);
+    },[selectedTask,selectedAction,showGithubSettings,showCategoriesModal,showNewActionModal,showNewTaskModal]);
 
     useEffect(()=>{
         const token=localStorage.getItem('github_token');
@@ -1174,25 +1209,50 @@ const App=()=>{
     },[]);
 
     const loadDataFromGitHub=async(token)=>{
-        if(!token){setDataLoaded(true);return;}
+        if(!token){
+            loadFromLocalStorage();
+            setDataLoaded(true);
+            return;
+        }
         try{
             const response=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`,{headers:{Authorization:`token ${token}`,Accept:'application/vnd.github.v3+json'}});
             if(response.ok){
                 const data=await response.json();
-                const binaryString=atob(data.content);
-                const bytes=Uint8Array.from(binaryString,c=>c.charCodeAt(0));
-                const content=JSON.parse(new TextDecoder().decode(bytes));
+                const content=JSON.parse(base64DecodeUnicode(data.content.replace(/\n/g,'')));
                 setCategories(content.categories||CONFIG.CATEGORIES);
                 setActions(content.actions||ACTIONS);
                 setTasks(content.tasks||TASKS);
                 setFileSha(data.sha);
+                saveToLocalStorage();
                 showNotification('✅ Données chargées depuis GitHub');
+            }else if(response.status===404){
+                showNotification('⚠️ Fichier data.json non trouvé sur GitHub');
+                loadFromLocalStorage();
+            }else{
+                showNotification(`❌ Erreur GitHub: ${response.status} ${response.statusText}`);
+                loadFromLocalStorage();
             }
         }catch(e){
             console.error('Erreur chargement GitHub:',e);
-            showNotification('⚠️ Erreur chargement, données locales utilisées');
+            showNotification('⚠️ Erreur chargement GitHub, backup local chargé');
+            loadFromLocalStorage();
         }finally{
             setDataLoaded(true);
+        }
+    };
+
+    const loadFromLocalStorage=()=>{
+        try{
+            const backup=localStorage.getItem('marketing_tracker_backup');
+            if(backup){
+                const data=JSON.parse(backup);
+                setCategories(data.categories||CONFIG.CATEGORIES);
+                setActions(data.actions||ACTIONS);
+                setTasks(data.tasks||TASKS);
+                showNotification('📦 Backup local chargé');
+            }
+        }catch(e){
+            console.error('LocalStorage load error:',e);
         }
     };
 
@@ -1201,20 +1261,23 @@ const App=()=>{
         setSyncing(true);
         try{
             const jsonString=JSON.stringify({categories,actions,tasks},null,2);
-            const utf8Bytes=new TextEncoder().encode(jsonString);
-            const content=btoa(String.fromCharCode(...utf8Bytes));
+            const content=base64EncodeUnicode(jsonString);
             const body={message:'Update data from Marketing Tracker V2.2',content,sha:fileSha,branch:GITHUB_CONFIG.branch};
             const response=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`,{method:'PUT',headers:{Authorization:`token ${githubToken}`,Accept:'application/vnd.github.v3+json','Content-Type':'application/json'},body:JSON.stringify(body)});
             if(response.ok){
                 const data=await response.json();
                 setFileSha(data.content.sha);
                 showNotification('✅ Sauvegarde GitHub réussie');
+            }else if(response.status===409){
+                showNotification('⚠️ Conflit: fichier modifié ailleurs. Rechargez la page.');
             }else{
-                showNotification('❌ Erreur sauvegarde GitHub');
+                const errorText=await response.text();
+                console.error('GitHub API error:',response.status,errorText);
+                showNotification(`❌ Erreur ${response.status}: ${response.statusText}`);
             }
         }catch(e){
             console.error('Erreur sauvegarde GitHub:',e);
-            showNotification('❌ Erreur sauvegarde GitHub');
+            showNotification(`❌ Erreur: ${e.message}`);
         }finally{
             setSyncing(false);
         }
@@ -1222,12 +1285,23 @@ const App=()=>{
 
     const autoSaveTimeoutRef=useRef(null);
 
+    const saveToLocalStorage=()=>{
+        try{
+            const data={categories,actions,tasks,timestamp:Date.now()};
+            localStorage.setItem('marketing_tracker_backup',JSON.stringify(data));
+        }catch(e){
+            console.error('LocalStorage save error:',e);
+        }
+    };
+
     const autoSave=()=>{
-        if(!githubToken)return;
         setSavingStatus('saving');
         if(autoSaveTimeoutRef.current)clearTimeout(autoSaveTimeoutRef.current);
         autoSaveTimeoutRef.current=setTimeout(async()=>{
-            await saveToGitHub();
+            saveToLocalStorage();
+            if(githubToken){
+                await saveToGitHub();
+            }
             setSavingStatus('saved');
             setTimeout(()=>setSavingStatus(null),2000);
         },5000);
@@ -1327,7 +1401,7 @@ const App=()=>{
                 <Header darkMode={darkMode} setDarkMode={setDarkMode} currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} onOpenSettings={()=>setShowGithubSettings(true)} githubConnected={!!githubToken} savingStatus={savingStatus}/>
                 <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                        <div><h2 className="text-2xl font-bold">{currentView==='kanban'?'📋 Kanban':currentView==='timeline'?'📅 Timeline':'📊 KPIs'}</h2><p className="text-gray-500 text-sm">{tasks.length} tâches • {completedCount} terminées • Budget: {(totalBudget/1000).toFixed(0)}k€</p></div>
+                        <div><h2 className="text-2xl font-bold">{currentView==='kanban'?'📋 Kanban':currentView==='timeline'?'📅 Timeline':'📊 KPIs'}</h2><p className="text-gray-500 text-sm">{tasks.length} tâches • {completedCount} terminées • Budget: {(totalBudget/1000).toFixed(0)}k€</p><p className="text-xs text-gray-400 mt-1">Raccourcis: N=Nouvelle tâche • 1/2/3=Vues • ESC=Fermer</p></div>
                         <div className="flex gap-2">
                             <button onClick={()=>setShowCategoriesModal(true)} className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${darkMode?'bg-gray-800 hover:bg-gray-700':'bg-gray-200 hover:bg-gray-300'}`}><Icon.Folder/><span className="hidden sm:inline">Catégories</span></button>
                             <button onClick={()=>setShowNewActionModal(true)} className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${darkMode?'bg-gray-800 hover:bg-gray-700':'bg-gray-200 hover:bg-gray-300'}`}><Icon.List/><span className="hidden sm:inline">Nouvelle action</span></button>
@@ -1335,8 +1409,22 @@ const App=()=>{
                         </div>
                     </div>
                     <FilterBar filters={filters} setFilters={setFilters} actions={actions}/>
-                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} filters={filters} setFilters={setFilters}/>}
-                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} filters={filters}/>}
+                    {(filters.search||filters.status.length>0||filters.category.length>0||filters.priority.length>0||filters.channel.length>0)&&(
+                        <div className={`mb-4 px-4 py-2 rounded-lg flex items-center justify-between ${darkMode?'bg-secondary/10 border border-secondary/20':'bg-blue-50 border border-blue-200'}`}>
+                            <span className="text-sm text-secondary">🔍 Filtres actifs • {tasks.filter(t=>{
+                                const action=actions.find(a=>a.id===t.actionId);
+                                if(filters.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
+                                if(filters.status.length>0&&!filters.status.includes(t.status))return false;
+                                if(filters.priority.length>0&&!filters.priority.includes(t.priority))return false;
+                                if(filters.category.length>0&&action&&!filters.category.includes(action.categoryId))return false;
+                                if(filters.channel.length>0){const taskChannels=t.channels||action?.tags||[];if(!filters.channel.some(c=>taskChannels.includes(c)))return false;}
+                                return true;
+                            }).length} tâches trouvées</span>
+                            <button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[]})} className="text-xs text-secondary hover:underline">Effacer filtres</button>
+                        </div>
+                    )}
+                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} filters={filters} setFilters={setFilters}/>}
                     {currentView==='dashboard'&&<DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
                 {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null}/>}
