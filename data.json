@@ -14,6 +14,12 @@
       "id": "conversion",
       "name": "Conversion",
       "gradient": "from-yellow-400 to-orange-500"
+    },
+    {
+      "name": "Activation",
+      "color": "#3781ec",
+      "gradient": "from-blue-500 to-indigo-700",
+      "id": "cat1768676841551"
     }
   ],
   "actions": [
