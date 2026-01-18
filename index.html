@@ -38,6 +38,17 @@
         .resize-handle:hover{background:rgba(255,255,255,0.3)}
         .resize-handle-left{left:0;border-left:2px solid rgba(255,255,255,0.5)}
         .resize-handle-right{right:0;border-right:2px solid rgba(255,255,255,0.5)}
+        @media(max-width:768px){
+            .kanban-column{min-width:280px}
+            .resize-handle{width:16px;opacity:0.3}
+            .timeline-bar{min-height:48px}
+        }
+        @media(hover:none)and(pointer:coarse){
+            .resize-handle{opacity:0.4;width:20px}
+            [draggable=true]{cursor:default}
+            .card-hover{transition:transform 0.1s}
+            .card-hover:active{transform:scale(0.98)}
+        }
     </style>
     <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#2c2b64',secondary:'#3781ec',accent:{green:'#5cc29d',red:'#ff5338',yellow:'#f2cb13'}}}}}</script>
 </head>
