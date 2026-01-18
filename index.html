@@ -270,11 +270,12 @@ const GitHubSettingsModal=({onClose,githubToken,setGithubToken,darkMode})=>{
 };
 
 // CATEGORIES MANAGEMENT MODAL
-const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,darkMode})=>{
+const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onReorder,darkMode})=>{
     const[editingId,setEditingId]=useState(null);
     const[form,setForm]=useState({});
     const[isAdding,setIsAdding]=useState(false);
     const[newCategory,setNewCategory]=useState({name:'',color:'#3781ec',gradient:'from-blue-500 to-indigo-700'});
+    const[draggedIndex,setDraggedIndex]=useState(null);
 
     const gradientPresets=[
         {name:'Bleu',gradient:'from-blue-500 to-indigo-700'},
@@ -294,6 +295,25 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,dar
         setIsAdding(false);
     };
 
+    const handleDragStart=(index)=>{
+        setDraggedIndex(index);
+    };
+
+    const handleDragOver=(e,index)=>{
+        e.preventDefault();
+        if(draggedIndex===null||draggedIndex===index)return;
+        const newCategories=[...categories];
+        const draggedItem=newCategories[draggedIndex];
+        newCategories.splice(draggedIndex,1);
+        newCategories.splice(index,0,draggedItem);
+        onReorder(newCategories);
+        setDraggedIndex(index);
+    };
+
+    const handleDragEnd=()=>{
+        setDraggedIndex(null);
+    };
+
     return(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
             <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up`} onClick={e=>e.stopPropagation()}>
@@ -304,8 +324,8 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,dar
                         <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
                     </div>
                     <div className="space-y-3 mb-4">
-                        {categories.map(cat=>(
-                            <div key={cat.id} className={`p-4 rounded-lg border ${darkMode?'border-gray-700 bg-gray-800':'border-gray-200 bg-gray-50'}`}>
+                        {categories.map((cat,index)=>(
+                            <div key={cat.id} draggable={editingId!==cat.id} onDragStart={()=>handleDragStart(index)} onDragOver={(e)=>handleDragOver(e,index)} onDragEnd={handleDragEnd} className={`p-4 rounded-lg border ${darkMode?'border-gray-700 bg-gray-800':'border-gray-200 bg-gray-50'} ${draggedIndex===index?'opacity-50':''} ${editingId===cat.id?'':'cursor-move'}`}>
                                 {editingId===cat.id?(
                                     <div className="space-y-3">
                                         <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${darkMode?'bg-gray-700 border-gray-600':'bg-white border-gray-300'}`}/>
@@ -314,7 +334,7 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,dar
                                     </div>
                                 ):(
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-3"><div className={`w-12 h-8 rounded-lg bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium">{cat.name}</span></div>
+                                        <div className="flex items-center space-x-3"><div className="cursor-move text-gray-400" title="Glisser pour réorganiser">⋮⋮</div><div className={`w-12 h-8 rounded-lg bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium">{cat.name}</span></div>
                                         <div className="flex gap-2"><button onClick={()=>startEdit(cat)} className="px-3 py-1 text-sm text-secondary hover:bg-secondary/10 rounded-lg">Modifier</button><button onClick={()=>onDelete(cat.id)} className="px-3 py-1 text-sm text-accent-red hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">Supprimer</button></div>
                                     </div>
                                 )}
@@ -783,6 +803,11 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     if(actionId&&onUpdateAction){
                                         onUpdateAction(actionId,{categoryId:col.key});
                                     }
+                                }else if(viewMode==='action'){
+                                    const taskId=e.dataTransfer.getData('taskId');
+                                    if(taskId){
+                                        onUpdateTask(taskId,{status:col.key});
+                                    }
                                 }
                             }}
                             className={`kanban-column flex-shrink-0 ${viewMode==='category'?'w-80':'w-64'} ${darkMode?'bg-gray-900/50':'bg-gray-100/50'} rounded-xl p-3 min-h-[200px]`}>
@@ -1028,10 +1053,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
                                                 return(
                                                     <div key={task.id} onClick={()=>onOpenTask(task)} draggable onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');}} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all" style={{left:pos.left,width:pos.width,backgroundColor:status?.color}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget?'\nBudget: '+task.budget+'€':''}`}>
-                                                        <div className="resize-handle resize-handle-left" onMouseDown={(e)=>{e.stopPropagation();}} title="Redimensionner début"/>
+                                                        <div className="resize-handle resize-handle-left" onMouseDown={(e)=>{e.stopPropagation();}} onTouchStart={(e)=>{e.stopPropagation();}} title="Redimensionner début"/>
                                                         <span className="truncate flex-1 px-1">{task.title}</span>
                                                         {task.budget>0&&zoom==='month'&&<span className="ml-1 opacity-75">({(task.budget/1000).toFixed(0)}k)</span>}
-                                                        <div className="resize-handle resize-handle-right" onMouseDown={(e)=>{e.stopPropagation();}} title="Redimensionner fin"/>
+                                                        <div className="resize-handle resize-handle-right" onMouseDown={(e)=>{e.stopPropagation();}} onTouchStart={(e)=>{e.stopPropagation();}} title="Redimensionner fin"/>
                                                     </div>
                                                 );
                                             })}
@@ -1141,7 +1166,7 @@ const DashboardView=({categories,actions,tasks})=>{
 };
 
 // FILTER BAR
-const FilterBar=({filters,setFilters,actions})=>{
+const FilterBar=({filters,setFilters,actions,categories})=>{
     const{darkMode}=useApp();
     const[showFilters,setShowFilters]=useState(false);
     const activeCount=Object.values(filters).filter(v=>Array.isArray(v)?v.length>0:v).length;
@@ -1156,7 +1181,7 @@ const FilterBar=({filters,setFilters,actions})=>{
             {showFilters&&(
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-slide-in">
                     <div><label className="block text-xs text-gray-500 mb-2">Statut</label><div className="flex flex-wrap gap-1">{CONFIG.STATUSES.map(s=>(<button key={s.id} onClick={()=>{const n=filters.status.includes(s.id)?filters.status.filter(x=>x!==s.id):[...filters.status,s.id];setFilters({...filters,status:n});}} className={`px-2 py-1 rounded text-xs ${filters.status.includes(s.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.status.includes(s.id)?{backgroundColor:s.color}:{}}>{s.icon}</button>))}</div></div>
-                    <div><label className="block text-xs text-gray-500 mb-2">Catégorie</label><div className="flex flex-wrap gap-1">{CONFIG.CATEGORIES.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`px-2 py-1 rounded text-xs ${filters.category.includes(c.id)?'text-white bg-gradient-to-r '+c.gradient:darkMode?'bg-gray-800':'bg-gray-100'}`}>{c.name.split(' ')[0]}</button>))}</div></div>
+                    <div><label className="block text-xs text-gray-500 mb-2">Catégorie</label><div className="flex flex-wrap gap-1">{categories.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`px-2 py-1 rounded text-xs ${filters.category.includes(c.id)?'text-white bg-gradient-to-r '+c.gradient:darkMode?'bg-gray-800':'bg-gray-100'}`}>{c.name.split(' ')[0]}</button>))}</div></div>
                     <div><label className="block text-xs text-gray-500 mb-2">Priorité</label><div className="flex gap-1">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`px-2 py-1 rounded text-xs ${filters.priority.includes(p.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.priority.includes(p.id)?{backgroundColor:p.color}:{}}>{p.icon}</button>))}</div></div>
                     <div className="sm:col-span-3"><label className="block text-xs text-gray-500 mb-2">Canal</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,channel:[]})} className={`px-2 py-1 rounded text-xs ${!filters.channel||filters.channel.length===0?'bg-primary text-white':darkMode?'bg-gray-800':'bg-gray-100'}`}>Tous</button>{CONFIG.CHANNELS.map(ch=>(<button key={ch.id} onClick={()=>{const n=filters.channel?.includes(ch.id)?filters.channel.filter(x=>x!==ch.id):[...(filters.channel||[]),ch.id];setFilters({...filters,channel:n});}} className={`px-2 py-1 rounded text-xs ${filters.channel?.includes(ch.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.channel?.includes(ch.id)?{backgroundColor:ch.color}:{}}>{ch.name}</button>))}</div></div>
                 </div>
@@ -1238,23 +1263,29 @@ const App=()=>{
                 headers:{
                     Authorization:`token ${token}`,
                     Accept:'application/vnd.github.v3+json',
-                    'Cache-Control':'no-cache'
+                    'Cache-Control':'no-cache',
+                    'Pragma':'no-cache'
                 }
             });
             if(response.ok){
                 const data=await response.json();
-                const content=JSON.parse(base64DecodeUnicode(data.content.replace(/\n/g,'')));
+                console.log('📥 Loading from GitHub. SHA:',data.sha,'Size:',data.size);
+                const decodedContent=base64DecodeUnicode(data.content.replace(/\n/g,'').replace(/\s/g,''));
+                const content=JSON.parse(decodedContent);
                 setCategories(content.categories||CONFIG.CATEGORIES);
                 setActions(content.actions||ACTIONS);
                 setTasks(content.tasks||TASKS);
                 setFileSha(data.sha);
                 saveToLocalStorage();
-                console.log('✅ GitHub loaded successfully. SHA:',data.sha);
+                console.log('✅ GitHub loaded successfully. Categories:',content.categories?.length,'Actions:',content.actions?.length,'Tasks:',content.tasks?.length);
                 showNotification('✅ Données chargées depuis GitHub');
             }else if(response.status===404){
-                showNotification('⚠️ Fichier data.json non trouvé sur GitHub');
+                console.warn('⚠️ File not found on GitHub, will create on first save');
+                showNotification('⚠️ Fichier data.json non trouvé - création au premier save');
                 loadFromLocalStorage();
             }else{
+                const errorText=await response.text();
+                console.error('GitHub load error:',response.status,errorText);
                 showNotification(`❌ Erreur GitHub: ${response.status} ${response.statusText}`);
                 loadFromLocalStorage();
             }
@@ -1288,12 +1319,28 @@ const App=()=>{
         try{
             const jsonString=JSON.stringify({categories,actions,tasks},null,2);
             const content=base64EncodeUnicode(jsonString);
+
+            // Build body without undefined values
             const body={
                 message:`Update data from Marketing Tracker V2.2 - ${new Date().toISOString()}`,
-                content,
-                sha:fileSha||undefined
+                content:content
             };
-            console.log('💾 Saving to GitHub...',{owner:GITHUB_CONFIG.owner,repo:GITHUB_CONFIG.repo,path:GITHUB_CONFIG.path,sha:fileSha,dataSize:jsonString.length});
+
+            // Only add sha if it exists
+            if(fileSha){
+                body.sha=fileSha;
+            }
+
+            console.log('💾 Saving to GitHub...',{
+                owner:GITHUB_CONFIG.owner,
+                repo:GITHUB_CONFIG.repo,
+                path:GITHUB_CONFIG.path,
+                hasSha:!!fileSha,
+                sha:fileSha?fileSha.substring(0,8)+'...':'none',
+                contentLength:content.length,
+                jsonLength:jsonString.length
+            });
+
             const response=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`,{
                 method:'PUT',
                 headers:{
@@ -1303,20 +1350,28 @@ const App=()=>{
                 },
                 body:JSON.stringify(body)
             });
+
             if(response.ok){
                 const data=await response.json();
                 setFileSha(data.content.sha);
                 console.log('✅ GitHub save successful. New SHA:',data.content.sha);
                 showNotification('✅ Sauvegarde GitHub réussie');
                 return true;
-            }else if(response.status===409){
-                console.error('⚠️ Conflict detected');
-                showNotification('⚠️ Conflit: fichier modifié ailleurs. Rechargez la page.');
-                return false;
             }else{
                 const errorText=await response.text();
-                console.error('GitHub API error:',response.status,errorText);
-                showNotification(`❌ Erreur ${response.status}: ${response.statusText}`);
+                let errorDetails;
+                try{
+                    errorDetails=JSON.parse(errorText);
+                }catch(e){
+                    errorDetails={message:errorText};
+                }
+                console.error('GitHub API error:',{
+                    status:response.status,
+                    statusText:response.statusText,
+                    error:errorDetails,
+                    bodyPreview:JSON.stringify(body).substring(0,200)
+                });
+                showNotification(`❌ Erreur ${response.status}: ${errorDetails.message||response.statusText}`);
                 return false;
             }
         }catch(e){
@@ -1423,6 +1478,12 @@ const App=()=>{
         autoSave();
     };
 
+    const handleReorderCategories=(reorderedCategories)=>{
+        setCategories(reorderedCategories);
+        showNotification('✅ Ordre des catégories mis à jour');
+        autoSave();
+    };
+
     const handleAddAction=(newAction)=>{
         setActions(prev=>[...prev,newAction]);
         showNotification('✅ Action créée');
@@ -1504,7 +1565,7 @@ const App=()=>{
                             <button onClick={handleCreateNewTask} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center space-x-2 hover:bg-primary/90 shadow-md"><Icon.Plus/><span>Nouvelle tâche</span></button>
                         </div>
                     </div>
-                    <FilterBar filters={filters} setFilters={setFilters} actions={actions}/>
+                    <FilterBar filters={filters} setFilters={setFilters} actions={actions} categories={categories}/>
                     {(filters.search||filters.status.length>0||filters.category.length>0||filters.priority.length>0||filters.channel.length>0)&&(
                         <div className={`mb-4 px-4 py-2 rounded-lg flex items-center justify-between ${darkMode?'bg-secondary/10 border border-secondary/20':'bg-blue-50 border border-blue-200'}`}>
                             <span className="text-sm text-secondary">🔍 Filtres actifs • {tasks.filter(t=>{
@@ -1526,7 +1587,7 @@ const App=()=>{
                 {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} actions={actions} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null}/>}
                 {selectedAction&&!selectedTask&&<ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={()=>setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t=>{setSelectedTask(t);}} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
                 {showGithubSettings&&<GitHubSettingsModal onClose={()=>setShowGithubSettings(false)} githubToken={githubToken} setGithubToken={setGithubToken} darkMode={darkMode}/>}
-                {showCategoriesModal&&<CategoriesManagementModal categories={categories} onClose={()=>setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} darkMode={darkMode}/>}
+                {showCategoriesModal&&<CategoriesManagementModal categories={categories} onClose={()=>setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories} darkMode={darkMode}/>}
                 {showNewActionModal&&<NewActionModal categories={categories} onClose={()=>setShowNewActionModal(false)} onAdd={handleAddAction} darkMode={darkMode}/>}
                 {showNewTaskModal&&<NewTaskModal actions={actions} categories={categories} onClose={()=>setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={()=>{setShowNewTaskModal(false);setShowNewActionModal(true);}} darkMode={darkMode}/>}
                 {notification&&<div className="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg bg-primary text-white animate-slide-in">{notification}</div>}
