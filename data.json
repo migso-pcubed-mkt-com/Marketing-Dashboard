@@ -20,6 +20,12 @@
       "color": "#3781ec",
       "gradient": "from-blue-500 to-indigo-700",
       "id": "cat1768676841551"
+    },
+    {
+      "name": "Test",
+      "color": "#3781ec",
+      "gradient": "from-red-500 to-pink-500",
+      "id": "cat1768763755327"
     }
   ],
   "actions": [
