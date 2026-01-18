@@ -552,6 +552,23 @@
       "channels": [
         "events"
       ]
+    },
+    {
+      "id": "t1768763955098",
+      "title": "Nouvelle tâche",
+      "actionId": "a1",
+      "month": 0,
+      "startDate": "2026-01-18",
+      "dueDate": "2026-01-18",
+      "status": "review",
+      "priority": "medium",
+      "description": "",
+      "checklist": [],
+      "comments": [],
+      "attachments": [],
+      "channels": [
+        "social"
+      ]
     }
   ]
 }
