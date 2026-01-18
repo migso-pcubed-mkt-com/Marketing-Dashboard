@@ -161,6 +161,14 @@
       "priority": "medium",
       "tags": [],
       "id": "a1768676873817"
+    },
+    {
+      "name": "Test action",
+      "categoryId": "cat1768763755327",
+      "budget": 0,
+      "priority": "medium",
+      "tags": [],
+      "id": "a1768763808700"
     }
   ],
   "tasks": [
