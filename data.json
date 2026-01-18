@@ -20,12 +20,6 @@
       "color": "#3781ec",
       "gradient": "from-blue-500 to-indigo-700",
       "id": "cat1768676841551"
-    },
-    {
-      "name": "Test",
-      "color": "#3781ec",
-      "gradient": "from-red-500 to-pink-500",
-      "id": "cat1768763755327"
     }
   ],
   "actions": [
@@ -161,14 +155,6 @@
       "priority": "medium",
       "tags": [],
       "id": "a1768676873817"
-    },
-    {
-      "name": "Test action",
-      "categoryId": "cat1768763755327",
-      "budget": 0,
-      "priority": "medium",
-      "tags": [],
-      "id": "a1768763808700"
     }
   ],
   "tasks": [
