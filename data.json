@@ -155,6 +155,22 @@
       "priority": "medium",
       "tags": [],
       "id": "a1768676873817"
+    },
+    {
+      "id": "a1768763968392",
+      "name": "Nouvelle action",
+      "categoryId": "consideration",
+      "budget": 0,
+      "priority": "medium",
+      "tags": []
+    },
+    {
+      "id": "a1768763970472",
+      "name": "Nouvelle action",
+      "categoryId": "cat1768676841551",
+      "budget": 0,
+      "priority": "medium",
+      "tags": []
     }
   ],
   "tasks": [
@@ -561,6 +577,57 @@
       "startDate": "2026-01-18",
       "dueDate": "2026-01-18",
       "status": "review",
+      "priority": "medium",
+      "description": "",
+      "checklist": [],
+      "comments": [],
+      "attachments": [],
+      "channels": [
+        "social"
+      ]
+    },
+    {
+      "id": "t1768763962232",
+      "title": "Nouvelle tâche",
+      "actionId": "a1",
+      "month": 0,
+      "startDate": "2026-01-18",
+      "dueDate": "2026-01-18",
+      "status": "paused",
+      "priority": "medium",
+      "description": "",
+      "checklist": [],
+      "comments": [],
+      "attachments": [],
+      "channels": [
+        "social"
+      ]
+    },
+    {
+      "id": "t1768763975272",
+      "title": "Nouvelle tâche",
+      "actionId": "a1",
+      "month": 4,
+      "startDate": "2026-05-01",
+      "dueDate": "2026-05-31",
+      "status": "todo",
+      "priority": "medium",
+      "description": "",
+      "checklist": [],
+      "comments": [],
+      "attachments": [],
+      "channels": [
+        "social"
+      ]
+    },
+    {
+      "id": "t1768763977744",
+      "title": "Nouvelle tâche",
+      "actionId": "a1",
+      "month": 5,
+      "startDate": "2026-06-01",
+      "dueDate": "2026-06-30",
+      "status": "todo",
       "priority": "medium",
       "description": "",
       "checklist": [],
