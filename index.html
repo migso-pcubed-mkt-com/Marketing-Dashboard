@@ -1362,7 +1362,12 @@ const App=()=>{
     const[showNewActionModal,setShowNewActionModal]=useState(false);
     const[showNewTaskModal,setShowNewTaskModal]=useState(false);
     const[dataLoaded,setDataLoaded]=useState(false);
-    const[fileSha,setFileSha]=useState('');
+    const[fileSha,setFileSha]=useState(()=>{
+        // CRITICAL FIX: Restore SHA from localStorage on init
+        return localStorage.getItem('github_file_sha')||'';
+    });
+    const saveQueueRef=useRef([]);
+    const isSavingRef=useRef(false);
 
     const GITHUB_CONFIG={owner:'FbnCrr',repo:'Dashboard-marketing',branch:'main',path:'data.json'};
 
@@ -1372,6 +1377,24 @@ const App=()=>{
     };
     const base64DecodeUnicode=(str)=>{
         return decodeURIComponent(atob(str).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    };
+
+    // CRITICAL HELPER: Fetch GitHub API with consistent cache busting
+    const fetchGitHubAPI=(url,options={})=>{
+        const timestamp=Date.now();
+        const random=Math.random().toString(36).substring(7);
+        const cacheBustedUrl=`${url}${url.includes('?')?'&':'?'}_=${timestamp}&r=${random}`;
+
+        return fetch(cacheBustedUrl,{
+            ...options,
+            headers:{
+                ...options.headers,
+                'Cache-Control':'no-store, no-cache, must-revalidate, proxy-revalidate',
+                'Pragma':'no-cache',
+                'Expires':'0'
+            },
+            cache:'no-store'
+        });
     };
 
     useEffect(()=>{document.body.className=darkMode?'dark':'light';},[darkMode]);
@@ -1408,6 +1431,16 @@ const App=()=>{
         localStorage.setItem('darkMode',darkMode);
     },[darkMode]);
 
+    // CRITICAL FIX: Persist SHA to localStorage whenever it changes
+    useEffect(()=>{
+        if(fileSha){
+            localStorage.setItem('github_file_sha',fileSha);
+            console.log('📌 SHA persisté:',fileSha.substring(0,8)+'...');
+        }else{
+            localStorage.removeItem('github_file_sha');
+        }
+    },[fileSha]);
+
     const loadDataFromGitHub=async(token)=>{
         if(!token){
             loadFromLocalStorage();
@@ -1415,21 +1448,14 @@ const App=()=>{
             return;
         }
         try{
-            // Add timestamp and random to bypass ALL caches
-            const timestamp=Date.now();
-            const random=Math.random();
-            const url=`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}&_=${timestamp}&r=${random}`;
-            console.log('📥 Loading from GitHub...',url);
-            const response=await fetch(url,{
+            console.log('📥 Loading from GitHub...');
+            const url=`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
+            const response=await fetchGitHubAPI(url,{
                 method:'GET',
                 headers:{
                     Authorization:`token ${token}`,
-                    Accept:'application/vnd.github.v3+json',
-                    'Cache-Control':'no-store, no-cache, must-revalidate, proxy-revalidate',
-                    'Pragma':'no-cache',
-                    'Expires':'0'
-                },
-                cache:'no-store'
+                    Accept:'application/vnd.github.v3+json'
+                }
             });
             if(response.ok){
                 const data=await response.json();
@@ -1509,7 +1535,8 @@ const App=()=>{
             if(!currentSha){
                 console.log('⚠️ No SHA found, fetching current file...');
                 try{
-                    const checkResponse=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`,{
+                    const url=`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
+                    const checkResponse=await fetchGitHubAPI(url,{
                         headers:{
                             Authorization:`token ${githubToken}`,
                             Accept:'application/vnd.github.v3+json'
@@ -1586,9 +1613,10 @@ const App=()=>{
                     console.warn('⚠️ SHA conflict detected, trying to re-fetch and retry...');
                     showNotification('⚠️ Conflit détecté, synchronisation...');
 
-                    // Re-fetch the current file to get the latest SHA
+                    // Re-fetch the current file to get the latest SHA WITH cache busting
                     try{
-                        const refetchResponse=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`,{
+                        const url=`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
+                        const refetchResponse=await fetchGitHubAPI(url,{
                             headers:{
                                 Authorization:`token ${githubToken}`,
                                 Accept:'application/vnd.github.v3+json'
@@ -1674,15 +1702,22 @@ const App=()=>{
         setSavingStatus('saving');
         if(autoSaveTimeoutRef.current)clearTimeout(autoSaveTimeoutRef.current);
         autoSaveTimeoutRef.current=setTimeout(async()=>{
-            saveToLocalStorage();
+            // CRITICAL FIX: Save to GitHub FIRST, then localStorage
             if(githubToken){
                 const success=await saveToGitHub();
+                // saveToGitHub already calls saveToLocalStorage() on success
                 setSavingStatus(success?'saved':'error');
+                if(!success){
+                    // If GitHub failed, at least save locally as backup
+                    saveToLocalStorage();
+                }
             }else{
+                // No GitHub token: only save locally
+                saveToLocalStorage();
                 setSavingStatus('saved');
             }
             setTimeout(()=>setSavingStatus(null),2000);
-        },5000);
+        },2000); // Reduced from 5000ms to 2000ms for faster saves
     };
 
     const handleSync=()=>saveToGitHub();
