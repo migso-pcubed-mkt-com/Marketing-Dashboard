@@ -244,13 +244,13 @@
     {
       "id": "t5",
       "actionId": "a2",
-      "month": 2,
-      "startDate": "2026-03-01",
+      "month": 1,
+      "startDate": "2026-02-01",
       "title": "Content Février",
       "description": "Contenu marque employeur",
       "status": "inprogress",
       "priority": "medium",
-      "dueDate": "2026-03-31",
+      "dueDate": "2026-02-28",
       "checklist": [
         {
           "id": "c3",
