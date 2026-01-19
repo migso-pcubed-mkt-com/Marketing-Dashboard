@@ -157,7 +157,7 @@
   "tasks": [
     {
       "id": "t1",
-      "actionId": "a2",
+      "actionId": "a1",
       "month": 0,
       "startDate": "2026-01-01",
       "title": "Vœux nouvel an 7",
@@ -187,8 +187,7 @@
       ],
       "attachments": [],
       "channels": [
-        "social",
-        "video"
+        "social"
       ]
     },
     {
