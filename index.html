@@ -55,7 +55,7 @@
 <body class="light">
 <div id="root"></div>
 <script type="text/babel">
-const{useState,useEffect,useRef,createContext,useContext}=React;
+const{useState,useEffect,useRef,createContext,useContext,useCallback,useMemo}=React;
 
 // CONFIG
 const CONFIG={
@@ -1580,6 +1580,67 @@ const App=()=>{
                 }catch(e){
                     errorDetails={message:errorText};
                 }
+
+                // Handle SHA conflict (409)
+                if(response.status===409||errorDetails.message?.includes('does not match')){
+                    console.warn('⚠️ SHA conflict detected, trying to re-fetch and retry...');
+                    showNotification('⚠️ Conflit détecté, synchronisation...');
+
+                    // Re-fetch the current file to get the latest SHA
+                    try{
+                        const refetchResponse=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`,{
+                            headers:{
+                                Authorization:`token ${githubToken}`,
+                                Accept:'application/vnd.github.v3+json'
+                            }
+                        });
+
+                        if(refetchResponse.ok){
+                            const latestFile=await refetchResponse.json();
+                            const latestSha=latestFile.sha;
+                            setFileSha(latestSha);
+                            console.log('✅ Retrieved latest SHA:',latestSha.substring(0,8)+'...');
+
+                            // Ask user if they want to overwrite
+                            if(confirm('Le fichier a été modifié ailleurs. Voulez-vous écraser avec vos modifications locales ?')){
+                                // Retry with new SHA
+                                body.sha=latestSha;
+                                const retryResponse=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`,{
+                                    method:'PUT',
+                                    headers:{
+                                        Authorization:`token ${githubToken}`,
+                                        Accept:'application/vnd.github.v3+json',
+                                        'Content-Type':'application/json'
+                                    },
+                                    body:JSON.stringify(body)
+                                });
+
+                                if(retryResponse.ok){
+                                    const retryData=await retryResponse.json();
+                                    setFileSha(retryData.content.sha);
+                                    console.log('✅ Retry successful. New SHA:',retryData.content.sha);
+                                    showNotification('✅ Sauvegarde GitHub réussie après conflit');
+                                    saveToLocalStorage();
+                                    return true;
+                                }else{
+                                    showNotification('❌ Échec de la sauvegarde après retry');
+                                    return false;
+                                }
+                            }else{
+                                showNotification('⚠️ Sauvegarde annulée - rechargez pour voir les modifications distantes');
+                                return false;
+                            }
+                        }else{
+                            showNotification('❌ Impossible de récupérer le SHA distant');
+                            return false;
+                        }
+                    }catch(retryError){
+                        console.error('Error during retry:',retryError);
+                        showNotification('❌ Erreur lors de la résolution du conflit');
+                        return false;
+                    }
+                }
+
                 console.error('GitHub API error:',{
                     status:response.status,
                     statusText:response.statusText,
