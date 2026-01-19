@@ -3,29 +3,26 @@
     {
       "id": "brand-awareness",
       "name": "Brand Awareness",
+      "color": "#3781ec",
       "gradient": "from-blue-500 to-indigo-700"
-    },
-    {
-      "id": "consideration",
-      "name": "Consideration",
-      "gradient": "from-emerald-400 to-cyan-500"
     },
     {
       "id": "conversion",
       "name": "Conversion",
+      "color": "#f2cb13",
       "gradient": "from-yellow-400 to-orange-500"
     },
     {
-      "name": "Activation",
-      "color": "#3781ec",
-      "gradient": "from-blue-500 to-indigo-700",
-      "id": "cat1768676841551"
+      "id": "consideration",
+      "name": "Consideration / Engagement",
+      "color": "#5cc29d",
+      "gradient": "from-emerald-400 to-cyan-500"
     }
   ],
   "actions": [
     {
       "id": "a1",
-      "name": "Global MP Brand (Social Medi",
+      "name": "Global MP Brand (Social Media)",
       "categoryId": "brand-awareness",
       "budget": 0,
       "priority": "high",
@@ -149,25 +146,9 @@
       ]
     },
     {
-      "name": "Test activation",
-      "categoryId": "cat1768676841551",
-      "budget": 0,
-      "priority": "medium",
-      "tags": [],
-      "id": "a1768676873817"
-    },
-    {
-      "id": "a1768763968392",
-      "name": "Nouvelle action",
+      "id": "a1768768368676",
+      "name": "Test action",
       "categoryId": "consideration",
-      "budget": 0,
-      "priority": "medium",
-      "tags": []
-    },
-    {
-      "id": "a1768763970472",
-      "name": "Nouvelle action",
-      "categoryId": "cat1768676841551",
       "budget": 0,
       "priority": "medium",
       "tags": []
@@ -181,7 +162,7 @@
       "startDate": "2026-01-01",
       "title": "Vœux nouvel an 2",
       "description": "Post LinkedIn + Instagram",
-      "status": "completed",
+      "status": "review",
       "priority": "high",
       "dueDate": "2026-01-15",
       "checklist": [
@@ -263,13 +244,13 @@
     {
       "id": "t5",
       "actionId": "a2",
-      "month": 1,
-      "startDate": "2026-02-01",
+      "month": 2,
+      "startDate": "2026-03-01",
       "title": "Content Février",
       "description": "Contenu marque employeur",
       "status": "inprogress",
       "priority": "medium",
-      "dueDate": "2026-02-28",
+      "dueDate": "2026-03-31",
       "checklist": [
         {
           "id": "c3",
@@ -570,41 +551,7 @@
       ]
     },
     {
-      "id": "t1768763955098",
-      "title": "Nouvelle tâche test",
-      "actionId": "a1",
-      "month": 0,
-      "startDate": "2026-01-18",
-      "dueDate": "2026-01-18",
-      "status": "review",
-      "priority": "medium",
-      "description": "",
-      "checklist": [],
-      "comments": [],
-      "attachments": [],
-      "channels": [
-        "social"
-      ]
-    },
-    {
-      "id": "t1768763962232",
-      "title": "Nouvelle tâche",
-      "actionId": "a1",
-      "month": 0,
-      "startDate": "2026-01-18",
-      "dueDate": "2026-01-18",
-      "status": "paused",
-      "priority": "medium",
-      "description": "",
-      "checklist": [],
-      "comments": [],
-      "attachments": [],
-      "channels": [
-        "social"
-      ]
-    },
-    {
-      "id": "t1768763975272",
+      "id": "t1768768312140",
       "title": "Nouvelle tâche",
       "actionId": "a1",
       "month": 4,
@@ -621,12 +568,12 @@
       ]
     },
     {
-      "id": "t1768763977744",
+      "id": "t1768768325619",
       "title": "Nouvelle tâche",
       "actionId": "a1",
-      "month": 5,
-      "startDate": "2026-06-01",
-      "dueDate": "2026-06-30",
+      "month": 4,
+      "startDate": "2026-05-01",
+      "dueDate": "2026-05-31",
       "status": "todo",
       "priority": "medium",
       "description": "",
@@ -638,9 +585,24 @@
       ]
     },
     {
-      "id": "t1768763979121",
-      "title": "Nouvelle tâche",
-      "actionId": "a1",
+      "id": "t1768768387319",
+      "title": "Nouvelle tâche test",
+      "actionId": "a1768768368676",
+      "month": 0,
+      "startDate": "2026-01-18",
+      "dueDate": "2026-01-18",
+      "status": "review",
+      "priority": "medium",
+      "description": "",
+      "checklist": [],
+      "comments": [],
+      "attachments": [],
+      "channels": []
+    },
+    {
+      "id": "t1768768434293",
+      "title": "Nouvelle tâche juin",
+      "actionId": "a1768768368676",
       "month": 6,
       "startDate": "2026-07-01",
       "dueDate": "2026-07-31",
@@ -651,8 +613,9 @@
       "comments": [],
       "attachments": [],
       "channels": [
-        "social"
-      ]
+        "lads"
+      ],
+      "budget": 0
     }
   ]
 }
