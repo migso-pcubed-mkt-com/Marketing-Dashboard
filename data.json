@@ -157,14 +157,14 @@
   "tasks": [
     {
       "id": "t1",
-      "actionId": "a1",
+      "actionId": "a2",
       "month": 0,
       "startDate": "2026-01-01",
       "title": "Vœux nouvel an 7",
       "description": "Post LinkedIn + Instagram",
       "status": "review",
       "priority": "high",
-      "dueDate": "2026-01-15",
+      "dueDate": "2026-01-31",
       "checklist": [
         {
           "id": "c1",
@@ -187,7 +187,8 @@
       ],
       "attachments": [],
       "channels": [
-        "social"
+        "social",
+        "video"
       ]
     },
     {
