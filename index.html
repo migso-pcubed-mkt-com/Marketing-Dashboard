@@ -1369,7 +1369,16 @@ const App=()=>{
     const saveQueueRef=useRef([]);
     const isSavingRef=useRef(false);
 
-    const GITHUB_CONFIG={owner:'FbnCrr',repo:'Dashboard-marketing',branch:'main',path:'data.json'};
+    // ⚠️ CONFIGURATION GITHUB - MODIFIEZ VOTRE TOKEN ICI
+    // Pour obtenir un token: https://github.com/settings/tokens
+    // Permissions requises: repo (Full control of private repositories)
+    const GITHUB_CONFIG={
+        owner:'FbnCrr',
+        repo:'Dashboard-marketing',
+        branch:'main',
+        path:'data.json',
+        token:'VOTRE_TOKEN_ICI' // ← Remplacez par votre token GitHub Personnel
+    };
 
     // UTF-8 safe Base64 encoding/decoding
     const base64EncodeUnicode=(str)=>{
@@ -1421,9 +1430,16 @@ const App=()=>{
     },[selectedTask,selectedAction,showGithubSettings,showCategoriesModal,showNewActionModal,showNewTaskModal]);
 
     useEffect(()=>{
-        const token=localStorage.getItem('github_token');
-        if(token)setGithubToken(token);
-        loadDataFromGitHub(token);
+        // Use integrated token from GITHUB_CONFIG
+        const token=GITHUB_CONFIG.token;
+        if(token&&token!=='VOTRE_TOKEN_ICI'){
+            setGithubToken(token);
+            loadDataFromGitHub(token);
+        }else{
+            console.warn('⚠️ Token GitHub non configuré. Veuillez ajouter votre token dans GITHUB_CONFIG');
+            loadFromLocalStorage();
+            setDataLoaded(true);
+        }
     },[]);
 
     // Persist dark mode preference
