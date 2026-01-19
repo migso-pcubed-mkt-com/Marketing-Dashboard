@@ -1407,7 +1407,7 @@ const App=()=>{
             const response=await fetchGitHubAPI(url,{
                 method:'GET',
                 headers:{
-                    Authorization:`token ${token}`,
+                    Authorization:`Bearer ${token}`,
                     Accept:'application/vnd.github.v3+json'
                 }
             });
@@ -1492,7 +1492,7 @@ const App=()=>{
                     const url=`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
                     const checkResponse=await fetchGitHubAPI(url,{
                         headers:{
-                            Authorization:`token ${githubToken}`,
+                            Authorization:`Bearer ${githubToken}`,
                             Accept:'application/vnd.github.v3+json'
                         }
                     });
@@ -1538,7 +1538,7 @@ const App=()=>{
             const response=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`,{
                 method:'PUT',
                 headers:{
-                    Authorization:`token ${githubToken}`,
+                    Authorization:`Bearer ${githubToken}`,
                     Accept:'application/vnd.github.v3+json',
                     'Content-Type':'application/json'
                 },
@@ -1572,7 +1572,7 @@ const App=()=>{
                         const url=`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
                         const refetchResponse=await fetchGitHubAPI(url,{
                             headers:{
-                                Authorization:`token ${githubToken}`,
+                                Authorization:`Bearer ${githubToken}`,
                                 Accept:'application/vnd.github.v3+json'
                             }
                         });
@@ -1590,7 +1590,7 @@ const App=()=>{
                                 const retryResponse=await fetch(`https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`,{
                                     method:'PUT',
                                     headers:{
-                                        Authorization:`token ${githubToken}`,
+                                        Authorization:`Bearer ${githubToken}`,
                                         Accept:'application/vnd.github.v3+json',
                                         'Content-Type':'application/json'
                                     },
