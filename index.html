@@ -28,7 +28,7 @@
         [draggable=true]{cursor:grab}
         [draggable=true]:active{cursor:grabbing}
         @media(hover:none){.card-hover:active{transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,.15)}}
-        .kanban-column{min-height:400px}
+        .kanban-column{min-height:200px;max-height:calc(100vh - 250px);overflow-y:auto}
         .modal-backdrop{backdrop-filter:blur(8px)}
         .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
         .drag-over{border:2px dashed var(--secondary)!important;background:rgba(55,129,236,.1)!important;transition:all .2s}
@@ -521,7 +521,7 @@ const TaskCard=({task,action,onOpen,showAction=false,onTouchDrag,categories})=>{
                 </div>
                 {task.dueDate&&<span className="flex items-center space-x-1"><Icon.Calendar/><span>{new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</span></span>}
             </div>
-            {task.budget&&<div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700"><span className="text-sm font-semibold text-secondary">{task.budget.toLocaleString()}€</span></div>}
+            {task.budget>0&&<div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700"><span className="text-sm font-semibold text-secondary">{task.budget.toLocaleString()}€</span></div>}
         </div>
     );
 };
@@ -535,7 +535,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const currentAction=actions?.find(a=>a.id===form.actionId)||action;
     const category=categories?.find(c=>c.id===currentAction?.categoryId);
 
-    const handleSave=()=>{onUpdate(task.id,form);onClose();};
+    const handleClose=()=>{onUpdate(task.id,form);onClose();}; // Auto-save on close (Trello-style)
     const addComment=()=>{if(!newComment.trim())return;setForm({...form,comments:[...(form.comments||[]),{id:`cm${Date.now()}`,author:'Vous',text:newComment,date:new Date().toISOString()}]});setNewComment('');};
     const addChecklistItem=()=>{if(!newChecklistItem.trim())return;setForm({...form,checklist:[...(form.checklist||[]),{id:`cl${Date.now()}`,text:newChecklistItem,done:false}]});setNewChecklistItem('');};
     const toggleChecklistItem=(id)=>setForm({...form,checklist:form.checklist.map(i=>i.id===id?{...i,done:!i.done}:i)});
@@ -545,7 +545,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const checklistPct=form.checklist?.length>0?Math.round((form.checklist.filter(c=>c.done).length/form.checklist.length)*100):0;
 
     return(
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 modal-backdrop bg-black/60 overflow-y-auto" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 modal-backdrop bg-black/60 overflow-y-auto" onClick={handleClose}>
             <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-2xl shadow-2xl w-full max-w-2xl animate-slide-up mb-8`} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
@@ -557,7 +557,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                 {onBackToAction&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Retour à l'action</button>}
                             </div>
                         </div>
-                        <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
+                        <button onClick={handleClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-6">
                         {actions&&<div className="w-full"><label className="block text-xs text-gray-500 mb-1">📋 Action</label><select value={form.actionId} onChange={e=>{const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className={`w-full px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
@@ -583,7 +583,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     <div className="mb-6"><label className="block text-sm font-medium mb-2">📎 Pièces jointes</label><div className={`border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg p-6 text-center`}><p className="text-sm text-gray-500">Glissez des fichiers ici</p><p className="text-xs text-gray-400">(Disponible avec Google Drive)</p></div></div>
                     <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
-                        <div className="flex space-x-2"><button onClick={onClose} className={`px-4 py-2 rounded-lg text-sm ${darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}>Annuler</button><button onClick={handleSave} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Sauvegarder</button></div>
+                        <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Fermer</button>
                     </div>
                 </div>
             </div>
@@ -601,14 +601,14 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     const category=categories?.find(c=>c.id===form.categoryId);
     const totalBudget=actionTasks.reduce((s,t)=>s+(t.budget||0),0);
 
-    const handleSave=()=>{onUpdateAction(action.id,form);onClose();};
+    const handleClose=()=>{onUpdateAction(action.id,form);onClose();}; // Auto-save on close (Trello-style)
     const handleDelete=()=>{if(onDeleteAction){onDeleteAction(action.id);onClose();}};
     const handleStatusChange=(taskId,newStatus)=>{onUpdateTask(taskId,{status:newStatus});};
     const addChannel=(id)=>setForm({...form,tags:[...(form.tags||[]),id]});
     const removeChannel=(id)=>setForm({...form,tags:(form.tags||[]).filter(c=>c!==id)});
 
     return(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={handleClose}>
             <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up`} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
@@ -617,7 +617,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                             <span className="text-xs text-gray-500">📁 ACTION</span>
                             <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border mt-1 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/>
                         </div>
-                        <button onClick={onClose} className="ml-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
+                        <button onClick={handleClose} className="ml-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-4">
                         <div><label className="block text-xs text-gray-500 mb-1">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
@@ -675,10 +675,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     )}
                     <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
                         <button onClick={()=>setShowConfirmDelete(true)} className="px-4 py-2 text-accent-red hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
-                        <div className="flex space-x-2">
-                            <button onClick={onClose} className={`px-4 py-2 rounded-lg text-sm ${darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}>Annuler</button>
-                            <button onClick={handleSave} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Sauvegarder</button>
-                        </div>
+                        <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Fermer</button>
                     </div>
                 </div>
             </div>
@@ -1142,7 +1139,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 if(!pos)return null;
                                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
                                                 return(
-                                                    <div key={task.id} onClick={()=>onOpenTask(task)} draggable onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');}} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all" style={{left:pos.left,width:pos.width,backgroundColor:status?.color}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget?'\nBudget: '+task.budget+'€':''}`}>
+                                                    <div key={task.id} onClick={()=>onOpenTask(task)} draggable onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');}} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all" style={{left:pos.left,width:pos.width,backgroundColor:status?.color}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
                                                         <div className="resize-handle resize-handle-left" onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'left',e.touches[0].clientX,task);}} title="Redimensionner début"/>
                                                         <span className="truncate flex-1 px-1">{task.title}</span>
                                                         {task.budget>0&&zoom==='month'&&<span className="ml-1 opacity-75">({(task.budget/1000).toFixed(0)}k)</span>}
@@ -1155,7 +1152,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
                                                 const left=Math.floor(month/3)*colWidth+(month%3)*(colWidth/3);
                                                 return(
-                                                    <div key={task.id} onClick={()=>onOpenTask(task)} className="absolute top-2 h-10 rounded flex items-center justify-center text-white text-xs cursor-pointer hover:brightness-110" style={{left,width:colWidth/3-4,backgroundColor:status?.color}} title={task.title}>{status?.icon}</div>
+                                                    <div key={task.id} onClick={()=>onOpenTask(task)} className="absolute top-2 h-10 rounded flex items-center justify-center text-white text-xs cursor-pointer hover:brightness-110 px-1 overflow-hidden" style={{left,width:colWidth/3-4,backgroundColor:status?.color}} title={`${task.title}\n${status?.name}`}><span className="truncate text-center w-full">{task.title}</span></div>
                                                 );
                                             })}
                                         </div>
@@ -1400,6 +1397,44 @@ const App=()=>{
         }
     },[fileSha]);
 
+    // CRITICAL FIX: Auto-save with proper closure handling
+    // Watches categories, actions, tasks and auto-saves when they change
+    useEffect(()=>{
+        // Skip auto-save on initial mount (dataLoaded false)
+        if(!dataLoaded)return;
+
+        console.log('🔄 Données modifiées, auto-save dans 2s...');
+        setSavingStatus('saving');
+
+        // Debounce: clear previous timeout
+        if(autoSaveTimeoutRef.current){
+            clearTimeout(autoSaveTimeoutRef.current);
+        }
+
+        // Set new timeout with current values
+        autoSaveTimeoutRef.current=setTimeout(async()=>{
+            console.log('💾 Auto-save déclenchée...');
+            if(githubToken){
+                const success=await saveToGitHub();
+                setSavingStatus(success?'saved':'error');
+                if(!success){
+                    saveToLocalStorage(); // Backup if GitHub fails
+                }
+            }else{
+                saveToLocalStorage();
+                setSavingStatus('saved');
+            }
+            setTimeout(()=>setSavingStatus(null),2000);
+        },2000);
+
+        // Cleanup on unmount
+        return()=>{
+            if(autoSaveTimeoutRef.current){
+                clearTimeout(autoSaveTimeoutRef.current);
+            }
+        };
+    },[categories,actions,tasks,dataLoaded,githubToken]); // Re-run when data changes
+
     const loadDataFromGitHub=async()=>{
         try{
             console.log('📥 Loading from GitHub via Vercel API...');
@@ -1591,28 +1626,6 @@ const App=()=>{
         }
     };
 
-    const autoSave=()=>{
-        setSavingStatus('saving');
-        if(autoSaveTimeoutRef.current)clearTimeout(autoSaveTimeoutRef.current);
-        autoSaveTimeoutRef.current=setTimeout(async()=>{
-            // CRITICAL FIX: Save to GitHub FIRST, then localStorage
-            if(githubToken){
-                const success=await saveToGitHub();
-                // saveToGitHub already calls saveToLocalStorage() on success
-                setSavingStatus(success?'saved':'error');
-                if(!success){
-                    // If GitHub failed, at least save locally as backup
-                    saveToLocalStorage();
-                }
-            }else{
-                // No GitHub token: only save locally
-                saveToLocalStorage();
-                setSavingStatus('saved');
-            }
-            setTimeout(()=>setSavingStatus(null),2000);
-        },2000); // Reduced from 5000ms to 2000ms for faster saves
-    };
-
     const handleSync=()=>saveToGitHub();
 
     const handleUpdateTask=(taskId,updates)=>{
@@ -1626,13 +1639,13 @@ const App=()=>{
             return newTask;
         }));
         showNotification('✅ Tâche mise à jour');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const handleUpdateAction=(actionId,updates)=>{
         setActions(prev=>prev.map(a=>a.id===actionId?{...a,...updates}:a));
         showNotification('✅ Action mise à jour');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const handleDeleteAction=(actionId)=>{
@@ -1647,7 +1660,7 @@ const App=()=>{
         setActions(prev=>prev.filter(a=>a.id!==actionId));
         setTasks(prev=>prev.filter(t=>t.actionId!==actionId));
         showNotification('🗑️ Action supprimée');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const handleAddTask=(actionId)=>{
@@ -1660,13 +1673,13 @@ const App=()=>{
         setTasks(prev=>[...prev,newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Tâche créée');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const handleDeleteTask=(taskId)=>{
         setTasks(prev=>prev.filter(t=>t.id!==taskId));
         showNotification('🗑️ Tâche supprimée');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const handleCreateNewTask=()=>setShowNewTaskModal(true);
@@ -1674,13 +1687,13 @@ const App=()=>{
     const handleUpdateCategory=(catId,updates)=>{
         setCategories(prev=>prev.map(c=>c.id===catId?{...c,...updates}:c));
         showNotification('✅ Catégorie mise à jour');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const handleAddCategory=(newCat)=>{
         setCategories(prev=>[...prev,newCat]);
         showNotification('✅ Catégorie créée');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const handleDeleteCategory=(catId)=>{
@@ -1695,25 +1708,25 @@ const App=()=>{
         setCategories(prev=>prev.filter(c=>c.id!==catId));
         setActions(prev=>prev.filter(a=>a.categoryId!==catId));
         showNotification('🗑️ Catégorie supprimée');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const handleReorderCategories=(reorderedCategories)=>{
         setCategories(reorderedCategories);
         showNotification('✅ Ordre des catégories mis à jour');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const handleAddAction=(newAction)=>{
         setActions(prev=>[...prev,newAction]);
         showNotification('✅ Action créée');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const handleAddNewTask=(newTask)=>{
         setTasks(prev=>[...prev,newTask]);
         showNotification('✅ Tâche créée');
-        autoSave();
+        // Auto-save via useEffect
     };
 
     const showNotification=(msg)=>{setNotification(msg);setTimeout(()=>setNotification(null),3000);};
