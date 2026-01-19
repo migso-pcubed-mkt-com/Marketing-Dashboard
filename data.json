@@ -616,6 +616,23 @@
         "lads"
       ],
       "budget": 0
+    },
+    {
+      "id": "t1768839432448",
+      "title": "Nouvelle tâche",
+      "actionId": "a1",
+      "month": 0,
+      "startDate": "2026-01-19",
+      "dueDate": "2026-01-19",
+      "status": "completed",
+      "priority": "medium",
+      "description": "",
+      "checklist": [],
+      "comments": [],
+      "attachments": [],
+      "channels": [
+        "social"
+      ]
     }
   ]
 }
