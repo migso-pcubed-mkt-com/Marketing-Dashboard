@@ -1308,15 +1308,43 @@ const App=()=>{
     const saveQueueRef=useRef([]);
     const isSavingRef=useRef(false);
 
-    // ⚠️ CONFIGURATION GITHUB - MODIFIEZ VOTRE TOKEN ICI
-    // Pour obtenir un token: https://github.com/settings/tokens
-    // Permissions requises: repo (Full control of private repositories)
+    // ╔════════════════════════════════════════════════════════════════════════════╗
+    // ║  ⚠️  CONFIGURATION GITHUB TOKEN - SUIVEZ CES ÉTAPES SI ERREUR 401        ║
+    // ╚════════════════════════════════════════════════════════════════════════════╝
+    //
+    // 🔑 COMMENT CRÉER UN NOUVEAU TOKEN GITHUB (Fine-grained):
+    //
+    // 1️⃣  Allez sur: https://github.com/settings/tokens?type=beta
+    //
+    // 2️⃣  Cliquez "Generate new token" en haut à droite
+    //
+    // 3️⃣  Remplissez:
+    //     - Token name: "Marketing Tracker Access"
+    //     - Expiration: "No expiration" ou "90 days"
+    //     - Repository access: "Only select repositories"
+    //     - Sélectionnez: FbnCrr/Dashboard-marketing
+    //
+    // 4️⃣  Dans "Repository permissions", trouvez "Contents" et mettez:
+    //     Contents: "Read and write" ✅
+    //
+    // 5️⃣  Scrollez en bas et cliquez "Generate token"
+    //
+    // 6️⃣  COPIEZ LE TOKEN COMPLET (commence par "github_pat_...")
+    //     ⚠️ ATTENTION: Vous ne pourrez le voir qu'UNE SEULE FOIS !
+    //
+    // 7️⃣  Remplacez ci-dessous à la ligne "token:", en gardant les apostrophes:
+    //     token: 'github_pat_VOTRE_NOUVEAU_TOKEN_ICI'
+    //
+    // 8️⃣  Sauvegardez ce fichier et actualisez la page (Ctrl+F5)
+    //
+    // ✅ Si le token est valide, vous verrez "✅ Token GitHub validé" dans la console
+    //
     const GITHUB_CONFIG={
         owner:'FbnCrr',
         repo:'Dashboard-marketing',
         branch:'main',
         path:'data.json',
-        token:'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' // ← Remplacez par votre token GitHub Personnel
+        token:'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' // ← 🔴 TOKEN ACTUEL INVALIDE - Remplacez-moi !
     };
 
     // UTF-8 safe Base64 encoding/decoding
@@ -1367,12 +1395,51 @@ const App=()=>{
         return()=>document.removeEventListener('keydown',handleKeyPress);
     },[selectedTask,selectedAction,showCategoriesModal,showNewActionModal,showNewTaskModal]);
 
+    // Validate GitHub token on startup
+    const validateGitHubToken=async(token)=>{
+        try{
+            console.log('🔐 Validation du token GitHub...');
+            const response=await fetch('https://api.github.com/user',{
+                headers:{
+                    Authorization:`Bearer ${token}`,
+                    Accept:'application/vnd.github.v3+json'
+                }
+            });
+
+            if(response.ok){
+                const user=await response.json();
+                console.log('✅ Token valide! Utilisateur:',user.login);
+                return{valid:true,user:user.login};
+            }else if(response.status===401){
+                console.error('❌ Token invalide ou expiré (401)');
+                return{valid:false,error:'Token invalide ou expiré'};
+            }else{
+                console.error('❌ Erreur validation token:',response.status);
+                return{valid:false,error:`Erreur ${response.status}`};
+            }
+        }catch(e){
+            console.error('❌ Erreur réseau lors validation token:',e);
+            return{valid:false,error:'Erreur réseau'};
+        }
+    };
+
     useEffect(()=>{
         // Use integrated token from GITHUB_CONFIG
         const token=GITHUB_CONFIG.token;
         if(token&&token!=='VOTRE_TOKEN_ICI'){
-            setGithubToken(token);
-            loadDataFromGitHub(token);
+            // Validate token before using it
+            validateGitHubToken(token).then(result=>{
+                if(result.valid){
+                    console.log('✅ Token GitHub validé pour:',result.user);
+                    setGithubToken(token);
+                    loadDataFromGitHub(token);
+                }else{
+                    console.error('❌ ERREUR TOKEN GITHUB:',result.error);
+                    alert(`❌ ERREUR: Token GitHub invalide!\n\n${result.error}\n\nVeuillez:\n1. Aller sur https://github.com/settings/tokens?type=beta\n2. Créer un nouveau token (fine-grained)\n3. Donner accès au repository "${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}"\n4. Permissions: Contents (Read and write)\n5. Copier le token COMPLET\n6. Remplacer dans GITHUB_CONFIG ligne ~1319\n\nEn attendant, les données locales seront utilisées.`);
+                    loadFromLocalStorage();
+                    setDataLoaded(true);
+                }
+            });
         }else{
             console.warn('⚠️ Token GitHub non configuré. Veuillez ajouter votre token dans GITHUB_CONFIG');
             loadFromLocalStorage();
@@ -1450,6 +1517,10 @@ const App=()=>{
                 showNotification('⚠️ Fichier data.json non trouvé - création au premier save');
                 loadFromLocalStorage();
                 setFileSha(''); // Clear SHA for new file
+            }else if(response.status===401){
+                console.error('❌ ERREUR 401: Token GitHub invalide lors du chargement');
+                // Error already shown by validateGitHubToken, just load local backup
+                loadFromLocalStorage();
             }else{
                 const errorText=await response.text();
                 console.error('GitHub load error:',response.status,errorText);
@@ -1560,6 +1631,14 @@ const App=()=>{
                     errorDetails=JSON.parse(errorText);
                 }catch(e){
                     errorDetails={message:errorText};
+                }
+
+                // Handle authentication error (401)
+                if(response.status===401){
+                    console.error('❌ ERREUR 401: Token GitHub invalide ou expiré');
+                    alert(`❌ ERREUR CRITIQUE: Token GitHub invalide!\n\nLe token est soit:\n- Expiré\n- Invalide\n- N'a pas les bonnes permissions\n\nACTION REQUISE:\n1. Allez sur: https://github.com/settings/tokens?type=beta\n2. Supprimez l'ancien token si présent\n3. Cliquez "Generate new token" (Fine-grained)\n4. Repository access: "Only select repositories" → "${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}"\n5. Permissions → Repository permissions → Contents: "Read and write"\n6. Copiez le NOUVEAU token COMPLET (commence par "github_pat_")\n7. Remplacez dans index.html ligne ~1319:\n   token: 'VOTRE_NOUVEAU_TOKEN_ICI'\n8. Actualisez la page (Ctrl+F5)\n\nSauvegarde locale effectuée en backup.`);
+                    showNotification('❌ Token GitHub invalide - Voir console');
+                    return false;
                 }
 
                 // Handle SHA conflict (409)
