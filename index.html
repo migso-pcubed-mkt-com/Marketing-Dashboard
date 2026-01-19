@@ -530,12 +530,15 @@ const TaskCard=({task,action,onOpen,showAction=false,onTouchDrag,categories})=>{
 const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction})=>{
     const{darkMode}=useApp();
     const[form,setForm]=useState({...task});
+    const[descriptionDraft,setDescriptionDraft]=useState(task.description||''); // Draft pour description
+    const[descriptionSaved,setDescriptionSaved]=useState(true); // Track si sauvegardé
     const[newComment,setNewComment]=useState('');
     const[newChecklistItem,setNewChecklistItem]=useState('');
     const currentAction=actions?.find(a=>a.id===form.actionId)||action;
     const category=categories?.find(c=>c.id===currentAction?.categoryId);
 
     const handleClose=()=>{onUpdate(task.id,form);onClose();}; // Auto-save on close (Trello-style)
+    const saveDescription=()=>{setForm({...form,description:descriptionDraft});setDescriptionSaved(true);};
     const addComment=()=>{if(!newComment.trim())return;setForm({...form,comments:[...(form.comments||[]),{id:`cm${Date.now()}`,author:'Vous',text:newComment,date:new Date().toISOString()}]});setNewComment('');};
     const addChecklistItem=()=>{if(!newChecklistItem.trim())return;setForm({...form,checklist:[...(form.checklist||[]),{id:`cl${Date.now()}`,text:newChecklistItem,done:false}]});setNewChecklistItem('');};
     const toggleChecklistItem=(id)=>setForm({...form,checklist:form.checklist.map(i=>i.id===id?{...i,done:!i.done}:i)});
@@ -568,7 +571,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-24 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
                     </div>
                     <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🏷️ Tags Canal</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
-                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={form.description||''} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Description..." rows={3} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'} resize-none`}/></div>
+                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'} resize-none`}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Sauvegarder</button>}</div>
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm text-gray-500">{checklistPct}%</span>}</div>
                         {form.checklist?.length>0&&<div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full mb-3"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div>}
