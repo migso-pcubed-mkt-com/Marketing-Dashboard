@@ -962,7 +962,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 };
 
 // TIMELINE VIEW
-const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,filters,setFilters})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onMoveAction,onReorderAction,filters,setFilters})=>{
     const{darkMode}=useApp();
     const timelineRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -1237,14 +1237,18 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                         </div>
                         {groupedByCategory.map(({category,actions:catActions})=>(
                             <div key={category.id}>
-                                <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'}`}>
+                                <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'}`} onDragOver={(e)=>{if(onUpdateAction){e.preventDefault();e.currentTarget.classList.add('drag-over');}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}>
                                     <div className={`w-[250px] flex-shrink-0 p-3 font-bold text-white text-sm bg-gradient-to-r ${category.gradient}`}>{category.name}</div>
                                     <div className="flex-1" style={{background:darkMode?'rgba(55,65,81,0.3)':'rgba(243,244,246,0.5)'}}/>
                                 </div>
-                                {catActions.map(({action,tasks:actionTasks})=>(
-                                    <div key={action.id} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30`}>
-                                        <div className="w-[250px] flex-shrink-0 p-2 cursor-pointer" onClick={()=>onOpenAction&&onOpenAction(action)}>
-                                            <p className="text-sm font-medium truncate hover:text-secondary">{action.name}</p>
+                                {catActions.sort((a,b)=>(a.action.order||0)-(b.action.order||0)).map(({action,tasks:actionTasks})=>(
+                                    <div key={action.id} draggable={onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.dataTransfer.setData('actionId',action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');}} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative`}>
+                                        <div className="w-[250px] flex-shrink-0 p-2 cursor-pointer relative" onClick={()=>onOpenAction&&onOpenAction(action)}>
+                                            {onMoveAction&&<div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'up');}} className={`w-5 h-5 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le haut">⬆️</button>
+                                                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'down');}} className={`w-5 h-5 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le bas">⬇️</button>
+                                            </div>}
+                                            <p className="text-sm font-medium truncate hover:text-secondary pr-12">{action.name}</p>
                                             <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
                                         </div>
                                         <div className="flex-1 relative" style={{height:'60px'}}>
@@ -2140,7 +2144,7 @@ const App=()=>{
                         </div>
                     )}
                     {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters}/>}
-                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters}/>}
                     {currentView==='dashboard'&&<DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
                 {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} actions={actions} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null}/>}
