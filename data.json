@@ -338,7 +338,7 @@
       "channels": [
         "gads"
       ],
-      "order": 4,
+      "order": 3,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -398,7 +398,7 @@
       "channels": [
         "lads"
       ],
-      "order": 14,
+      "order": 15,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -529,7 +529,7 @@
         "gads",
         "lp"
       ],
-      "order": 24,
+      "order": 26,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
