@@ -463,11 +463,13 @@ const ChannelTags=({channels=[],onAdd,onRemove,editable=true})=>{
     );
 };
 
-const TaskCard=({task,action,onOpen,onMoveTask,showAction=false,onTouchDrag,categories})=>{
+const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,onTouchDrag,categories})=>{
     const{darkMode}=useApp();
     const[touching,setTouching]=useState(false);
+    const[dragOverPosition,setDragOverPosition]=useState(null); // 'before' | 'after' | null
+    const cardRef=useRef(null);
     const touchTimeout=useRef(null);
-    
+
     const handleTouchStart=(e)=>{
         touchTimeout.current=setTimeout(()=>{
             setTouching(true);
@@ -490,6 +492,35 @@ const TaskCard=({task,action,onOpen,onMoveTask,showAction=false,onTouchDrag,cate
             }
         }
     };
+
+    const handleDragOver=(e)=>{
+        if(!onReorderTask)return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect=cardRef.current.getBoundingClientRect();
+        const midpoint=rect.top+rect.height/2;
+        const position=e.clientY<midpoint?'before':'after';
+        setDragOverPosition(position);
+    };
+
+    const handleDragLeave=(e)=>{
+        e.stopPropagation();
+        setDragOverPosition(null);
+    };
+
+    const handleDrop=(e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        if(!onReorderTask||!dragOverPosition)return;
+
+        const draggedId=e.dataTransfer.getData('taskId');
+        if(draggedId&&draggedId!==task.id){
+            onReorderTask(draggedId,task.id,dragOverPosition);
+        }
+        setDragOverPosition(null);
+    };
+
     const status=CONFIG.STATUSES.find(s=>s.id===task.status);
     const priority=CONFIG.PRIORITIES.find(p=>p.id===task.priority);
     const category=categories?.find(c=>c.id===action?.categoryId);
@@ -497,14 +528,18 @@ const TaskCard=({task,action,onOpen,onMoveTask,showAction=false,onTouchDrag,cate
 
     return(
         <div
+            ref={cardRef}
             draggable
-            onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');e.target.classList.add('dragging');}}
-            onDragEnd={(e)=>e.target.classList.remove('dragging')}
+            onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');e.currentTarget.classList.add('dragging');}}
+            onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverPosition(null);}}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onClick={()=>onOpen(task)}
-            className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover transition-all relative group ${touching?'touch-dragging':''}`}>
+            className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover transition-all relative group ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`}>
             {onMoveTask&&<div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'up');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le haut">⬆️</button>
                 <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'down');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le bas">⬇️</button>
@@ -692,7 +727,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 };
 
 // KANBAN VIEW
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,filters,setFilters})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,filters,setFilters})=>{
     const{darkMode}=useApp();
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
@@ -728,6 +763,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             if(sortBy==='name')return sorted.sort((a,b)=>a.title.localeCompare(b.title));
             if(sortBy==='date')return sorted.sort((a,b)=>new Date(a.startDate||0)-new Date(b.startDate||0));
             if(sortBy==='deadline')return sorted.sort((a,b)=>new Date(a.dueDate||'9999')-new Date(b.dueDate||'9999'));
+            if(sortBy==='created')return sorted.sort((a,b)=>new Date(a.createdAt||0)-new Date(b.createdAt||0));
             if(sortBy==='priority'){
                 const priorityOrder={high:0,medium:1,low:2};
                 return sorted.sort((a,b)=>(priorityOrder[a.priority]||99)-(priorityOrder[b.priority]||99));
@@ -764,6 +800,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                         <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className={`px-3 py-2 text-sm rounded-lg border ${darkMode?'bg-gray-800 border-gray-700 text-white':'bg-white border-gray-200'}`}>
                             <option value="order">Manuel</option>
                             <option value="name">Nom A→Z</option>
+                            <option value="created">Date création</option>
                             <option value="date">Date début</option>
                             <option value="deadline">Deadline</option>
                             <option value="priority">Priorité</option>
@@ -841,7 +878,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                             {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=><span key={t} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-700':'bg-gray-100'}`}>{t}</span>)}</div>}
                                         </div>
                                     );
-                                }):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} showAction={viewMode==='month'} categories={categories}/>)}
+                                }):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories}/>)}
                                 {col.items.length===0&&<div className={`text-center py-8 border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg`}><p className="text-xs text-gray-400">Aucune tâche</p></div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
@@ -1702,24 +1739,30 @@ const App=()=>{
         }
     };
 
-    // Polling pour auto-sync multi-devices toutes les 20 secondes
+    // Polling pour auto-sync multi-devices toutes les 15 secondes
     useEffect(()=>{
         if(!githubToken||!dataLoaded)return;
 
-        console.log('🔄 Auto-sync polling activé (20s)');
-        const interval=setInterval(checkForUpdates,20000); // 20 secondes
+        console.log('🔄 Auto-sync polling activé (15s)');
+        const interval=setInterval(checkForUpdates,15000); // 15 secondes
 
         return()=>clearInterval(interval);
     },[githubToken,dataLoaded,selectedTask,selectedAction,syncing,savingStatus,fileSha]);
 
-    // Auto-initialize order property for tasks that don't have it
+    // Auto-initialize order and createdAt properties for tasks that don't have them
     useEffect(()=>{
         if(!dataLoaded)return;
 
         const needsOrder=tasks.some(t=>t.order===undefined);
-        if(needsOrder){
-            console.log('🔢 Initializing task order...');
-            setTasks(prev=>prev.map((t,idx)=>({...t,order:t.order!==undefined?t.order:idx})));
+        const needsCreatedAt=tasks.some(t=>!t.createdAt);
+
+        if(needsOrder||needsCreatedAt){
+            console.log('🔢 Initializing task properties...');
+            setTasks(prev=>prev.map((t,idx)=>({
+                ...t,
+                order:t.order!==undefined?t.order:idx,
+                createdAt:t.createdAt||new Date().toISOString()
+            })));
         }
     },[dataLoaded,tasks.length]);
 
@@ -1767,7 +1810,8 @@ const App=()=>{
         const endOfMonth=new Date(2026,month+1,0).getDate();
         const dueDate=`2026-${String(month+1).padStart(2,'0')}-${endOfMonth}`;
         const maxOrder=Math.max(...tasks.map(t=>t.order||0),-1)+1;
-        const newTask={id:`t${Date.now()}`,actionId,month,startDate,title:'Nouvelle tâche',description:'',status:'todo',priority:'medium',dueDate,budget:0,channels:action?.tags||[],checklist:[],comments:[],attachments:[],order:maxOrder};
+        const now=new Date().toISOString();
+        const newTask={id:`t${Date.now()}`,actionId,month,startDate,title:'Nouvelle tâche',description:'',status:'todo',priority:'medium',dueDate,budget:0,channels:action?.tags||[],checklist:[],comments:[],attachments:[],order:maxOrder,createdAt:now};
         setTasks(prev=>[...prev,newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Tâche créée');
@@ -1801,6 +1845,41 @@ const App=()=>{
         }));
 
         showNotification(direction==='up'?'⬆️ Tâche déplacée vers le haut':'⬇️ Tâche déplacée vers le bas');
+    };
+
+    const handleReorderTask=(draggedId,targetId,position)=>{
+        if(draggedId===targetId)return;
+
+        const draggedTask=tasks.find(t=>t.id===draggedId);
+        const targetTask=tasks.find(t=>t.id===targetId);
+        if(!draggedTask||!targetTask)return;
+
+        // Find all tasks in the same column
+        const sameTasks=tasks.filter(t=>{
+            if(draggedTask.month!==undefined)return t.month===draggedTask.month;
+            return t.status===draggedTask.status;
+        }).sort((a,b)=>(a.order||0)-(b.order||0));
+
+        const draggedIndex=sameTasks.findIndex(t=>t.id===draggedId);
+        const targetIndex=sameTasks.findIndex(t=>t.id===targetId);
+        if(draggedIndex===-1||targetIndex===-1)return;
+
+        // Reorder the tasks
+        const reordered=[...sameTasks];
+        const[removed]=reordered.splice(draggedIndex,1);
+        const insertIndex=position==='before'?targetIndex:targetIndex+1;
+        const adjustedIndex=draggedIndex<targetIndex?insertIndex-1:insertIndex;
+        reordered.splice(adjustedIndex,0,removed);
+
+        // Update order property
+        const updatedTasks=reordered.map((t,idx)=>({...t,order:(t.order||0)-(draggedIndex-idx)}));
+
+        setTasks(prev=>prev.map(t=>{
+            const updated=updatedTasks.find(ut=>ut.id===t.id);
+            return updated||t;
+        }));
+
+        showNotification('✅ Tâche réordonnée');
     };
 
     const handleDeleteTask=(taskId)=>{
@@ -1852,7 +1931,8 @@ const App=()=>{
 
     const handleAddNewTask=(newTask)=>{
         const maxOrder=Math.max(...tasks.map(t=>t.order||0),-1)+1;
-        setTasks(prev=>[...prev,{...newTask,order:maxOrder}]);
+        const now=new Date().toISOString();
+        setTasks(prev=>[...prev,{...newTask,order:maxOrder,createdAt:newTask.createdAt||now}]);
         showNotification('✅ Tâche créée');
         // Auto-save via useEffect
     };
@@ -1941,7 +2021,7 @@ const App=()=>{
                             <button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[]})} className="text-xs text-secondary hover:underline">Effacer filtres</button>
                         </div>
                     )}
-                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} filters={filters} setFilters={setFilters}/>}
                     {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} filters={filters} setFilters={setFilters}/>}
                     {currentView==='dashboard'&&<DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
