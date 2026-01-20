@@ -75,7 +75,25 @@ const CONFIG={
         {id:'consideration',name:'Consideration / Engagement',color:'#5cc29d',gradient:'from-emerald-400 to-cyan-500'},
         {id:'conversion',name:'Conversion',color:'#f2cb13',gradient:'from-yellow-400 to-orange-500'}
     ],
-    CHANNELS:[{id:'social',name:'Social Media',color:'#3b82f6'},{id:'gads',name:'Google Ads',color:'#ea4335'},{id:'lads',name:'LinkedIn Ads',color:'#0077b5'},{id:'email',name:'Email',color:'#f59e0b'},{id:'press',name:'Press',color:'#8b5cf6'},{id:'events',name:'Events',color:'#ec4899'},{id:'seo',name:'Article/SEO',color:'#10b981'},{id:'web',name:'Website',color:'#6366f1'},{id:'video',name:'Video',color:'#ef4444'},{id:'lp',name:'Landing Page',color:'#14b8a6'},{id:'ia',name:'IA',color:'#a855f7'},{id:'auto',name:'Automation',color:'#f97316'},{id:'other',name:'Other',color:'#6b7280'}],PRIORITIES:[
+    CHANNELS:[{id:'social',name:'Social Media',color:'#3b82f6'},{id:'gads',name:'Google Ads',color:'#ea4335'},{id:'lads',name:'LinkedIn Ads',color:'#0077b5'},{id:'email',name:'Email',color:'#f59e0b'},{id:'press',name:'Press',color:'#8b5cf6'},{id:'events',name:'Events',color:'#ec4899'},{id:'seo',name:'Article/SEO',color:'#10b981'},{id:'web',name:'Website',color:'#6366f1'},{id:'video',name:'Video',color:'#ef4444'},{id:'lp',name:'Landing Page',color:'#14b8a6'},{id:'ia',name:'IA',color:'#a855f7'},{id:'auto',name:'Automation',color:'#f97316'},{id:'other',name:'Other',color:'#6b7280'}],
+    COUNTRIES:[
+        {id:'france',name:'France',region:'Europe',color:'#3b82f6',flag:'🇫🇷'},
+        {id:'germany',name:'Germany',region:'Europe',color:'#ef4444',flag:'🇩🇪'},
+        {id:'italy',name:'Italy',region:'Europe',color:'#10b981',flag:'🇮🇹'},
+        {id:'netherlands',name:'Netherlands',region:'Europe',color:'#f97316',flag:'🇳🇱'},
+        {id:'portugal',name:'Portugal',region:'Europe',color:'#14b8a6',flag:'🇵🇹'},
+        {id:'romania',name:'Romania',region:'Europe',color:'#f59e0b',flag:'🇷🇴'},
+        {id:'spain',name:'Spain',region:'Europe',color:'#eab308',flag:'🇪🇸'},
+        {id:'switzerland',name:'Switzerland',region:'Europe',color:'#dc2626',flag:'🇨🇭'},
+        {id:'uk',name:'United Kingdom',region:'Europe',color:'#6366f1',flag:'🇬🇧'},
+        {id:'canada',name:'Canada',region:'America',color:'#dc2626',flag:'🇨🇦'},
+        {id:'mexico',name:'Mexico',region:'America',color:'#10b981',flag:'🇲🇽'},
+        {id:'usa',name:'United States',region:'America',color:'#3b82f6',flag:'🇺🇸'},
+        {id:'india',name:'India',region:'Asia',color:'#f97316',flag:'🇮🇳'},
+        {id:'southeast-asia',name:'Southeast Asia',region:'Asia',color:'#8b5cf6',flag:'🌏'},
+        {id:'australia',name:'Australia',region:'Oceania',color:'#10b981',flag:'🇦🇺'}
+    ],
+    PRIORITIES:[
         {id:'high',name:'Haute',color:'#ff5338',icon:'🔴'},
         {id:'medium',name:'Moyenne',color:'#f2cb13',icon:'🟡'},
         {id:'low',name:'Basse',color:'#5cc29d',icon:'🟢'}
@@ -463,6 +481,26 @@ const ChannelTags=({channels=[],onAdd,onRemove,editable=true})=>{
     );
 };
 
+const CountryTags=({countries=[],onAdd,onRemove,editable=true})=>{
+    const{darkMode}=useApp();
+    const[showPicker,setShowPicker]=useState(false);
+    const available=CONFIG.COUNTRIES.filter(c=>!countries.includes(c.id));
+
+    // Group available countries by region
+    const byRegion=available.reduce((acc,country)=>{
+        if(!acc[country.region])acc[country.region]=[];
+        acc[country.region].push(country);
+        return acc;
+    },{});
+
+    return(
+        <div className="flex flex-wrap gap-1 items-center">
+            {countries.map(countryId=>{const country=CONFIG.COUNTRIES.find(c=>c.id===countryId);return country?(<span key={countryId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:country.color}}>{country.flag} {country.name}{editable&&<button onClick={()=>onRemove(countryId)} className="ml-1 hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
+            {editable&&available.length>0&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?"bg-gray-700 hover:bg-gray-600":"bg-gray-200 hover:bg-gray-300"} flex items-center space-x-1`}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 ${darkMode?"bg-gray-800":"bg-white"} rounded-lg shadow-xl border ${darkMode?"border-gray-700":"border-gray-200"} p-2 z-50 min-w-[200px] max-h-64 overflow-y-auto`}>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold text-gray-500 px-2 py-1">{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs ${darkMode?"hover:bg-gray-700":"hover:bg-gray-100"} flex items-center space-x-2`}><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}</div>)}</div>)}
+        </div>
+    );
+};
+
 // ACTION CARD (for category view with drag & drop reordering)
 const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})=>{
     const{darkMode}=useApp();
@@ -647,6 +685,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const removeChecklistItem=(id)=>setForm({...form,checklist:form.checklist.filter(i=>i.id!==id)});
     const addChannel=(id)=>setForm({...form,channels:[...(form.channels||[]),id]});
     const removeChannel=(id)=>setForm({...form,channels:(form.channels||[]).filter(c=>c!==id)});
+    const addCountry=(id)=>setForm({...form,countries:[...(form.countries||[]),id]});
+    const removeCountry=(id)=>setForm({...form,countries:(form.countries||[]).filter(c=>c!==id)});
     const checklistPct=form.checklist?.length>0?Math.round((form.checklist.filter(c=>c.done).length/form.checklist.length)*100):0;
 
     return(
@@ -673,6 +713,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-24 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
                     </div>
                     <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🏷️ Tags Canal</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
+                    <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🌍 Tags Pays</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry}/></div>
                     <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'} resize-none`}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Sauvegarder</button>}</div>
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm text-gray-500">{checklistPct}%</span>}</div>
@@ -1263,10 +1304,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
                                                 return(
                                                     <div key={task.id} onClick={()=>onOpenTask(task)} draggable onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');}} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all" style={{left:pos.left,width:pos.width,backgroundColor:status?.color}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
-                                                        <div className="resize-handle resize-handle-left" onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'left',e.touches[0].clientX,task);}} title="Redimensionner début"/>
+                                                        <div className="resize-handle resize-handle-left" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'left',e.touches[0].clientX,task);}} title="Redimensionner début"/>
                                                         <span className="truncate flex-1 px-1">{task.title}</span>
                                                         {task.budget>0&&zoom==='month'&&<span className="ml-1 opacity-75">({(task.budget/1000).toFixed(0)}k)</span>}
-                                                        <div className="resize-handle resize-handle-right" onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'right',e.touches[0].clientX,task);}} title="Redimensionner fin"/>
+                                                        <div className="resize-handle resize-handle-right" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'right',e.touches[0].clientX,task);}} title="Redimensionner fin"/>
                                                     </div>
                                                 );
                                             })}
@@ -1935,8 +1976,8 @@ const App=()=>{
         const adjustedIndex=draggedIndex<targetIndex?insertIndex-1:insertIndex;
         reordered.splice(adjustedIndex,0,removed);
 
-        // Update order property
-        const updatedTasks=reordered.map((t,idx)=>({...t,order:(t.order||0)-(draggedIndex-idx)}));
+        // Update order property - assign new sequential orders
+        const updatedTasks=reordered.map((t,idx)=>({...t,order:idx}));
 
         setTasks(prev=>prev.map(t=>{
             const updated=updatedTasks.find(ut=>ut.id===t.id);
@@ -1993,8 +2034,8 @@ const App=()=>{
         const adjustedIndex=draggedIndex<targetIndex?insertIndex-1:insertIndex;
         reordered.splice(adjustedIndex,0,removed);
 
-        // Update order property
-        const updatedActions=reordered.map((a,idx)=>({...a,order:(a.order||0)-(draggedIndex-idx)}));
+        // Update order property - assign new sequential orders
+        const updatedActions=reordered.map((a,idx)=>({...a,order:idx}));
 
         setActions(prev=>prev.map(a=>{
             const updated=updatedActions.find(ua=>ua.id===a.id);
