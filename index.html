@@ -463,6 +463,68 @@ const ChannelTags=({channels=[],onAdd,onRemove,editable=true})=>{
     );
 };
 
+// ACTION CARD (for category view with drag & drop reordering)
+const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})=>{
+    const{darkMode}=useApp();
+    const[dragOverPosition,setDragOverPosition]=useState(null);
+    const cardRef=useRef(null);
+
+    const handleDragOver=(e)=>{
+        if(!onReorderAction)return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect=cardRef.current.getBoundingClientRect();
+        const midpoint=rect.top+rect.height/2;
+        const position=e.clientY<midpoint?'before':'after';
+        setDragOverPosition(position);
+    };
+
+    const handleDragLeave=(e)=>{
+        e.stopPropagation();
+        setDragOverPosition(null);
+    };
+
+    const handleDrop=(e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        if(!onReorderAction||!dragOverPosition)return;
+
+        const draggedId=e.dataTransfer.getData('actionId');
+        if(draggedId&&draggedId!==action.id){
+            onReorderAction(draggedId,action.id,dragOverPosition);
+        }
+        setDragOverPosition(null);
+    };
+
+    const actionTasks=tasks.filter(t=>t.actionId===action.id);
+    const completed=actionTasks.filter(t=>t.status==='completed').length;
+    const pct=actionTasks.length>0?Math.round((completed/actionTasks.length)*100):0;
+    const cat=categories.find(c=>c.id===action.categoryId);
+
+    return(
+        <div
+            ref={cardRef}
+            draggable
+            onDragStart={(e)=>{e.dataTransfer.setData('actionId',action.id);e.currentTarget.classList.add('dragging');}}
+            onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverPosition(null);}}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={(e)=>{if(!e.defaultPrevented)onOpen(action);}}
+            className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-move card-hover relative group ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`}>
+            {onMoveAction&&<div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'up');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le haut">⬆️</button>
+                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'down');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le bas">⬇️</button>
+            </div>}
+            <div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${cat?.gradient}`}/>
+            <h4 className="font-semibold text-sm mb-2">{action.name}</h4>
+            <div className="mb-2"><div className="flex justify-between text-xs text-gray-500 mb-1"><span>{completed}/{actionTasks.length} tâches</span><span>{pct}%</span></div><div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat?.gradient}`} style={{width:`${pct}%`}}/></div></div>
+            {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=><span key={t} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-700':'bg-gray-100'}`}>{t}</span>)}</div>}
+        </div>
+    );
+};
+
 const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,onTouchDrag,categories})=>{
     const{darkMode}=useApp();
     const[touching,setTouching]=useState(false);
@@ -727,7 +789,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 };
 
 // KANBAN VIEW
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,filters,setFilters})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters})=>{
     const{darkMode}=useApp();
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
@@ -865,20 +927,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{col.icon&&<span className="mr-1">{col.icon}</span>}{col.name}</h3><span className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-800':'bg-gray-200'}`}>{col.items.length}</span></div>
                             </div>
                             <div className="space-y-3">
-                                {viewMode==='category'?col.items.map(action=>{
-                                    const actionTasks=tasks.filter(t=>t.actionId===action.id);
-                                    const completed=actionTasks.filter(t=>t.status==='completed').length;
-                                    const pct=actionTasks.length>0?Math.round((completed/actionTasks.length)*100):0;
-                                    const cat=categories.find(c=>c.id===action.categoryId);
-                                    return(
-                                        <div key={action.id} draggable onDragStart={(e)=>{e.dataTransfer.setData('actionId',action.id);e.target.classList.add('dragging');}} onDragEnd={(e)=>e.target.classList.remove('dragging')} onClick={(e)=>{if(!e.defaultPrevented)onOpenAction(action);}} className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-move card-hover`}>
-                                            <div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${cat?.gradient}`}/>
-                                            <h4 className="font-semibold text-sm mb-2">{action.name}</h4>
-                                            <div className="mb-2"><div className="flex justify-between text-xs text-gray-500 mb-1"><span>{completed}/{actionTasks.length} tâches</span><span>{pct}%</span></div><div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat?.gradient}`} style={{width:`${pct}%`}}/></div></div>
-                                            {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=><span key={t} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-700':'bg-gray-100'}`}>{t}</span>)}</div>}
-                                        </div>
-                                    );
-                                }):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories}/>)}
+                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories}/>)}
                                 {col.items.length===0&&<div className={`text-center py-8 border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg`}><p className="text-xs text-gray-400">Aucune tâche</p></div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
@@ -1766,6 +1815,17 @@ const App=()=>{
         }
     },[dataLoaded,tasks.length]);
 
+    // Auto-initialize order for actions that don't have it
+    useEffect(()=>{
+        if(!dataLoaded)return;
+
+        const needsOrder=actions.some(a=>a.order===undefined);
+        if(needsOrder){
+            console.log('🔢 Initializing action order...');
+            setActions(prev=>prev.map((a,idx)=>({...a,order:a.order!==undefined?a.order:idx})));
+        }
+    },[dataLoaded,actions.length]);
+
     const handleSync=()=>saveToGitHub();
 
     const handleUpdateTask=(taskId,updates)=>{
@@ -1880,6 +1940,64 @@ const App=()=>{
         }));
 
         showNotification('✅ Tâche réordonnée');
+    };
+
+    const handleMoveAction=(actionId,direction)=>{
+        const action=actions.find(a=>a.id===actionId);
+        if(!action)return;
+
+        // Find all actions in the same category
+        const sameActions=actions.filter(a=>a.categoryId===action.categoryId).sort((a,b)=>(a.order||0)-(b.order||0));
+
+        const currentIndex=sameActions.findIndex(a=>a.id===actionId);
+        if(currentIndex===-1)return;
+
+        const targetIndex=direction==='up'?currentIndex-1:currentIndex+1;
+        if(targetIndex<0||targetIndex>=sameActions.length)return;
+
+        // Swap orders
+        const currentOrder=sameActions[currentIndex].order||currentIndex;
+        const targetOrder=sameActions[targetIndex].order||targetIndex;
+
+        setActions(prev=>prev.map(a=>{
+            if(a.id===sameActions[currentIndex].id)return{...a,order:targetOrder};
+            if(a.id===sameActions[targetIndex].id)return{...a,order:currentOrder};
+            return a;
+        }));
+
+        showNotification(direction==='up'?'⬆️ Action déplacée vers le haut':'⬇️ Action déplacée vers le bas');
+    };
+
+    const handleReorderAction=(draggedId,targetId,position)=>{
+        if(draggedId===targetId)return;
+
+        const draggedAction=actions.find(a=>a.id===draggedId);
+        const targetAction=actions.find(a=>a.id===targetId);
+        if(!draggedAction||!targetAction)return;
+
+        // Find all actions in the same category
+        const sameActions=actions.filter(a=>a.categoryId===draggedAction.categoryId).sort((a,b)=>(a.order||0)-(b.order||0));
+
+        const draggedIndex=sameActions.findIndex(a=>a.id===draggedId);
+        const targetIndex=sameActions.findIndex(a=>a.id===targetId);
+        if(draggedIndex===-1||targetIndex===-1)return;
+
+        // Reorder the actions
+        const reordered=[...sameActions];
+        const[removed]=reordered.splice(draggedIndex,1);
+        const insertIndex=position==='before'?targetIndex:targetIndex+1;
+        const adjustedIndex=draggedIndex<targetIndex?insertIndex-1:insertIndex;
+        reordered.splice(adjustedIndex,0,removed);
+
+        // Update order property
+        const updatedActions=reordered.map((a,idx)=>({...a,order:(a.order||0)-(draggedIndex-idx)}));
+
+        setActions(prev=>prev.map(a=>{
+            const updated=updatedActions.find(ua=>ua.id===a.id);
+            return updated||a;
+        }));
+
+        showNotification('✅ Action réordonnée');
     };
 
     const handleDeleteTask=(taskId)=>{
@@ -2021,7 +2139,7 @@ const App=()=>{
                             <button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[]})} className="text-xs text-secondary hover:underline">Effacer filtres</button>
                         </div>
                     )}
-                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters}/>}
                     {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} filters={filters} setFilters={setFilters}/>}
                     {currentView==='dashboard'&&<DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
