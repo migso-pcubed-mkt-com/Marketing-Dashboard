@@ -17,6 +17,12 @@
       "name": "Conversion",
       "color": "#f2cb13",
       "gradient": "from-yellow-400 to-orange-500"
+    },
+    {
+      "name": "test",
+      "color": "#3781ec",
+      "gradient": "from-blue-500 to-indigo-700",
+      "id": "cat1768907660726"
     }
   ],
   "actions": [
