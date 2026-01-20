@@ -358,7 +358,7 @@
       "channels": [
         "gads"
       ],
-      "order": 6,
+      "order": 7,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -438,7 +438,7 @@
       "channels": [
         "press"
       ],
-      "order": 13,
+      "order": 15,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -469,7 +469,7 @@
         "seo",
         "social"
       ],
-      "order": 18,
+      "order": 21,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -550,7 +550,7 @@
         "lads",
         "lp"
       ],
-      "order": 25,
+      "order": 29,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -694,7 +694,7 @@
       "channels": [
         "social"
       ],
-      "order": 27,
+      "order": 32,
       "createdAt": "2026-01-20T10:00:47.390Z"
     }
   ]
