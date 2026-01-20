@@ -489,7 +489,7 @@
         "seo",
         "social"
       ],
-      "order": 12,
+      "order": 11,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -581,7 +581,7 @@
       "channels": [
         "events"
       ],
-      "order": 18,
+      "order": 19,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -600,7 +600,7 @@
       "channels": [
         "events"
       ],
-      "order": 20,
+      "order": 22,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
