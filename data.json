@@ -29,7 +29,7 @@
       "tags": [
         "social"
       ],
-      "order": 3
+      "order": 0
     },
     {
       "id": "a2",
@@ -41,7 +41,7 @@
         "social",
         "video"
       ],
-      "order": 0
+      "order": -2
     },
     {
       "id": "a3",
@@ -52,7 +52,7 @@
       "tags": [
         "gads"
       ],
-      "order": 1
+      "order": 0
     },
     {
       "id": "a4",
@@ -74,7 +74,7 @@
       "tags": [
         "press"
       ],
-      "order": 4
+      "order": 5
     },
     {
       "id": "a6",
