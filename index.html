@@ -23,7 +23,7 @@
         .animate-slide-up{animation:slideUp .3s ease-out}
         .card-hover{transition:all .2s ease}
         .card-hover:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(0,0,0,.15)}
-        .dragging{opacity:0.5!important;cursor:grabbing!important;transform:rotate(2deg)}
+        .dragging{opacity:0.6!important;cursor:grabbing!important;transform:rotate(3deg) scale(1.05)!important;box-shadow:0 8px 30px rgba(0,0,0,.3)!important;z-index:1000!important}
         .touch-dragging{opacity:0.7;transform:scale(1.02);z-index:1000}
         [draggable=true]{cursor:grab}
         [draggable=true]:active{cursor:grabbing}
@@ -31,20 +31,21 @@
         .kanban-column{min-height:200px;max-height:calc(100vh - 250px);overflow-y:auto}
         .modal-backdrop{backdrop-filter:blur(8px)}
         .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-        .drag-over{border:2px dashed var(--secondary)!important;background:rgba(55,129,236,.1)!important;transition:all .2s}
+        .drag-over{border:3px dashed var(--secondary)!important;background:rgba(55,129,236,.15)!important;transition:all .2s;box-shadow:inset 0 0 20px rgba(55,129,236,.2)!important;animation:pulse-border .8s ease-in-out infinite}
+        @keyframes pulse-border{0%,100%{border-color:rgba(55,129,236,.8)}50%{border-color:rgba(55,129,236,.3)}}
         .timeline-bar{position:relative;cursor:move;transition:opacity .2s}
-        .timeline-bar:hover .resize-handle{opacity:1}
-        .resize-handle{position:absolute;top:0;bottom:0;width:8px;opacity:0;transition:opacity 0.2s;z-index:10;cursor:col-resize}
-        .resize-handle:hover{background:rgba(255,255,255,0.3)}
-        .resize-handle-left{left:0;border-left:2px solid rgba(255,255,255,0.5)}
-        .resize-handle-right{right:0;border-right:2px solid rgba(255,255,255,0.5)}
+        .timeline-bar:hover .resize-handle{opacity:1;background:rgba(255,255,255,0.3)}
+        .resize-handle{position:absolute;top:0;bottom:0;width:12px;opacity:0.2;transition:all 0.2s;z-index:10;cursor:col-resize;background:rgba(255,255,255,0.1)}
+        .resize-handle:hover{background:rgba(255,255,255,0.4);opacity:1}
+        .resize-handle-left{left:0;border-left:3px solid rgba(255,255,255,0.6);border-radius:4px 0 0 4px}
+        .resize-handle-right{right:0;border-right:3px solid rgba(255,255,255,0.6);border-radius:0 4px 4px 0}
         @media(max-width:768px){
             .kanban-column{min-width:280px}
-            .resize-handle{width:16px;opacity:0.3}
+            .resize-handle{width:20px;opacity:0.4}
             .timeline-bar{min-height:48px}
         }
         @media(hover:none)and(pointer:coarse){
-            .resize-handle{opacity:0.4;width:20px}
+            .resize-handle{opacity:0.5;width:24px;background:rgba(255,255,255,0.2)}
             [draggable=true]{cursor:default}
             .card-hover{transition:transform 0.1s}
             .card-hover:active{transform:scale(0.98)}
@@ -462,7 +463,7 @@ const ChannelTags=({channels=[],onAdd,onRemove,editable=true})=>{
     );
 };
 
-const TaskCard=({task,action,onOpen,showAction=false,onTouchDrag,categories})=>{
+const TaskCard=({task,action,onOpen,onMoveTask,showAction=false,onTouchDrag,categories})=>{
     const{darkMode}=useApp();
     const[touching,setTouching]=useState(false);
     const touchTimeout=useRef(null);
@@ -495,15 +496,19 @@ const TaskCard=({task,action,onOpen,showAction=false,onTouchDrag,categories})=>{
     const checklistPct=task.checklist?.length>0?Math.round((task.checklist.filter(c=>c.done).length/task.checklist.length)*100):null;
 
     return(
-        <div 
-            draggable 
+        <div
+            draggable
             onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');e.target.classList.add('dragging');}}
             onDragEnd={(e)=>e.target.classList.remove('dragging')}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            onClick={()=>onOpen(task)} 
-            className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover transition-all ${touching?'touch-dragging':''}`}>
+            onClick={()=>onOpen(task)}
+            className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover transition-all relative group ${touching?'touch-dragging':''}`}>
+            {onMoveTask&&<div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'up');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le haut">⬆️</button>
+                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'down');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le bas">⬇️</button>
+            </div>}
             {showAction&&category&&<div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${category.gradient}`}/>}
             <div className="flex items-start justify-between mb-2">
                 <span className="px-2 py-1 rounded-lg text-xs font-medium text-white" style={{backgroundColor:status?.color}}>{status?.icon} {status?.name}</span>
@@ -530,12 +535,15 @@ const TaskCard=({task,action,onOpen,showAction=false,onTouchDrag,categories})=>{
 const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction})=>{
     const{darkMode}=useApp();
     const[form,setForm]=useState({...task});
+    const[descriptionDraft,setDescriptionDraft]=useState(task.description||''); // Draft pour description
+    const[descriptionSaved,setDescriptionSaved]=useState(true); // Track si sauvegardé
     const[newComment,setNewComment]=useState('');
     const[newChecklistItem,setNewChecklistItem]=useState('');
     const currentAction=actions?.find(a=>a.id===form.actionId)||action;
     const category=categories?.find(c=>c.id===currentAction?.categoryId);
 
     const handleClose=()=>{onUpdate(task.id,form);onClose();}; // Auto-save on close (Trello-style)
+    const saveDescription=()=>{setForm({...form,description:descriptionDraft});setDescriptionSaved(true);};
     const addComment=()=>{if(!newComment.trim())return;setForm({...form,comments:[...(form.comments||[]),{id:`cm${Date.now()}`,author:'Vous',text:newComment,date:new Date().toISOString()}]});setNewComment('');};
     const addChecklistItem=()=>{if(!newChecklistItem.trim())return;setForm({...form,checklist:[...(form.checklist||[]),{id:`cl${Date.now()}`,text:newChecklistItem,done:false}]});setNewChecklistItem('');};
     const toggleChecklistItem=(id)=>setForm({...form,checklist:form.checklist.map(i=>i.id===id?{...i,done:!i.done}:i)});
@@ -568,7 +576,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-24 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
                     </div>
                     <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🏷️ Tags Canal</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
-                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={form.description||''} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Description..." rows={3} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'} resize-none`}/></div>
+                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'} resize-none`}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Sauvegarder</button>}</div>
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm text-gray-500">{checklistPct}%</span>}</div>
                         {form.checklist?.length>0&&<div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full mb-3"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div>}
@@ -684,11 +692,12 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 };
 
 // KANBAN VIEW
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,filters,setFilters})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,filters,setFilters})=>{
     const{darkMode}=useApp();
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
+    const[sortBy,setSortBy]=useState('order'); // order, name, date, deadline, priority
 
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
@@ -712,13 +721,27 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     const handleDragLeave=(e)=>{e.currentTarget.classList.remove('drag-over');};
 
     const getColumns=()=>{
-        if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:filteredTasks.filter(t=>t.month===idx)}));
+        // Helper to sort items by different criteria
+        const sortItems=(items)=>{
+            const sorted=[...items];
+            if(sortBy==='order')return sorted.sort((a,b)=>(a.order||0)-(b.order||0));
+            if(sortBy==='name')return sorted.sort((a,b)=>a.title.localeCompare(b.title));
+            if(sortBy==='date')return sorted.sort((a,b)=>new Date(a.startDate||0)-new Date(b.startDate||0));
+            if(sortBy==='deadline')return sorted.sort((a,b)=>new Date(a.dueDate||'9999')-new Date(b.dueDate||'9999'));
+            if(sortBy==='priority'){
+                const priorityOrder={high:0,medium:1,low:2};
+                return sorted.sort((a,b)=>(priorityOrder[a.priority]||99)-(priorityOrder[b.priority]||99));
+            }
+            return sorted;
+        };
+
+        if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:sortItems(filteredTasks.filter(t=>t.month===idx))}));
         if(viewMode==='category')return categories.map(cat=>({key:cat.id,name:cat.name,gradient:cat.gradient,items:actions.filter(a=>a.categoryId===cat.id)}));
         if(viewMode==='action'){
             if(selectedAction){
-                return CONFIG.STATUSES.map(s=>({key:s.id,name:s.name,color:s.color,icon:s.icon,items:filteredTasks.filter(t=>t.actionId===selectedAction&&t.status===s.id)}));
+                return CONFIG.STATUSES.map(s=>({key:s.id,name:s.name,color:s.color,icon:s.icon,items:sortItems(filteredTasks.filter(t=>t.actionId===selectedAction&&t.status===s.id))}));
             }else{
-                return CONFIG.STATUSES.map(s=>({key:s.id,name:s.name,color:s.color,icon:s.icon,items:filteredTasks.filter(t=>t.status===s.id)}));
+                return CONFIG.STATUSES.map(s=>({key:s.id,name:s.name,color:s.color,icon:s.icon,items:sortItems(filteredTasks.filter(t=>t.status===s.id))}));
             }
         }
         return[];
@@ -736,6 +759,16 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                             ))}
                         </div>
                     </div>
+                    {viewMode!=='category'&&<div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-500">Tri:</span>
+                        <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className={`px-3 py-2 text-sm rounded-lg border ${darkMode?'bg-gray-800 border-gray-700 text-white':'bg-white border-gray-200'}`}>
+                            <option value="order">Manuel</option>
+                            <option value="name">Nom A→Z</option>
+                            <option value="date">Date début</option>
+                            <option value="deadline">Deadline</option>
+                            <option value="priority">Priorité</option>
+                        </select>
+                    </div>}
                 </div>
                 {(viewMode==='month'||viewMode==='action')&&(
                     <div>
@@ -808,7 +841,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                             {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=><span key={t} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-700':'bg-gray-100'}`}>{t}</span>)}</div>}
                                         </div>
                                     );
-                                }):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} showAction={viewMode==='month'} categories={categories}/>)}
+                                }):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} showAction={viewMode==='month'} categories={categories}/>)}
                                 {col.items.length===0&&<div className={`text-center py-8 border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg`}><p className="text-xs text-gray-400">Aucune tâche</p></div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
@@ -1626,6 +1659,70 @@ const App=()=>{
         }
     };
 
+    // ╔════════════════════════════════════════════════════════════════════════════╗
+    // ║  🔄 AUTO-SYNC POLLING - Synchronisation multi-devices automatique         ║
+    // ╚════════════════════════════════════════════════════════════════════════════╝
+    const checkForUpdates=async()=>{
+        // Ne pas checker si une modale est ouverte (pour ne pas perdre les modifications en cours)
+        if(selectedTask||selectedAction){
+            console.log('⏸️ Polling paused: modal open');
+            return;
+        }
+
+        // Ne pas checker si on est en train de sauvegarder
+        if(syncing||savingStatus==='saving'){
+            console.log('⏸️ Polling paused: saving in progress');
+            return;
+        }
+
+        try{
+            const url=`${API_BASE_URL}/api/github`;
+            const response=await fetch(url,{
+                method:'GET',
+                headers:{
+                    'Accept':'application/json',
+                    'Cache-Control':'no-cache'
+                }
+            });
+
+            if(response.ok){
+                const data=await response.json();
+
+                // Si le SHA a changé, recharger les données
+                if(data.sha&&fileSha&&data.sha!==fileSha){
+                    console.log('🔄 Modifications détectées sur GitHub, synchronisation...');
+                    showNotification('🔄 Synchronisation avec l\'équipe...');
+                    await loadDataFromGitHub();
+                    showNotification('✅ Synchronisé avec l\'équipe');
+                }
+            }
+        }catch(e){
+            console.log('⚠️ Polling error (silencieux):',e.message);
+            // On ne montre pas d'erreur à l'utilisateur pour ne pas le déranger
+        }
+    };
+
+    // Polling pour auto-sync multi-devices toutes les 20 secondes
+    useEffect(()=>{
+        if(!githubToken||!dataLoaded)return;
+
+        console.log('🔄 Auto-sync polling activé (20s)');
+        const interval=setInterval(checkForUpdates,20000); // 20 secondes
+
+        return()=>clearInterval(interval);
+    },[githubToken,dataLoaded,selectedTask,selectedAction,syncing,savingStatus,fileSha]);
+
+    // Auto-initialize order property for tasks that don't have it
+    useEffect(()=>{
+        if(!dataLoaded)return;
+
+        const needsOrder=tasks.some(t=>t.order===undefined);
+        if(needsOrder){
+            console.log('🔢 Initializing task order...');
+            setTasks(prev=>prev.map((t,idx)=>({...t,order:t.order!==undefined?t.order:idx})));
+        }
+    },[dataLoaded,tasks.length]);
+
     const handleSync=()=>saveToGitHub();
 
     const handleUpdateTask=(taskId,updates)=>{
@@ -1669,11 +1766,41 @@ const App=()=>{
         const startDate=new Date().toISOString().split('T')[0];
         const endOfMonth=new Date(2026,month+1,0).getDate();
         const dueDate=`2026-${String(month+1).padStart(2,'0')}-${endOfMonth}`;
-        const newTask={id:`t${Date.now()}`,actionId,month,startDate,title:'Nouvelle tâche',description:'',status:'todo',priority:'medium',dueDate,budget:0,channels:action?.tags||[],checklist:[],comments:[],attachments:[]};
+        const maxOrder=Math.max(...tasks.map(t=>t.order||0),-1)+1;
+        const newTask={id:`t${Date.now()}`,actionId,month,startDate,title:'Nouvelle tâche',description:'',status:'todo',priority:'medium',dueDate,budget:0,channels:action?.tags||[],checklist:[],comments:[],attachments:[],order:maxOrder};
         setTasks(prev=>[...prev,newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Tâche créée');
         // Auto-save via useEffect
+    };
+
+    const handleMoveTask=(taskId,direction)=>{
+        const task=tasks.find(t=>t.id===taskId);
+        if(!task)return;
+
+        // Find all tasks in the same column (month/status based on view)
+        const sameTasks=tasks.filter(t=>{
+            if(task.month!==undefined)return t.month===task.month; // Month view
+            return t.status===task.status; // Action view
+        }).sort((a,b)=>(a.order||0)-(b.order||0));
+
+        const currentIndex=sameTasks.findIndex(t=>t.id===taskId);
+        if(currentIndex===-1)return;
+
+        const targetIndex=direction==='up'?currentIndex-1:currentIndex+1;
+        if(targetIndex<0||targetIndex>=sameTasks.length)return;
+
+        // Swap orders
+        const currentOrder=sameTasks[currentIndex].order||currentIndex;
+        const targetOrder=sameTasks[targetIndex].order||targetIndex;
+
+        setTasks(prev=>prev.map(t=>{
+            if(t.id===sameTasks[currentIndex].id)return{...t,order:targetOrder};
+            if(t.id===sameTasks[targetIndex].id)return{...t,order:currentOrder};
+            return t;
+        }));
+
+        showNotification(direction==='up'?'⬆️ Tâche déplacée vers le haut':'⬇️ Tâche déplacée vers le bas');
     };
 
     const handleDeleteTask=(taskId)=>{
@@ -1724,7 +1851,8 @@ const App=()=>{
     };
 
     const handleAddNewTask=(newTask)=>{
-        setTasks(prev=>[...prev,newTask]);
+        const maxOrder=Math.max(...tasks.map(t=>t.order||0),-1)+1;
+        setTasks(prev=>[...prev,{...newTask,order:maxOrder}]);
         showNotification('✅ Tâche créée');
         // Auto-save via useEffect
     };
@@ -1813,7 +1941,7 @@ const App=()=>{
                             <button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[]})} className="text-xs text-secondary hover:underline">Effacer filtres</button>
                         </div>
                     )}
-                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} filters={filters} setFilters={setFilters}/>}
                     {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} filters={filters} setFilters={setFilters}/>}
                     {currentView==='dashboard'&&<DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
