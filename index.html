@@ -481,10 +481,14 @@ const ChannelTags=({channels=[],onAdd,onRemove,editable=true})=>{
     );
 };
 
-const CountryTags=({countries=[],onAdd,onRemove,editable=true})=>{
+const CountryTags=({countries=[],onAdd,onRemove,editable=true,allCountries=CONFIG.COUNTRIES,onAddCustomCountry})=>{
     const{darkMode}=useApp();
     const[showPicker,setShowPicker]=useState(false);
-    const available=CONFIG.COUNTRIES.filter(c=>!countries.includes(c.id));
+    const[showNewCountryForm,setShowNewCountryForm]=useState(false);
+    const[newCountryName,setNewCountryName]=useState('');
+    const[newCountryFlag,setNewCountryFlag]=useState('');
+    const[newCountryColor,setNewCountryColor]=useState('#3b82f6');
+    const available=allCountries.filter(c=>!countries.includes(c.id));
 
     // Group available countries by region
     const byRegion=available.reduce((acc,country)=>{
@@ -493,10 +497,23 @@ const CountryTags=({countries=[],onAdd,onRemove,editable=true})=>{
         return acc;
     },{});
 
+    const handleAddNewCountry=()=>{
+        if(!newCountryName.trim())return;
+        if(onAddCustomCountry){
+            const newId=onAddCustomCountry(newCountryName.trim(),newCountryFlag||'🌍',newCountryColor,'Custom');
+            if(newId&&onAdd)onAdd(newId);
+        }
+        setNewCountryName('');
+        setNewCountryFlag('');
+        setNewCountryColor('#3b82f6');
+        setShowNewCountryForm(false);
+        setShowPicker(false);
+    };
+
     return(
         <div className="flex flex-wrap gap-1 items-center">
-            {countries.map(countryId=>{const country=CONFIG.COUNTRIES.find(c=>c.id===countryId);return country?(<span key={countryId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:country.color}}>{country.flag} {country.name}{editable&&<button onClick={()=>onRemove(countryId)} className="ml-1 hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
-            {editable&&available.length>0&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?"bg-gray-700 hover:bg-gray-600":"bg-gray-200 hover:bg-gray-300"} flex items-center space-x-1`}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 ${darkMode?"bg-gray-800":"bg-white"} rounded-lg shadow-xl border ${darkMode?"border-gray-700":"border-gray-200"} p-2 z-50 min-w-[200px] max-h-64 overflow-y-auto`}>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold text-gray-500 px-2 py-1">{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs ${darkMode?"hover:bg-gray-700":"hover:bg-gray-100"} flex items-center space-x-2`}><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}</div>)}</div>)}
+            {countries.map(countryId=>{const country=allCountries.find(c=>c.id===countryId);return country?(<span key={countryId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:country.color}}>{country.flag} {country.name}{editable&&<button onClick={()=>onRemove(countryId)} className="ml-1 hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
+            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?"bg-gray-700 hover:bg-gray-600":"bg-gray-200 hover:bg-gray-300"} flex items-center space-x-1`}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 ${darkMode?"bg-gray-800":"bg-white"} rounded-lg shadow-xl border ${darkMode?"border-gray-700":"border-gray-200"} p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto`}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold text-gray-500 px-2 py-1">{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs ${darkMode?"hover:bg-gray-700":"hover:bg-gray-100"} flex items-center space-x-2`}><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className={`w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed ${darkMode?"border-gray-600 hover:bg-gray-700":"border-gray-300 hover:bg-gray-100"} flex items-center justify-center space-x-1`}><Icon.Plus/><span>Nouveau pays</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Ajouter un pays</div><input type="text" placeholder="Nom du pays" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border ${darkMode?"bg-gray-700 border-gray-600":"bg-white border-gray-300"}`}/><input type="text" placeholder="Emoji (ex: 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border ${darkMode?"bg-gray-700 border-gray-600":"bg-white border-gray-300"}`} maxLength="4"/><div className="flex items-center gap-2 mb-2"><label className="text-xs">Couleur:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Ajouter</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');}} className={`flex-1 px-2 py-1 text-xs rounded ${darkMode?"bg-gray-700":"bg-gray-200"}`}>Annuler</button></div></div>)}</div>)}</div>)}
         </div>
     );
 };
@@ -563,7 +580,7 @@ const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})
     );
 };
 
-const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,onTouchDrag,categories})=>{
+const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,onTouchDrag,categories,allCountries})=>{
     const{darkMode}=useApp();
     const[touching,setTouching]=useState(false);
     const[dragOverPosition,setDragOverPosition]=useState(null); // 'before' | 'after' | null
@@ -653,6 +670,7 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
             {showAction&&action&&<p className="text-xs text-gray-500 mb-2 truncate">📁 {action.name}</p>}
             {task.description&&<p className="text-xs text-gray-500 mb-2 line-clamp-2">{task.description}</p>}
             {task.channels&&task.channels.length>0&&<div className="mb-2"><ChannelTags channels={task.channels} editable={false}/></div>}
+            {task.countries&&task.countries.length>0&&<div className="mb-2"><CountryTags countries={task.countries} editable={false} allCountries={allCountries}/></div>}
             {checklistPct!==null&&(<div className="mb-3"><div className="flex items-center justify-between text-xs text-gray-500 mb-1"><span>Checklist</span><span>{checklistPct}%</span></div><div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div></div>)}
             <div className="flex items-center justify-between text-xs text-gray-500">
                 <div className="flex items-center space-x-3">
@@ -667,7 +685,7 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
 };
 
 // TASK DETAIL MODAL
-const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction})=>{
+const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry})=>{
     const{darkMode}=useApp();
     const[form,setForm]=useState({...task});
     const[descriptionDraft,setDescriptionDraft]=useState(task.description||''); // Draft pour description
@@ -713,7 +731,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-24 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
                     </div>
                     <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🏷️ Tags Canal</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
-                    <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🌍 Tags Pays</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry}/></div>
+                    <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🌍 Tags Pays</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry}/></div>
                     <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'} resize-none`}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Sauvegarder</button>}</div>
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm text-gray-500">{checklistPct}%</span>}</div>
@@ -830,7 +848,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 };
 
 // KANBAN VIEW
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries})=>{
     const{darkMode}=useApp();
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
@@ -844,6 +862,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         if(filters.category.length>0&&!filters.category.includes(action?.categoryId))return false;
         if(filters.priority.length>0&&!filters.priority.includes(t.priority))return false;
         if(filters.channel&&filters.channel.length>0&&!(t.channels||[]).some(c=>filters.channel.includes(c)))return false;
+        if(filters.country&&filters.country.length>0&&!(t.countries||[]).some(c=>filters.country.includes(c)))return false;
         if(actionFilters.length>0&&!actionFilters.includes(t.actionId))return false;
         return true;
     });
@@ -935,7 +954,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                         <div
                             key={col.key}
                             data-drop-month={viewMode==='month'?col.key:null}
-                            onDragOver={(e)=>{e.preventDefault();if(viewMode==='month'||viewMode==='category')e.currentTarget.classList.add('drag-over');}}
+                            onDragOver={(e)=>{e.preventDefault();if(viewMode==='month'||viewMode==='category'||viewMode==='action')e.currentTarget.classList.add('drag-over');}}
                             onDragLeave={(e)=>e.currentTarget.classList.remove('drag-over')}
                             onDrop={(e)=>{
                                 e.preventDefault();
@@ -968,7 +987,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{col.icon&&<span className="mr-1">{col.icon}</span>}{col.name}</h3><span className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-800':'bg-gray-200'}`}>{col.items.length}</span></div>
                             </div>
                             <div className="space-y-3">
-                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories}/>)}
+                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories} allCountries={allCountries}/>)}
                                 {col.items.length===0&&<div className={`text-center py-8 border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg`}><p className="text-xs text-gray-400">Aucune tâche</p></div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
@@ -1210,6 +1229,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const taskChannels=t.channels||action?.tags||[];
             if(!filters.channel.some(c=>taskChannels.includes(c)))return false;
         }
+        if(filters?.country&&filters.country.length>0){
+            const taskCountries=t.countries||[];
+            if(!filters.country.some(c=>taskCountries.includes(c)))return false;
+        }
         return true;
     });
 
@@ -1303,7 +1326,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 if(!pos)return null;
                                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
                                                 return(
-                                                    <div key={task.id} onClick={()=>onOpenTask(task)} draggable onDragStart={(e)=>{e.dataTransfer.setData('taskId',task.id);e.dataTransfer.setData('type','task');}} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all" style={{left:pos.left,width:pos.width,backgroundColor:status?.color}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
+                                                    <div key={task.id} onClick={()=>onOpenTask(task)} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all cursor-pointer" style={{left:pos.left,width:pos.width,backgroundColor:status?.color}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
                                                         <div className="resize-handle resize-handle-left" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'left',e.touches[0].clientX,task);}} title="Redimensionner début"/>
                                                         <span className="truncate flex-1 px-1">{task.title}</span>
                                                         {task.budget>0&&zoom==='month'&&<span className="ml-1 opacity-75">({(task.budget/1000).toFixed(0)}k)</span>}
@@ -1417,7 +1440,7 @@ const DashboardView=({categories,actions,tasks})=>{
 };
 
 // FILTER BAR
-const FilterBar=({filters,setFilters,actions,categories})=>{
+const FilterBar=({filters,setFilters,actions,categories,allCountries})=>{
     const{darkMode}=useApp();
     const[showFilters,setShowFilters]=useState(false);
     const activeCount=Object.values(filters).filter(v=>Array.isArray(v)?v.length>0:v).length;
@@ -1427,7 +1450,7 @@ const FilterBar=({filters,setFilters,actions,categories})=>{
             <div className="flex flex-wrap items-center gap-3">
                 <div className="flex-1 min-w-[200px]"><input type="text" placeholder="Rechercher..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className={`w-full px-4 py-2 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700 text-white':'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-secondary`}/></div>
                 <button onClick={()=>setShowFilters(!showFilters)} className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${showFilters||activeCount>0?'bg-secondary text-white border-secondary':darkMode?'border-gray-700':'border-gray-200'}`}><Icon.Filter/><span>Filtres</span>{activeCount>0&&<span className="bg-white text-secondary px-2 py-0.5 rounded-full text-xs font-bold">{activeCount}</span>}</button>
-                {activeCount>0&&<button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],action:[],channel:[]})} className="text-accent-red text-sm">Effacer</button>}
+                {activeCount>0&&<button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],action:[],channel:[],country:[]})} className="text-accent-red text-sm">Effacer</button>}
             </div>
             {showFilters&&(
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-slide-in">
@@ -1435,6 +1458,7 @@ const FilterBar=({filters,setFilters,actions,categories})=>{
                     <div><label className="block text-xs text-gray-500 mb-2">Catégorie</label><div className="flex flex-wrap gap-1">{categories.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`px-2 py-1 rounded text-xs ${filters.category.includes(c.id)?'text-white bg-gradient-to-r '+c.gradient:darkMode?'bg-gray-800':'bg-gray-100'}`}>{c.name.split(' ')[0]}</button>))}</div></div>
                     <div><label className="block text-xs text-gray-500 mb-2">Priorité</label><div className="flex gap-1">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`px-2 py-1 rounded text-xs ${filters.priority.includes(p.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.priority.includes(p.id)?{backgroundColor:p.color}:{}}>{p.icon}</button>))}</div></div>
                     <div className="sm:col-span-3"><label className="block text-xs text-gray-500 mb-2">Canal</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,channel:[]})} className={`px-2 py-1 rounded text-xs ${!filters.channel||filters.channel.length===0?'bg-primary text-white':darkMode?'bg-gray-800':'bg-gray-100'}`}>Tous</button>{CONFIG.CHANNELS.map(ch=>(<button key={ch.id} onClick={()=>{const n=filters.channel?.includes(ch.id)?filters.channel.filter(x=>x!==ch.id):[...(filters.channel||[]),ch.id];setFilters({...filters,channel:n});}} className={`px-2 py-1 rounded text-xs ${filters.channel?.includes(ch.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.channel?.includes(ch.id)?{backgroundColor:ch.color}:{}}>{ch.name}</button>))}</div></div>
+                    <div className="sm:col-span-3"><label className="block text-xs text-gray-500 mb-2">Pays</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,country:[]})} className={`px-2 py-1 rounded text-xs ${!filters.country||filters.country.length===0?'bg-primary text-white':darkMode?'bg-gray-800':'bg-gray-100'}`}>Tous</button>{allCountries.map(co=>(<button key={co.id} onClick={()=>{const n=filters.country?.includes(co.id)?filters.country.filter(x=>x!==co.id):[...(filters.country||[]),co.id];setFilters({...filters,country:n});}} className={`px-2 py-1 rounded text-xs ${filters.country?.includes(co.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.country?.includes(co.id)?{backgroundColor:co.color}:{}}>{co.flag} {co.name}</button>))}</div></div>
                 </div>
             )}
         </div>
@@ -1451,7 +1475,7 @@ const App=()=>{
     const[categories,setCategories]=useState(CONFIG.CATEGORIES);
     const[actions,setActions]=useState(ACTIONS);
     const[tasks,setTasks]=useState(TASKS);
-    const[filters,setFilters]=useState({search:'',status:[],category:[],priority:[],channel:[]});
+    const[filters,setFilters]=useState({search:'',status:[],category:[],priority:[],channel:[],country:[]});
     const[syncing,setSyncing]=useState(false);
     const[savingStatus,setSavingStatus]=useState(null);
     const[selectedTask,setSelectedTask]=useState(null);
@@ -1466,8 +1490,34 @@ const App=()=>{
         // CRITICAL FIX: Restore SHA from localStorage on init
         return localStorage.getItem('github_file_sha')||'';
     });
+    const[customCountries,setCustomCountries]=useState(()=>{
+        const saved=localStorage.getItem('customCountries');
+        return saved?JSON.parse(saved):[];
+    });
     const saveQueueRef=useRef([]);
     const isSavingRef=useRef(false);
+
+    // Save custom countries to localStorage whenever they change
+    useEffect(()=>{
+        localStorage.setItem('customCountries',JSON.stringify(customCountries));
+    },[customCountries]);
+
+    // Merge built-in and custom countries
+    const allCountries=[...CONFIG.COUNTRIES,...customCountries];
+
+    // Add custom country function
+    const addCustomCountry=(name,flag,color,region)=>{
+        const newCountry={
+            id:`custom-${Date.now()}`,
+            name,
+            flag:flag||'🌍',
+            color:color||'#6366f1',
+            region:region||'Custom'
+        };
+        setCustomCountries(prev=>[...prev,newCountry]);
+        showNotification(`✅ Pays "${name}" ajouté`);
+        return newCountry.id;
+    };
 
     // ╔════════════════════════════════════════════════════════════════════════════╗
     // ║  ✅ CONFIGURATION VERCEL - TOKEN SÉCURISÉ CÔTÉ SERVEUR                   ║
@@ -1959,18 +2009,43 @@ const App=()=>{
         const targetTask=tasks.find(t=>t.id===targetId);
         if(!draggedTask||!targetTask)return;
 
-        // Find all tasks in the same column
-        const sameTasks=tasks.filter(t=>{
-            if(draggedTask.month!==undefined)return t.month===draggedTask.month;
-            return t.status===draggedTask.status;
-        }).sort((a,b)=>(a.order||0)-(b.order||0));
+        // Check if moving to a different column
+        const isDifferentMonth=(draggedTask.month!==undefined&&targetTask.month!==undefined&&draggedTask.month!==targetTask.month);
+        const isDifferentStatus=(draggedTask.status!==undefined&&targetTask.status!==undefined&&draggedTask.status!==targetTask.status);
+        const isDifferentColumn=isDifferentMonth||isDifferentStatus;
 
-        const draggedIndex=sameTasks.findIndex(t=>t.id===draggedId);
-        const targetIndex=sameTasks.findIndex(t=>t.id===targetId);
+        // If different column, update the dragged task's column properties first
+        let updatedDraggedTask={...draggedTask};
+        if(isDifferentColumn){
+            if(isDifferentMonth){
+                updatedDraggedTask.month=targetTask.month;
+                // Also update dates based on new month
+                const year=2026;
+                const monthIdx=targetTask.month;
+                const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
+                const lastDay=new Date(year,monthIdx+1,0).getDate();
+                const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
+                updatedDraggedTask.startDate=startDate;
+                updatedDraggedTask.dueDate=dueDate;
+            }
+            if(isDifferentStatus){
+                updatedDraggedTask.status=targetTask.status;
+            }
+        }
+
+        // Find all tasks in the TARGET column (with updated dragged task if column changed)
+        const targetColumnTasks=tasks.filter(t=>{
+            if(t.id===draggedId)return true; // Include dragged task
+            if(targetTask.month!==undefined)return t.month===targetTask.month;
+            return t.status===targetTask.status;
+        }).map(t=>t.id===draggedId?updatedDraggedTask:t).sort((a,b)=>(a.order||0)-(b.order||0));
+
+        const draggedIndex=targetColumnTasks.findIndex(t=>t.id===draggedId);
+        const targetIndex=targetColumnTasks.findIndex(t=>t.id===targetId);
         if(draggedIndex===-1||targetIndex===-1)return;
 
-        // Reorder the tasks
-        const reordered=[...sameTasks];
+        // Reorder the tasks in target column
+        const reordered=[...targetColumnTasks];
         const[removed]=reordered.splice(draggedIndex,1);
         const insertIndex=position==='before'?targetIndex:targetIndex+1;
         const adjustedIndex=draggedIndex<targetIndex?insertIndex-1:insertIndex;
@@ -1984,7 +2059,7 @@ const App=()=>{
             return updated||t;
         }));
 
-        showNotification('✅ Tâche réordonnée');
+        showNotification(isDifferentColumn?'✅ Tâche déplacée vers nouvelle colonne':'✅ Tâche réordonnée');
     };
 
     const handleMoveAction=(actionId,direction)=>{
@@ -2169,8 +2244,8 @@ const App=()=>{
                             <button onClick={handleCreateNewTask} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center space-x-2 hover:bg-primary/90 shadow-md"><Icon.Plus/><span>Nouvelle tâche</span></button>
                         </div>
                     </div>
-                    <FilterBar filters={filters} setFilters={setFilters} actions={actions} categories={categories}/>
-                    {(filters.search||filters.status.length>0||filters.category.length>0||filters.priority.length>0||filters.channel.length>0)&&(
+                    <FilterBar filters={filters} setFilters={setFilters} actions={actions} categories={categories} allCountries={allCountries}/>
+                    {(filters.search||filters.status.length>0||filters.category.length>0||filters.priority.length>0||filters.channel.length>0||filters.country.length>0)&&(
                         <div className={`mb-4 px-4 py-2 rounded-lg flex items-center justify-between ${darkMode?'bg-secondary/10 border border-secondary/20':'bg-blue-50 border border-blue-200'}`}>
                             <span className="text-sm text-secondary">🔍 Filtres actifs • {tasks.filter(t=>{
                                 const action=actions.find(a=>a.id===t.actionId);
@@ -2179,16 +2254,17 @@ const App=()=>{
                                 if(filters.priority.length>0&&!filters.priority.includes(t.priority))return false;
                                 if(filters.category.length>0&&action&&!filters.category.includes(action.categoryId))return false;
                                 if(filters.channel.length>0){const taskChannels=t.channels||action?.tags||[];if(!filters.channel.some(c=>taskChannels.includes(c)))return false;}
+                                if(filters.country.length>0){const taskCountries=t.countries||[];if(!filters.country.some(c=>taskCountries.includes(c)))return false;}
                                 return true;
                             }).length} tâches trouvées</span>
-                            <button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[]})} className="text-xs text-secondary hover:underline">Effacer filtres</button>
+                            <button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})} className="text-xs text-secondary hover:underline">Effacer filtres</button>
                         </div>
                     )}
-                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries}/>}
                     {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters}/>}
                     {currentView==='dashboard'&&<DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
-                {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} actions={actions} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null}/>}
+                {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} actions={actions} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null} allCountries={allCountries} onAddCustomCountry={addCustomCountry}/>}
                 {selectedAction&&!selectedTask&&<ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={()=>setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t=>{setSelectedTask(t);}} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
                 {/* GitHubSettingsModal supprimé - Token intégré directement dans GITHUB_CONFIG */}
                 {showCategoriesModal&&<CategoriesManagementModal categories={categories} onClose={()=>setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories} darkMode={darkMode}/>}
