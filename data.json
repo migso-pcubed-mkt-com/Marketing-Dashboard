@@ -292,7 +292,7 @@
         "social",
         "video"
       ],
-      "order": 1,
+      "order": 2,
       "createdAt": "2026-01-20T10:00:47.390Z",
       "countries": [
         "australia"
@@ -404,7 +404,7 @@
       "channels": [
         "lads"
       ],
-      "order": 2,
+      "order": 3,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -539,7 +539,7 @@
         "gads",
         "lp"
       ],
-      "order": 3,
+      "order": 4,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -566,13 +566,13 @@
     {
       "id": "t18",
       "actionId": "a11",
-      "month": 3,
-      "startDate": "2026-04-01",
+      "month": 1,
+      "startDate": "2026-02-01",
       "title": "Event In-House Avril",
       "description": "Événement interne",
-      "status": "creating",
+      "status": "inprogress",
       "priority": "high",
-      "dueDate": "2026-04-30",
+      "dueDate": "2026-02-28",
       "budget": 10000,
       "checklist": [
         {
