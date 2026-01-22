@@ -499,7 +499,7 @@
         "seo",
         "social"
       ],
-      "order": 0,
+      "order": 1,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -591,7 +591,7 @@
       "channels": [
         "events"
       ],
-      "order": 1,
+      "order": 0,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
