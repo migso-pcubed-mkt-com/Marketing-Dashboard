@@ -566,13 +566,13 @@
     {
       "id": "t18",
       "actionId": "a11",
-      "month": 2,
-      "startDate": "2026-03-01",
+      "month": 3,
+      "startDate": "2026-04-01",
       "title": "Event In-House Avril",
       "description": "Événement interne",
       "status": "creating",
       "priority": "high",
-      "dueDate": "2026-03-31",
+      "dueDate": "2026-04-30",
       "budget": 10000,
       "checklist": [
         {
