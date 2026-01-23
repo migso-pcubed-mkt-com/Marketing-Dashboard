@@ -488,6 +488,7 @@ const CountryTags=({countries=[],onAdd,onRemove,editable=true,allCountries=CONFI
     const[newCountryName,setNewCountryName]=useState('');
     const[newCountryFlag,setNewCountryFlag]=useState('');
     const[newCountryColor,setNewCountryColor]=useState('#3b82f6');
+    const[newCountryRegion,setNewCountryRegion]=useState('Europe');
     const available=allCountries.filter(c=>!countries.includes(c.id));
 
     // Group available countries by region
@@ -497,15 +498,19 @@ const CountryTags=({countries=[],onAdd,onRemove,editable=true,allCountries=CONFI
         return acc;
     },{});
 
+    // Get unique regions from all countries
+    const availableRegions=[...new Set(CONFIG.COUNTRIES.map(c=>c.region))];
+
     const handleAddNewCountry=()=>{
         if(!newCountryName.trim())return;
         if(onAddCustomCountry){
-            const newId=onAddCustomCountry(newCountryName.trim(),newCountryFlag||'🌍',newCountryColor,'Custom');
+            const newId=onAddCustomCountry(newCountryName.trim(),newCountryFlag||'🌍',newCountryColor,newCountryRegion);
             if(newId&&onAdd)onAdd(newId);
         }
         setNewCountryName('');
         setNewCountryFlag('');
         setNewCountryColor('#3b82f6');
+        setNewCountryRegion('Europe');
         setShowNewCountryForm(false);
         setShowPicker(false);
     };
@@ -513,7 +518,7 @@ const CountryTags=({countries=[],onAdd,onRemove,editable=true,allCountries=CONFI
     return(
         <div className="flex flex-wrap gap-1 items-center">
             {countries.map(countryId=>{const country=allCountries.find(c=>c.id===countryId);return country?(<span key={countryId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:country.color}}>{country.flag} {country.name}{editable&&<button onClick={()=>onRemove(countryId)} className="ml-1 hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
-            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?"bg-gray-700 hover:bg-gray-600":"bg-gray-200 hover:bg-gray-300"} flex items-center space-x-1`}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 ${darkMode?"bg-gray-800":"bg-white"} rounded-lg shadow-xl border ${darkMode?"border-gray-700":"border-gray-200"} p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto`}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold text-gray-500 px-2 py-1">{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs ${darkMode?"hover:bg-gray-700":"hover:bg-gray-100"} flex items-center space-x-2`}><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className={`w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed ${darkMode?"border-gray-600 hover:bg-gray-700":"border-gray-300 hover:bg-gray-100"} flex items-center justify-center space-x-1`}><Icon.Plus/><span>Nouveau pays</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Ajouter un pays</div><input type="text" placeholder="Nom du pays" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border ${darkMode?"bg-gray-700 border-gray-600":"bg-white border-gray-300"}`}/><input type="text" placeholder="Emoji (ex: 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border ${darkMode?"bg-gray-700 border-gray-600":"bg-white border-gray-300"}`} maxLength="4"/><div className="flex items-center gap-2 mb-2"><label className="text-xs">Couleur:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Ajouter</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');}} className={`flex-1 px-2 py-1 text-xs rounded ${darkMode?"bg-gray-700":"bg-gray-200"}`}>Annuler</button></div></div>)}</div>)}</div>)}
+            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?"bg-gray-700 hover:bg-gray-600":"bg-gray-200 hover:bg-gray-300"} flex items-center space-x-1`}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 ${darkMode?"bg-gray-800":"bg-white"} rounded-lg shadow-xl border ${darkMode?"border-gray-700":"border-gray-200"} p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto`}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold text-gray-500 px-2 py-1">{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs ${darkMode?"hover:bg-gray-700":"hover:bg-gray-100"} flex items-center space-x-2`}><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className={`w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed ${darkMode?"border-gray-600 hover:bg-gray-700":"border-gray-300 hover:bg-gray-100"} flex items-center justify-center space-x-1`}><Icon.Plus/><span>Nouveau pays</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Ajouter un pays</div><input type="text" placeholder="Nom du pays" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border ${darkMode?"bg-gray-700 border-gray-600":"bg-white border-gray-300"}`}/><input type="text" placeholder="Emoji (ex: 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border ${darkMode?"bg-gray-700 border-gray-600":"bg-white border-gray-300"}`} maxLength="4"/><div className="mb-2"><label className="text-xs block mb-1">Continent:</label><select value={newCountryRegion} onChange={e=>setNewCountryRegion(e.target.value)} className={`w-full px-2 py-1 text-xs rounded border ${darkMode?"bg-gray-700 border-gray-600":"bg-white border-gray-300"}`}>{availableRegions.map(region=><option key={region} value={region}>{region}</option>)}</select></div><div className="flex items-center gap-2 mb-2"><label className="text-xs">Couleur:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Ajouter</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');setNewCountryRegion('Europe');}} className={`flex-1 px-2 py-1 text-xs rounded ${darkMode?"bg-gray-700":"bg-gray-200"}`}>Annuler</button></div></div>)}</div>)}</div>)}
         </div>
     );
 };
@@ -1031,6 +1036,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const[scrollLeft,setScrollLeft]=useState(0);
     const[spacePressed,setSpacePressed]=useState(false);
     const[resizing,setResizing]=useState(null); // {taskId, handle: 'left'|'right', startX, originalStart, originalEnd}
+    const[dragging,setDragging]=useState(null); // {taskId, startX, startY, originalLeft}
+    const[dragOverTask,setDragOverTask]=useState(null); // {taskId, position: 'before'|'after'}
     const currentMonth=new Date().getMonth();
     const currentWeek=Math.floor((new Date().getTime()-new Date(2026,0,1).getTime())/(7*24*60*60*1000));
 
@@ -1154,6 +1161,82 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             document.removeEventListener('touchend',handleGlobalTouchEnd);
         };
     },[resizing,tasks,onUpdateTask,zoom,endResize]);
+
+    // Drag & Drop handlers for horizontal drag (date change)
+    const handleTaskDragStart=(e,task)=>{
+        // Don't start drag if we're resizing
+        if(resizing)return;
+        e.stopPropagation();
+        e.dataTransfer.effectAllowed='move';
+        e.dataTransfer.setData('taskId',task.id);
+        const pos=getTaskPosition(task);
+        setDragging({taskId:task.id,startX:e.clientX,originalLeft:pos?.left||0});
+        e.currentTarget.classList.add('dragging');
+    };
+
+    const handleTaskDragEnd=(e)=>{
+        e.currentTarget.classList.remove('dragging');
+        setDragging(null);
+        setDragOverTask(null);
+    };
+
+    const handleTaskDragOver=(e,task)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        // Don't show drag over on the dragged task itself
+        const draggedId=e.dataTransfer.getData('taskId');
+        if(draggedId===task.id)return;
+
+        // Determine if drag is in top or bottom half of task
+        const rect=e.currentTarget.getBoundingClientRect();
+        const midY=rect.top+rect.height/2;
+        const position=e.clientY<midY?'before':'after';
+        setDragOverTask({taskId:task.id,position});
+    };
+
+    const handleTaskDragLeave=(e)=>{
+        e.stopPropagation();
+        setDragOverTask(null);
+    };
+
+    const handleTaskDrop=(e,targetTask)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        const draggedId=e.dataTransfer.getData('taskId');
+        if(!draggedId||draggedId===targetTask.id){
+            setDragOverTask(null);
+            return;
+        }
+
+        const draggedTask=tasks.find(t=>t.id===draggedId);
+        if(!draggedTask||!targetTask)return;
+
+        // If tasks are in the same action, reorder them
+        if(draggedTask.actionId===targetTask.actionId){
+            // Get all tasks in this action sorted by order
+            const actionTasks=tasks.filter(t=>t.actionId===targetTask.actionId).sort((a,b)=>(a.order||0)-(b.order||0));
+            const draggedIndex=actionTasks.findIndex(t=>t.id===draggedId);
+            const targetIndex=actionTasks.findIndex(t=>t.id===targetTask.id);
+
+            if(draggedIndex!==-1&&targetIndex!==-1){
+                // Reorder
+                const reordered=[...actionTasks];
+                const[removed]=reordered.splice(draggedIndex,1);
+                const insertIndex=dragOverTask?.position==='before'?targetIndex:targetIndex+1;
+                const adjustedIndex=draggedIndex<targetIndex?insertIndex-1:insertIndex;
+                reordered.splice(adjustedIndex,0,removed);
+
+                // Update order property
+                const updates=reordered.map((t,idx)=>({id:t.id,order:idx}));
+                updates.forEach(({id,order})=>onUpdateTask(id,{order}));
+            }
+        }else{
+            // Move task to different action
+            onUpdateTask(draggedId,{actionId:targetTask.actionId,order:targetTask.order||0});
+        }
+
+        setDragOverTask(null);
+    };
 
     const getWeekNumber=(date)=>{
         const startOfYear=new Date(2026,0,1);
@@ -1321,16 +1404,18 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                     <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}} onDrop={(e)=>handleDrop(e,zoom==='month'?i:zoom==='quarter'?i*3:Math.floor(i/4))} onDragOver={handleDragOver} onDragLeave={handleDragLeave}/>
                                                 ))}
                                             </div>
-                                            {(zoom==='month'||zoom==='week')&&actionTasks.map(task=>{
+                                            {(zoom==='month'||zoom==='week')&&actionTasks.sort((a,b)=>(a.order||0)-(b.order||0)).map(task=>{
                                                 const pos=getTaskPosition(task);
                                                 if(!pos)return null;
                                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
+                                                const isDragOver=dragOverTask?.taskId===task.id;
+                                                const dragOverStyle=isDragOver?(dragOverTask.position==='before'?{borderTop:'3px solid #3781ec'}:{borderBottom:'3px solid #3781ec'}):{};
                                                 return(
-                                                    <div key={task.id} onClick={()=>onOpenTask(task)} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all cursor-pointer" style={{left:pos.left,width:pos.width,backgroundColor:status?.color}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
-                                                        <div className="resize-handle resize-handle-left" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'left',e.touches[0].clientX,task);}} title="Redimensionner début"/>
+                                                    <div key={task.id} draggable={!resizing} onClick={()=>onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all cursor-move" style={{left:pos.left,width:pos.width,backgroundColor:status?.color,...dragOverStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
+                                                        <div className="resize-handle resize-handle-left" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>e.preventDefault()} draggable={false} title="Redimensionner début"/>
                                                         <span className="truncate flex-1 px-1">{task.title}</span>
                                                         {task.budget>0&&zoom==='month'&&<span className="ml-1 opacity-75">({(task.budget/1000).toFixed(0)}k)</span>}
-                                                        <div className="resize-handle resize-handle-right" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'right',e.touches[0].clientX,task);}} title="Redimensionner fin"/>
+                                                        <div className="resize-handle resize-handle-right" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'right',e.touches[0].clientX,task);}} onDragStart={(e)=>e.preventDefault()} draggable={false} title="Redimensionner fin"/>
                                                     </div>
                                                 );
                                             })}
