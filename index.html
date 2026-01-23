@@ -1038,6 +1038,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const[resizing,setResizing]=useState(null); // {taskId, handle: 'left'|'right', startX, originalStart, originalEnd}
     const[dragging,setDragging]=useState(null); // {taskId, startX, startY, originalLeft}
     const[dragOverTask,setDragOverTask]=useState(null); // {taskId, position: 'before'|'after'}
+    const[dragOverAction,setDragOverAction]=useState(null); // {actionId, position: 'before'|'after'}
     const currentMonth=new Date().getMonth();
     const currentWeek=Math.floor((new Date().getTime()-new Date(2026,0,1).getTime())/(7*24*60*60*1000));
 
@@ -1231,11 +1232,54 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 updates.forEach(({id,order})=>onUpdateTask(id,{order}));
             }
         }else{
-            // Move task to different action
-            onUpdateTask(draggedId,{actionId:targetTask.actionId,order:targetTask.order||0});
+            // Move task to different action - preserve start/due dates
+            onUpdateTask(draggedId,{
+                actionId:targetTask.actionId,
+                order:targetTask.order||0,
+                startDate:draggedTask.startDate,
+                dueDate:draggedTask.dueDate
+            });
         }
 
         setDragOverTask(null);
+    };
+
+    // Drag & Drop handlers for actions
+    const handleActionDragOver=(e,action)=>{
+        if(!onReorderAction)return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Don't show drag over on the dragged action itself
+        const draggedId=e.dataTransfer.getData('actionId');
+        if(draggedId===action.id)return;
+
+        // Determine if drag is in top or bottom half of action row
+        const rect=e.currentTarget.getBoundingClientRect();
+        const midY=rect.top+rect.height/2;
+        const position=e.clientY<midY?'before':'after';
+        setDragOverAction({actionId:action.id,position});
+    };
+
+    const handleActionDragLeave=(e)=>{
+        e.stopPropagation();
+        setDragOverAction(null);
+    };
+
+    const handleActionDrop=(e,targetAction)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        const draggedId=e.dataTransfer.getData('actionId');
+        if(!draggedId||draggedId===targetAction.id){
+            setDragOverAction(null);
+            return;
+        }
+
+        if(onReorderAction&&dragOverAction){
+            onReorderAction(draggedId,targetAction.id,dragOverAction.position);
+        }
+
+        setDragOverAction(null);
     };
 
     const getWeekNumber=(date)=>{
@@ -1388,8 +1432,11 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     <div className={`w-[250px] flex-shrink-0 p-3 font-bold text-white text-sm bg-gradient-to-r ${category.gradient}`}>{category.name}</div>
                                     <div className="flex-1" style={{background:darkMode?'rgba(55,65,81,0.3)':'rgba(243,244,246,0.5)'}}/>
                                 </div>
-                                {catActions.sort((a,b)=>(a.action.order||0)-(b.action.order||0)).map(({action,tasks:actionTasks})=>(
-                                    <div key={action.id} draggable={onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.dataTransfer.setData('actionId',action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');}} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative`}>
+                                {catActions.sort((a,b)=>(a.action.order||0)-(b.action.order||0)).map(({action,tasks:actionTasks})=>{
+                                    const isDragOverAction=dragOverAction?.actionId===action.id;
+                                    const dragOverActionStyle=isDragOverAction?(dragOverAction.position==='before'?'border-t-4 border-t-secondary':'border-b-4 border-b-secondary'):'';
+                                    return(
+                                    <div key={action.id} draggable={onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.dataTransfer.setData('actionId',action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative ${dragOverActionStyle}`}>
                                         <div className="w-[250px] flex-shrink-0 p-2 cursor-pointer relative" onClick={()=>onOpenAction&&onOpenAction(action)}>
                                             {onMoveAction&&<div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                                 <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'up');}} className={`w-5 h-5 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le haut">⬆️</button>
@@ -1429,7 +1476,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                             })}
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ))}
                     </div>
@@ -2180,29 +2228,55 @@ const App=()=>{
         const targetAction=actions.find(a=>a.id===targetId);
         if(!draggedAction||!targetAction)return;
 
-        // Find all actions in the same category
-        const sameActions=actions.filter(a=>a.categoryId===draggedAction.categoryId).sort((a,b)=>(a.order||0)-(b.order||0));
+        // Check if moving to different category
+        if(draggedAction.categoryId!==targetAction.categoryId){
+            // Inter-category move: change category and reorder
+            const targetActions=actions.filter(a=>a.categoryId===targetAction.categoryId).sort((a,b)=>(a.order||0)-(b.order||0));
+            const targetIndex=targetActions.findIndex(a=>a.id===targetId);
 
-        const draggedIndex=sameActions.findIndex(a=>a.id===draggedId);
-        const targetIndex=sameActions.findIndex(a=>a.id===targetId);
-        if(draggedIndex===-1||targetIndex===-1)return;
+            if(targetIndex!==-1){
+                const insertIndex=position==='before'?targetIndex:targetIndex+1;
 
-        // Reorder the actions
-        const reordered=[...sameActions];
-        const[removed]=reordered.splice(draggedIndex,1);
-        const insertIndex=position==='before'?targetIndex:targetIndex+1;
-        const adjustedIndex=draggedIndex<targetIndex?insertIndex-1:insertIndex;
-        reordered.splice(adjustedIndex,0,removed);
+                // Remove from old category and update orders
+                const oldCategoryActions=actions.filter(a=>a.categoryId===draggedAction.categoryId&&a.id!==draggedId).sort((a,b)=>(a.order||0)-(b.order||0));
+                const oldUpdates=oldCategoryActions.map((a,idx)=>({...a,order:idx}));
 
-        // Update order property - assign new sequential orders
-        const updatedActions=reordered.map((a,idx)=>({...a,order:idx}));
+                // Insert into new category
+                targetActions.splice(insertIndex,0,{...draggedAction,categoryId:targetAction.categoryId});
+                const newUpdates=targetActions.map((a,idx)=>({...a,order:idx,categoryId:targetAction.categoryId}));
 
-        setActions(prev=>prev.map(a=>{
-            const updated=updatedActions.find(ua=>ua.id===a.id);
-            return updated||a;
-        }));
+                setActions(prev=>prev.map(a=>{
+                    const updated=[...oldUpdates,...newUpdates].find(ua=>ua.id===a.id);
+                    return updated||a;
+                }));
 
-        showNotification('✅ Action réordonnée');
+                showNotification('✅ Action déplacée vers nouvelle catégorie');
+            }
+        }else{
+            // Intra-category move: reorder within same category
+            const sameActions=actions.filter(a=>a.categoryId===draggedAction.categoryId).sort((a,b)=>(a.order||0)-(b.order||0));
+
+            const draggedIndex=sameActions.findIndex(a=>a.id===draggedId);
+            const targetIndex=sameActions.findIndex(a=>a.id===targetId);
+            if(draggedIndex===-1||targetIndex===-1)return;
+
+            // Reorder the actions
+            const reordered=[...sameActions];
+            const[removed]=reordered.splice(draggedIndex,1);
+            const insertIndex=position==='before'?targetIndex:targetIndex+1;
+            const adjustedIndex=draggedIndex<targetIndex?insertIndex-1:insertIndex;
+            reordered.splice(adjustedIndex,0,removed);
+
+            // Update order property - assign new sequential orders
+            const updatedActions=reordered.map((a,idx)=>({...a,order:idx}));
+
+            setActions(prev=>prev.map(a=>{
+                const updated=updatedActions.find(ua=>ua.id===a.id);
+                return updated||a;
+            }));
+
+            showNotification('✅ Action réordonnée');
+        }
     };
 
     const handleDeleteTask=(taskId)=>{
