@@ -642,7 +642,7 @@
       "actionId": "a1",
       "month": 6,
       "startDate": "2026-06-01",
-      "dueDate": "2026-07-02",
+      "dueDate": "2026-07-01",
       "status": "todo",
       "priority": "medium",
       "description": "",
