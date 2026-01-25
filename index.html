@@ -1370,15 +1370,88 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         e.preventDefault();e.currentTarget.classList.remove('drag-over');
         const taskId=e.dataTransfer.getData('taskId');
         if(taskId&&onUpdateTask){
+            const task=tasks.find(t=>t.id===taskId);
+            if(!task)return;
+
             const year=2026;
-            const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
-            const lastDay=new Date(year,monthIdx+1,0).getDate();
-            const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
+
+            // Calculate task duration in days
+            let duration=1; // default 1 day
+            if(task.startDate&&task.dueDate){
+                const oldStart=new Date(task.startDate);
+                const oldEnd=new Date(task.dueDate);
+                duration=Math.max(1,Math.ceil((oldEnd-oldStart)/(1000*60*60*24))+1);
+            }
+
+            // Get position in month based on mouse position
+            const rect=e.currentTarget.getBoundingClientRect();
+            const relativeX=e.clientX-rect.left;
+            const percentage=relativeX/rect.width;
+
+            // Calculate start day in month
+            const daysInMonth=new Date(year,monthIdx+1,0).getDate();
+            let startDay=Math.max(1,Math.min(daysInMonth,Math.ceil(percentage*daysInMonth)));
+
+            // Adjust if task would exceed month end
+            if(startDay+duration-1>daysInMonth){
+                startDay=Math.max(1,daysInMonth-duration+1);
+            }
+
+            const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(startDay).padStart(2,'0');
+
+            // Calculate end date
+            const newStartDate=new Date(year,monthIdx,startDay);
+            const newEndDate=new Date(newStartDate);
+            newEndDate.setDate(newEndDate.getDate()+duration-1);
+
+            const endMonth=newEndDate.getMonth();
+            const endDay=newEndDate.getDate();
+            const dueDate=year+'-'+String(endMonth+1).padStart(2,'0')+'-'+String(endDay).padStart(2,'0');
+
             onUpdateTask(taskId,{startDate,dueDate,month:monthIdx});
         }
     };
     const handleDragOver=(e)=>{e.preventDefault();e.currentTarget.classList.add('drag-over');};
     const handleDragLeave=(e)=>{e.currentTarget.classList.remove('drag-over');};
+
+    // Handler for dropping a task into an action row (for vertical movement between actions)
+    const handleActionRowDrop=(e,targetAction)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        const taskId=e.dataTransfer.getData('taskId');
+        if(!taskId||!onUpdateTask)return;
+
+        const draggedTask=tasks.find(t=>t.id===taskId);
+        if(!draggedTask)return;
+
+        // If task is being moved to a different action
+        if(draggedTask.actionId!==targetAction.id){
+            // Get the highest order in the target action
+            const actionTasks=tasks.filter(t=>t.actionId===targetAction.id);
+            const maxOrder=actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0)):0;
+
+            // Move task to new action, preserve dates, set order to end
+            onUpdateTask(taskId,{
+                actionId:targetAction.id,
+                order:maxOrder+1,
+                startDate:draggedTask.startDate,
+                dueDate:draggedTask.dueDate
+            });
+        }
+    };
+
+    const handleActionRowDragOver=(e)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        const taskId=e.dataTransfer.getData('taskId');
+        if(taskId){
+            e.currentTarget.style.backgroundColor=darkMode?'rgba(55,129,236,0.1)':'rgba(55,129,236,0.05)';
+        }
+    };
+
+    const handleActionRowDragLeave=(e)=>{
+        e.currentTarget.style.backgroundColor='';
+    };
 
     return(
         <div className="animate-slide-in">
@@ -1445,7 +1518,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                             <p className="text-sm font-medium truncate hover:text-secondary pr-12">{action.name}</p>
                                             <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
                                         </div>
-                                        <div className="flex-1 relative" style={{height:'60px'}}>
+                                        <div className="flex-1 relative" style={{height:'60px'}} onDragOver={handleActionRowDragOver} onDragLeave={handleActionRowDragLeave} onDrop={(e)=>handleActionRowDrop(e,action)}>
                                             <div className="absolute inset-0 flex">
                                                 {headers.map((_,i)=>(
                                                     <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}} onDrop={(e)=>handleDrop(e,zoom==='month'?i:zoom==='quarter'?i*3:Math.floor(i/4))} onDragOver={handleDragOver} onDragLeave={handleDragLeave}/>
