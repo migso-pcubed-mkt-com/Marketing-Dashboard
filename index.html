@@ -1080,8 +1080,32 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const task=tasks.find(t=>t.id===resizing.taskId);
             if(!task)return;
 
-            const pixelsPerDay=zoom==='month'?3.33:zoom==='week'?5.7:1;
-            const daysMoved=Math.round(deltaX/pixelsPerDay);
+            // Calculate pixels per day based on zoom
+            const currentColWidth=zoom==='quarter'?280:zoom==='week'?40:100;
+            let pixelsPerDay;
+            if(zoom==='week'){
+                pixelsPerDay=currentColWidth/7; // 40px / 7 days
+            }else if(zoom==='month'){
+                // For month view, snap to weeks (7 days) for better precision
+                const avgDaysInMonth=30;
+                pixelsPerDay=currentColWidth/avgDaysInMonth;
+            }else{
+                pixelsPerDay=1; // Quarter view
+            }
+
+            // Calculate days moved with snap-to-grid
+            let daysMoved;
+            if(zoom==='week'){
+                // Snap to day boundaries in week view
+                daysMoved=Math.round(deltaX/pixelsPerDay);
+            }else if(zoom==='month'){
+                // Snap to week boundaries (7 days) in month view for better precision
+                const daysMovedRaw=deltaX/pixelsPerDay;
+                daysMoved=Math.round(daysMovedRaw/7)*7; // Snap to nearest week
+            }else{
+                daysMoved=Math.round(deltaX/pixelsPerDay);
+            }
+
             if(daysMoved===0)return;
 
             const originalStart=new Date(resizing.originalStart);
@@ -1118,8 +1142,32 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const task=tasks.find(t=>t.id===resizing.taskId);
             if(!task)return;
 
-            const pixelsPerDay=zoom==='month'?3.33:zoom==='week'?5.7:1;
-            const daysMoved=Math.round(deltaX/pixelsPerDay);
+            // Calculate pixels per day based on zoom
+            const currentColWidth=zoom==='quarter'?280:zoom==='week'?40:100;
+            let pixelsPerDay;
+            if(zoom==='week'){
+                pixelsPerDay=currentColWidth/7; // 40px / 7 days
+            }else if(zoom==='month'){
+                // For month view, snap to weeks (7 days) for better precision
+                const avgDaysInMonth=30;
+                pixelsPerDay=currentColWidth/avgDaysInMonth;
+            }else{
+                pixelsPerDay=1; // Quarter view
+            }
+
+            // Calculate days moved with snap-to-grid
+            let daysMoved;
+            if(zoom==='week'){
+                // Snap to day boundaries in week view
+                daysMoved=Math.round(deltaX/pixelsPerDay);
+            }else if(zoom==='month'){
+                // Snap to week boundaries (7 days) in month view for better precision
+                const daysMovedRaw=deltaX/pixelsPerDay;
+                daysMoved=Math.round(daysMovedRaw/7)*7; // Snap to nearest week
+            }else{
+                daysMoved=Math.round(deltaX/pixelsPerDay);
+            }
+
             if(daysMoved===0)return;
 
             const originalStart=new Date(resizing.originalStart);
@@ -1403,36 +1451,18 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const relativeX=e.clientX-rect.left;
             let percentage=relativeX/rect.width;
 
-            // Improved snapping zones for better precision
-            // Define snap zones: beginning (0-15%), middle (40-60%), end (85-100%)
-            if(percentage<=0.15){
-                // Snap to beginning
-                percentage=0;
-            }else if(percentage>=0.85){
-                // Snap to end
-                percentage=1;
-            }else if(percentage>=0.40&&percentage<=0.60){
-                // Snap to middle
-                percentage=0.5;
-            }
-            // Otherwise, use the actual percentage for fine-grained control
-
             let startDate,dueDate;
 
             if(zoom==='week'){
-                // For week view: calculate based on day of week
+                // For week view: snap to day boundaries for precise positioning
                 const weekNumber=colIdx;
-                let dayOfWeek;
 
-                if(percentage===0){
-                    dayOfWeek=0; // Start of week (Monday)
-                }else if(percentage===1){
-                    dayOfWeek=Math.max(0,6-duration+1); // End of week, accounting for duration
-                }else if(percentage===0.5){
-                    dayOfWeek=Math.max(0,Math.min(6-duration+1,Math.floor((7-duration)/2))); // Middle of week
-                }else{
-                    dayOfWeek=Math.max(0,Math.min(6-duration+1,Math.round(percentage*7)));
-                }
+                // Calculate which day of the week based on percentage
+                // Snap to the nearest day (7 days in a week)
+                let dayOfWeek=Math.round(percentage*7);
+
+                // Clamp to valid range [0-6] and ensure task fits in week
+                dayOfWeek=Math.max(0,Math.min(6-duration+1,dayOfWeek));
 
                 // Calculate the actual date
                 const firstDayOfYear=new Date(year,0,1);
@@ -1447,22 +1477,35 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
 
             }else if(zoom==='month'){
-                // For month view: calculate based on day in month
+                // For month view: snap to week boundaries for precise positioning
                 const monthIdx=colIdx;
                 const daysInMonth=new Date(year,monthIdx+1,0).getDate();
+                const firstDayOfMonth=new Date(year,monthIdx,1);
+                const firstDayOfWeek=firstDayOfMonth.getDay(); // 0=Sunday, 1=Monday, etc.
 
-                let startDay;
-                if(percentage===0){
-                    startDay=1; // Start of month
-                }else if(percentage===1){
-                    startDay=Math.max(1,daysInMonth-duration+1); // End of month, accounting for duration
-                }else if(percentage===0.5){
-                    // Middle of month, centered
-                    startDay=Math.max(1,Math.min(daysInMonth-duration+1,Math.floor((daysInMonth-duration+1)/2)+1));
+                // Calculate day based on percentage
+                let targetDay=Math.round(percentage*daysInMonth);
+
+                // Snap to nearest Monday (start of week) for better precision
+                // Convert Sunday (0) to 7 for easier calculation
+                const adjustedFirstDay=firstDayOfWeek===0?7:firstDayOfWeek;
+
+                // Calculate the day of week for targetDay
+                const targetDayOfWeek=((adjustedFirstDay+targetDay-2)%7)+1; // 1=Monday, 7=Sunday
+
+                // Snap to the nearest Monday
+                let daysToMonday;
+                if(targetDayOfWeek===1){
+                    daysToMonday=0; // Already Monday
+                }else if(targetDayOfWeek<=4){
+                    // Snap backward to previous Monday
+                    daysToMonday=-(targetDayOfWeek-1);
                 }else{
-                    // Fine-grained positioning
-                    startDay=Math.max(1,Math.min(daysInMonth-duration+1,Math.round(percentage*daysInMonth)));
+                    // Snap forward to next Monday
+                    daysToMonday=8-targetDayOfWeek;
                 }
+
+                let startDay=Math.max(1,Math.min(daysInMonth-duration+1,targetDay+daysToMonday));
 
                 startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(startDay).padStart(2,'0');
 
@@ -1624,8 +1667,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     const isDragOverAction=dragOverAction?.actionId===action.id;
                                     const dragOverActionStyle=isDragOverAction?(dragOverAction.position==='before'?'border-t-4 border-t-secondary':'border-b-4 border-b-secondary'):'';
                                     return(
-                                    <div key={action.id} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative ${dragOverActionStyle} ${onReorderAction?'cursor-move':'cursor-default'}`}>
-                                        <div className="w-[250px] flex-shrink-0 p-2 cursor-pointer relative" onClick={()=>onOpenAction&&onOpenAction(action)}>
+                                    <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative ${dragOverActionStyle}`}>
+                                        <div className="w-[250px] flex-shrink-0 p-2 relative" draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
                                             <p className="text-sm font-medium truncate hover:text-secondary">{action.name}</p>
                                             <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
                                             {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs text-gray-400" title="Glisser pour réordonner">⋮⋮</div>}
