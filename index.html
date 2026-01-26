@@ -1027,7 +1027,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 };
 
 // TIMELINE VIEW
-const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onMoveAction,onReorderAction,filters,setFilters})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,filters,setFilters})=>{
     const{darkMode}=useApp();
     const timelineRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -1366,7 +1366,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const groupedByCategory=categories.map(cat=>({category:cat,actions:actions.filter(a=>a.categoryId===cat.id).map(action=>({action,tasks:filteredTasks.filter(t=>t.actionId===action.id)}))}));
     const scrollToQuarter=(q)=>{if(timelineRef.current)timelineRef.current.scrollLeft=(q-1)*3*colWidth;};
 
-    const handleDrop=(e,monthIdx)=>{
+    const handleDrop=(e,colIdx)=>{
         e.preventDefault();e.currentTarget.classList.remove('drag-over');
         const taskId=e.dataTransfer.getData('taskId');
         if(taskId&&onUpdateTask){
@@ -1383,32 +1383,97 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 duration=Math.max(1,Math.ceil((oldEnd-oldStart)/(1000*60*60*24))+1);
             }
 
-            // Get position in month based on mouse position
+            // Get position within column based on mouse position
             const rect=e.currentTarget.getBoundingClientRect();
             const relativeX=e.clientX-rect.left;
             const percentage=relativeX/rect.width;
 
-            // Calculate start day in month
-            const daysInMonth=new Date(year,monthIdx+1,0).getDate();
-            let startDay=Math.max(1,Math.min(daysInMonth,Math.ceil(percentage*daysInMonth)));
+            let startDate,dueDate;
 
-            // Adjust if task would exceed month end
-            if(startDay+duration-1>daysInMonth){
-                startDay=Math.max(1,daysInMonth-duration+1);
+            if(zoom==='week'){
+                // For week view: calculate based on day of week
+                const weekNumber=colIdx;
+                const dayOfWeek=Math.max(0,Math.min(6,Math.round(percentage*7)));
+
+                // Calculate the actual date
+                const firstDayOfYear=new Date(year,0,1);
+                const daysOffset=weekNumber*7+dayOfWeek;
+                const newStartDate=new Date(year,0,1+daysOffset);
+
+                // Calculate end date
+                const newEndDate=new Date(newStartDate);
+                newEndDate.setDate(newEndDate.getDate()+duration-1);
+
+                startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
+                dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
+
+            }else if(zoom==='month'){
+                // For month view: calculate based on day in month
+                const monthIdx=colIdx;
+                const daysInMonth=new Date(year,monthIdx+1,0).getDate();
+
+                // Use Math.round for better precision (instead of Math.ceil)
+                let startDay=Math.max(1,Math.min(daysInMonth,Math.round(percentage*daysInMonth)));
+
+                // If percentage is very close to 0, snap to day 1
+                if(percentage<0.03)startDay=1;
+                // If percentage is very close to 1, snap to last day (adjusted for task duration)
+                if(percentage>0.97)startDay=Math.max(1,daysInMonth-duration+1);
+
+                // Adjust if task would exceed month end
+                if(startDay+duration-1>daysInMonth){
+                    startDay=Math.max(1,daysInMonth-duration+1);
+                }
+
+                startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(startDay).padStart(2,'0');
+
+                // Calculate end date
+                const newStartDate=new Date(year,monthIdx,startDay);
+                const newEndDate=new Date(newStartDate);
+                newEndDate.setDate(newEndDate.getDate()+duration-1);
+
+                const endMonth=newEndDate.getMonth();
+                const endDay=newEndDate.getDate();
+                dueDate=year+'-'+String(endMonth+1).padStart(2,'0')+'-'+String(endDay).padStart(2,'0');
+
+            }else{
+                // Quarter view: colIdx is quarter index (0-3)
+                const quarterIdx=colIdx;
+                const firstMonthOfQuarter=quarterIdx*3;
+
+                // Determine which month within the quarter based on percentage
+                // Each quarter has 3 months, so split percentage into thirds
+                let monthInQuarter=Math.floor(percentage*3);
+                if(monthInQuarter>2)monthInQuarter=2;
+
+                const monthIdx=firstMonthOfQuarter+monthInQuarter;
+
+                // Adjust percentage to be within the selected month (0-1 range)
+                const monthPercentage=(percentage*3)%1;
+
+                const daysInMonth=new Date(year,monthIdx+1,0).getDate();
+                let startDay=Math.max(1,Math.min(daysInMonth,Math.round(monthPercentage*daysInMonth)));
+
+                // Snap to boundaries
+                if(monthPercentage<0.03)startDay=1;
+                if(monthPercentage>0.97)startDay=Math.max(1,daysInMonth-duration+1);
+
+                if(startDay+duration-1>daysInMonth){
+                    startDay=Math.max(1,daysInMonth-duration+1);
+                }
+
+                startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(startDay).padStart(2,'0');
+
+                const newStartDate=new Date(year,monthIdx,startDay);
+                const newEndDate=new Date(newStartDate);
+                newEndDate.setDate(newEndDate.getDate()+duration-1);
+
+                const endMonth=newEndDate.getMonth();
+                const endDay=newEndDate.getDate();
+                dueDate=year+'-'+String(endMonth+1).padStart(2,'0')+'-'+String(endDay).padStart(2,'0');
             }
 
-            const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(startDay).padStart(2,'0');
-
-            // Calculate end date
-            const newStartDate=new Date(year,monthIdx,startDay);
-            const newEndDate=new Date(newStartDate);
-            newEndDate.setDate(newEndDate.getDate()+duration-1);
-
-            const endMonth=newEndDate.getMonth();
-            const endDay=newEndDate.getDate();
-            const dueDate=year+'-'+String(endMonth+1).padStart(2,'0')+'-'+String(endDay).padStart(2,'0');
-
-            onUpdateTask(taskId,{startDate,dueDate,month:monthIdx});
+            onUpdateTask(taskId,{startDate,dueDate});
         }
     };
     const handleDragOver=(e)=>{e.preventDefault();e.currentTarget.classList.add('drag-over');};
@@ -1511,17 +1576,13 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     return(
                                     <div key={action.id} draggable={onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.dataTransfer.setData('actionId',action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative ${dragOverActionStyle}`}>
                                         <div className="w-[250px] flex-shrink-0 p-2 cursor-pointer relative" onClick={()=>onOpenAction&&onOpenAction(action)}>
-                                            {onMoveAction&&<div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'up');}} className={`w-5 h-5 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le haut">⬆️</button>
-                                                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'down');}} className={`w-5 h-5 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le bas">⬇️</button>
-                                            </div>}
-                                            <p className="text-sm font-medium truncate hover:text-secondary pr-12">{action.name}</p>
+                                            <p className="text-sm font-medium truncate hover:text-secondary">{action.name}</p>
                                             <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
                                         </div>
                                         <div className="flex-1 relative" style={{height:'60px'}} onDragOver={handleActionRowDragOver} onDragLeave={handleActionRowDragLeave} onDrop={(e)=>handleActionRowDrop(e,action)}>
                                             <div className="absolute inset-0 flex">
                                                 {headers.map((_,i)=>(
-                                                    <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}} onDrop={(e)=>handleDrop(e,zoom==='month'?i:zoom==='quarter'?i*3:Math.floor(i/4))} onDragOver={handleDragOver} onDragLeave={handleDragLeave}/>
+                                                    <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}} onDrop={(e)=>handleDrop(e,i)} onDragOver={handleDragOver} onDragLeave={handleDragLeave}/>
                                                 ))}
                                             </div>
                                             {(zoom==='month'||zoom==='week')&&actionTasks.sort((a,b)=>(a.order||0)-(b.order||0)).map(task=>{
@@ -2268,31 +2329,6 @@ const App=()=>{
         showNotification(isDifferentColumn?'✅ Tâche déplacée vers nouvelle colonne':'✅ Tâche réordonnée');
     };
 
-    const handleMoveAction=(actionId,direction)=>{
-        const action=actions.find(a=>a.id===actionId);
-        if(!action)return;
-
-        // Find all actions in the same category
-        const sameActions=actions.filter(a=>a.categoryId===action.categoryId).sort((a,b)=>(a.order||0)-(b.order||0));
-
-        const currentIndex=sameActions.findIndex(a=>a.id===actionId);
-        if(currentIndex===-1)return;
-
-        const targetIndex=direction==='up'?currentIndex-1:currentIndex+1;
-        if(targetIndex<0||targetIndex>=sameActions.length)return;
-
-        // Swap orders
-        const currentOrder=sameActions[currentIndex].order||currentIndex;
-        const targetOrder=sameActions[targetIndex].order||targetIndex;
-
-        setActions(prev=>prev.map(a=>{
-            if(a.id===sameActions[currentIndex].id)return{...a,order:targetOrder};
-            if(a.id===sameActions[targetIndex].id)return{...a,order:currentOrder};
-            return a;
-        }));
-
-        showNotification(direction==='up'?'⬆️ Action déplacée vers le haut':'⬇️ Action déplacée vers le bas');
-    };
 
     const handleReorderAction=(draggedId,targetId,position)=>{
         if(draggedId===targetId)return;
@@ -2493,7 +2529,7 @@ const App=()=>{
                         </div>
                     )}
                     {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries}/>}
-                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters}/>}
                     {currentView==='dashboard'&&<DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
                 {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} actions={actions} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null} allCountries={allCountries} onAddCustomCountry={addCustomCountry}/>}
