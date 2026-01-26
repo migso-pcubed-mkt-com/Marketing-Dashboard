@@ -566,13 +566,13 @@
     {
       "id": "t18",
       "actionId": "a11",
-      "month": 8,
-      "startDate": "2026-09-01",
+      "month": 0,
+      "startDate": "2026-01-01",
       "title": "Event In-House Avril",
       "description": "Événement interne",
-      "status": "todo",
+      "status": "inprogress",
       "priority": "high",
-      "dueDate": "2026-09-30",
+      "dueDate": "2026-01-31",
       "budget": 10000,
       "checklist": [
         {
@@ -591,7 +591,7 @@
       "channels": [
         "events"
       ],
-      "order": 0,
+      "order": 1,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
