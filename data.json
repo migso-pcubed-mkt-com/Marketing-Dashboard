@@ -616,10 +616,10 @@
     {
       "id": "t1768768312140",
       "title": "Nouvelle tâche",
-      "actionId": "a2",
+      "actionId": "a1",
       "month": 5,
-      "startDate": "2026-06-10",
-      "dueDate": "2026-06-24",
+      "startDate": "2026-05-23",
+      "dueDate": "2026-06-06",
       "status": "todo",
       "priority": "medium",
       "description": "",
@@ -629,7 +629,7 @@
       "channels": [
         "social"
       ],
-      "order": 6,
+      "order": 23,
       "createdAt": "2026-01-20T10:00:47.390Z",
       "countries": [
         "france",
