@@ -202,7 +202,7 @@
       "channels": [
         "social"
       ],
-      "order": 22,
+      "order": 0,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -662,14 +662,14 @@
       "month": 0,
       "startDate": "2026-01-01",
       "dueDate": "2026-01-31",
-      "status": "review",
+      "status": "inprogress",
       "priority": "medium",
       "description": "",
       "checklist": [],
       "comments": [],
       "attachments": [],
       "channels": [],
-      "order": 2,
+      "order": 1,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
