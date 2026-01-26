@@ -46,13 +46,13 @@
     {
       "id": "a3",
       "name": "Google Ads - Brand",
-      "categoryId": "consideration",
+      "categoryId": "brand-awareness",
       "budget": 12000,
       "priority": "high",
       "tags": [
         "gads"
       ],
-      "order": 1
+      "order": 2
     },
     {
       "id": "a4",
@@ -63,7 +63,7 @@
       "tags": [
         "lads"
       ],
-      "order": 2
+      "order": 3
     },
     {
       "id": "a5",
@@ -74,7 +74,7 @@
       "tags": [
         "press"
       ],
-      "order": 3
+      "order": 4
     },
     {
       "id": "a6",
@@ -97,7 +97,7 @@
       "tags": [
         "seo"
       ],
-      "order": 2
+      "order": 1
     },
     {
       "id": "a8",
@@ -109,7 +109,7 @@
         "seo",
         "web"
       ],
-      "order": 3
+      "order": 2
     },
     {
       "id": "a9",
@@ -164,7 +164,7 @@
       "budget": 0,
       "priority": "medium",
       "tags": [],
-      "order": 4
+      "order": 3
     }
   ],
   "tasks": [
