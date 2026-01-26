@@ -424,7 +424,7 @@
       "channels": [
         "lads"
       ],
-      "order": 0,
+      "order": 1,
       "createdAt": "2026-01-20T10:00:47.390Z",
       "countries": [
         "france",
@@ -566,13 +566,13 @@
     {
       "id": "t18",
       "actionId": "a11",
-      "month": 3,
-      "startDate": "2026-04-01",
+      "month": 2,
+      "startDate": "2026-03-01",
       "title": "Event In-House Avril",
       "description": "Événement interne",
-      "status": "todo",
+      "status": "creating",
       "priority": "high",
-      "dueDate": "2026-04-30",
+      "dueDate": "2026-03-31",
       "budget": 10000,
       "checklist": [
         {
