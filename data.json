@@ -170,7 +170,7 @@
   "tasks": [
     {
       "id": "t1",
-      "actionId": "a6",
+      "actionId": "a1",
       "month": 0,
       "startDate": "2026-01-01",
       "title": "Vœux nouvel an 9",
@@ -202,7 +202,7 @@
       "channels": [
         "social"
       ],
-      "order": 5,
+      "order": 22,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
