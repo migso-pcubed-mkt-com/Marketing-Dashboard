@@ -2329,6 +2329,31 @@ const App=()=>{
         showNotification(isDifferentColumn?'✅ Tâche déplacée vers nouvelle colonne':'✅ Tâche réordonnée');
     };
 
+    const handleMoveAction=(actionId,direction)=>{
+        const action=actions.find(a=>a.id===actionId);
+        if(!action)return;
+
+        // Find all actions in the same category
+        const sameActions=actions.filter(a=>a.categoryId===action.categoryId).sort((a,b)=>(a.order||0)-(b.order||0));
+
+        const currentIndex=sameActions.findIndex(a=>a.id===actionId);
+        if(currentIndex===-1)return;
+
+        const targetIndex=direction==='up'?currentIndex-1:currentIndex+1;
+        if(targetIndex<0||targetIndex>=sameActions.length)return;
+
+        // Swap orders
+        const currentOrder=sameActions[currentIndex].order||currentIndex;
+        const targetOrder=sameActions[targetIndex].order||targetIndex;
+
+        setActions(prev=>prev.map(a=>{
+            if(a.id===sameActions[currentIndex].id)return{...a,order:targetOrder};
+            if(a.id===sameActions[targetIndex].id)return{...a,order:currentOrder};
+            return a;
+        }));
+
+        showNotification(direction==='up'?'⬆️ Action déplacée vers le haut':'⬇️ Action déplacée vers le bas');
+    };
 
     const handleReorderAction=(draggedId,targetId,position)=>{
         if(draggedId===targetId)return;
