@@ -31,21 +31,28 @@
         .kanban-column{min-height:200px;max-height:calc(100vh - 250px);overflow-y:auto}
         .modal-backdrop{backdrop-filter:blur(8px)}
         .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-        .drag-over{border:3px dashed var(--secondary)!important;background:rgba(55,129,236,.15)!important;transition:all .2s;box-shadow:inset 0 0 20px rgba(55,129,236,.2)!important;animation:pulse-border .8s ease-in-out infinite}
-        @keyframes pulse-border{0%,100%{border-color:rgba(55,129,236,.8)}50%{border-color:rgba(55,129,236,.3)}}
-        .timeline-bar{position:relative;cursor:move;transition:opacity .2s}
-        .timeline-bar:hover .resize-handle{opacity:1;background:rgba(255,255,255,0.3)}
-        .resize-handle{position:absolute;top:0;bottom:0;width:12px;opacity:0.2;transition:all 0.2s;z-index:10;cursor:col-resize;background:rgba(255,255,255,0.1)}
-        .resize-handle:hover{background:rgba(255,255,255,0.4);opacity:1}
-        .resize-handle-left{left:0;border-left:3px solid rgba(255,255,255,0.6);border-radius:4px 0 0 4px}
-        .resize-handle-right{right:0;border-right:3px solid rgba(255,255,255,0.6);border-radius:0 4px 4px 0}
+        .drag-over{border:3px dashed var(--secondary)!important;background:rgba(55,129,236,.2)!important;transition:all .2s;box-shadow:inset 0 0 30px rgba(55,129,236,.3)!important;animation:pulse-border .8s ease-in-out infinite;position:relative}
+        .drag-over::before{content:'';position:absolute;inset:0;border:2px solid rgba(55,129,236,.5);border-radius:4px;pointer-events:none}
+        @keyframes pulse-border{0%,100%{border-color:rgba(55,129,236,.9);box-shadow:inset 0 0 30px rgba(55,129,236,.4)}50%{border-color:rgba(55,129,236,.5);box-shadow:inset 0 0 20px rgba(55,129,236,.2)}}
+        .drop-indicator-before{border-top:4px solid #3781ec!important;box-shadow:0 -2px 8px rgba(55,129,236,0.4)!important}
+        .drop-indicator-after{border-bottom:4px solid #3781ec!important;box-shadow:0 2px 8px rgba(55,129,236,0.4)!important}
+        .timeline-bar{position:relative;cursor:move;transition:opacity .2s,transform .1s;user-select:none}
+        .timeline-bar.dragging{opacity:0.5;cursor:grabbing}
+        .timeline-bar:hover{cursor:grab}
+        body.resizing{cursor:col-resize!important;user-select:none}
+        body.resizing *{cursor:col-resize!important}
+        .timeline-bar:hover .resize-handle{opacity:1;background:rgba(255,255,255,0.4);width:18px}
+        .resize-handle{position:absolute;top:0;bottom:0;width:10px;opacity:0.3;transition:all 0.15s;z-index:20;cursor:col-resize;background:rgba(255,255,255,0.15);padding:0 4px;margin:0 -4px}
+        .resize-handle:hover{background:rgba(255,255,255,0.6);opacity:1;width:20px;padding:0 6px;margin:0 -6px}
+        .resize-handle-left{left:0;border-left:3px solid rgba(255,255,255,0.7);border-radius:4px 0 0 4px}
+        .resize-handle-right{right:0;border-right:3px solid rgba(255,255,255,0.7);border-radius:0 4px 4px 0}
         @media(max-width:768px){
             .kanban-column{min-width:280px}
-            .resize-handle{width:20px;opacity:0.4}
+            .resize-handle{width:24px;opacity:0.6}
             .timeline-bar{min-height:48px}
         }
         @media(hover:none)and(pointer:coarse){
-            .resize-handle{opacity:0.5;width:24px;background:rgba(255,255,255,0.2)}
+            .resize-handle{opacity:0.7;width:28px;background:rgba(255,255,255,0.25)}
             [draggable=true]{cursor:default}
             .card-hover{transition:transform 0.1s}
             .card-hover:active{transform:scale(0.98)}
@@ -1027,6 +1034,15 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 };
 
 // TIMELINE VIEW
+// Améliorations drag & drop v2.2 :
+// - Snap à la demi-journée en vue semaine (14 slots) pour une précision doublée
+// - Snap au jour avec demi-journée en vue mois pour meilleure précision
+// - Handles de redimensionnement plus larges (10-20px) et plus visibles (opacity 0.3 par défaut)
+// - Indicateurs visuels améliorés : bordures animées, ombres, feedback en temps réel
+// - Curseur col-resize global pendant le resize pour clarté
+// - Zone de drop des tâches entre actions avec bordure pointillée et fond coloré
+// - Prévention des conflits : clic sur handle ne déclenche pas l'ouverture de carte
+// - Styles CSS optimisés pour mobile/tactile (handles 28px, opacity 0.7)
 const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,filters,setFilters})=>{
     const{darkMode}=useApp();
     const timelineRef=useRef(null);
@@ -1058,6 +1074,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
     // Resize handlers with useCallback to avoid recreating on every render
     const startResize=useCallback((taskId,handle,clientX,task)=>{
+        document.body.classList.add('resizing');
         setResizing({
             taskId,
             handle,
@@ -1068,6 +1085,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     },[]);
 
     const endResize=useCallback(()=>{
+        document.body.classList.remove('resizing');
         setResizing(null);
     },[]);
 
@@ -1298,14 +1316,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         e.preventDefault();
         e.stopPropagation();
 
-        // Only handle if we're dragging an action (not a task)
-        const types=e.dataTransfer.types||[];
-        const hasActionId=types.includes('actionid');
-        if(!hasActionId)return;
-
-        // Don't show drag over on the dragged action itself
+        // Try to get actionId - if it doesn't exist, it's a task drag, not an action drag
         const draggedId=e.dataTransfer.getData('actionId');
-        if(draggedId===action.id)return;
+        if(!draggedId || draggedId===action.id)return;
 
         // Determine if drag is in top or bottom half of action row
         const rect=e.currentTarget.getBoundingClientRect();
@@ -1454,15 +1467,19 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             let startDate,dueDate;
 
             if(zoom==='week'){
-                // For week view: snap to day boundaries for precise positioning
+                // For week view: snap to half-day boundaries for better precision (14 slots per week)
                 const weekNumber=colIdx;
 
-                // Calculate which day of the week based on percentage
-                // Snap to the nearest day (7 days in a week)
-                let dayOfWeek=Math.round(percentage*7);
+                // Calculate which half-day of the week based on percentage
+                // 7 days * 2 half-days = 14 slots per week
+                let halfDaySlot=Math.round(percentage*14);
 
-                // Clamp to valid range [0-6] and ensure task fits in week
-                dayOfWeek=Math.max(0,Math.min(6-duration+1,dayOfWeek));
+                // Clamp to valid range [0-13] and ensure task fits in week
+                const durationInHalfDays=duration*2;
+                halfDaySlot=Math.max(0,Math.min(14-durationInHalfDays,halfDaySlot));
+
+                // Convert half-day slot to day
+                const dayOfWeek=Math.floor(halfDaySlot/2);
 
                 // Calculate the actual date
                 const firstDayOfYear=new Date(year,0,1);
@@ -1477,35 +1494,17 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
 
             }else if(zoom==='month'){
-                // For month view: snap to week boundaries for precise positioning
+                // For month view: snap to day boundaries with half-day precision
                 const monthIdx=colIdx;
                 const daysInMonth=new Date(year,monthIdx+1,0).getDate();
-                const firstDayOfMonth=new Date(year,monthIdx,1);
-                const firstDayOfWeek=firstDayOfMonth.getDay(); // 0=Sunday, 1=Monday, etc.
 
-                // Calculate day based on percentage
-                let targetDay=Math.round(percentage*daysInMonth);
+                // Calculate day based on percentage with half-day precision
+                // Multiply by 2 for half-day slots, then divide by 2 and round
+                let halfDaySlot=Math.round(percentage*daysInMonth*2);
+                let targetDay=Math.ceil(halfDaySlot/2);
 
-                // Snap to nearest Monday (start of week) for better precision
-                // Convert Sunday (0) to 7 for easier calculation
-                const adjustedFirstDay=firstDayOfWeek===0?7:firstDayOfWeek;
-
-                // Calculate the day of week for targetDay
-                const targetDayOfWeek=((adjustedFirstDay+targetDay-2)%7)+1; // 1=Monday, 7=Sunday
-
-                // Snap to the nearest Monday
-                let daysToMonday;
-                if(targetDayOfWeek===1){
-                    daysToMonday=0; // Already Monday
-                }else if(targetDayOfWeek<=4){
-                    // Snap backward to previous Monday
-                    daysToMonday=-(targetDayOfWeek-1);
-                }else{
-                    // Snap forward to next Monday
-                    daysToMonday=8-targetDayOfWeek;
-                }
-
-                let startDay=Math.max(1,Math.min(daysInMonth-duration+1,targetDay+daysToMonday));
+                // Ensure task fits within the month
+                let startDay=Math.max(1,Math.min(daysInMonth-duration+1,targetDay));
 
                 startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(startDay).padStart(2,'0');
 
@@ -1603,12 +1602,18 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         e.stopPropagation();
         const taskId=e.dataTransfer.getData('taskId');
         if(taskId){
-            e.currentTarget.style.backgroundColor=darkMode?'rgba(55,129,236,0.1)':'rgba(55,129,236,0.05)';
+            e.currentTarget.style.backgroundColor=darkMode?'rgba(55,129,236,0.15)':'rgba(55,129,236,0.1)';
+            e.currentTarget.style.boxShadow='inset 0 0 20px rgba(55,129,236,0.2)';
+            e.currentTarget.style.border='2px dashed rgba(55,129,236,0.5)';
+            e.currentTarget.style.borderRadius='8px';
         }
     };
 
     const handleActionRowDragLeave=(e)=>{
         e.currentTarget.style.backgroundColor='';
+        e.currentTarget.style.boxShadow='';
+        e.currentTarget.style.border='';
+        e.currentTarget.style.borderRadius='';
     };
 
     return(
@@ -1665,9 +1670,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                 </div>
                                 {catActions.sort((a,b)=>(a.action.order||0)-(b.action.order||0)).map(({action,tasks:actionTasks})=>{
                                     const isDragOverAction=dragOverAction?.actionId===action.id;
-                                    const dragOverActionStyle=isDragOverAction?(dragOverAction.position==='before'?'border-t-4 border-t-secondary':'border-b-4 border-b-secondary'):'';
+                                    const dragOverActionClass=isDragOverAction?(dragOverAction.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
                                     return(
-                                    <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative ${dragOverActionStyle}`}>
+                                    <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative ${dragOverActionClass}`}>
                                         <div className="w-[250px] flex-shrink-0 p-2 relative" draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
                                             <p className="text-sm font-medium truncate hover:text-secondary">{action.name}</p>
                                             <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
@@ -1684,9 +1689,11 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 if(!pos)return null;
                                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
                                                 const isDragOver=dragOverTask?.taskId===task.id;
-                                                const dragOverStyle=isDragOver?(dragOverTask.position==='before'?{borderTop:'3px solid #3781ec'}:{borderBottom:'3px solid #3781ec'}):{};
+                                                const isResizing=resizing?.taskId===task.id;
+                                                const dragOverClass=isDragOver?(dragOverTask.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
+                                                const resizingStyle=isResizing?{boxShadow:'0 0 0 3px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.3)',transform:'scale(1.02)',zIndex:30}:{};
                                                 return(
-                                                    <div key={task.id} draggable={!resizing} onClick={()=>onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className="timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all cursor-move" style={{left:pos.left,width:pos.width,backgroundColor:status?.color,...dragOverStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
+                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute top-2 h-10 rounded-lg flex items-center px-2 text-white text-xs shadow-sm overflow-hidden hover:brightness-110 transition-all ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,backgroundColor:status?.color,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
                                                         <div className="resize-handle resize-handle-left" onClick={(e)=>e.stopPropagation()} onMouseDown={(e)=>{e.stopPropagation();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>e.preventDefault()} draggable={false} title="Redimensionner début"/>
                                                         <span className="truncate flex-1 px-1">{task.title}</span>
                                                         {task.budget>0&&zoom==='month'&&<span className="ml-1 opacity-75">({(task.budget/1000).toFixed(0)}k)</span>}
