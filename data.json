@@ -41,7 +41,7 @@
         "social",
         "video"
       ],
-      "order": 2
+      "order": 1
     },
     {
       "id": "a3",
@@ -52,7 +52,7 @@
       "tags": [
         "gads"
       ],
-      "order": 1
+      "order": 2
     },
     {
       "id": "a4",
