@@ -46,13 +46,18 @@
         .timeline-bar .resize-handle:active{cursor:col-resize!important}
         body.resizing{cursor:col-resize!important;user-select:none}
         body.resizing *{cursor:col-resize!important}
-        .resize-handle{position:absolute;top:0;bottom:0;width:22px;opacity:0.5;transition:all 0.15s;z-index:30;cursor:col-resize!important;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center}
-        .timeline-bar:hover .resize-handle{opacity:1;background:rgba(255,255,255,0.4);width:24px}
-        .resize-handle:hover{background:rgba(255,255,255,0.65)!important;opacity:1!important;width:28px!important;box-shadow:0 0 12px rgba(255,255,255,0.6)!important;cursor:col-resize!important}
-        .resize-handle:active{background:rgba(255,255,255,0.85)!important;width:30px!important;cursor:col-resize!important}
-        .resize-handle::before{content:'';width:3px;height:70%;background:rgba(255,255,255,0.95);border-radius:2px;box-shadow:0 0 4px rgba(0,0,0,0.3)}
-        .resize-handle-left{left:0;border-left:4px solid rgba(255,255,255,0.9);border-radius:6px 0 0 6px;padding-left:2px}
-        .resize-handle-right{right:0;border-right:4px solid rgba(255,255,255,0.9);border-radius:0 6px 6px 0;padding-right:2px}
+        .resize-handle{position:absolute;top:0;bottom:0;width:8px;opacity:0;transition:opacity 0.2s;z-index:30;cursor:col-resize!important;display:flex;align-items:center;justify-content:center}
+        .timeline-bar:hover .resize-handle{opacity:1}
+        .resize-handle:hover{opacity:1!important;cursor:col-resize!important}
+        .resize-handle::after{content:'';width:3px;height:16px;background:rgba(255,255,255,0.9);border-radius:2px;box-shadow:0 0 4px rgba(0,0,0,0.3)}
+        .resize-handle-left{left:0}
+        .resize-handle-right{right:0}
+        .drag-handle{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:24px;height:24px;opacity:0;transition:opacity 0.2s;z-index:25;cursor:grab!important;display:flex;align-items:center;justify-content:center;pointer-events:none}
+        .timeline-bar:hover .drag-handle{opacity:1}
+        .drag-handle::before,.drag-handle::after{content:'';position:absolute;width:12px;height:2px;background:rgba(255,255,255,0.9);border-radius:1px}
+        .drag-handle::before{top:8px}
+        .drag-handle::after{bottom:8px}
+        .drag-handle span{display:block;width:12px;height:2px;background:rgba(255,255,255,0.9);border-radius:1px}
         .drag-ghost{position:fixed;pointer-events:none;z-index:10000;opacity:0.85;transform:rotate(3deg);box-shadow:0 12px 40px rgba(0,0,0,0.4);border-radius:8px;padding:8px 12px;color:white;font-size:12px;font-weight:600;backdrop-filter:blur(8px)}
         .drag-preview-line{position:absolute;height:3px;background:linear-gradient(90deg,#3781ec 0%,#5cc29d 100%);top:50%;transform:translateY(-50%);border-radius:2px;box-shadow:0 0 12px rgba(55,129,236,0.6);z-index:15;pointer-events:none;animation:pulse-glow 1s ease-in-out infinite}
         @keyframes pulse-glow{0%,100%{opacity:0.9;box-shadow:0 0 12px rgba(55,129,236,0.7)}50%{opacity:1;box-shadow:0 0 20px rgba(55,129,236,0.9)}}
@@ -1140,10 +1145,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const newDate=new Date(originalDate);
                 newDate.setDate(newDate.getDate()+Math.round(daysMovedRaw));
 
-                // Check if near start or end of month (within 3 days)
+                // Check if near start or end of month (within 5 days - increased threshold)
                 const dayOfMonth=newDate.getDate();
                 const daysInMonth=new Date(newDate.getFullYear(),newDate.getMonth()+1,0).getDate();
-                const snapThreshold=3;
+                const snapThreshold=5; // Increased from 3 to 5 days
 
                 if(dayOfMonth<=snapThreshold){
                     // Near start of month - snap to day 1
@@ -1220,10 +1225,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const newDate=new Date(originalDate);
                 newDate.setDate(newDate.getDate()+Math.round(daysMovedRaw));
 
-                // Check if near start or end of month (within 3 days)
+                // Check if near start or end of month (within 5 days - increased threshold)
                 const dayOfMonth=newDate.getDate();
                 const daysInMonth=new Date(newDate.getFullYear(),newDate.getMonth()+1,0).getDate();
-                const snapThreshold=3;
+                const snapThreshold=5; // Increased from 3 to 5 days
 
                 if(dayOfMonth<=snapThreshold){
                     // Near start of month - snap to day 1
@@ -1285,10 +1290,14 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     // Drag & Drop handlers for horizontal drag (date change)
     const handleTaskDragStart=(e,task)=>{
         // Don't start drag if we're resizing
-        if(resizing)return;
+        if(resizing){
+            e.preventDefault();
+            return;
+        }
         e.stopPropagation();
         e.dataTransfer.effectAllowed='move';
         e.dataTransfer.setData('taskId',task.id);
+        e.dataTransfer.setData('text/plain',task.id); // Fallback for compatibility
 
         // Create custom drag ghost
         const ghost=document.createElement('div');
@@ -1303,7 +1312,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         setTimeout(()=>document.body.removeChild(ghost),0);
 
         const pos=getTaskPosition(task);
-        setDragging({taskId:task.id,task:task,startX:e.clientX,originalLeft:pos?.left||0});
+        setDragging({taskId:task.id,task:task,startX:e.clientX,startY:e.clientY,originalLeft:pos?.left||0});
         e.currentTarget.classList.add('dragging');
     };
 
@@ -1381,10 +1390,20 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     // Drag & Drop handlers for actions
     const handleActionDragOver=(e,action)=>{
         if(!onReorderAction)return;
+
+        // Check if this is an action drag (not a task drag)
+        // We check for 'actionid' in types (HTML5 DnD normalizes to lowercase)
+        const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());
+        const hasActionId=types.includes('actionid');
+
+        if(!hasActionId){
+            return; // This is a task drag, ignore it
+        }
+
         e.preventDefault();
         e.stopPropagation();
 
-        // Try to get actionId - if it doesn't exist, it's a task drag, not an action drag
+        // Get actionId from the drag data
         const draggedId=e.dataTransfer.getData('actionId');
         if(!draggedId || draggedId===action.id)return;
 
@@ -1405,6 +1424,15 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     };
 
     const handleActionDrop=(e,targetAction)=>{
+        // Check if this is an action drag (not a task drag)
+        // We check for 'actionid' in types (HTML5 DnD normalizes to lowercase)
+        const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());
+        const hasActionId=types.includes('actionid');
+
+        if(!hasActionId){
+            return; // This is a task drag, let it be handled by task handlers
+        }
+
         e.preventDefault();
         e.stopPropagation();
 
@@ -1569,8 +1597,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 // Calculate target day based on percentage
                 let targetDay=Math.round(percentage*daysInMonth);
 
-                // Smart snap to month boundaries (within 10% of column)
-                const snapThreshold=0.1; // 10% of column width
+                // Smart snap to month boundaries (within 15% of column - increased for better snapping)
+                const snapThreshold=0.15; // 15% of column width (increased from 10%)
                 if(percentage<=snapThreshold){
                     // Near start - snap to day 1
                     targetDay=1;
@@ -1578,7 +1606,11 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                     // Near end - snap to last day (considering task duration)
                     targetDay=Math.max(1,daysInMonth-duration+1);
                 }else{
-                    // Normal positioning
+                    // Normal positioning with week alignment preference
+                    const weekDay=Math.floor(targetDay/7)*7+1; // Snap to week start
+                    if(Math.abs(targetDay-weekDay)<=3){
+                        targetDay=weekDay; // Snap to week start if close
+                    }
                     targetDay=Math.max(1,Math.min(daysInMonth-duration+1,targetDay));
                 }
 
@@ -1681,8 +1713,16 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const handleActionRowDragOver=(e,targetAction)=>{
         e.preventDefault();
         e.stopPropagation();
-        const taskId=e.dataTransfer.getData('taskId');
-        if(!taskId)return;
+
+        // Check if this is a task drag (not an action drag)
+        const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());
+        const hasActionId=types.includes('actionid');
+        const hasTaskId=types.includes('taskid');
+
+        // Only handle task drags, not action drags
+        if(hasActionId||!hasTaskId){
+            return;
+        }
 
         setDragOverActionRow(targetAction.id);
 
@@ -1791,7 +1831,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                         </div>
                         {groupedByCategory.map(({category,actions:catActions})=>(
                             <div key={category.id}>
-                                <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'}`} onDragOver={(e)=>{if(onUpdateAction){e.preventDefault();e.currentTarget.classList.add('drag-over');}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}>
+                                <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'}`} onDragOver={(e)=>{if(onUpdateAction){const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.add('drag-over');}}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}}>
                                     <div className={`w-[250px] flex-shrink-0 p-3 font-bold text-white text-sm bg-gradient-to-r ${category.gradient}`}>{category.name}</div>
                                     <div className="flex-1" style={{background:darkMode?'rgba(55,65,81,0.3)':'rgba(243,244,246,0.5)'}}/>
                                 </div>
@@ -1800,15 +1840,15 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     const dragOverActionClass=isDragOverAction?(dragOverAction.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
                                     return(
                                     <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative ${dragOverActionClass}`}>
-                                        <div className="w-[250px] flex-shrink-0 p-2 relative" draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
+                                        <div className="w-[250px] flex-shrink-0 p-2 relative" draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
                                             <p className="text-sm font-medium truncate hover:text-secondary">{action.name}</p>
                                             <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
                                             {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs text-gray-400" title="Glisser pour réordonner">⋮⋮</div>}
                                         </div>
-                                        <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:'60px'}} onDragOver={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){handleActionRowDragOver(e,action);}}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{e.stopPropagation();const taskId=e.dataTransfer.getData('taskId');if(taskId){handleActionRowDrop(e,action);}}}>
+                                        <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:'60px',zIndex:20}} onDragOver={(e)=>{handleActionRowDragOver(e,action);}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleActionRowDrop(e,action);}}}>
                                             <div className="absolute inset-0 flex">
                                                 {headers.map((_,i)=>(
-                                                    <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}} onDrop={(e)=>{e.stopPropagation();const taskId=e.dataTransfer.getData('taskId');if(taskId){handleDrop(e,i);}}} onDragOver={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){handleDragOver(e);}}} onDragLeave={handleDragLeave}/>
+                                                    <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleDrop(e,i);}}} onDragOver={(e)=>{e.preventDefault();}} onDragLeave={(e)=>{}}/>
                                                 ))}
                                             </div>
                                             {dragPreview&&dragPreview.actionId===action.id&&(
@@ -1825,6 +1865,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 return(
                                                     <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute top-2 h-10 rounded-lg flex items-center text-white text-xs shadow-sm overflow-visible hover:brightness-110 transition-all ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,backgroundColor:status?.color,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
                                                         <div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner début"/>
+                                                        <div className="drag-handle" title="Déplacer la tâche"><span/></div>
                                                         <span className="truncate flex-1 px-1 pointer-events-none">{task.title}</span>
                                                         {task.budget>0&&zoom==='month'&&<span className="ml-1 opacity-75 pointer-events-none">({(task.budget/1000).toFixed(0)}k)</span>}
                                                         <div className="resize-handle resize-handle-right" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner fin"/>
