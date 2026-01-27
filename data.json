@@ -641,7 +641,7 @@
       "title": "Nouvelle tâche",
       "actionId": "a1",
       "month": 4,
-      "startDate": "2026-05-05",
+      "startDate": "2026-05-04",
       "dueDate": "2026-05-22",
       "status": "todo",
       "priority": "medium",
