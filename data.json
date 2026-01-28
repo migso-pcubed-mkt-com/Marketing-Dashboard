@@ -170,14 +170,14 @@
   "tasks": [
     {
       "id": "t1",
-      "actionId": "a4",
-      "month": 6,
-      "startDate": "2026-06-01",
+      "actionId": "a1",
+      "month": 2,
+      "startDate": "2026-02-01",
       "title": "Vœux nouvel an 9",
       "description": "Post LinkedIn + Instagram 2",
       "status": "inprogress",
       "priority": "high",
-      "dueDate": "2026-07-15",
+      "dueDate": "2026-03-17",
       "checklist": [
         {
           "id": "c1",
@@ -202,7 +202,7 @@
       "channels": [
         "social"
       ],
-      "order": 5,
+      "order": 7,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
