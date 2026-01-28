@@ -658,10 +658,10 @@
     {
       "id": "t1768768387319",
       "title": "Nouvelle tâche test",
-      "actionId": "a1768768368676",
-      "month": 1,
-      "startDate": "2026-02-01",
-      "dueDate": "2026-02-28",
+      "actionId": "a8",
+      "month": 2,
+      "startDate": "2026-03-04",
+      "dueDate": "2026-03-31",
       "status": "inprogress",
       "priority": "medium",
       "description": "",
@@ -669,7 +669,7 @@
       "comments": [],
       "attachments": [],
       "channels": [],
-      "order": 0,
+      "order": 1,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
