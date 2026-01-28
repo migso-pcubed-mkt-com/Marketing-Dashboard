@@ -639,10 +639,10 @@
     {
       "id": "t1768768325619",
       "title": "Nouvelle tâche",
-      "actionId": "a1",
-      "month": 3,
-      "startDate": "2026-04-01",
-      "dueDate": "2026-04-30",
+      "actionId": "a3",
+      "month": 5,
+      "startDate": "2026-06-01",
+      "dueDate": "2026-06-30",
       "status": "todo",
       "priority": "medium",
       "description": "",
@@ -652,7 +652,7 @@
       "channels": [
         "social"
       ],
-      "order": 5,
+      "order": 9,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
