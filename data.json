@@ -29,7 +29,7 @@
       "tags": [
         "social"
       ],
-      "order": 1
+      "order": 0
     },
     {
       "id": "a2",
@@ -41,7 +41,7 @@
         "social",
         "video"
       ],
-      "order": 2
+      "order": 1
     },
     {
       "id": "a3",
@@ -52,18 +52,18 @@
       "tags": [
         "gads"
       ],
-      "order": 0
+      "order": 2
     },
     {
       "id": "a4",
       "name": "LinkedIn Ads - Brand",
-      "categoryId": "brand-awareness",
+      "categoryId": "consideration",
       "budget": 18000,
       "priority": "high",
       "tags": [
         "lads"
       ],
-      "order": 3
+      "order": 1
     },
     {
       "id": "a5",
@@ -74,7 +74,7 @@
       "tags": [
         "press"
       ],
-      "order": 4
+      "order": 3
     },
     {
       "id": "a6",
@@ -97,7 +97,7 @@
       "tags": [
         "seo"
       ],
-      "order": 1
+      "order": 2
     },
     {
       "id": "a8",
@@ -109,7 +109,7 @@
         "seo",
         "web"
       ],
-      "order": 2
+      "order": 3
     },
     {
       "id": "a9",
@@ -164,7 +164,7 @@
       "budget": 0,
       "priority": "medium",
       "tags": [],
-      "order": 3
+      "order": 4
     }
   ],
   "tasks": [
