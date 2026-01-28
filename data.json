@@ -34,7 +34,7 @@
     {
       "id": "a2",
       "name": "Employeur Brand",
-      "categoryId": "consideration",
+      "categoryId": "brand-awareness",
       "budget": 0,
       "priority": "medium",
       "tags": [
@@ -52,7 +52,7 @@
       "tags": [
         "gads"
       ],
-      "order": 2
+      "order": 3
     },
     {
       "id": "a4",
@@ -74,7 +74,7 @@
       "tags": [
         "press"
       ],
-      "order": 3
+      "order": 4
     },
     {
       "id": "a6",
@@ -109,7 +109,7 @@
         "seo",
         "web"
       ],
-      "order": 3
+      "order": 2
     },
     {
       "id": "a9",
@@ -164,7 +164,7 @@
       "budget": 0,
       "priority": "medium",
       "tags": [],
-      "order": 4
+      "order": 3
     }
   ],
   "tasks": [
