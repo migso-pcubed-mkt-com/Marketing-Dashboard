@@ -46,18 +46,19 @@
         .timeline-bar .resize-handle:active{cursor:col-resize!important}
         body.resizing{cursor:col-resize!important;user-select:none}
         body.resizing *{cursor:col-resize!important}
-        .resize-handle{position:absolute;top:0;bottom:0;width:22px;opacity:0.5;transition:all 0.15s;z-index:30;cursor:col-resize!important;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center}
-        .timeline-bar:hover .resize-handle{opacity:1;background:rgba(255,255,255,0.4);width:24px}
-        .resize-handle:hover{background:rgba(255,255,255,0.65)!important;opacity:1!important;width:28px!important;box-shadow:0 0 12px rgba(255,255,255,0.6)!important;cursor:col-resize!important}
-        .resize-handle:active{background:rgba(255,255,255,0.85)!important;width:30px!important;cursor:col-resize!important}
-        .resize-handle::before{content:'';width:3px;height:70%;background:rgba(255,255,255,0.95);border-radius:2px;box-shadow:0 0 4px rgba(0,0,0,0.3)}
-        .resize-handle-left{left:0;border-left:4px solid rgba(255,255,255,0.9);border-radius:6px 0 0 6px;padding-left:2px}
-        .resize-handle-right{right:0;border-right:4px solid rgba(255,255,255,0.9);border-radius:0 6px 6px 0;padding-right:2px}
+        .resize-handle{position:absolute;top:0;bottom:0;width:8px;opacity:0;transition:opacity 0.2s;z-index:30;cursor:col-resize!important;display:flex;align-items:center;justify-content:center}
+        .timeline-bar:hover .resize-handle{opacity:1}
+        .resize-handle:hover{opacity:1!important;cursor:col-resize!important}
+        .resize-handle::after{content:'';width:3px;height:16px;background:rgba(255,255,255,0.9);border-radius:2px;box-shadow:0 0 4px rgba(0,0,0,0.3)}
+        .resize-handle-left{left:0}
+        .resize-handle-right{right:0}
         .drag-ghost{position:fixed;pointer-events:none;z-index:10000;opacity:0.85;transform:rotate(3deg);box-shadow:0 12px 40px rgba(0,0,0,0.4);border-radius:8px;padding:8px 12px;color:white;font-size:12px;font-weight:600;backdrop-filter:blur(8px)}
         .drag-preview-line{position:absolute;height:3px;background:linear-gradient(90deg,#3781ec 0%,#5cc29d 100%);top:50%;transform:translateY(-50%);border-radius:2px;box-shadow:0 0 12px rgba(55,129,236,0.6);z-index:15;pointer-events:none;animation:pulse-glow 1s ease-in-out infinite}
         @keyframes pulse-glow{0%,100%{opacity:0.9;box-shadow:0 0 12px rgba(55,129,236,0.7)}50%{opacity:1;box-shadow:0 0 20px rgba(55,129,236,0.9)}}
-        .action-row-drag-over{background:linear-gradient(90deg,rgba(55,129,236,0.15),rgba(92,194,157,0.15))!important;border:3px dashed rgba(55,129,236,0.7)!important;border-radius:8px!important;box-shadow:inset 0 0 30px rgba(55,129,236,0.3),0 0 20px rgba(55,129,236,0.2)!important;position:relative}
-        .action-row-drag-over::before{content:'Déposer ici';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:rgba(55,129,236,0.7);font-weight:700;font-size:14px;pointer-events:none;text-shadow:0 2px 4px rgba(0,0,0,0.1);z-index:10}
+        .action-row-drag-over{background:linear-gradient(90deg,rgba(55,129,236,0.08),rgba(92,194,157,0.08))!important;border:2px dashed rgba(55,129,236,0.4)!important;border-radius:8px!important;box-shadow:inset 0 0 15px rgba(55,129,236,0.15)!important;position:relative}
+        .drop-zone-indicator{position:absolute;top:0;bottom:0;width:4px;background:linear-gradient(180deg,#3781ec,#5cc29d);border-radius:2px;box-shadow:0 0 12px rgba(55,129,236,0.8),0 0 24px rgba(55,129,236,0.4);z-index:25;pointer-events:none;animation:pulse-drop 0.8s ease-in-out infinite}
+        .drop-zone-indicator::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#3781ec;border-radius:50%;box-shadow:0 0 8px rgba(55,129,236,0.8)}
+        @keyframes pulse-drop{0%,100%{opacity:1;transform:scaleY(1)}50%{opacity:0.8;transform:scaleY(0.98)}}
         @media(max-width:768px){
             .kanban-column{min-width:280px}
             .resize-handle{width:30px!important;opacity:0.7!important}
@@ -1067,11 +1068,13 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const[scrollLeft,setScrollLeft]=useState(0);
     const[spacePressed,setSpacePressed]=useState(false);
     const[resizing,setResizing]=useState(null); // {taskId, handle: 'left'|'right', startX, originalStart, originalEnd}
+    const[justResized,setJustResized]=useState(false); // Prevent click after resize
     const[dragging,setDragging]=useState(null); // {taskId, task, startX, startY, originalLeft}
     const[dragOverTask,setDragOverTask]=useState(null); // {taskId, position: 'before'|'after'}
     const[dragOverAction,setDragOverAction]=useState(null); // {actionId, position: 'before'|'after'}
     const[dragOverActionRow,setDragOverActionRow]=useState(null); // actionId of row being dragged over
     const[dragPreview,setDragPreview]=useState(null); // {left, width, actionId} for preview line
+    const[dropIndicator,setDropIndicator]=useState(null); // {left, actionId} for precise drop indicator
     const currentMonth=new Date().getMonth();
     const currentWeek=Math.floor((new Date().getTime()-new Date(2026,0,1).getTime())/(7*24*60*60*1000));
 
@@ -1087,7 +1090,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const handleMouseMove=(e)=>{if(!isPanning)return;e.preventDefault();const x=e.pageX-timelineRef.current.offsetLeft;timelineRef.current.scrollLeft=scrollLeft-(x-startX)*2;};
     const handleMouseUp=()=>setIsPanning(false);
 
-    const colWidth=zoom==='quarter'?280:zoom==='week'?40:100;
+    const colWidth=zoom==='quarter'?280:zoom==='week'?40:zoom==='day'?60:100;
 
     // Resize handlers with useCallback to avoid recreating on every render
     const startResize=useCallback((taskId,handle,clientX,task)=>{
@@ -1104,6 +1107,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const endResize=useCallback(()=>{
         document.body.classList.remove('resizing');
         setResizing(null);
+        setJustResized(true);
+        // Reset after a short delay to allow click events to be blocked
+        setTimeout(()=>setJustResized(false),100);
     },[]);
 
     useEffect(()=>{
@@ -1140,10 +1146,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const newDate=new Date(originalDate);
                 newDate.setDate(newDate.getDate()+Math.round(daysMovedRaw));
 
-                // Check if near start or end of month (within 3 days)
+                // Check if near start or end of month (within 5 days - increased threshold)
                 const dayOfMonth=newDate.getDate();
                 const daysInMonth=new Date(newDate.getFullYear(),newDate.getMonth()+1,0).getDate();
-                const snapThreshold=3;
+                const snapThreshold=5; // Increased from 3 to 5 days
 
                 if(dayOfMonth<=snapThreshold){
                     // Near start of month - snap to day 1
@@ -1220,10 +1226,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const newDate=new Date(originalDate);
                 newDate.setDate(newDate.getDate()+Math.round(daysMovedRaw));
 
-                // Check if near start or end of month (within 3 days)
+                // Check if near start or end of month (within 5 days - increased threshold)
                 const dayOfMonth=newDate.getDate();
                 const daysInMonth=new Date(newDate.getFullYear(),newDate.getMonth()+1,0).getDate();
-                const snapThreshold=3;
+                const snapThreshold=5; // Increased from 3 to 5 days
 
                 if(dayOfMonth<=snapThreshold){
                     // Near start of month - snap to day 1
@@ -1285,10 +1291,14 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     // Drag & Drop handlers for horizontal drag (date change)
     const handleTaskDragStart=(e,task)=>{
         // Don't start drag if we're resizing
-        if(resizing)return;
+        if(resizing){
+            e.preventDefault();
+            return;
+        }
         e.stopPropagation();
         e.dataTransfer.effectAllowed='move';
         e.dataTransfer.setData('taskId',task.id);
+        e.dataTransfer.setData('text/plain',task.id); // Fallback for compatibility
 
         // Create custom drag ghost
         const ghost=document.createElement('div');
@@ -1303,7 +1313,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         setTimeout(()=>document.body.removeChild(ghost),0);
 
         const pos=getTaskPosition(task);
-        setDragging({taskId:task.id,task:task,startX:e.clientX,originalLeft:pos?.left||0});
+        setDragging({taskId:task.id,task:task,startX:e.clientX,startY:e.clientY,originalLeft:pos?.left||0});
         e.currentTarget.classList.add('dragging');
     };
 
@@ -1313,6 +1323,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         setDragOverTask(null);
         setDragOverActionRow(null);
         setDragPreview(null);
+        setDropIndicator(null);
     };
 
     const handleTaskDragOver=(e,task)=>{
@@ -1381,12 +1392,18 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     // Drag & Drop handlers for actions
     const handleActionDragOver=(e,action)=>{
         if(!onReorderAction)return;
+
+        // Check if this is an action drag (not a task drag)
+        // We check for 'actionid' in types (HTML5 DnD normalizes to lowercase)
+        const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());
+        const hasActionId=types.includes('actionid');
+
+        if(!hasActionId){
+            return; // This is a task drag, ignore it
+        }
+
         e.preventDefault();
         e.stopPropagation();
-
-        // Try to get actionId - if it doesn't exist, it's a task drag, not an action drag
-        const draggedId=e.dataTransfer.getData('actionId');
-        if(!draggedId || draggedId===action.id)return;
 
         // Determine if drag is in top or bottom half of action row
         const rect=e.currentTarget.getBoundingClientRect();
@@ -1405,6 +1422,15 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     };
 
     const handleActionDrop=(e,targetAction)=>{
+        // Check if this is an action drag (not a task drag)
+        // We check for 'actionid' in types (HTML5 DnD normalizes to lowercase)
+        const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());
+        const hasActionId=types.includes('actionid');
+
+        if(!hasActionId){
+            return; // This is a task drag, let it be handled by task handlers
+        }
+
         e.preventDefault();
         e.stopPropagation();
 
@@ -1443,25 +1469,56 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const daysInStartMonth=new Date(2026,startMonth+1,0).getDate();
         const daysInEndMonth=new Date(2026,endMonth+1,0).getDate();
 
+        if(zoom==='day'){
+            // Calculate day index from start of year (0-364)
+            const startDayOfYear=Math.floor((start-new Date(2026,0,1))/(1000*60*60*24));
+            const endDayOfYear=Math.floor((end-new Date(2026,0,1))/(1000*60*60*24));
+            const left=startDayOfYear*colWidth;
+            const width=Math.max((endDayOfYear-startDayOfYear+1)*colWidth,colWidth); // At least 1 day width
+            return{left,width};
+        }
         if(zoom==='week'){
-            const startWeek=getWeekNumber(start);
-            const endWeek=getWeekNumber(end);
-            const startDayOfWeek=start.getDay();
-            const endDayOfWeek=end.getDay();
-            const startOffset=(startDayOfWeek/7)*colWidth;
-            const totalWeeks=endWeek-startWeek;
-            const endOffset=((6-endDayOfWeek)/7)*colWidth;
-            const width=(totalWeeks+1)*colWidth-startOffset-endOffset;
-            return{left:startWeek*colWidth+startOffset,width:Math.max(width,20)};
+            // Calculate precise positioning based on days from start of year
+            const yearStart=new Date(2026,0,1);
+            const startDayOfYear=Math.floor((start-yearStart)/(1000*60*60*24));
+            const endDayOfYear=Math.floor((end-yearStart)/(1000*60*60*24));
+
+            // Each week column is 40px (colWidth), representing 7 days
+            // So each day is colWidth/7 pixels
+            const pixelsPerDay=colWidth/7;
+
+            // Calculate left position and width in pixels
+            const left=startDayOfYear*pixelsPerDay;
+            const width=Math.max((endDayOfYear-startDayOfYear+1)*pixelsPerDay,pixelsPerDay); // At least 1 day width
+
+            return{left,width};
         }
         if(zoom==='month'){
-            const startOffset=(startDay/daysInStartMonth)*colWidth;
+            const startOffset=((startDay-1)/daysInStartMonth)*colWidth; // -1 for 0-indexed
             const totalMonths=endMonth-startMonth;
             const endOffset=((daysInEndMonth-endDay)/daysInEndMonth)*colWidth;
             const width=(totalMonths+1)*colWidth-startOffset-endOffset;
-            return{left:startMonth*colWidth+startOffset,width:Math.max(width,30)};
+            const minWidth=(1/daysInStartMonth)*colWidth; // At least 1 day width proportional to month
+            return{left:startMonth*colWidth+startOffset,width:Math.max(width,minWidth)};
         }
         return{left:startMonth*colWidth,width:colWidth};
+    };
+
+    const getDayHeaders=()=>{
+        const days=[];
+        const months=[];
+        let currentMonth=-1;
+        let dayCounter=0;
+        for(let m=0;m<12;m++){
+            const daysInMonth=new Date(2026,m+1,0).getDate();
+            const monthStart=dayCounter;
+            for(let d=1;d<=daysInMonth;d++){
+                days.push({day:dayCounter,date:d,month:m,label:d.toString()});
+                dayCounter++;
+            }
+            months.push({month:m,label:CONFIG.MONTHS[m],startDay:monthStart,endDay:dayCounter-1,days:daysInMonth});
+        }
+        return{days,months};
     };
 
     const getWeekHeaders=()=>{
@@ -1487,8 +1544,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         return{weeks,months};
     };
 
-    const headers=zoom==='quarter'?[{q:1,label:'Q1',months:[0,1,2]},{q:2,label:'Q2',months:[3,4,5]},{q:3,label:'Q3',months:[6,7,8]},{q:4,label:'Q4',months:[9,10,11]}]:zoom==='week'?getWeekHeaders().weeks:CONFIG.MONTHS.map((m,i)=>({month:i,label:m}));
-    const monthHeaders=zoom==='week'?getWeekHeaders().months:null;
+    const headers=zoom==='quarter'?[{q:1,label:'Q1',months:[0,1,2]},{q:2,label:'Q2',months:[3,4,5]},{q:3,label:'Q3',months:[6,7,8]},{q:4,label:'Q4',months:[9,10,11]}]:zoom==='week'?getWeekHeaders().weeks:zoom==='day'?getDayHeaders().days:CONFIG.MONTHS.map((m,i)=>({month:i,label:m}));
+    const monthHeaders=zoom==='week'?getWeekHeaders().months:zoom==='day'?getDayHeaders().months:null;
 
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
@@ -1561,26 +1618,28 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
                 dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
 
+            }else if(zoom==='day'){
+                // For day view: direct day-to-day placement (always snaps to full days)
+                const dayOfYear=colIdx; // colIdx is the day index (0-364)
+
+                // Calculate the actual date
+                const newStartDate=new Date(year,0,1+dayOfYear);
+
+                // Calculate end date
+                const newEndDate=new Date(newStartDate);
+                newEndDate.setDate(newEndDate.getDate()+duration-1);
+
+                startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
+                dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
+
             }else if(zoom==='month'){
-                // For month view: smart snap with month boundary detection
+                // For month view: snap to full days (daily precision)
                 const monthIdx=colIdx;
                 const daysInMonth=new Date(year,monthIdx+1,0).getDate();
 
-                // Calculate target day based on percentage
+                // Calculate target day based on percentage - always round to nearest full day
                 let targetDay=Math.round(percentage*daysInMonth);
-
-                // Smart snap to month boundaries (within 10% of column)
-                const snapThreshold=0.1; // 10% of column width
-                if(percentage<=snapThreshold){
-                    // Near start - snap to day 1
-                    targetDay=1;
-                }else if(percentage>=(1-snapThreshold)){
-                    // Near end - snap to last day (considering task duration)
-                    targetDay=Math.max(1,daysInMonth-duration+1);
-                }else{
-                    // Normal positioning
-                    targetDay=Math.max(1,Math.min(daysInMonth-duration+1,targetDay));
-                }
+                targetDay=Math.max(1,Math.min(daysInMonth,targetDay));
 
                 // Ensure task fits within available space
                 let startDay=Math.max(1,Math.min(daysInMonth-duration+1,targetDay));
@@ -1658,6 +1717,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         // Clear drag over state
         setDragOverActionRow(null);
         setDragPreview(null);
+        setDropIndicator(null);
 
         const taskId=e.dataTransfer.getData('taskId');
         if(!taskId||!onUpdateTask)return;
@@ -1665,24 +1725,100 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const draggedTask=tasks.find(t=>t.id===taskId);
         if(!draggedTask)return;
 
-        // Get the highest order in the target action
-        const actionTasks=tasks.filter(t=>t.actionId===targetAction.id);
-        const maxOrder=actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0)):0;
+        // Calculate the target date based on drop position
+        const rect=e.currentTarget.getBoundingClientRect();
+        const relativeX=e.clientX-rect.left;
+        const scrollOffset=timelineRef.current?timelineRef.current.scrollLeft:0;
 
-        // Always update task - move to new action or update position in same action
-        onUpdateTask(taskId,{
-            actionId:targetAction.id,
-            order:maxOrder+1,
-            startDate:draggedTask.startDate,
-            dueDate:draggedTask.dueDate
-        });
+        // Calculate which column was targeted
+        const colIdx=Math.floor((relativeX+scrollOffset)/colWidth);
+
+        // Calculate task duration
+        let duration=1;
+        if(draggedTask.startDate&&draggedTask.dueDate){
+            const oldStart=new Date(draggedTask.startDate);
+            const oldEnd=new Date(draggedTask.dueDate);
+            duration=Math.max(1,Math.ceil((oldEnd-oldStart)/(1000*60*60*24))+1);
+        }
+
+        // Get position percentage within the column
+        const colLeft=(colIdx*colWidth);
+        const colRelativeX=(relativeX+scrollOffset)-colLeft;
+        const percentage=colRelativeX/colWidth;
+
+        const year=2026;
+        let startDate,dueDate;
+
+        // Calculate new dates based on zoom level and drop position
+        if(zoom==='week'){
+            const weekNumber=colIdx;
+            let halfDaySlot=Math.round(percentage*14);
+            const durationInHalfDays=duration*2;
+            halfDaySlot=Math.max(0,Math.min(14-durationInHalfDays,halfDaySlot));
+            const dayOfWeek=Math.floor(halfDaySlot/2);
+            const firstDayOfYear=new Date(year,0,1);
+            const daysOffset=weekNumber*7+dayOfWeek;
+            const newStartDate=new Date(year,0,1+daysOffset);
+            const newEndDate=new Date(newStartDate);
+            newEndDate.setDate(newEndDate.getDate()+duration-1);
+            startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
+            dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
+        }else if(zoom==='day'){
+            const dayOfYear=colIdx;
+            const newStartDate=new Date(year,0,1+dayOfYear);
+            const newEndDate=new Date(newStartDate);
+            newEndDate.setDate(newEndDate.getDate()+duration-1);
+            startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
+            dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
+        }else if(zoom==='month'){
+            const monthIdx=colIdx;
+            const daysInMonth=new Date(year,monthIdx+1,0).getDate();
+            let targetDay=Math.round(percentage*daysInMonth);
+            targetDay=Math.max(1,Math.min(daysInMonth,targetDay));
+            let startDay=Math.max(1,Math.min(daysInMonth-duration+1,targetDay));
+            startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(startDay).padStart(2,'0');
+            const newStartDate=new Date(year,monthIdx,startDay);
+            const newEndDate=new Date(newStartDate);
+            newEndDate.setDate(newEndDate.getDate()+duration-1);
+            const endMonth=newEndDate.getMonth();
+            const endDay=newEndDate.getDate();
+            dueDate=year+'-'+String(endMonth+1).padStart(2,'0')+'-'+String(endDay).padStart(2,'0');
+        }else{
+            // Keep original dates for quarter view
+            startDate=draggedTask.startDate;
+            dueDate=draggedTask.dueDate;
+        }
+
+        // Update task with new action and new dates
+        if(draggedTask.actionId===targetAction.id){
+            // Same action - just update dates
+            onUpdateTask(taskId,{startDate,dueDate});
+        }else{
+            // Different action - update action and dates
+            const actionTasks=tasks.filter(t=>t.actionId===targetAction.id);
+            const maxOrder=actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0)):0;
+            onUpdateTask(taskId,{
+                actionId:targetAction.id,
+                order:maxOrder+1,
+                startDate,
+                dueDate
+            });
+        }
     };
 
     const handleActionRowDragOver=(e,targetAction)=>{
         e.preventDefault();
         e.stopPropagation();
-        const taskId=e.dataTransfer.getData('taskId');
-        if(!taskId)return;
+
+        // Check if this is a task drag (not an action drag)
+        const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());
+        const hasActionId=types.includes('actionid');
+        const hasTaskId=types.includes('taskid');
+
+        // Only handle task drags, not action drags
+        if(hasActionId||!hasTaskId){
+            return;
+        }
 
         setDragOverActionRow(targetAction.id);
 
@@ -1706,13 +1842,17 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 let previewLeft=0;
                 let previewWidth=0;
 
-                if(zoom==='month'){
+                if(zoom==='day'){
+                    const dayIdx=Math.max(0,Math.min(364,colIdx));
+                    previewLeft=dayIdx*colWidth;
+                    previewWidth=duration*colWidth;
+                }else if(zoom==='month'){
                     const monthIdx=Math.max(0,Math.min(11,colIdx));
                     const daysInMonth=new Date(year,monthIdx+1,0).getDate();
                     const percentage=((relativeX+scrollOffset-250)%colWidth)/colWidth;
                     const startDay=Math.max(1,Math.min(daysInMonth-duration+1,Math.round(percentage*daysInMonth)));
 
-                    const startOffset=(startDay/daysInMonth)*colWidth;
+                    const startOffset=((startDay-1)/daysInMonth)*colWidth;
                     previewLeft=monthIdx*colWidth+startOffset;
 
                     const endDay=Math.min(daysInMonth,startDay+duration-1);
@@ -1729,6 +1869,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 }
 
                 setDragPreview({left:previewLeft,width:Math.max(previewWidth,30),actionId:targetAction.id});
+                setDropIndicator({left:previewLeft,actionId:targetAction.id});
             }
         }
     };
@@ -1739,6 +1880,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             if(dragOverActionRow===targetAction.id){
                 setDragOverActionRow(null);
                 setDragPreview(null);
+                setDropIndicator(null);
             }
         }
     };
@@ -1751,7 +1893,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                         <div className="flex items-center space-x-2">
                             <span className="text-sm text-gray-500">Zoom:</span>
                             <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                                {[{id:'week',label:'Semaine'},{id:'month',label:'Mois'},{id:'quarter',label:'Trimestre'}].map(z=>(
+                                {[{id:'day',label:'Jour'},{id:'week',label:'Semaine'},{id:'month',label:'Mois'},{id:'quarter',label:'Trimestre'}].map(z=>(
                                     <button key={z.id} onClick={()=>setZoom(z.id)} className={`px-3 py-1.5 text-sm ${zoom===z.id?'bg-primary text-white':darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}>{z.label}</button>
                                 ))}
                             </div>
@@ -1766,17 +1908,17 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl border ${darkMode?'border-gray-800':'border-gray-200'} overflow-hidden`}>
                 <div ref={timelineRef} className={`overflow-x-auto ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
                     <div style={{minWidth:`${headers.length*colWidth+250}px`}}>
-                        {zoom==='week'&&monthHeaders&&(
+                        {(zoom==='week'||zoom==='day')&&monthHeaders&&(
                             <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} sticky top-0 z-20 ${darkMode?'bg-gray-900':'bg-white'}`}>
                                 <div className="w-[250px] flex-shrink-0"/>
                                 {monthHeaders.map((m,idx)=>(
-                                    <div key={idx} className={`flex-shrink-0 p-2 text-center font-semibold border-l ${darkMode?'border-gray-800':'border-gray-200'} ${m.month===currentMonth?'bg-secondary/10 text-secondary':''}`} style={{width:(m.endWeek-m.startWeek)*colWidth}}>
+                                    <div key={idx} className={`flex-shrink-0 p-2 text-center font-semibold border-l ${darkMode?'border-gray-800':'border-gray-200'} ${m.month===currentMonth?'bg-secondary/10 text-secondary':''}`} style={{width:zoom==='week'?(m.endWeek-m.startWeek)*colWidth:m.days*colWidth}}>
                                         {m.label}
                                     </div>
                                 ))}
                             </div>
                         )}
-                        <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} ${zoom==='week'?'':'sticky top-0 z-10'} ${darkMode?'bg-gray-900':'bg-white'}`}>
+                        <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} ${(zoom==='week'||zoom==='day')?'':'sticky top-0 z-10'} ${darkMode?'bg-gray-900':'bg-white'}`}>
                             <div className="w-[250px] flex-shrink-0 p-3 font-semibold text-sm">Actions</div>
                             {zoom==='quarter'?headers.map(h=>(
                                 <div key={h.q} className={`flex-shrink-0 p-3 text-center font-semibold border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}}>
@@ -1785,13 +1927,15 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                 </div>
                             )):zoom==='week'?headers.map((h,i)=>(
                                 <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l ${darkMode?'border-gray-800':'border-gray-200'} ${h.week===currentWeek?'bg-secondary/10 text-secondary':''}`} style={{width:colWidth}}>{h.label}</div>
+                            )):zoom==='day'?headers.map((h,i)=>(
+                                <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l ${darkMode?'border-gray-800':'border-gray-200'} ${h.month===currentMonth&&h.date===new Date().getDate()?'bg-secondary/10 text-secondary':''}`} style={{width:colWidth}}>{h.label}</div>
                             )):headers.map((h,i)=>(
                                 <div key={i} className={`flex-shrink-0 p-2 text-center text-xs font-medium border-l ${darkMode?'border-gray-800':'border-gray-200'} ${h.month===currentMonth?'bg-secondary/10 text-secondary':''}`} style={{width:colWidth}}>{h.label}</div>
                             ))}
                         </div>
                         {groupedByCategory.map(({category,actions:catActions})=>(
                             <div key={category.id}>
-                                <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'}`} onDragOver={(e)=>{if(onUpdateAction){e.preventDefault();e.currentTarget.classList.add('drag-over');}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}>
+                                <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'}`} onDragOver={(e)=>{if(onUpdateAction){const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.add('drag-over');}}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}}>
                                     <div className={`w-[250px] flex-shrink-0 p-3 font-bold text-white text-sm bg-gradient-to-r ${category.gradient}`}>{category.name}</div>
                                     <div className="flex-1" style={{background:darkMode?'rgba(55,65,81,0.3)':'rgba(243,244,246,0.5)'}}/>
                                 </div>
@@ -1800,21 +1944,24 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     const dragOverActionClass=isDragOverAction?(dragOverAction.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
                                     return(
                                     <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative ${dragOverActionClass}`}>
-                                        <div className="w-[250px] flex-shrink-0 p-2 relative" draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
+                                        <div className="w-[250px] flex-shrink-0 p-2 relative" draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
                                             <p className="text-sm font-medium truncate hover:text-secondary">{action.name}</p>
                                             <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
                                             {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs text-gray-400" title="Glisser pour réordonner">⋮⋮</div>}
                                         </div>
-                                        <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:'60px'}} onDragOver={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){handleActionRowDragOver(e,action);}}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{e.stopPropagation();const taskId=e.dataTransfer.getData('taskId');if(taskId){handleActionRowDrop(e,action);}}}>
-                                            <div className="absolute inset-0 flex">
+                                        <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:'60px',zIndex:20}} onDragOver={(e)=>{handleActionRowDragOver(e,action);}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleActionRowDrop(e,action);}}}>
+                                            <div className="absolute inset-0 flex pointer-events-none">
                                                 {headers.map((_,i)=>(
-                                                    <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}} onDrop={(e)=>{e.stopPropagation();const taskId=e.dataTransfer.getData('taskId');if(taskId){handleDrop(e,i);}}} onDragOver={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){handleDragOver(e);}}} onDragLeave={handleDragLeave}/>
+                                                    <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}}/>
                                                 ))}
                                             </div>
                                             {dragPreview&&dragPreview.actionId===action.id&&(
                                                 <div className="drag-preview-line" style={{left:dragPreview.left,width:dragPreview.width}}/>
                                             )}
-                                            {(zoom==='month'||zoom==='week')&&actionTasks.sort((a,b)=>(a.order||0)-(b.order||0)).map(task=>{
+                                            {dropIndicator&&dropIndicator.actionId===action.id&&(
+                                                <div className="drop-zone-indicator" style={{left:dropIndicator.left}}/>
+                                            )}
+                                            {(zoom==='month'||zoom==='week'||zoom==='day')&&actionTasks.sort((a,b)=>(a.order||0)-(b.order||0)).map(task=>{
                                                 const pos=getTaskPosition(task);
                                                 if(!pos)return null;
                                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
@@ -1823,7 +1970,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 const dragOverClass=isDragOver?(dragOverTask.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
                                                 const resizingStyle=isResizing?{boxShadow:'0 0 0 3px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.3)',transform:'scale(1.02)',zIndex:30}:{};
                                                 return(
-                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute top-2 h-10 rounded-lg flex items-center text-white text-xs shadow-sm overflow-visible hover:brightness-110 transition-all ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,backgroundColor:status?.color,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
+                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute top-2 h-10 rounded-lg flex items-center text-white text-xs shadow-sm overflow-visible hover:brightness-110 transition-all ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,backgroundColor:status?.color,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
                                                         <div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner début"/>
                                                         <span className="truncate flex-1 px-1 pointer-events-none">{task.title}</span>
                                                         {task.budget>0&&zoom==='month'&&<span className="ml-1 opacity-75 pointer-events-none">({(task.budget/1000).toFixed(0)}k)</span>}
