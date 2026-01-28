@@ -1068,6 +1068,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const[scrollLeft,setScrollLeft]=useState(0);
     const[spacePressed,setSpacePressed]=useState(false);
     const[resizing,setResizing]=useState(null); // {taskId, handle: 'left'|'right', startX, originalStart, originalEnd}
+    const[justResized,setJustResized]=useState(false); // Prevent click after resize
     const[dragging,setDragging]=useState(null); // {taskId, task, startX, startY, originalLeft}
     const[dragOverTask,setDragOverTask]=useState(null); // {taskId, position: 'before'|'after'}
     const[dragOverAction,setDragOverAction]=useState(null); // {actionId, position: 'before'|'after'}
@@ -1106,6 +1107,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const endResize=useCallback(()=>{
         document.body.classList.remove('resizing');
         setResizing(null);
+        setJustResized(true);
+        // Reset after a short delay to allow click events to be blocked
+        setTimeout(()=>setJustResized(false),100);
     },[]);
 
     useEffect(()=>{
@@ -1401,10 +1405,6 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         e.preventDefault();
         e.stopPropagation();
 
-        // Get actionId from the drag data
-        const draggedId=e.dataTransfer.getData('actionId');
-        if(!draggedId || draggedId===action.id)return;
-
         // Determine if drag is in top or bottom half of action row
         const rect=e.currentTarget.getBoundingClientRect();
         const midY=rect.top+rect.height/2;
@@ -1478,15 +1478,20 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             return{left,width};
         }
         if(zoom==='week'){
-            const startWeek=getWeekNumber(start);
-            const endWeek=getWeekNumber(end);
-            const startDayOfWeek=start.getDay();
-            const endDayOfWeek=end.getDay();
-            const startOffset=(startDayOfWeek/7)*colWidth;
-            const totalWeeks=endWeek-startWeek;
-            const endOffset=((6-endDayOfWeek)/7)*colWidth;
-            const width=(totalWeeks+1)*colWidth-startOffset-endOffset;
-            return{left:startWeek*colWidth+startOffset,width:Math.max(width,colWidth/7)}; // At least 1/7th of week width (1 day)
+            // Calculate precise positioning based on days from start of year
+            const yearStart=new Date(2026,0,1);
+            const startDayOfYear=Math.floor((start-yearStart)/(1000*60*60*24));
+            const endDayOfYear=Math.floor((end-yearStart)/(1000*60*60*24));
+
+            // Each week column is 40px (colWidth), representing 7 days
+            // So each day is colWidth/7 pixels
+            const pixelsPerDay=colWidth/7;
+
+            // Calculate left position and width in pixels
+            const left=startDayOfYear*pixelsPerDay;
+            const width=Math.max((endDayOfYear-startDayOfYear+1)*pixelsPerDay,pixelsPerDay); // At least 1 day width
+
+            return{left,width};
         }
         if(zoom==='month'){
             const startOffset=((startDay-1)/daysInStartMonth)*colWidth; // -1 for 0-indexed
@@ -1720,17 +1725,85 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const draggedTask=tasks.find(t=>t.id===taskId);
         if(!draggedTask)return;
 
-        // Get the highest order in the target action
-        const actionTasks=tasks.filter(t=>t.actionId===targetAction.id);
-        const maxOrder=actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0)):0;
+        // Calculate the target date based on drop position
+        const rect=e.currentTarget.getBoundingClientRect();
+        const relativeX=e.clientX-rect.left;
+        const scrollOffset=timelineRef.current?timelineRef.current.scrollLeft:0;
 
-        // Always update task - move to new action or update position in same action
-        onUpdateTask(taskId,{
-            actionId:targetAction.id,
-            order:maxOrder+1,
-            startDate:draggedTask.startDate,
-            dueDate:draggedTask.dueDate
-        });
+        // Calculate which column was targeted
+        const colIdx=Math.floor((relativeX+scrollOffset)/colWidth);
+
+        // Calculate task duration
+        let duration=1;
+        if(draggedTask.startDate&&draggedTask.dueDate){
+            const oldStart=new Date(draggedTask.startDate);
+            const oldEnd=new Date(draggedTask.dueDate);
+            duration=Math.max(1,Math.ceil((oldEnd-oldStart)/(1000*60*60*24))+1);
+        }
+
+        // Get position percentage within the column
+        const colLeft=(colIdx*colWidth);
+        const colRelativeX=(relativeX+scrollOffset)-colLeft;
+        const percentage=colRelativeX/colWidth;
+
+        const year=2026;
+        let startDate,dueDate;
+
+        // Calculate new dates based on zoom level and drop position
+        if(zoom==='week'){
+            const weekNumber=colIdx;
+            let halfDaySlot=Math.round(percentage*14);
+            const durationInHalfDays=duration*2;
+            halfDaySlot=Math.max(0,Math.min(14-durationInHalfDays,halfDaySlot));
+            const dayOfWeek=Math.floor(halfDaySlot/2);
+            const firstDayOfYear=new Date(year,0,1);
+            const daysOffset=weekNumber*7+dayOfWeek;
+            const newStartDate=new Date(year,0,1+daysOffset);
+            const newEndDate=new Date(newStartDate);
+            newEndDate.setDate(newEndDate.getDate()+duration-1);
+            startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
+            dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
+        }else if(zoom==='day'){
+            const dayOfYear=colIdx;
+            const newStartDate=new Date(year,0,1+dayOfYear);
+            const newEndDate=new Date(newStartDate);
+            newEndDate.setDate(newEndDate.getDate()+duration-1);
+            startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
+            dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
+        }else if(zoom==='month'){
+            const monthIdx=colIdx;
+            const daysInMonth=new Date(year,monthIdx+1,0).getDate();
+            let targetDay=Math.round(percentage*daysInMonth);
+            targetDay=Math.max(1,Math.min(daysInMonth,targetDay));
+            let startDay=Math.max(1,Math.min(daysInMonth-duration+1,targetDay));
+            startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(startDay).padStart(2,'0');
+            const newStartDate=new Date(year,monthIdx,startDay);
+            const newEndDate=new Date(newStartDate);
+            newEndDate.setDate(newEndDate.getDate()+duration-1);
+            const endMonth=newEndDate.getMonth();
+            const endDay=newEndDate.getDate();
+            dueDate=year+'-'+String(endMonth+1).padStart(2,'0')+'-'+String(endDay).padStart(2,'0');
+        }else{
+            // Keep original dates for quarter view
+            startDate=draggedTask.startDate;
+            dueDate=draggedTask.dueDate;
+        }
+
+        // Update task with new action and new dates
+        if(draggedTask.actionId===targetAction.id){
+            // Same action - just update dates
+            onUpdateTask(taskId,{startDate,dueDate});
+        }else{
+            // Different action - update action and dates
+            const actionTasks=tasks.filter(t=>t.actionId===targetAction.id);
+            const maxOrder=actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0)):0;
+            onUpdateTask(taskId,{
+                actionId:targetAction.id,
+                order:maxOrder+1,
+                startDate,
+                dueDate
+            });
+        }
     };
 
     const handleActionRowDragOver=(e,targetAction)=>{
@@ -1877,9 +1950,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                             {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs text-gray-400" title="Glisser pour réordonner">⋮⋮</div>}
                                         </div>
                                         <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:'60px',zIndex:20}} onDragOver={(e)=>{handleActionRowDragOver(e,action);}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleActionRowDrop(e,action);}}}>
-                                            <div className="absolute inset-0 flex">
+                                            <div className="absolute inset-0 flex pointer-events-none">
                                                 {headers.map((_,i)=>(
-                                                    <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleDrop(e,i);}}} onDragOver={(e)=>{e.preventDefault();}} onDragLeave={(e)=>{}}/>
+                                                    <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}}/>
                                                 ))}
                                             </div>
                                             {dragPreview&&dragPreview.actionId===action.id&&(
@@ -1897,7 +1970,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 const dragOverClass=isDragOver?(dragOverTask.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
                                                 const resizingStyle=isResizing?{boxShadow:'0 0 0 3px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.3)',transform:'scale(1.02)',zIndex:30}:{};
                                                 return(
-                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute top-2 h-10 rounded-lg flex items-center text-white text-xs shadow-sm overflow-visible hover:brightness-110 transition-all ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,backgroundColor:status?.color,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
+                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute top-2 h-10 rounded-lg flex items-center text-white text-xs shadow-sm overflow-visible hover:brightness-110 transition-all ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,backgroundColor:status?.color,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
                                                         <div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner début"/>
                                                         <span className="truncate flex-1 px-1 pointer-events-none">{task.title}</span>
                                                         {task.budget>0&&zoom==='month'&&<span className="ml-1 opacity-75 pointer-events-none">({(task.budget/1000).toFixed(0)}k)</span>}
