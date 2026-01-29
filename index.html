@@ -2658,7 +2658,23 @@ const App=()=>{
     useEffect(()=>{
         console.log('🚀 Chargement des données via Vercel API...');
         setGithubToken('vercel-api'); // Marqueur pour indiquer qu'on utilise l'API
-        loadDataFromGitHub();
+
+        // CRITICAL FIX: Set dataLoaded to true immediately with default data
+        // Then try to load from API/localStorage asynchronously
+        setDataLoaded(true);
+
+        // Try to load data with timeout fallback
+        const timeoutId = setTimeout(() => {
+            console.warn('⏱️ Chargement timeout, utilisation des données par défaut');
+            loadFromLocalStorage();
+        }, 5000);
+
+        loadDataFromGitHub().then(() => {
+            clearTimeout(timeoutId);
+        }).catch((err) => {
+            console.error('Erreur lors du chargement:', err);
+            clearTimeout(timeoutId);
+        });
     },[]);
 
     // Persist dark mode preference
@@ -2785,9 +2801,8 @@ const App=()=>{
             console.error('Erreur chargement GitHub:',e);
             showNotification('⚠️ Erreur chargement GitHub, backup local chargé');
             loadFromLocalStorage();
-        }finally{
-            setDataLoaded(true);
         }
+        // Note: dataLoaded is now set to true immediately in useEffect, not here
     };
 
     const loadFromLocalStorage=()=>{
