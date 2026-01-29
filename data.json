@@ -710,6 +710,26 @@
       ],
       "order": 6,
       "createdAt": "2026-01-20T10:00:47.390Z"
+    },
+    {
+      "id": "t1769682977728",
+      "actionId": "a4",
+      "month": 6,
+      "startDate": "2026-07-28",
+      "title": "Nouvelle tâche",
+      "description": "",
+      "status": "todo",
+      "priority": "medium",
+      "dueDate": "2026-08-21",
+      "budget": 0,
+      "channels": [
+        "lads"
+      ],
+      "checklist": [],
+      "comments": [],
+      "attachments": [],
+      "order": 23,
+      "createdAt": "2026-01-29T10:36:17.728Z"
     }
   ]
 }
