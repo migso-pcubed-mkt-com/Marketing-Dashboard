@@ -695,7 +695,7 @@
     {
       "id": "t1768839432448",
       "title": "test nouvelle tâche",
-      "actionId": "a4",
+      "actionId": "a1",
       "month": 8,
       "startDate": "2026-09-02",
       "dueDate": "2026-09-30",
@@ -708,7 +708,7 @@
       "channels": [
         "social"
       ],
-      "order": 6,
+      "order": 0,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
