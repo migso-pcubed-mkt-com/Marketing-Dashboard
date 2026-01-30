@@ -733,14 +733,14 @@
     },
     {
       "id": "t1769683030770",
-      "actionId": "a1",
-      "month": 2,
-      "startDate": "2027-02-05",
+      "actionId": "a4",
+      "month": 8,
+      "startDate": "2027-08-05",
       "title": "Nouvelle tâche",
       "description": "",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2027-03-08",
+      "dueDate": "2027-09-05",
       "budget": 0,
       "channels": [
         "lads"
@@ -748,7 +748,7 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "order": 8,
+      "order": 30,
       "createdAt": "2026-01-29T10:37:10.770Z"
     },
     {
@@ -815,13 +815,13 @@
     {
       "id": "t1769780454202",
       "actionId": "a4",
-      "month": 0,
-      "startDate": "2027-01-12",
+      "month": 7,
+      "startDate": "2027-08-16",
       "title": "Nouvelle tâche",
       "description": "",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2027-01-14",
+      "dueDate": "2027-08-18",
       "budget": 0,
       "channels": [
         "lads"
