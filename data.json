@@ -300,14 +300,14 @@
     },
     {
       "id": "t6",
-      "actionId": "a2",
-      "month": 3,
-      "startDate": "2026-04-01",
+      "actionId": "a1",
+      "month": 8,
+      "startDate": "2026-08-06",
       "title": "Content Avril",
       "description": "Contenu marque employeur pour Avril",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2026-04-28",
+      "dueDate": "2026-09-02",
       "checklist": [],
       "comments": [],
       "attachments": [],
@@ -315,7 +315,7 @@
         "social",
         "video"
       ],
-      "order": 5,
+      "order": 7,
       "createdAt": "2026-01-20T10:00:47.390Z",
       "countries": [
         "france"
