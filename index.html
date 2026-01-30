@@ -53,12 +53,12 @@
         .resize-handle-left{left:0}
         .resize-handle-right{right:0}
         .drag-ghost{position:fixed;pointer-events:none;z-index:10000;opacity:0.85;transform:rotate(3deg);box-shadow:0 12px 40px rgba(0,0,0,0.4);border-radius:8px;padding:8px 12px;color:white;font-size:12px;font-weight:600;backdrop-filter:blur(8px)}
-        .drag-preview-line{position:absolute;height:40px;background:linear-gradient(90deg,rgba(55,129,236,0.5) 0%,rgba(92,194,157,0.5) 100%);top:8px;border-radius:8px;border:2px solid rgba(55,129,236,0.8);box-shadow:0 0 12px rgba(55,129,236,0.6),inset 0 0 20px rgba(255,255,255,0.2);z-index:15;pointer-events:none;animation:pulse-glow 1s ease-in-out infinite;backdrop-filter:blur(4px)}
-        @keyframes pulse-glow{0%,100%{opacity:0.9;box-shadow:0 0 12px rgba(55,129,236,0.7)}50%{opacity:1;box-shadow:0 0 20px rgba(55,129,236,0.9)}}
-        .action-row-drag-over{background:linear-gradient(90deg,rgba(55,129,236,0.08),rgba(92,194,157,0.08))!important;border:2px dashed rgba(55,129,236,0.4)!important;border-radius:8px!important;box-shadow:inset 0 0 15px rgba(55,129,236,0.15)!important;position:relative}
-        .drop-zone-indicator{position:absolute;top:0;bottom:0;width:4px;background:linear-gradient(180deg,#3781ec,#5cc29d);border-radius:2px;box-shadow:0 0 12px rgba(55,129,236,0.8),0 0 24px rgba(55,129,236,0.4);z-index:25;pointer-events:none;animation:pulse-drop 0.8s ease-in-out infinite}
-        .drop-zone-indicator::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#3781ec;border-radius:50%;box-shadow:0 0 8px rgba(55,129,236,0.8)}
-        @keyframes pulse-drop{0%,100%{opacity:1;transform:scaleY(1)}50%{opacity:0.8;transform:scaleY(0.98)}}
+        .drag-preview-line{position:absolute;height:40px;background:linear-gradient(90deg,rgba(55,129,236,0.7) 0%,rgba(92,194,157,0.7) 100%);top:8px;border-radius:8px;border:3px dashed rgba(55,129,236,1);box-shadow:0 0 20px rgba(55,129,236,0.9),inset 0 0 30px rgba(255,255,255,0.3),0 4px 16px rgba(0,0,0,0.2);z-index:25;pointer-events:none;animation:pulse-glow 0.8s ease-in-out infinite;backdrop-filter:blur(8px)}
+        @keyframes pulse-glow{0%,100%{opacity:0.95;box-shadow:0 0 20px rgba(55,129,236,0.9),0 4px 16px rgba(0,0,0,0.2);transform:scale(1)}50%{opacity:1;box-shadow:0 0 30px rgba(55,129,236,1),0 6px 20px rgba(0,0,0,0.3);transform:scale(1.02)}}
+        .action-row-drag-over{background:linear-gradient(90deg,rgba(55,129,236,0.15),rgba(92,194,157,0.15))!important;border:3px dashed rgba(55,129,236,0.7)!important;border-radius:8px!important;box-shadow:inset 0 0 25px rgba(55,129,236,0.25),0 0 15px rgba(55,129,236,0.4)!important;position:relative}
+        .drop-zone-indicator{position:absolute;top:0;bottom:0;width:6px;background:linear-gradient(180deg,#3781ec,#5cc29d);border-radius:3px;box-shadow:0 0 16px rgba(55,129,236,1),0 0 32px rgba(55,129,236,0.6);z-index:25;pointer-events:none;animation:pulse-drop 0.7s ease-in-out infinite}
+        .drop-zone-indicator::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px;background:#3781ec;border-radius:50%;box-shadow:0 0 12px rgba(55,129,236,1),0 0 24px rgba(55,129,236,0.6)}
+        @keyframes pulse-drop{0%,100%{opacity:1;transform:scaleY(1);box-shadow:0 0 16px rgba(55,129,236,1)}50%{opacity:0.9;transform:scaleY(0.96);box-shadow:0 0 24px rgba(55,129,236,1)}}
         @media(max-width:768px){
             .kanban-column{min-width:280px}
             .resize-handle{width:30px!important;opacity:0.7!important}
@@ -72,6 +72,14 @@
             .card-hover:active{transform:scale(0.98)}
             .timeline-bar{padding:0 35px!important}
         }
+        /* Sticky horizontal scroll for timeline and kanban views */
+        .sticky-scroll-container{position:relative}
+        .sticky-scroll-wrapper{position:sticky;bottom:0;z-index:100;background:linear-gradient(to top,rgba(0,0,0,0.05) 0%,transparent 100%);padding:8px 0;backdrop-filter:blur(4px)}
+        .sticky-scroll-track{height:12px;background:rgba(0,0,0,0.1);border-radius:6px;overflow-x:auto;overflow-y:hidden}
+        .sticky-scroll-track::-webkit-scrollbar{height:12px}
+        .sticky-scroll-track::-webkit-scrollbar-track{background:rgba(0,0,0,0.05);border-radius:6px}
+        .sticky-scroll-track::-webkit-scrollbar-thumb{background:rgba(55,129,236,0.6);border-radius:6px;transition:background 0.2s}
+        .sticky-scroll-track::-webkit-scrollbar-thumb:hover{background:rgba(55,129,236,0.9)}
     </style>
     <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#2c2b64',secondary:'#3781ec',accent:{green:'#5cc29d',red:'#ff5338',yellow:'#f2cb13'}}}}}</script>
 </head>
@@ -618,12 +626,13 @@ const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})
     );
 };
 
-const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,onTouchDrag,categories,allCountries})=>{
+const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,onTouchDrag,categories,allCountries,onUpdateTask,showCheckbox=false})=>{
     const{darkMode}=useApp();
     const[touching,setTouching]=useState(false);
     const[dragOverPosition,setDragOverPosition]=useState(null); // 'before' | 'after' | null
     const cardRef=useRef(null);
     const touchTimeout=useRef(null);
+    const isCompleted=task.status==='completed';
 
     const handleTouchStart=(e)=>{
         touchTimeout.current=setTimeout(()=>{
@@ -681,6 +690,13 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
     const category=categories?.find(c=>c.id===action?.categoryId);
     const checklistPct=task.checklist?.length>0?Math.round((task.checklist.filter(c=>c.done).length/task.checklist.length)*100):null;
 
+    const handleToggleComplete=(e)=>{
+        e.stopPropagation();
+        if(onUpdateTask){
+            onUpdateTask(task.id,{status:isCompleted?'todo':'completed'});
+        }
+    };
+
     return(
         <div
             ref={cardRef}
@@ -694,17 +710,20 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onClick={()=>onOpen(task)}
-            className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover transition-all relative group ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`}>
+            className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover transition-all relative group ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''} ${isCompleted?'opacity-60':''}`} style={isCompleted?{background:darkMode?'rgba(55,65,81,0.4)':'rgba(243,244,246,0.7)'}:{}}>
             {onMoveTask&&<div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'up');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le haut">⬆️</button>
                 <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'down');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le bas">⬇️</button>
             </div>}
+            <div className="flex items-center mb-3">
+                {showCheckbox&&<input type="checkbox" checked={isCompleted} onChange={handleToggleComplete} onClick={(e)=>e.stopPropagation()} className="w-5 h-5 rounded border-2 border-gray-300 text-accent-green focus:ring-2 focus:ring-accent-green cursor-pointer mr-2" style={{accentColor:'#5cc29d'}}/>}
+                <h4 className={`font-semibold text-sm flex-1 line-clamp-2 ${isCompleted?'line-through text-gray-400':''}`}>{task.title}</h4>
+            </div>
             {showAction&&category&&<div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${category.gradient}`}/>}
             <div className="flex items-start justify-between mb-2">
                 <span className="px-2 py-1 rounded-lg text-xs font-medium text-white" style={{backgroundColor:status?.color}}>{status?.icon} {status?.name}</span>
                 <span className="text-sm">{priority?.icon}</span>
             </div>
-            <h4 className="font-semibold text-sm mb-2 line-clamp-2">{task.title}</h4>
             {showAction&&action&&<p className="text-xs text-gray-500 mb-2 truncate">📁 {action.name}</p>}
             {task.description&&<p className="text-xs text-gray-500 mb-2 line-clamp-2">{task.description}</p>}
             {task.channels&&task.channels.length>0&&<div className="mb-2"><ChannelTags channels={task.channels} editable={false}/></div>}
@@ -775,7 +794,10 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                 <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
-                            <input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/>
+                            <div className="flex items-center gap-2 mb-2">
+                                <input type="checkbox" checked={form.status==='completed'} onChange={(e)=>setForm({...form,status:e.target.checked?'completed':'todo'})} className="w-5 h-5 rounded border-2 border-gray-300 text-accent-green focus:ring-2 focus:ring-accent-green cursor-pointer" style={{accentColor:'#5cc29d'}}/>
+                                <input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className={`flex-1 text-xl font-bold px-3 py-2 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'} ${form.status==='completed'?'line-through text-gray-400':''}`}/>
+                            </div>
                             <div className="flex items-center gap-2 mt-1">
                                 <p className="text-sm text-gray-500">📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
                                 {onBackToAction&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Retour à l'action</button>}
@@ -915,6 +937,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
     const[sortBy,setSortBy]=useState('order'); // order, name, date, deadline, priority
+    const kanbanScrollRef=useRef(null);
 
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
@@ -939,19 +962,29 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     const handleDragLeave=(e)=>{e.currentTarget.classList.remove('drag-over');};
 
     const getColumns=()=>{
-        // Helper to sort items by different criteria
+        // Helper to sort items by different criteria (completed tasks always at bottom)
         const sortItems=(items)=>{
             const sorted=[...items];
-            if(sortBy==='order')return sorted.sort((a,b)=>(a.order||0)-(b.order||0));
-            if(sortBy==='name')return sorted.sort((a,b)=>a.title.localeCompare(b.title));
-            if(sortBy==='date')return sorted.sort((a,b)=>new Date(a.startDate||0)-new Date(b.startDate||0));
-            if(sortBy==='deadline')return sorted.sort((a,b)=>new Date(a.dueDate||'9999')-new Date(b.dueDate||'9999'));
-            if(sortBy==='created')return sorted.sort((a,b)=>new Date(a.createdAt||0)-new Date(b.createdAt||0));
-            if(sortBy==='priority'){
-                const priorityOrder={high:0,medium:1,low:2};
-                return sorted.sort((a,b)=>(priorityOrder[a.priority]||99)-(priorityOrder[b.priority]||99));
-            }
-            return sorted;
+            // First separate completed and non-completed tasks
+            const completed=sorted.filter(t=>t.status==='completed');
+            const notCompleted=sorted.filter(t=>t.status!=='completed');
+
+            // Sort each group separately
+            const sortGroup=(group)=>{
+                if(sortBy==='order')return group.sort((a,b)=>(a.order||0)-(b.order||0));
+                if(sortBy==='name')return group.sort((a,b)=>a.title.localeCompare(b.title));
+                if(sortBy==='date')return group.sort((a,b)=>new Date(a.startDate||0)-new Date(b.startDate||0));
+                if(sortBy==='deadline')return group.sort((a,b)=>new Date(a.dueDate||'9999')-new Date(b.dueDate||'9999'));
+                if(sortBy==='created')return group.sort((a,b)=>new Date(a.createdAt||0)-new Date(b.createdAt||0));
+                if(sortBy==='priority'){
+                    const priorityOrder={high:0,medium:1,low:2};
+                    return group.sort((a,b)=>(priorityOrder[a.priority]||99)-(priorityOrder[b.priority]||99));
+                }
+                return group;
+            };
+
+            // Return non-completed tasks first, then completed tasks
+            return[...sortGroup(notCompleted),...sortGroup(completed)];
         };
 
         if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:sortItems(filteredTasks.filter(t=>t.month===idx))}));
@@ -1022,7 +1055,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     </div>
                 )}
             </div>
-            <div className="overflow-x-auto pb-4">
+            <div ref={kanbanScrollRef} className="overflow-x-auto overflow-y-auto pb-4" style={{scrollbarWidth:'thin',height:'calc(100vh - 280px)'}}>
                 <div className="flex gap-4" style={{minWidth:viewMode==='month'?'2800px':viewMode==='quarter'?'1200px':'1200px'}}>
                     {getColumns().map(col=>(
                         <div
@@ -1036,8 +1069,9 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 if(viewMode==='month'){
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
+                                        const task=filteredTasks.find(t=>t.id===taskId);
                                         const monthIdx=col.key;
-                                        const year=2026;
+                                        const year=task?.startDate?new Date(task.startDate).getFullYear():2026;
                                         const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
                                         const lastDay=new Date(year,monthIdx+1,0).getDate();
                                         const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
@@ -1046,8 +1080,9 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 }else if(viewMode==='quarter'){
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
+                                        const task=filteredTasks.find(t=>t.id===taskId);
                                         const quarterIdx=col.key;
-                                        const year=2026;
+                                        const year=task?.startDate?new Date(task.startDate).getFullYear():2026;
                                         const firstMonth=quarterIdx*3;
                                         const lastMonth=quarterIdx*3+2;
                                         const startDate=year+'-'+String(firstMonth+1).padStart(2,'0')+'-01';
@@ -1073,7 +1108,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{col.icon&&<span className="mr-1">{col.icon}</span>}{col.name}</h3><span className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-800':'bg-gray-200'}`}>{col.items.length}</span></div>
                             </div>
                             <div className="space-y-3">
-                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories} allCountries={allCountries}/>)}
+                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onUpdateTask={onUpdateTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories} allCountries={allCountries}/>)}
                                 {col.items.length===0&&<div className={`text-center py-8 border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg`}><p className="text-xs text-gray-400">Aucune tâche</p></div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
@@ -1137,7 +1172,29 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const[centerDateRef,setCenterDateRef]=useState(null); // Reference date for scroll preservation
     const[creatingTask,setCreatingTask]=useState(null); // {actionId, startX, currentX, startDate, actionRow} for task creation
     const currentMonth=new Date().getMonth();
-    const currentWeek=Math.floor((new Date().getTime()-new Date(2026,0,1).getTime())/(7*24*60*60*1000));
+
+    // Calculate base year from tasks (support multi-year)
+    const getBaseYear=useCallback(()=>{
+        if(!tasks||tasks.length===0)return 2026;
+        let minYear=2026;
+        let maxYear=2026;
+        tasks.forEach(task=>{
+            if(task.startDate){
+                const year=new Date(task.startDate).getFullYear();
+                if(year<minYear)minYear=year;
+                if(year>maxYear)maxYear=year;
+            }
+            if(task.dueDate){
+                const year=new Date(task.dueDate).getFullYear();
+                if(year<minYear)minYear=year;
+                if(year>maxYear)maxYear=year;
+            }
+        });
+        return minYear;
+    },[tasks]);
+
+    const baseYear=getBaseYear();
+    const currentWeek=Math.floor((new Date().getTime()-new Date(baseYear,0,1).getTime())/(7*24*60*60*1000));
 
     // Calculate the date at the center of the current viewport
     const getCenterDate=useCallback(()=>{
@@ -1146,15 +1203,17 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const viewportWidth=timelineRef.current.clientWidth;
         const centerX=scrollLeft+viewportWidth/2-250; // -250 for left column
 
-        const year=2026;
+        const year=baseYear;
         if(zoom==='day'){
             const dayIndex=Math.floor(centerX/colWidth);
-            const date=new Date(year,0,1+dayIndex);
+            const date=new Date(year,0,1);
+            date.setDate(date.getDate()+dayIndex);
             return date;
         }else if(zoom==='week'){
             const pixelsPerDay=colWidth/7;
             const dayIndex=Math.floor(centerX/pixelsPerDay);
-            const date=new Date(year,0,1+dayIndex);
+            const date=new Date(year,0,1);
+            date.setDate(date.getDate()+dayIndex);
             return date;
         }else if(zoom==='month'){
             const monthIndex=Math.floor(centerX/colWidth);
@@ -1175,12 +1234,12 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             return date;
         }
         return new Date(year,0,1);
-    },[zoom,colWidth]);
+    },[zoom,colWidth,baseYear]);
 
     // Scroll to a specific date in the current zoom level
     const scrollToDate=useCallback((targetDate)=>{
         if(!timelineRef.current||!targetDate)return;
-        const year=2026;
+        const year=baseYear;
         const month=targetDate.getMonth();
         const day=targetDate.getDate();
 
@@ -1208,7 +1267,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         // Center the date in the viewport
         const viewportWidth=timelineRef.current.clientWidth;
         timelineRef.current.scrollLeft=scrollPosition-viewportWidth/2+250; // +250 for left column
-    },[zoom,colWidth]);
+    },[zoom,colWidth,baseYear]);
 
     // Save center date before zoom change and restore after
     const handleZoomChange=useCallback((newZoom)=>{
@@ -1481,6 +1540,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         setDragOverActionRow(null);
         setDragPreview(null);
         setDropIndicator(null);
+        // Clean up all drag-over classes from DOM elements
+        document.querySelectorAll('.drag-over, .action-row-drag-over').forEach(el=>{
+            el.classList.remove('drag-over','action-row-drag-over');
+        });
     };
 
     const handleTaskDragOver=(e,task)=>{
@@ -1610,7 +1673,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     };
 
     const getWeekNumber=(date)=>{
-        const startOfYear=new Date(2026,0,1);
+        const startOfYear=new Date(baseYear,0,1);
         const diff=date-startOfYear;
         return Math.floor(diff/(7*24*60*60*1000));
     };
@@ -1623,20 +1686,21 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const endMonth=end.getMonth();
         const startDay=start.getDate();
         const endDay=end.getDate();
-        const daysInStartMonth=new Date(2026,startMonth+1,0).getDate();
-        const daysInEndMonth=new Date(2026,endMonth+1,0).getDate();
+        const startYear=start.getFullYear();
+        const daysInStartMonth=new Date(startYear,startMonth+1,0).getDate();
+        const daysInEndMonth=new Date(startYear,endMonth+1,0).getDate();
 
         if(zoom==='day'){
             // Calculate day index from start of year (0-364)
-            const startDayOfYear=Math.floor((start-new Date(2026,0,1))/(1000*60*60*24));
-            const endDayOfYear=Math.floor((end-new Date(2026,0,1))/(1000*60*60*24));
+            const startDayOfYear=Math.floor((start-new Date(baseYear,0,1))/(1000*60*60*24));
+            const endDayOfYear=Math.floor((end-new Date(baseYear,0,1))/(1000*60*60*24));
             const left=startDayOfYear*colWidth;
             const width=Math.max((endDayOfYear-startDayOfYear+1)*colWidth,colWidth); // At least 1 day width
             return{left,width};
         }
         if(zoom==='week'){
             // Calculate precise positioning based on days from start of year
-            const yearStart=new Date(2026,0,1);
+            const yearStart=new Date(baseYear,0,1);
             const startDayOfYear=Math.floor((start-yearStart)/(1000*60*60*24));
             const endDayOfYear=Math.floor((end-yearStart)/(1000*60*60*24));
 
@@ -1668,7 +1732,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
             // Calculate start position
             const monthInStartQuarter=startMonth%3;
-            const daysInMonth=new Date(2026,startMonth+1,0).getDate();
+            const daysInMonth=new Date(startYear,startMonth+1,0).getDate();
             const dayOffset=(startDay-1)/daysInMonth; // 0-1 within the month
             const startOffset=monthInStartQuarter*monthWidthInQuarter+dayOffset*monthWidthInQuarter;
             const left=startQuarter*quarterWidth+startOffset;
@@ -1676,7 +1740,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             // Calculate width
             const totalQuarters=endQuarter-startQuarter;
             const monthInEndQuarter=endMonth%3;
-            const daysInEndMonth=new Date(2026,endMonth+1,0).getDate();
+            const daysInEndMonth=new Date(startYear,endMonth+1,0).getDate();
             const endDayOffset=endDay/daysInEndMonth; // 0-1 within the month
             const endOffset=monthInEndQuarter*monthWidthInQuarter+endDayOffset*monthWidthInQuarter;
 
@@ -1695,7 +1759,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         return{left:startMonth*colWidth,width:colWidth};
     };
 
-    // Calculate swim lanes for overlapping tasks
+    // Calculate swim lanes for overlapping tasks (optimized for compactness)
     const calculateSwimLanes=(tasks)=>{
         const swimLanes={};
         const lanes=[];
@@ -1721,12 +1785,13 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const taskStart=pos.left;
             const taskEnd=pos.left+pos.width;
 
-            // Find first available lane
-            let assignedLane=0;
+            // OPTIMIZED: Always find the lowest available lane (compact layout)
+            let assignedLane=-1;
             for(let i=0;i<lanes.length;i++){
                 let canFit=true;
                 for(const existingTask of lanes[i]){
-                    if(taskStart<existingTask.end&&taskEnd>existingTask.start){
+                    // Add small gap (2px) to prevent visual overlap
+                    if(taskStart<existingTask.end+2&&taskEnd>existingTask.start-2){
                         canFit=false;
                         break;
                     }
@@ -1739,22 +1804,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             }
 
             // If no lane found, create new one
-            if(assignedLane===0&&lanes.length>0){
-                const lastLane=lanes[lanes.length-1];
-                let canFitInLast=true;
-                for(const existingTask of lastLane){
-                    if(taskStart<existingTask.end&&taskEnd>existingTask.start){
-                        canFitInLast=false;
-                        break;
-                    }
-                }
-                if(!canFitInLast){
-                    assignedLane=lanes.length;
-                    lanes.push([{id:task.id,start:taskStart,end:taskEnd}]);
-                }else{
-                    lanes[lanes.length-1].push({id:task.id,start:taskStart,end:taskEnd});
-                }
-            }else if(lanes.length===0){
+            if(assignedLane===-1){
+                assignedLane=lanes.length;
                 lanes.push([{id:task.id,start:taskStart,end:taskEnd}]);
             }
 
@@ -1771,7 +1822,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         let currentMonth=-1;
         let dayCounter=0;
         for(let m=0;m<12;m++){
-            const daysInMonth=new Date(2026,m+1,0).getDate();
+            const daysInMonth=new Date(baseYear,m+1,0).getDate();
             const monthStart=dayCounter;
             for(let d=1;d<=daysInMonth;d++){
                 days.push({day:dayCounter,date:d,month:m,label:d.toString()});
@@ -1786,21 +1837,27 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const weeks=[];
         const months=[];
         let currentMonth=-1;
-        for(let w=0;w<52;w++){
-            const weekDate=new Date(2026,0,1+w*7);
+        let monthStartWeek=0;
+        // Generate 53 weeks to cover the full year (including December)
+        for(let w=0;w<53;w++){
+            const weekDate=new Date(baseYear,0,1+w*7);
             const month=weekDate.getMonth();
+            const year=weekDate.getFullYear();
+            // Stop if we've moved to the next year
+            if(year>baseYear)break;
             if(month!==currentMonth){
                 if(currentMonth!==-1){
-                    months.push({month:currentMonth,label:CONFIG.MONTHS[currentMonth],startWeek:months.length>0?months[months.length-1].endWeek:0,endWeek:w});
-                }else{
-                    months.push({month,label:CONFIG.MONTHS[month],startWeek:0,endWeek:w});
+                    // Add the previous month
+                    months.push({month:currentMonth,label:CONFIG.MONTHS[currentMonth],startWeek:monthStartWeek,endWeek:w});
                 }
                 currentMonth=month;
+                monthStartWeek=w;
             }
             weeks.push({week:w,label:(w+1).toString()});
         }
+        // Add the last month (usually December)
         if(currentMonth!==-1){
-            months[months.length-1].endWeek=52;
+            months.push({month:currentMonth,label:CONFIG.MONTHS[currentMonth],startWeek:monthStartWeek,endWeek:weeks.length});
         }
         return{weeks,months};
     };
@@ -1835,7 +1892,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const task=tasks.find(t=>t.id===taskId);
             if(!task)return;
 
-            const year=2026;
+            const year=baseYear;
 
             // Calculate task duration in days
             let duration=1; // default 1 day
@@ -1870,7 +1927,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 // Calculate the actual date
                 const firstDayOfYear=new Date(year,0,1);
                 const daysOffset=weekNumber*7+dayOfWeek;
-                const newStartDate=new Date(year,0,1+daysOffset);
+                const newStartDate=new Date(year,0,1);
+                newStartDate.setDate(newStartDate.getDate()+daysOffset);
 
                 // Calculate end date
                 const newEndDate=new Date(newStartDate);
@@ -1881,14 +1939,24 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
             }else if(zoom==='day'){
                 // For day view: direct day-to-day placement (always snaps to full days)
-                const dayOfYear=colIdx; // colIdx is the day index (0-364)
+                // FIXED: Limit dayOfYear to valid range (0-364 for 2026)
+                const maxDaysInYear=365; // 2026 is not a leap year
+                const dayOfYear=Math.max(0,Math.min(maxDaysInYear-1,colIdx)); // colIdx is the day index (0-364)
 
                 // Calculate the actual date
-                const newStartDate=new Date(year,0,1+dayOfYear);
+                const newStartDate=new Date(year,0,1);
+                newStartDate.setDate(newStartDate.getDate()+dayOfYear);
 
-                // Calculate end date
+                // Calculate end date - ensure it doesn't go beyond year
                 const newEndDate=new Date(newStartDate);
                 newEndDate.setDate(newEndDate.getDate()+duration-1);
+
+                // If end date exceeds current year, clamp it to end of year
+                if(newEndDate.getFullYear()>year){
+                    newEndDate.setFullYear(year);
+                    newEndDate.setMonth(11);
+                    newEndDate.setDate(31);
+                }
 
                 startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
                 dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
@@ -1979,6 +2047,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         setDragOverActionRow(null);
         setDragPreview(null);
         setDropIndicator(null);
+        // Clean up all drag-over classes from DOM elements
+        document.querySelectorAll('.drag-over, .action-row-drag-over').forEach(el=>{
+            el.classList.remove('drag-over','action-row-drag-over');
+        });
 
         const taskId=e.dataTransfer.getData('taskId');
         if(!taskId||!onUpdateTask)return;
@@ -2007,7 +2079,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const colRelativeX=(relativeX+scrollOffset)-colLeft;
         const percentage=colRelativeX/colWidth;
 
-        const year=2026;
+        const year=baseYear;
         let startDate,dueDate;
 
         // Calculate new dates based on zoom level and drop position
@@ -2019,16 +2091,26 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const dayOfWeek=Math.floor(halfDaySlot/2);
             const firstDayOfYear=new Date(year,0,1);
             const daysOffset=weekNumber*7+dayOfWeek;
-            const newStartDate=new Date(year,0,1+daysOffset);
+            const newStartDate=new Date(year,0,1);
+            newStartDate.setDate(newStartDate.getDate()+daysOffset);
             const newEndDate=new Date(newStartDate);
             newEndDate.setDate(newEndDate.getDate()+duration-1);
             startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
             dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
         }else if(zoom==='day'){
-            const dayOfYear=colIdx;
-            const newStartDate=new Date(year,0,1+dayOfYear);
+            // FIXED: Properly calculate date from dayOfYear without overflowing to next year
+            const maxDaysInYear=365; // 2026 is not a leap year
+            const dayOfYear=Math.max(0,Math.min(maxDaysInYear-1,colIdx));
+            const newStartDate=new Date(year,0,1);
+            newStartDate.setDate(newStartDate.getDate()+dayOfYear);
             const newEndDate=new Date(newStartDate);
             newEndDate.setDate(newEndDate.getDate()+duration-1);
+            // If end date exceeds current year, clamp it to end of year
+            if(newEndDate.getFullYear()>year){
+                newEndDate.setFullYear(year);
+                newEndDate.setMonth(11);
+                newEndDate.setDate(31);
+            }
             startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
             dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
         }else if(zoom==='month'){
@@ -2120,7 +2202,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const duration=Math.max(1,Math.ceil((oldEnd-oldStart)/(1000*60*60*24))+1);
 
                 // Calculate preview position
-                const year=2026;
+                const year=baseYear;
                 let previewLeft=0;
                 let previewWidth=0;
 
@@ -2222,23 +2304,27 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     };
 
     const createTaskAtPosition=(actionId,startX,endX)=>{
-        const year=2026;
+        const year=baseYear;
         let startDate,dueDate;
 
         // Calculate dates based on zoom and position
         if(zoom==='day'){
             const startDay=Math.floor(startX/colWidth);
             const endDay=Math.floor(endX/colWidth);
-            const startDateObj=new Date(year,0,1+startDay);
-            const endDateObj=new Date(year,0,1+endDay);
+            const startDateObj=new Date(year,0,1);
+            startDateObj.setDate(startDateObj.getDate()+startDay);
+            const endDateObj=new Date(year,0,1);
+            endDateObj.setDate(endDateObj.getDate()+endDay);
             startDate=startDateObj.toISOString().split('T')[0];
             dueDate=endDateObj.toISOString().split('T')[0];
         }else if(zoom==='week'){
             const pixelsPerDay=colWidth/7;
             const startDay=Math.floor(startX/pixelsPerDay);
             const endDay=Math.floor(endX/pixelsPerDay);
-            const startDateObj=new Date(year,0,1+startDay);
-            const endDateObj=new Date(year,0,1+endDay);
+            const startDateObj=new Date(year,0,1);
+            startDateObj.setDate(startDateObj.getDate()+startDay);
+            const endDateObj=new Date(year,0,1);
+            endDateObj.setDate(endDateObj.getDate()+endDay);
             startDate=startDateObj.toISOString().split('T')[0];
             dueDate=endDateObj.toISOString().split('T')[0];
         }else if(zoom==='month'){
@@ -2338,8 +2424,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 </div>
             </div>
             <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl border ${darkMode?'border-gray-800':'border-gray-200'} overflow-hidden`}>
-                <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
-                    <div style={{minWidth:`${headers.length*colWidth+250}px`}}>
+                <div ref={timelineRef} className={`overflow-x-scroll overflow-y-auto ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll',height:'calc(100vh - 280px)'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+                    <div style={{minWidth:`${headers.length*colWidth+250}px`,paddingRight:'50px'}}>
                         {(zoom==='week'||zoom==='day')&&monthHeaders&&(
                             <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} sticky top-0 z-20 ${darkMode?'bg-gray-900':'bg-white'}`}>
                                 <div className={`w-[250px] flex-shrink-0 sticky left-0 z-30 ${darkMode?'bg-gray-900':'bg-white'}`}/>
@@ -2406,12 +2492,14 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 const dragOverClass=isDragOver?(dragOverTask.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
                                                 const swimLane=swimLanes[task.id]||0;
                                                 const topOffset=8+swimLane*48;
+                                                const isCompleted=task.status==='completed';
+                                                const completedStyle=isCompleted?{opacity:0.65,backgroundColor:'#94a3b8'}:{};
                                                 const resizingStyle=isResizing?{boxShadow:'0 0 0 3px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.3)',transform:'scale(1.02)',zIndex:30}:{};
                                                 return(
-                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute h-10 rounded-lg flex items-center text-white text-xs shadow-sm overflow-visible hover:brightness-110 transition-all ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,top:`${topOffset}px`,backgroundColor:status?.color,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
+                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute h-10 rounded-lg flex items-center text-white text-xs shadow-sm overflow-visible hover:brightness-110 transition-all ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,top:`${topOffset}px`,backgroundColor:status?.color,...completedStyle,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
                                                         <div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner début"/>
-                                                        <span className="truncate flex-1 px-1 pointer-events-none">{task.title}</span>
-                                                        {task.budget>0&&(zoom==='month'||zoom==='quarter')&&<span className="ml-1 opacity-75 pointer-events-none">({(task.budget/1000).toFixed(0)}k)</span>}
+                                                        <span className={`truncate flex-1 px-1 pointer-events-none ${isCompleted?'line-through':''}`}>{task.title}</span>
+                                                        {task.budget>0&&(zoom==='month'||zoom==='quarter')&&<span className={`ml-1 opacity-75 pointer-events-none ${isCompleted?'line-through':''}`}>({(task.budget/1000).toFixed(0)}k)</span>}
                                                         <div className="resize-handle resize-handle-right" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner fin"/>
                                                     </div>
                                                 );
@@ -3123,7 +3211,7 @@ const App=()=>{
             if(isDifferentMonth){
                 updatedDraggedTask.month=targetTask.month;
                 // Also update dates based on new month
-                const year=2026;
+                const year=targetTask.startDate?new Date(targetTask.startDate).getFullYear():2026;
                 const monthIdx=targetTask.month;
                 const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
                 const lastDay=new Date(year,monthIdx+1,0).getDate();
