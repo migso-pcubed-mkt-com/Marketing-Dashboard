@@ -76,8 +76,19 @@
     <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#2c2b64',secondary:'#3781ec',accent:{green:'#5cc29d',red:'#ff5338',yellow:'#f2cb13'}}}}}</script>
 </head>
 <body class="light">
-<div id="root"></div>
+<div id="root">
+    <div class="min-h-screen flex items-center justify-center bg-gray-950">
+        <div class="text-white text-center">
+            <div class="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p>Chargement de l'application...</p>
+            <p class="text-xs text-gray-500 mt-2">Si ce message persiste, vérifiez la console (F12)</p>
+        </div>
+    </div>
+</div>
 <script type="text/babel">
+console.log('🚀 Script démarré');
+console.log('React disponible:', typeof React !== 'undefined');
+console.log('ReactDOM disponible:', typeof ReactDOM !== 'undefined');
 const{useState,useEffect,useRef,createContext,useContext,useCallback,useMemo}=React;
 
 // CONFIG
@@ -2659,9 +2670,12 @@ const App=()=>{
         console.log('🚀 Chargement des données via Vercel API...');
         setGithubToken('vercel-api'); // Marqueur pour indiquer qu'on utilise l'API
 
-        // CRITICAL FIX: Set dataLoaded to true immediately with default data
-        // Then try to load from API/localStorage asynchronously
-        setDataLoaded(true);
+        // CRITICAL FIX: Set dataLoaded to true after a small delay to ensure React is mounted
+        // This prevents the app from being stuck on loading screen if API fails
+        const mountTimer = setTimeout(() => {
+            console.log('✅ App mounted, activating interface');
+            setDataLoaded(true);
+        }, 100);
 
         // Try to load data with timeout fallback
         const timeoutId = setTimeout(() => {
@@ -2675,6 +2689,11 @@ const App=()=>{
             console.error('Erreur lors du chargement:', err);
             clearTimeout(timeoutId);
         });
+
+        return () => {
+            clearTimeout(mountTimer);
+            clearTimeout(timeoutId);
+        };
     },[]);
 
     // Persist dark mode preference
@@ -3388,6 +3407,36 @@ const App=()=>{
 };
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+console.log('✅ Application React chargée avec succès');
+</script>
+<script>
+// Fallback: si après 3 secondes le message de chargement est toujours là, afficher une erreur
+setTimeout(() => {
+    const root = document.getElementById('root');
+    if (root && root.innerHTML.includes('Chargement de l\'application...')) {
+        root.innerHTML = `
+            <div class="min-h-screen flex items-center justify-center bg-gray-950">
+                <div class="text-white text-center max-w-md p-6">
+                    <div class="text-6xl mb-4">⚠️</div>
+                    <h1 class="text-2xl font-bold mb-4">Erreur de chargement</h1>
+                    <p class="text-gray-400 mb-6">L'application n'a pas pu se charger correctement.</p>
+                    <div class="bg-gray-800 p-4 rounded-lg text-left text-sm mb-4">
+                        <p class="mb-2">Causes possibles:</p>
+                        <ul class="list-disc list-inside text-gray-400 space-y-1">
+                            <li>Les CDN (React, Babel) ne sont pas accessibles</li>
+                            <li>Une erreur JavaScript bloque l'exécution</li>
+                            <li>Le navigateur bloque le chargement</li>
+                        </ul>
+                    </div>
+                    <button onclick="location.reload()" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold">
+                        🔄 Recharger la page
+                    </button>
+                    <p class="text-xs text-gray-500 mt-4">Ouvrez la console (F12) pour plus d'informations</p>
+                </div>
+            </div>
+        `;
+    }
+}, 3000);
 </script>
 </body>
 </html>
