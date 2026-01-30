@@ -1470,7 +1470,6 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         e.dataTransfer.setDragImage(ghost,ghost.offsetWidth/2,20);
         setTimeout(()=>document.body.removeChild(ghost),0);
 
-        const pos=getTaskPosition(task);
         setDragging({taskId:task.id,task:task,startX:e.clientX,startY:e.clientY,originalLeft:pos?.left||0});
         e.currentTarget.classList.add('dragging');
     };
