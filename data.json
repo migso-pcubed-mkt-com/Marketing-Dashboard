@@ -714,13 +714,13 @@
     {
       "id": "t1769682977728",
       "actionId": "a4",
-      "month": 6,
-      "startDate": "2026-06-01",
+      "month": 4,
+      "startDate": "2026-04-01",
       "title": "Nouvelle tâche",
       "description": "",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2026-07-02",
+      "dueDate": "2026-05-02",
       "budget": 0,
       "channels": [
         "lads"
