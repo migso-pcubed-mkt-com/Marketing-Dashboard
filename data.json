@@ -774,14 +774,14 @@
     },
     {
       "id": "t1769780329439",
-      "actionId": "a1",
-      "month": 5,
-      "startDate": "2026-04-16",
+      "actionId": "a4",
+      "month": 4,
+      "startDate": "2026-04-09",
       "title": "Nouvelle tâche",
       "description": "",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2026-06-02",
+      "dueDate": "2026-05-26",
       "budget": 0,
       "channels": [
         "lads"
@@ -789,7 +789,7 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "order": 9,
+      "order": 29,
       "createdAt": "2026-01-30T13:38:49.439Z"
     }
   ]
