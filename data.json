@@ -776,12 +776,12 @@
       "id": "t1769780329439",
       "actionId": "a4",
       "month": 4,
-      "startDate": "2026-04-09",
+      "startDate": "2026-03-26",
       "title": "Nouvelle tâche",
       "description": "",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2026-05-26",
+      "dueDate": "2026-05-12",
       "budget": 0,
       "channels": [
         "lads"
