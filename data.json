@@ -662,7 +662,7 @@
       "month": 2,
       "startDate": "2026-03-04",
       "dueDate": "2026-03-31",
-      "status": "inprogress",
+      "status": "completed",
       "priority": "medium",
       "description": "",
       "checklist": [],
