@@ -324,13 +324,13 @@
     {
       "id": "t7",
       "actionId": "a3",
-      "month": 1,
-      "startDate": "2026-02-01",
+      "month": 0,
+      "startDate": "2026-01-01",
       "title": "Google Ads Fév",
       "description": "Budget 2000€",
       "status": "todo",
       "priority": "high",
-      "dueDate": "2026-02-28",
+      "dueDate": "2026-01-31",
       "budget": 2000,
       "checklist": [
         {
