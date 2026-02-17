@@ -274,7 +274,7 @@
       "startDate": "2026-10-22",
       "title": "Content Février",
       "description": "Contenu marque employeur 2",
-      "status": "inprogress",
+      "status": "todo",
       "priority": "medium",
       "dueDate": "2026-11-20",
       "checklist": [
