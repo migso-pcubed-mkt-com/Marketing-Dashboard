@@ -1,0 +1,2274 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marketing Tracker - Redesign V10</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-page: #fafafa;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f1f3f4;
+            --bg-tertiary: #e8eaed;
+            --text-primary: #18181b;
+            --text-secondary: #52525b;
+            --text-muted: #a1a1aa;
+            --border: #e4e4e7;
+            --border-light: #f0f0f1;
+            --border-strong: #d4d4d8;
+            --accent: #6366f1;
+            --accent-light: #eef2ff;
+            --accent-hover: #4f46e5;
+            --success: #22c55e;
+            --success-light: #dcfce7;
+            --warning: #f59e0b;
+            --warning-light: #fef3c7;
+            --error: #ef4444;
+            --error-light: #fee2e2;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.1);
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --sidebar-width: 220px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-page);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        /* ========== HEADER ========== */
+        .header {
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 24px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-inner {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 56px;
+            gap: 16px;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .logo-text {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .logo-version {
+            font-size: 10px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* View Tabs */
+        .view-tabs {
+            display: flex;
+            background: var(--bg-secondary);
+            padding: 3px;
+            border-radius: var(--radius-md);
+            gap: 2px;
+        }
+
+        .view-tab {
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: none;
+            background: transparent;
+        }
+
+        .view-tab:hover {
+            color: var(--text-primary);
+        }
+
+        .view-tab.active {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .view-tab svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Header Right */
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .search-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-toggle {
+            width: 34px;
+            height: 34px;
+            border-radius: var(--radius-sm);
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            transition: var(--transition);
+        }
+
+        .search-toggle:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .search-toggle.active {
+            color: var(--accent);
+            background: var(--accent-light);
+        }
+
+        .search-expanded {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .search-expanded.open {
+            width: 260px;
+            opacity: 1;
+        }
+
+        .search-expanded input {
+            width: 100%;
+            padding: 7px 10px 7px 32px;
+            border: 1px solid var(--accent);
+            border-radius: var(--radius-md);
+            font-size: 12px;
+            font-family: inherit;
+            background: var(--bg-primary);
+            box-shadow: 0 0 0 3px var(--accent-light);
+        }
+
+        .search-expanded input:focus {
+            outline: none;
+        }
+
+        .search-expanded svg {
+            position: absolute;
+            left: 9px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 14px;
+            height: 14px;
+            color: var(--accent);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 2px;
+        }
+
+        .header-actions .icon-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: var(--radius-sm);
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            transition: var(--transition);
+        }
+
+        .header-actions .icon-btn:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        /* ========== MAIN CONTENT ========== */
+        .main-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            min-height: calc(100vh - 56px);
+        }
+
+        .content-area {
+            padding: 16px 24px;
+            transition: var(--transition);
+        }
+
+        .content-area.sidebar-open {
+            margin-right: 280px;
+        }
+
+        /* ========== TOOLBAR ========== */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-primary);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: inherit;
+            color: var(--text-secondary);
+        }
+
+        .filter-btn:hover {
+            border-color: var(--border-strong);
+        }
+
+        .filter-btn.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .filter-btn svg {
+            width: 13px;
+            height: 13px;
+        }
+
+        .filter-count {
+            background: var(--accent-light);
+            color: var(--accent);
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        .filter-btn.active .filter-count {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        .stats-pills {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .stat-pill strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .toolbar-spacer {
+            flex: 1;
+        }
+
+        .btn-secondary {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-primary);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: inherit;
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--border-strong);
+            background: var(--bg-secondary);
+        }
+
+        .btn-secondary svg {
+            width: 13px;
+            height: 13px;
+        }
+
+        /* New Button */
+        .new-btn-container {
+            position: relative;
+        }
+
+        .btn-primary {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            border: none;
+            border-radius: var(--radius-md);
+            background: var(--accent);
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: inherit;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .btn-primary svg {
+            width: 13px;
+            height: 13px;
+        }
+
+        .btn-primary .chevron {
+            margin-left: 2px;
+            transition: var(--transition);
+        }
+
+        .btn-primary.open .chevron {
+            transform: rotate(180deg);
+        }
+
+        .dropdown-menu {
+            position: absolute;
+            top: calc(100% + 6px);
+            right: 0;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-lg);
+            min-width: 260px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-8px);
+            transition: var(--transition);
+            z-index: 50;
+            overflow: hidden;
+        }
+
+        .dropdown-menu.open {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            font-size: 12px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: var(--transition);
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+        }
+
+        .dropdown-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .dropdown-item.default {
+            background: var(--accent-light);
+        }
+
+        .dropdown-item.default:hover {
+            background: #ddd6fe;
+        }
+
+        .dropdown-item-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dropdown-item-icon svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .dropdown-item-icon.task { background: #dbeafe; color: #2563eb; }
+        .dropdown-item-icon.action { background: #fef3c7; color: #d97706; }
+        .dropdown-item-icon.category { background: #f3e8ff; color: #7c3aed; }
+
+        .dropdown-item-content { flex: 1; }
+        .dropdown-item-title { font-weight: 500; }
+        .dropdown-item-desc { font-size: 10px; color: var(--text-muted); }
+
+        .dropdown-item-shortcut {
+            font-size: 9px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 0;
+        }
+
+        /* ========== ACTIVE FILTERS ========== */
+        .active-filters {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .active-filters-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .filter-chip {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 6px 4px 8px;
+            background: var(--accent-light);
+            color: var(--accent);
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .filter-chip button {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--accent);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            transition: var(--transition);
+        }
+
+        .filter-chip button:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .clear-filters {
+            font-size: 11px;
+            color: var(--text-muted);
+            cursor: pointer;
+            margin-left: 4px;
+        }
+
+        .clear-filters:hover {
+            color: var(--text-secondary);
+            text-decoration: underline;
+        }
+
+        /* ========== VIEW CONTENT ========== */
+        .view-content {
+            display: none;
+        }
+
+        .view-content.active {
+            display: block;
+        }
+
+        /* ========== KANBAN ========== */
+        .kanban-wrapper {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .kanban-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .kanban-toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .kanban-toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* View buttons - pill style */
+        .view-btn-group {
+            display: flex;
+            background: var(--bg-primary);
+            padding: 3px;
+            border-radius: var(--radius-sm);
+            gap: 2px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .view-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            background: transparent;
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-secondary);
+        }
+
+        .view-btn:hover {
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+        }
+
+        .view-btn.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .toolbar-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .toolbar-select {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            font-family: inherit;
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        /* Quarter navigation */
+        .quarter-nav-group {
+            display: flex;
+            gap: 4px;
+            margin-left: 16px;
+            padding-left: 16px;
+            border-left: 1px solid var(--border);
+        }
+
+        .quarter-btn {
+            padding: 5px 8px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-primary);
+            font-size: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--text-muted);
+        }
+
+        .quarter-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-light);
+        }
+
+        /* Kanban Board - Same gray as page background */
+        .kanban-board {
+            display: flex;
+            gap: 16px;
+            padding: 16px;
+            overflow-x: auto;
+            background: var(--bg-page);
+        }
+
+        /* Kanban Columns - #f4f4f5 background */
+        .kanban-column {
+            min-width: 280px;
+            max-width: 280px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: 12px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .column-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 4px 12px;
+        }
+
+        .column-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .column-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .column-icon svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .column-icon.todo { background: var(--bg-primary); border: 1px solid var(--border); color: var(--text-muted); }
+        .column-icon.in-progress { background: #dbeafe; color: #2563eb; }
+        .column-icon.review { background: #fef3c7; color: #d97706; }
+        .column-icon.done { background: #dcfce7; color: #16a34a; }
+
+        .column-name {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .column-count {
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .column-menu {
+            width: 24px;
+            height: 24px;
+            border-radius: var(--radius-sm);
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .column-menu:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .column-menu svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .kanban-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+        }
+
+        /* Empty state for columns */
+        .column-empty {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+            color: var(--text-muted);
+            font-size: 12px;
+            text-align: center;
+            border: 1px dashed var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-primary);
+        }
+
+        /* Task Cards - WHITE */
+        .kanban-card {
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            border: 1px solid var(--border-light);
+        }
+
+        .kanban-card:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+            border-color: var(--border);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .card-title {
+            font-weight: 600;
+            font-size: 13px;
+            line-height: 1.4;
+            flex: 1;
+            color: var(--text-primary);
+        }
+
+        .card-priority {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+
+        .card-priority.high { background: var(--error); }
+        .card-priority.medium { background: var(--warning); }
+        .card-priority.low { background: var(--success); }
+
+        .card-tags {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .card-tag {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.2px;
+        }
+
+        /* Unified tag colors */
+        .card-tag.social { background: #dbeafe; color: #1d4ed8; }
+        .card-tag.gads { background: #fef3c7; color: #b45309; }
+        .card-tag.lads { background: #e0e7ff; color: #4338ca; }
+        .card-tag.events { background: #fce7f3; color: #be185d; }
+        .card-tag.seo { background: #dcfce7; color: #166534; }
+        .card-tag.press { background: #f3e8ff; color: #7c3aed; }
+
+        .card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-light);
+        }
+
+        .card-date {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .card-date.overdue { color: var(--error); font-weight: 600; }
+        .card-date.soon { color: var(--warning); font-weight: 600; }
+
+        .card-budget {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Action Cards */
+        .action-card {
+            background: var(--bg-primary);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            border: 1px solid var(--border);
+        }
+
+        .action-card:hover {
+            border-color: var(--accent);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .action-card .card-title {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .action-card .card-tags {
+            margin-bottom: 12px;
+        }
+
+        .action-progress-section {
+            margin-bottom: 10px;
+        }
+
+        .action-progress-bar {
+            height: 6px;
+            background: var(--bg-secondary);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+
+        .action-progress-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: var(--transition);
+        }
+
+        .action-progress-fill.low { background: linear-gradient(90deg, #fca5a5, #ef4444); }
+        .action-progress-fill.medium { background: linear-gradient(90deg, #fcd34d, #f59e0b); }
+        .action-progress-fill.high { background: linear-gradient(90deg, #86efac, #22c55e); }
+
+        .action-progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+        }
+
+        .action-task-count {
+            color: var(--text-muted);
+        }
+
+        .action-task-count strong {
+            color: var(--text-secondary);
+        }
+
+        .action-progress-percent {
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .add-card-btn {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: var(--radius-md);
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .add-card-btn:hover {
+            color: var(--accent);
+            background: var(--accent-light);
+        }
+
+        /* ========== TIMELINE ========== */
+        .timeline-container {
+            background: var(--bg-primary);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .timeline-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-secondary);
+        }
+
+        .timeline-header-left {
+            display: flex;
+            align-items: center;
+        }
+
+        .timeline-nav {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .timeline-nav-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            transition: var(--transition);
+        }
+
+        .timeline-nav-btn:hover {
+            border-color: var(--border-strong);
+        }
+
+        .timeline-nav-btn svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .timeline-current {
+            font-size: 13px;
+            font-weight: 600;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        /* Timeline Grid */
+        .timeline-grid {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .timeline-row {
+            display: flex;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .timeline-row:last-child {
+            border-bottom: none;
+        }
+
+        .timeline-sidebar {
+            width: var(--sidebar-width);
+            min-width: var(--sidebar-width);
+            flex-shrink: 0;
+            border-right: 1px solid var(--border);
+        }
+
+        .timeline-content {
+            flex: 1;
+            display: flex;
+            min-width: 0;
+        }
+
+        .timeline-cell {
+            flex: 1;
+            min-width: 100px;
+            border-right: 1px solid var(--border-light);
+        }
+
+        .timeline-cell:last-child {
+            border-right: none;
+        }
+
+        /* Header row */
+        .timeline-header-row {
+            background: var(--bg-primary);
+        }
+
+        .timeline-header-row .timeline-sidebar {
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+        }
+
+        .timeline-header-row .timeline-cell {
+            padding: 12px 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: var(--bg-primary);
+        }
+
+        .timeline-header-row .timeline-cell.current {
+            background: var(--accent-light);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        /* Category row - with TOP and BOTTOM border */
+        .timeline-category-row {
+            cursor: pointer;
+            transition: var(--transition);
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .timeline-category-row:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .timeline-category-row .timeline-sidebar {
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+        }
+
+        .timeline-category-row .timeline-sidebar::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+        }
+
+        .timeline-category-row.brand .timeline-sidebar::before { background: #6366f1; }
+        .timeline-category-row.consideration .timeline-sidebar::before { background: #f59e0b; }
+        .timeline-category-row.conversion .timeline-sidebar::before { background: #22c55e; }
+
+        .timeline-category-row .timeline-cell {
+            background: var(--bg-secondary);
+            min-height: 42px;
+            border-right: 1px solid var(--border);
+        }
+
+        .timeline-category-row .timeline-cell:last-child {
+            border-right: none;
+        }
+
+        .category-info {
+            flex: 1;
+        }
+
+        .timeline-category-row .category-name {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .timeline-category-row .category-count {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        /* Action row */
+        .timeline-action-row {
+            transition: var(--transition);
+            background: var(--bg-primary);
+        }
+
+        .timeline-action-row:hover {
+            background: var(--accent-light);
+        }
+
+        .timeline-action-row .timeline-sidebar {
+            padding: 8px 16px 8px 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: var(--bg-primary);
+        }
+
+        .timeline-action-row:hover .timeline-sidebar {
+            background: var(--accent-light);
+        }
+
+        .action-name {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-primary);
+            line-height: 1.3;
+        }
+
+        .action-task-count-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .timeline-action-row .timeline-content {
+            align-items: center;
+            padding: 6px 0;
+            min-height: 48px;
+        }
+
+        .timeline-action-row .timeline-cell {
+            position: relative;
+            display: flex;
+            align-items: center;
+            background: var(--bg-primary);
+        }
+
+        .timeline-action-row:hover .timeline-cell {
+            background: var(--accent-light);
+        }
+
+        /* Task bars - unified colors with tags */
+        .task-bar {
+            position: absolute;
+            height: 26px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            font-size: 10px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            z-index: 1;
+        }
+
+        .task-bar:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            z-index: 2;
+        }
+
+        .task-bar.social { background: #60a5fa; color: white; }
+        .task-bar.gads { background: #fbbf24; color: #78350f; }
+        .task-bar.lads { background: #818cf8; color: white; }
+        .task-bar.events { background: #f472b6; color: white; }
+        .task-bar.seo { background: #4ade80; color: #14532d; }
+        .task-bar.press { background: #c4b5fd; color: #5b21b6; }
+
+        .task-bar-budget {
+            margin-left: 4px;
+            font-size: 9px;
+            opacity: 0.9;
+        }
+
+        /* ========== FILTER SIDEBAR ========== */
+        .filter-sidebar {
+            position: fixed;
+            right: 0;
+            top: 56px;
+            width: 280px;
+            height: calc(100vh - 56px);
+            background: var(--bg-primary);
+            border-left: 1px solid var(--border);
+            transform: translateX(100%);
+            transition: var(--transition);
+            z-index: 50;
+            overflow-y: auto;
+        }
+
+        .filter-sidebar.open {
+            transform: translateX(0);
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            background: var(--bg-primary);
+        }
+
+        .sidebar-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .sidebar-close {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            border: none;
+            background: var(--bg-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 12px;
+            transition: var(--transition);
+        }
+
+        .sidebar-close:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .sidebar-close svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .filter-section {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .filter-section-title {
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .filter-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .filter-option {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            cursor: pointer;
+            transition: var(--transition);
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+        }
+
+        .filter-option:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .filter-option.selected {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .sidebar-footer {
+            padding: 16px;
+            display: flex;
+            gap: 8px;
+            position: sticky;
+            bottom: 0;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border);
+        }
+
+        .sidebar-footer button {
+            flex: 1;
+            padding: 10px;
+            font-size: 12px;
+        }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 1200px) {
+            .content-area { padding: 12px 16px; }
+            .kanban-column { min-width: 260px; max-width: 260px; }
+            :root { --sidebar-width: 180px; }
+        }
+
+        @media (max-width: 768px) {
+            .logo-text, .logo-version { display: none; }
+            .view-tabs { display: none; }
+            .stats-pills { display: none; }
+            .content-area { padding: 12px; }
+            :root { --sidebar-width: 150px; }
+            .timeline-cell { min-width: 80px; }
+        }
+
+        @media (max-width: 480px) {
+            .filter-sidebar { width: 100%; }
+            .btn-secondary span { display: none; }
+            .kanban-board { gap: 12px; padding: 12px; }
+            .kanban-column { min-width: 280px; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo-section">
+                <div class="logo">M</div>
+                <div>
+                    <div class="logo-text">Marketing Tracker</div>
+                    <div class="logo-version">MIGSO-PCUBED • V11</div>
+                </div>
+            </div>
+
+            <div class="view-tabs">
+                <button class="view-tab active" data-view="kanban">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    Kanban
+                </button>
+                <button class="view-tab" data-view="timeline">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    Timeline
+                </button>
+                <button class="view-tab" data-view="kpis">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    KPIs
+                </button>
+            </div>
+
+            <div class="header-right">
+                <div class="search-container">
+                    <div class="search-expanded" id="searchExpanded">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-width="2" d="m21 21-4.35-4.35"/></svg>
+                        <input type="text" placeholder="Rechercher... (⌘K)">
+                    </div>
+                    <button class="search-toggle" id="searchToggle">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" stroke-width="2" d="m21 21-4.35-4.35"/></svg>
+                    </button>
+                </div>
+                <div class="header-actions">
+                    <button class="icon-btn" title="Mode sombre">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="content-area" id="contentArea">
+            <div class="toolbar">
+                <button class="filter-btn" id="filterToggle">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                    Filtres
+                    <span class="filter-count">3</span>
+                </button>
+                <div class="stats-pills">
+                    <span class="stat-pill"><strong>24</strong> tâches</span>
+                    <span class="stat-pill"><strong>37k€</strong> budget</span>
+                </div>
+                <div class="toolbar-spacer"></div>
+                <button class="btn-secondary">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    <span>Export</span>
+                </button>
+                <div class="new-btn-container">
+                    <button class="btn-primary" id="newBtn">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Créer
+                        <svg class="chevron" width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div class="dropdown-menu" id="newDropdown">
+                        <button class="dropdown-item default">
+                            <div class="dropdown-item-icon task">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            </div>
+                            <div class="dropdown-item-content">
+                                <div class="dropdown-item-title">Nouvelle tâche</div>
+                                <div class="dropdown-item-desc">Ajouter une tâche à une action</div>
+                            </div>
+                            <span class="dropdown-item-shortcut">N</span>
+                        </button>
+                        <button class="dropdown-item">
+                            <div class="dropdown-item-icon action">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                            </div>
+                            <div class="dropdown-item-content">
+                                <div class="dropdown-item-title">Nouvelle action</div>
+                                <div class="dropdown-item-desc">Créer un groupe de tâches</div>
+                            </div>
+                            <span class="dropdown-item-shortcut">⇧N</span>
+                        </button>
+                        <div class="dropdown-divider"></div>
+                        <button class="dropdown-item">
+                            <div class="dropdown-item-icon category">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+                            </div>
+                            <div class="dropdown-item-content">
+                                <div class="dropdown-item-title">Gérer les catégories</div>
+                                <div class="dropdown-item-desc">Créer ou réorganiser les groupes</div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="active-filters">
+                <span class="active-filters-label">Filtres:</span>
+                <div class="filter-chip">🇫🇷 France <button>✕</button></div>
+                <div class="filter-chip">Brand <button>✕</button></div>
+                <div class="filter-chip">Haute priorité <button>✕</button></div>
+                <span class="clear-filters">Tout effacer</span>
+            </div>
+
+            <!-- KANBAN VIEW -->
+            <div class="view-content active" id="kanbanView">
+                <div class="kanban-wrapper">
+                    <div class="kanban-toolbar">
+                        <div class="kanban-toolbar-left">
+                            <div class="view-btn-group">
+                                <button class="view-btn active" data-kanban-view="month">Par Mois</button>
+                                <button class="view-btn" data-kanban-view="category">Par Catégorie</button>
+                                <button class="view-btn" data-kanban-view="action">Par Action</button>
+                            </div>
+                        </div>
+                        <div class="kanban-toolbar-right">
+                            <span class="toolbar-label">Tri:</span>
+                            <select class="toolbar-select">
+                                <option>Manuel</option>
+                                <option>Date</option>
+                                <option>Priorité</option>
+                                <option>Budget</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="kanban-board" id="kanbanTasks">
+                        <div class="kanban-column">
+                            <div class="column-header">
+                                <div class="column-title">
+                                    <div class="column-icon todo">
+                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+                                    </div>
+                                    <span class="column-name">À faire</span>
+                                    <span class="column-count">3</span>
+                                </div>
+                                <button class="column-menu">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                                </button>
+                            </div>
+                            <div class="kanban-cards">
+                                <div class="kanban-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Event In-House Avril</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag events">Events</span></div>
+                                    <div class="card-footer">
+                                        <span class="card-date">30 avr.</span>
+                                        <span class="card-budget">10 000€</span>
+                                    </div>
+                                </div>
+                                <div class="kanban-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Pink October 2</div>
+                                        <div class="card-priority medium"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag social">Social</span></div>
+                                    <div class="card-footer">
+                                        <span class="card-date">30 sept.</span>
+                                    </div>
+                                </div>
+                                <div class="kanban-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Salon Avril</div>
+                                        <div class="card-priority medium"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag events">Events</span></div>
+                                    <div class="card-footer">
+                                        <span class="card-date soon">10 avr.</span>
+                                    </div>
+                                </div>
+                                <button class="add-card-btn">+ Ajouter</button>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="column-header">
+                                <div class="column-title">
+                                    <div class="column-icon in-progress">
+                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                    </div>
+                                    <span class="column-name">En création</span>
+                                    <span class="column-count">2</span>
+                                </div>
+                                <button class="column-menu">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                                </button>
+                            </div>
+                            <div class="kanban-cards">
+                                <div class="kanban-card">
+                                    <div class="card-header">
+                                        <div class="card-title">LinkedIn Ads Mar</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag lads">LinkedIn</span></div>
+                                    <div class="card-footer">
+                                        <span class="card-date">31 mars</span>
+                                        <span class="card-budget">3 000€</span>
+                                    </div>
+                                </div>
+                                <div class="kanban-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Google Ads Mar</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag gads">Google Ads</span></div>
+                                    <div class="card-footer">
+                                        <span class="card-date">31 mars</span>
+                                        <span class="card-budget">2 000€</span>
+                                    </div>
+                                </div>
+                                <button class="add-card-btn">+ Ajouter</button>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="column-header">
+                                <div class="column-title">
+                                    <div class="column-icon in-progress">
+                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                    </div>
+                                    <span class="column-name">En cours</span>
+                                    <span class="column-count">2</span>
+                                </div>
+                                <button class="column-menu">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                                </button>
+                            </div>
+                            <div class="kanban-cards">
+                                <div class="kanban-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Google Ads Fév</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag gads">Google Ads</span></div>
+                                    <div class="card-footer">
+                                        <span class="card-date">28 fév.</span>
+                                        <span class="card-budget">2 000€</span>
+                                    </div>
+                                </div>
+                                <div class="kanban-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Vœux nouvel an</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag social">Social</span></div>
+                                    <div class="card-footer">
+                                        <span class="card-date overdue">31 janv.</span>
+                                    </div>
+                                </div>
+                                <button class="add-card-btn">+ Ajouter</button>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="column-header">
+                                <div class="column-title">
+                                    <div class="column-icon review">
+                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    </div>
+                                    <span class="column-name">En revue</span>
+                                    <span class="column-count">1</span>
+                                </div>
+                                <button class="column-menu">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                                </button>
+                            </div>
+                            <div class="kanban-cards">
+                                <div class="kanban-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Google Lead Gen Fév</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag gads">Google Ads</span></div>
+                                    <div class="card-footer">
+                                        <span class="card-date">28 fév.</span>
+                                        <span class="card-budget">2 000€</span>
+                                    </div>
+                                </div>
+                                <button class="add-card-btn">+ Ajouter</button>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="column-header">
+                                <div class="column-title">
+                                    <div class="column-icon done">
+                                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                    </div>
+                                    <span class="column-name">Terminé</span>
+                                    <span class="column-count">1</span>
+                                </div>
+                                <button class="column-menu">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                                </button>
+                            </div>
+                            <div class="kanban-cards">
+                                <div class="kanban-card">
+                                    <div class="card-header">
+                                        <div class="card-title">test nouvelle</div>
+                                        <div class="card-priority low"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag social">Social</span></div>
+                                    <div class="card-footer">
+                                        <span class="card-date">15 janv.</span>
+                                    </div>
+                                </div>
+                                <button class="add-card-btn">+ Ajouter</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="kanban-board" id="kanbanActions" style="display: none;">
+                        <div class="kanban-column">
+                            <div class="column-header">
+                                <div class="column-title">
+                                    <div class="column-icon" style="background: #6366f1; width: 4px; height: 20px; border-radius: 2px;"></div>
+                                    <span class="column-name">Brand Awareness</span>
+                                    <span class="column-count">4</span>
+                                </div>
+                                <button class="column-menu">⋯</button>
+                            </div>
+                            <div class="kanban-cards">
+                                <div class="action-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Global MP Brand (Social)</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag social">Social</span></div>
+                                    <div class="action-progress-section">
+                                        <div class="action-progress-bar">
+                                            <div class="action-progress-fill low" style="width: 14%"></div>
+                                        </div>
+                                        <div class="action-progress-label">
+                                            <span class="action-task-count"><strong>1</strong>/7 tâches</span>
+                                            <span class="action-progress-percent">14%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="action-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Google Ads - Brand</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag gads">Google Ads</span></div>
+                                    <div class="action-progress-section">
+                                        <div class="action-progress-bar">
+                                            <div class="action-progress-fill medium" style="width: 33%"></div>
+                                        </div>
+                                        <div class="action-progress-label">
+                                            <span class="action-task-count"><strong>1</strong>/3 tâches</span>
+                                            <span class="action-progress-percent">33%</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <span></span>
+                                        <span class="card-budget">6 000€</span>
+                                    </div>
+                                </div>
+                                <div class="action-card">
+                                    <div class="card-header">
+                                        <div class="card-title">LinkedIn Ads - Brand</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag lads">LinkedIn</span></div>
+                                    <div class="action-progress-section">
+                                        <div class="action-progress-bar">
+                                            <div class="action-progress-fill low" style="width: 0%"></div>
+                                        </div>
+                                        <div class="action-progress-label">
+                                            <span class="action-task-count"><strong>0</strong>/2 tâches</span>
+                                            <span class="action-progress-percent">0%</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <span></span>
+                                        <span class="card-budget">3 000€</span>
+                                    </div>
+                                </div>
+                                <button class="add-card-btn">+ Ajouter</button>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="column-header">
+                                <div class="column-title">
+                                    <div class="column-icon" style="background: #f59e0b; width: 4px; height: 20px; border-radius: 2px;"></div>
+                                    <span class="column-name">Consideration</span>
+                                    <span class="column-count">2</span>
+                                </div>
+                                <button class="column-menu">⋯</button>
+                            </div>
+                            <div class="kanban-cards">
+                                <div class="action-card">
+                                    <div class="card-header">
+                                        <div class="card-title">On-Time-Delivery Campaign</div>
+                                        <div class="card-priority medium"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag seo">SEO</span></div>
+                                    <div class="action-progress-section">
+                                        <div class="action-progress-bar">
+                                            <div class="action-progress-fill low" style="width: 0%"></div>
+                                        </div>
+                                        <div class="action-progress-label">
+                                            <span class="action-task-count"><strong>0</strong>/2 tâches</span>
+                                            <span class="action-progress-percent">0%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button class="add-card-btn">+ Ajouter</button>
+                            </div>
+                        </div>
+
+                        <div class="kanban-column">
+                            <div class="column-header">
+                                <div class="column-title">
+                                    <div class="column-icon" style="background: #22c55e; width: 4px; height: 20px; border-radius: 2px;"></div>
+                                    <span class="column-name">Conversion</span>
+                                    <span class="column-count">2</span>
+                                </div>
+                                <button class="column-menu">⋯</button>
+                            </div>
+                            <div class="kanban-cards">
+                                <div class="action-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Google Ads - Lead Gen</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag gads">Google Ads</span></div>
+                                    <div class="action-progress-section">
+                                        <div class="action-progress-bar">
+                                            <div class="action-progress-fill high" style="width: 100%"></div>
+                                        </div>
+                                        <div class="action-progress-label">
+                                            <span class="action-task-count"><strong>1</strong>/1 tâche ✓</span>
+                                            <span class="action-progress-percent">100%</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <span></span>
+                                        <span class="card-budget">2 000€</span>
+                                    </div>
+                                </div>
+                                <div class="action-card">
+                                    <div class="card-header">
+                                        <div class="card-title">Business Events</div>
+                                        <div class="card-priority high"></div>
+                                    </div>
+                                    <div class="card-tags"><span class="card-tag events">Events</span></div>
+                                    <div class="action-progress-section">
+                                        <div class="action-progress-bar">
+                                            <div class="action-progress-fill low" style="width: 0%"></div>
+                                        </div>
+                                        <div class="action-progress-label">
+                                            <span class="action-task-count"><strong>0</strong>/2 tâches</span>
+                                            <span class="action-progress-percent">0%</span>
+                                        </div>
+                                    </div>
+                                    <div class="card-footer">
+                                        <span></span>
+                                        <span class="card-budget">10 000€</span>
+                                    </div>
+                                </div>
+                                <button class="add-card-btn">+ Ajouter</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TIMELINE VIEW -->
+            <div class="view-content" id="timelineView">
+                <div class="timeline-container">
+                    <div class="timeline-header">
+                        <div class="timeline-header-left">
+                            <div class="view-btn-group">
+                                <button class="view-btn active">Semaine</button>
+                                <button class="view-btn">Mois</button>
+                                <button class="view-btn">Trimestre</button>
+                            </div>
+                            <div class="quarter-nav-group">
+                                <button class="quarter-btn">Q1</button>
+                                <button class="quarter-btn">Q2</button>
+                                <button class="quarter-btn">Q3</button>
+                                <button class="quarter-btn">Q4</button>
+                            </div>
+                        </div>
+                        <div class="timeline-nav">
+                            <button class="timeline-nav-btn">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                            </button>
+                            <span class="timeline-current">2025</span>
+                            <button class="timeline-nav-btn">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="timeline-grid">
+                        <div class="timeline-row timeline-header-row">
+                            <div class="timeline-sidebar">Actions</div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell current">Jan</div>
+                                <div class="timeline-cell">Fév</div>
+                                <div class="timeline-cell">Mar</div>
+                                <div class="timeline-cell">Avr</div>
+                                <div class="timeline-cell">Mai</div>
+                                <div class="timeline-cell">Jun</div>
+                            </div>
+                        </div>
+
+                        <!-- Brand Awareness -->
+                        <div class="timeline-row timeline-category-row brand">
+                            <div class="timeline-sidebar">
+                                <div class="category-info">
+                                    <div class="category-name">Brand awareness</div>
+                                    <div class="category-count">5 actions</div>
+                                </div>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+
+                        <div class="timeline-row timeline-action-row">
+                            <div class="timeline-sidebar">
+                                <span class="action-name">Global MP Brand (Social Media)</span>
+                                <span class="action-task-count-label">7 tâches</span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell">
+                                    <div class="task-bar social" style="left: 8px; width: 70px;">Vœux nouv...</div>
+                                    <div class="task-bar social" style="left: 90px; width: 70px;">test nouvell...</div>
+                                </div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar social" style="left: 50%; width: 28px; justify-content: center;">N</div>
+                                </div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+
+                        <div class="timeline-row timeline-action-row">
+                            <div class="timeline-sidebar">
+                                <span class="action-name">Google Ads - Brand</span>
+                                <span class="action-task-count-label">3 tâches</span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar gads" style="left: 8px; width: 80px;">Googl... (2k)</div>
+                                </div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar gads" style="left: 8px; width: 80px;">Googl... (2k)</div>
+                                </div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar gads" style="left: 8px; width: 60px;">Googl... (2k)</div>
+                                </div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+
+                        <div class="timeline-row timeline-action-row">
+                            <div class="timeline-sidebar">
+                                <span class="action-name">Employeur Brand</span>
+                                <span class="action-task-count-label">2 tâches</span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar social" style="left: 8px; width: 80px;">Content Fé...</div>
+                                </div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar social" style="left: 8px; width: 80px;">Content Avril</div>
+                                </div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+
+                        <div class="timeline-row timeline-action-row">
+                            <div class="timeline-sidebar">
+                                <span class="action-name">LinkedIn Ads - Brand</span>
+                                <span class="action-task-count-label">2 tâches</span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar lads" style="left: 8px; width: 80px;">Linked... (3k)</div>
+                                </div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar lads" style="left: 8px; width: 80px;">Linked... (3k)</div>
+                                </div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+
+                        <div class="timeline-row timeline-action-row">
+                            <div class="timeline-sidebar">
+                                <span class="action-name">Press Relations</span>
+                                <span class="action-task-count-label">1 tâche</span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar press" style="left: 8px; width: 80px;">PRM... (10k)</div>
+                                </div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+
+                        <!-- Consideration -->
+                        <div class="timeline-row timeline-category-row consideration">
+                            <div class="timeline-sidebar">
+                                <div class="category-info">
+                                    <div class="category-name">Consideration / Engagement</div>
+                                    <div class="category-count">3 actions</div>
+                                </div>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+
+                        <div class="timeline-row timeline-action-row">
+                            <div class="timeline-sidebar">
+                                <span class="action-name">On-Time-Delivery Campaign</span>
+                                <span class="action-task-count-label">2 tâches</span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar seo" style="left: 60%; width: 40px;">O...</div>
+                                </div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar seo" style="left: 8px; width: 80px;">OTD Conte...</div>
+                                </div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+
+                        <div class="timeline-row timeline-action-row">
+                            <div class="timeline-sidebar">
+                                <span class="action-name">Time-To-Market Campaign</span>
+                                <span class="action-task-count-label">1 tâche</span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar press" style="left: 50%; width: 40px;">TT...</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Conversion -->
+                        <div class="timeline-row timeline-category-row conversion">
+                            <div class="timeline-sidebar">
+                                <div class="category-info">
+                                    <div class="category-name">Conversion</div>
+                                    <div class="category-count">4 actions</div>
+                                </div>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+
+                        <div class="timeline-row timeline-action-row">
+                            <div class="timeline-sidebar">
+                                <span class="action-name">Google Ads - Lead Gen</span>
+                                <span class="action-task-count-label">1 tâche</span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar gads" style="left: 8px; right: 8px;">Lead Gen (2k)</div>
+                                </div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+
+                        <div class="timeline-row timeline-action-row">
+                            <div class="timeline-sidebar">
+                                <span class="action-name">Business Events</span>
+                                <span class="action-task-count-label">2 tâches</span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell">
+                                    <div class="task-bar events" style="left: 8px; width: 60px;">Salon</div>
+                                    <div class="task-bar events" style="left: 80px; right: 8px;">In-House (10k)</div>
+                                </div>
+                                <div class="timeline-cell"></div>
+                                <div class="timeline-cell"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPIs -->
+            <div class="view-content" id="kpisView">
+                <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+                    <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-bottom: 16px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    <h3 style="color: var(--text-primary); margin-bottom: 8px; font-size: 16px; font-weight: 600;">Vue KPIs</h3>
+                    <p style="font-size: 13px;">Les indicateurs de performance seront affichés ici.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Sidebar -->
+        <aside class="filter-sidebar" id="filterSidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-title">Filtres</span>
+                <button class="sidebar-close" id="sidebarClose">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="filter-section">
+                <div class="filter-section-title">Statut</div>
+                <div class="filter-options">
+                    <button class="filter-option">À faire</button>
+                    <button class="filter-option">En création</button>
+                    <button class="filter-option selected">En cours</button>
+                    <button class="filter-option">En revue</button>
+                    <button class="filter-option">Terminé</button>
+                </div>
+            </div>
+            <div class="filter-section">
+                <div class="filter-section-title">Catégorie</div>
+                <div class="filter-options">
+                    <button class="filter-option selected">Brand</button>
+                    <button class="filter-option">Consideration</button>
+                    <button class="filter-option">Conversion</button>
+                </div>
+            </div>
+            <div class="filter-section">
+                <div class="filter-section-title">Priorité</div>
+                <div class="filter-options">
+                    <button class="filter-option selected">🔴 Haute</button>
+                    <button class="filter-option">🟡 Moyenne</button>
+                    <button class="filter-option">🟢 Basse</button>
+                </div>
+            </div>
+            <div class="filter-section">
+                <div class="filter-section-title">Pays</div>
+                <div class="filter-options">
+                    <button class="filter-option selected">🇫🇷 France</button>
+                    <button class="filter-option">🇩🇪 Germany</button>
+                    <button class="filter-option">🇬🇧 UK</button>
+                    <button class="filter-option">🇺🇸 USA</button>
+                </div>
+            </div>
+            <div class="sidebar-footer">
+                <button class="btn-secondary">Réinitialiser</button>
+                <button class="btn-primary" style="padding: 10px 14px;">Appliquer (24)</button>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // View Tabs
+        document.querySelectorAll('.view-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelectorAll('.view-content').forEach(c => {
+                    c.classList.toggle('active', c.id === tab.dataset.view + 'View');
+                });
+            });
+        });
+
+        // Kanban view buttons
+        document.querySelectorAll('[data-kanban-view]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('[data-kanban-view]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const isCategory = btn.dataset.kanbanView === 'category';
+                document.getElementById('kanbanTasks').style.display = isCategory ? 'none' : 'flex';
+                document.getElementById('kanbanActions').style.display = isCategory ? 'flex' : 'none';
+            });
+        });
+
+        // Timeline view buttons
+        document.querySelectorAll('.timeline-header .view-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.timeline-header .view-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        // Quarter buttons
+        document.querySelectorAll('.quarter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.style.background = 'var(--accent-light)';
+                btn.style.color = 'var(--accent)';
+                btn.style.borderColor = 'var(--accent)';
+                setTimeout(() => { btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; }, 300);
+            });
+        });
+
+        // Search
+        const searchToggle = document.getElementById('searchToggle');
+        const searchExpanded = document.getElementById('searchExpanded');
+        let searchOpen = false;
+        searchToggle.addEventListener('click', () => {
+            searchOpen = !searchOpen;
+            searchExpanded.classList.toggle('open', searchOpen);
+            searchToggle.classList.toggle('active', searchOpen);
+            if (searchOpen) searchExpanded.querySelector('input').focus();
+        });
+        document.addEventListener('click', e => {
+            if (searchOpen && !searchToggle.contains(e.target) && !searchExpanded.contains(e.target)) {
+                searchOpen = false;
+                searchExpanded.classList.remove('open');
+                searchToggle.classList.remove('active');
+            }
+        });
+
+        // New Button
+        const newBtn = document.getElementById('newBtn');
+        const newDropdown = document.getElementById('newDropdown');
+        let dropdownOpen = false;
+        newBtn.addEventListener('click', () => {
+            dropdownOpen = !dropdownOpen;
+            newDropdown.classList.toggle('open', dropdownOpen);
+            newBtn.classList.toggle('open', dropdownOpen);
+        });
+        document.addEventListener('click', e => {
+            if (dropdownOpen && !newBtn.contains(e.target) && !newDropdown.contains(e.target)) {
+                dropdownOpen = false;
+                newDropdown.classList.remove('open');
+                newBtn.classList.remove('open');
+            }
+        });
+
+        // Filter Sidebar
+        const filterToggle = document.getElementById('filterToggle');
+        const filterSidebar = document.getElementById('filterSidebar');
+        const sidebarClose = document.getElementById('sidebarClose');
+        const contentArea = document.getElementById('contentArea');
+        function toggleSidebar() {
+            filterSidebar.classList.toggle('open');
+            contentArea.classList.toggle('sidebar-open');
+            filterToggle.classList.toggle('active');
+        }
+        filterToggle.addEventListener('click', toggleSidebar);
+        sidebarClose.addEventListener('click', toggleSidebar);
+
+        // Filter Options
+        document.querySelectorAll('.filter-option').forEach(opt => {
+            opt.addEventListener('click', () => opt.classList.toggle('selected'));
+        });
+
+        // Keyboard
+        document.addEventListener('keydown', e => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                searchOpen = true;
+                searchExpanded.classList.add('open');
+                searchToggle.classList.add('active');
+                searchExpanded.querySelector('input').focus();
+            }
+            if (e.key === 'Escape') {
+                searchOpen = false;
+                searchExpanded.classList.remove('open');
+                searchToggle.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
