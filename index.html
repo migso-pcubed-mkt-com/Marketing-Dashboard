@@ -34,7 +34,7 @@
         @keyframes pulse-border{0%,100%{border-color:rgba(99,102,241,.9);box-shadow:inset 0 0 30px rgba(99,102,241,.3)}50%{border-color:rgba(99,102,241,.5);box-shadow:inset 0 0 20px rgba(99,102,241,.15)}}
         .drop-indicator-before{border-top:4px solid var(--accent)!important;box-shadow:0 -2px 8px rgba(99,102,241,0.4)!important}
         .drop-indicator-after{border-bottom:4px solid var(--accent)!important;box-shadow:0 2px 8px rgba(99,102,241,0.4)!important}
-        .timeline-bar{position:relative;cursor:grab;transition:opacity .2s,transform .1s;user-select:none;pointer-events:auto;padding:0 22px}
+        .timeline-bar{position:absolute;cursor:grab;transition:opacity .2s,transform .1s;user-select:none;pointer-events:auto;padding:0 8px}
         .timeline-bar.dragging{opacity:0.3;cursor:grabbing;transform:scale(1.05);z-index:9999!important}
         .timeline-bar:hover{cursor:grab;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
         .timeline-bar:active{cursor:grabbing}
@@ -60,7 +60,7 @@
         @media(max-width:768px){
             .kanban-column{min-width:280px}
             .resize-handle{width:30px!important;opacity:0.7!important}
-            .timeline-bar{min-height:48px;padding:0 32px!important}
+            .timeline-bar{min-height:32px;padding:0 12px!important}
         }
         @media(hover:none)and(pointer:coarse){
             .resize-handle{opacity:0.8!important;width:32px!important;background:rgba(255,255,255,0.3)!important}
@@ -68,7 +68,7 @@
             [draggable=true]{cursor:default}
             .card-hover{transition:transform 0.1s}
             .card-hover:active{transform:scale(0.98)}
-            .timeline-bar{padding:0 35px!important}
+            .timeline-bar{padding:0 14px!important}
         }
         /* ===== V11 DESIGN SYSTEM ===== */
         .v11-header{background:var(--bg-primary);border-bottom:1px solid var(--border);padding:0 var(--space-6);position:sticky;top:0;z-index:100;height:var(--header-height)}
@@ -178,6 +178,7 @@
         /* Task Cards */
         .kanban-card{background:var(--bg-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;transition:var(--transition);border:1px solid var(--border-light)}
         .kanban-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);border-color:var(--border)}
+        .kanban-card.completed{opacity:0.5;background:var(--bg-secondary)}
         .kanban-card[draggable=true]{cursor:grab}
         .kanban-card[draggable=true]:active{cursor:grabbing}
         .card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
@@ -234,7 +235,7 @@
         .timeline-current{font-size:13px;font-weight:600;min-width:60px;text-align:center}
         .timeline-category-row{background:var(--bg-secondary);border-top:1px solid var(--border);border-bottom:1px solid var(--border);cursor:pointer;transition:var(--transition)}
         .timeline-category-row:hover{background:var(--bg-tertiary)}
-        .timeline-category-sidebar{padding:10px 16px;display:flex;align-items:center;gap:10px;position:relative}
+        .timeline-category-sidebar{padding:10px 16px}
         .timeline-category-sidebar::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px}
         .timeline-category-name{font-size:12px;font-weight:700;color:var(--text-primary)}
         .timeline-category-count{font-size:11px;color:var(--text-muted)}
@@ -873,9 +874,9 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onClick={()=>onOpen(task)}
-            className={`kanban-card ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'drop-indicator-before':dragOverPosition==='after'?'drop-indicator-after':''}`}>
+            className={`kanban-card ${task.status==='completed'?'completed':''} ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'drop-indicator-before':dragOverPosition==='after'?'drop-indicator-after':''}`}>
             <div className="card-header">
-                <div className="card-title">{task.title}</div>
+                <div className="card-title" style={task.status==='completed'?{textDecoration:'line-through',color:'var(--text-muted)'}:{}}>{task.title}</div>
                 <div className={`card-priority ${task.priority}`}/>
             </div>
             {(task.channels||action?.tags||[]).length>0&&<div className="card-tags">
@@ -1077,7 +1078,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 };
 
 // KANBAN VIEW
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear})=>{
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
@@ -1085,6 +1086,10 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
+        if(selectedYear&&(viewMode==='month'||viewMode==='quarter')){
+            const taskYear=t.startDate?new Date(t.startDate).getFullYear():null;
+            if(taskYear&&taskYear!==selectedYear)return false;
+        }
         if(filters.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
         if(filters.status.length>0&&!filters.status.includes(t.status))return false;
         if(filters.category.length>0&&!filters.category.includes(action?.categoryId))return false;
@@ -1169,7 +1174,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     </select></>}
                 </div>
             </div>
-            <div className="kanban-board" style={{minWidth:viewMode==='month'?'2800px':viewMode==='quarter'?'1200px':'auto'}}>
+            <div className="kanban-board">
                     {getColumns().map(col=>(
                         <div
                             key={col.key}
@@ -1183,7 +1188,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
                                         const monthIdx=col.key;
-                                        const year=2026;
+                                        const year=selectedYear;
                                         const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
                                         const lastDay=new Date(year,monthIdx+1,0).getDate();
                                         const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
@@ -1193,7 +1198,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
                                         const quarterIdx=col.key;
-                                        const year=2026;
+                                        const year=selectedYear;
                                         const firstMonth=quarterIdx*3;
                                         const lastMonth=quarterIdx*3+2;
                                         const startDate=year+'-'+String(firstMonth+1).padStart(2,'0')+'-01';
@@ -1224,12 +1229,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 <button className="column-menu" onClick={(e)=>e.stopPropagation()}>⋮</button>
                             </div>
                             <div className="kanban-cards">
-                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories} allCountries={allCountries}/>)}
+                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories} allCountries={allCountries}/>)}
                                 {col.items.length===0&&<div className="column-empty">Aucune tâche</div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
                                         const monthIdx=col.key;
-                                        const year=2026;
+                                        const year=selectedYear;
                                         const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
                                         const lastDay=new Date(year,monthIdx+1,0).getDate();
                                         const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
@@ -1267,11 +1272,10 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 // - Zone de drop des tâches entre actions avec bordure pointillée et fond coloré
 // - Prévention des conflits : clic sur handle ne déclenche pas l'ouverture de carte
 // - Styles CSS optimisés pour mobile/tactile (handles 28px, opacity 0.7)
-const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear})=>{
     const timelineRef=useRef(null);
     const dragGhostRef=useRef(null);
     const[zoom,setZoom]=useState('month');
-    const[timelineYear,setTimelineYear]=useState(new Date().getFullYear());
     const[isPanning,setIsPanning]=useState(false);
     const[startX,setStartX]=useState(0);
     const[scrollLeft,setScrollLeft]=useState(0);
@@ -1287,7 +1291,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const[centerDateRef,setCenterDateRef]=useState(null); // Reference date for scroll preservation
     const[creatingTask,setCreatingTask]=useState(null); // {actionId, startX, currentX, startDate, actionRow} for task creation
     const currentMonth=new Date().getMonth();
-    const currentWeek=Math.floor((new Date().getTime()-new Date(timelineYear,0,1).getTime())/(7*24*60*60*1000));
+    const currentWeek=Math.floor((new Date().getTime()-new Date(selectedYear,0,1).getTime())/(7*24*60*60*1000));
 
     // Calculate the date at the center of the current viewport
     const getCenterDate=useCallback(()=>{
@@ -1296,7 +1300,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const viewportWidth=timelineRef.current.clientWidth;
         const centerX=scrollLeft+viewportWidth/2-250; // -250 for left column
 
-        const year=timelineYear;
+        const year=selectedYear;
         if(zoom==='day'){
             const dayIndex=Math.floor(centerX/colWidth);
             const date=new Date(year,0,1+dayIndex);
@@ -1330,7 +1334,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     // Scroll to a specific date in the current zoom level
     const scrollToDate=useCallback((targetDate)=>{
         if(!timelineRef.current||!targetDate)return;
-        const year=timelineYear;
+        const year=selectedYear;
         const month=targetDate.getMonth();
         const day=targetDate.getDate();
 
@@ -1760,7 +1764,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     };
 
     const getWeekNumber=(date)=>{
-        const startOfYear=new Date(timelineYear,0,1);
+        const startOfYear=new Date(selectedYear,0,1);
         const diff=date-startOfYear;
         return Math.floor(diff/(7*24*60*60*1000));
     };
@@ -1773,20 +1777,20 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const endMonth=end.getMonth();
         const startDay=start.getDate();
         const endDay=end.getDate();
-        const daysInStartMonth=new Date(timelineYear,startMonth+1,0).getDate();
-        const daysInEndMonth=new Date(timelineYear,endMonth+1,0).getDate();
+        const daysInStartMonth=new Date(selectedYear,startMonth+1,0).getDate();
+        const daysInEndMonth=new Date(selectedYear,endMonth+1,0).getDate();
 
         if(zoom==='day'){
             // Calculate day index from start of year (0-364)
-            const startDayOfYear=Math.floor((start-new Date(timelineYear,0,1))/(1000*60*60*24));
-            const endDayOfYear=Math.floor((end-new Date(timelineYear,0,1))/(1000*60*60*24));
+            const startDayOfYear=Math.floor((start-new Date(selectedYear,0,1))/(1000*60*60*24));
+            const endDayOfYear=Math.floor((end-new Date(selectedYear,0,1))/(1000*60*60*24));
             const left=startDayOfYear*colWidth;
             const width=Math.max((endDayOfYear-startDayOfYear+1)*colWidth,colWidth); // At least 1 day width
             return{left,width};
         }
         if(zoom==='week'){
             // Calculate precise positioning based on days from start of year
-            const yearStart=new Date(timelineYear,0,1);
+            const yearStart=new Date(selectedYear,0,1);
             const startDayOfYear=Math.floor((start-yearStart)/(1000*60*60*24));
             const endDayOfYear=Math.floor((end-yearStart)/(1000*60*60*24));
 
@@ -1818,7 +1822,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
             // Calculate start position
             const monthInStartQuarter=startMonth%3;
-            const daysInMonth=new Date(timelineYear,startMonth+1,0).getDate();
+            const daysInMonth=new Date(selectedYear,startMonth+1,0).getDate();
             const dayOffset=(startDay-1)/daysInMonth; // 0-1 within the month
             const startOffset=monthInStartQuarter*monthWidthInQuarter+dayOffset*monthWidthInQuarter;
             const left=startQuarter*quarterWidth+startOffset;
@@ -1826,7 +1830,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             // Calculate width
             const totalQuarters=endQuarter-startQuarter;
             const monthInEndQuarter=endMonth%3;
-            const daysInEndMonth=new Date(timelineYear,endMonth+1,0).getDate();
+            const daysInEndMonth=new Date(selectedYear,endMonth+1,0).getDate();
             const endDayOffset=endDay/daysInEndMonth; // 0-1 within the month
             const endOffset=monthInEndQuarter*monthWidthInQuarter+endDayOffset*monthWidthInQuarter;
 
@@ -1921,7 +1925,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         let currentMonth=-1;
         let dayCounter=0;
         for(let m=0;m<12;m++){
-            const daysInMonth=new Date(timelineYear,m+1,0).getDate();
+            const daysInMonth=new Date(selectedYear,m+1,0).getDate();
             const monthStart=dayCounter;
             for(let d=1;d<=daysInMonth;d++){
                 days.push({day:dayCounter,date:d,month:m,label:d.toString()});
@@ -1937,7 +1941,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const months=[];
         let currentMonth=-1;
         for(let w=0;w<52;w++){
-            const weekDate=new Date(timelineYear,0,1+w*7);
+            const weekDate=new Date(selectedYear,0,1+w*7);
             const month=weekDate.getMonth();
             if(month!==currentMonth){
                 if(currentMonth!==-1){
@@ -1985,7 +1989,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const task=tasks.find(t=>t.id===taskId);
             if(!task)return;
 
-            const year=timelineYear;
+            const year=selectedYear;
 
             // Calculate task duration in days
             let duration=1; // default 1 day
@@ -2157,7 +2161,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const colRelativeX=(relativeX+scrollOffset)-colLeft;
         const percentage=colRelativeX/colWidth;
 
-        const year=timelineYear;
+        const year=selectedYear;
         let startDate,dueDate;
 
         // Calculate new dates based on zoom level and drop position
@@ -2270,7 +2274,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const duration=Math.max(1,Math.ceil((oldEnd-oldStart)/(1000*60*60*24))+1);
 
                 // Calculate preview position
-                const year=timelineYear;
+                const year=selectedYear;
                 let previewLeft=0;
                 let previewWidth=0;
 
@@ -2372,7 +2376,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     };
 
     const createTaskAtPosition=(actionId,startX,endX)=>{
-        const year=timelineYear;
+        const year=selectedYear;
         let startDate,dueDate;
 
         // Calculate dates based on zoom and position
@@ -2482,9 +2486,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                         </div>
                     </div>
                     <div className="timeline-nav">
-                        <button className="timeline-nav-btn" onClick={()=>setTimelineYear(y=>y-1)}>◀</button>
-                        <span className="timeline-current">{timelineYear}</span>
-                        <button className="timeline-nav-btn" onClick={()=>setTimelineYear(y=>y+1)}>▶</button>
+                        <span className="timeline-current">{selectedYear}</span>
                     </div>
                 </div>
                 <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
@@ -2530,7 +2532,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     const isDragOverAction=dragOverAction?.actionId===action.id;
                                     const dragOverActionClass=isDragOverAction?(dragOverAction.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
                                     const{swimLanes,maxLanes}=calculateSwimLanes(actionTasks);
-                                    const rowHeight=Math.max(60,maxLanes*48+16);
+                                    const rowHeight=Math.max(48,maxLanes*34+16);
                                     return(
                                     <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex group relative ${dragOverActionClass}`} style={{borderBottom:'1px solid var(--border-light)'}}>
                                         <div className="w-[250px] flex-shrink-0 relative sticky left-0 z-30 timeline-action-sidebar" style={{background:'var(--bg-primary)',borderRight:'1px solid var(--border)'}} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
@@ -2538,7 +2540,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                             <div className="timeline-action-count">{actionTasks.length} tâches</div>
                                             {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs" style={{color:'var(--text-muted)'}} title="Glisser pour réordonner">⋮⋮</div>}
                                         </div>
-                                        <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:`${rowHeight}px`,zIndex:20}} onMouseDown={(e)=>handleCreateTaskStart(e,action)} onDragOver={(e)=>{handleActionRowDragOver(e,action);}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleActionRowDrop(e,action);}}}>
+                                        <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:`${rowHeight}px`,zIndex:20,overflow:'hidden'}} onMouseDown={(e)=>handleCreateTaskStart(e,action)} onDragOver={(e)=>{handleActionRowDragOver(e,action);}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleActionRowDrop(e,action);}}}>
                                             <div className="absolute inset-0 flex pointer-events-none">
                                                 {headers.map((_,i)=>(
                                                     <div key={i} className={`border-l border-[var(--border)]`} style={{width:colWidth}}/>
@@ -2560,13 +2562,19 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 const isResizing=resizing?.taskId===task.id;
                                                 const dragOverClass=isDragOver?(dragOverTask.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
                                                 const swimLane=swimLanes[task.id]||0;
-                                                const topOffset=8+swimLane*48;
+                                                const topOffset=8+swimLane*34;
                                                 const resizingStyle=isResizing?{boxShadow:'0 0 0 3px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.3)',transform:'scale(1.02)',zIndex:30}:{};
+                                                const channels=task.channels||action?.tags||[];
+                                                const mainChannel=channels[0]||'';
+                                                const channelColors={social:'#60a5fa',gads:'#fbbf24',lads:'#818cf8',events:'#f472b6',seo:'#4ade80',press:'#c4b5fd',email:'#fbbf24',web:'#818cf8',video:'#f87171',lp:'#2dd4bf',ia:'#c4b5fd',auto:'#fb923c'};
+                                                const barColor=channelColors[mainChannel]||status?.color||'#94a3b8';
+                                                const darkChannels=['gads','email'];
+                                                const textColor=darkChannels.includes(mainChannel)?'#78350f':'white';
                                                 return(
-                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute h-10 rounded-lg flex items-center text-white text-xs shadow-sm overflow-visible hover:brightness-110 transition-all ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,top:`${topOffset}px`,backgroundColor:status?.color,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.description?'\n'+task.description:''}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
+                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute flex items-center overflow-visible ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,top:`${topOffset}px`,height:26,borderRadius:5,padding:'0 8px',fontSize:10,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',backgroundColor:barColor,color:textColor,zIndex:1,transition:'transform 0.15s, box-shadow 0.15s',...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
                                                         <div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner début"/>
-                                                        <span className="truncate flex-1 px-1 pointer-events-none">{task.title}</span>
-                                                        {task.budget>0&&(zoom==='month'||zoom==='quarter')&&<span className="ml-1 opacity-75 pointer-events-none">({(task.budget/1000).toFixed(0)}k)</span>}
+                                                        <span className="truncate flex-1 pointer-events-none">{task.title}</span>
+                                                        {task.budget>0&&(zoom==='month'||zoom==='quarter')&&<span style={{marginLeft:4,opacity:0.8,fontSize:9}} className="pointer-events-none">({(task.budget/1000).toFixed(0)}k)</span>}
                                                         <div className="resize-handle resize-handle-right" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner fin"/>
                                                     </div>
                                                 );
@@ -2728,6 +2736,7 @@ const App=()=>{
     const[showCreateDropdown,setShowCreateDropdown]=useState(false);
     const[showExportDropdown,setShowExportDropdown]=useState(false);
     const[showFilterSidebar,setShowFilterSidebar]=useState(false);
+    const[selectedYear,setSelectedYear]=useState(new Date().getFullYear());
     const[dataLoaded,setDataLoaded]=useState(false);
     const[fileSha,setFileSha]=useState(()=>{
         // CRITICAL FIX: Restore SHA from localStorage on init
@@ -3519,13 +3528,7 @@ const App=()=>{
     const completedCount=tasks.filter(t=>t.status==='completed').length;
     const activeFilterCount=[filters.status,filters.category,filters.priority,filters.channel,filters.country].reduce((c,arr)=>c+(Array.isArray(arr)?arr.length:0),0)+(filters.search?1:0);
 
-    // Close dropdowns on outside click
-    useEffect(()=>{
-        if(!showCreateDropdown&&!showExportDropdown)return;
-        const handleClick=()=>{setShowCreateDropdown(false);setShowExportDropdown(false);};
-        setTimeout(()=>document.addEventListener('click',handleClick),0);
-        return()=>document.removeEventListener('click',handleClick);
-    },[showCreateDropdown,showExportDropdown]);
+    const closeDropdowns=()=>{setShowCreateDropdown(false);setShowExportDropdown(false);};
 
     if(!dataLoaded)return(<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Chargement des données...</p></div></div>);
 
@@ -3534,6 +3537,7 @@ const App=()=>{
             <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
+                    {(showCreateDropdown||showExportDropdown)&&<div style={{position:'fixed',inset:0,zIndex:40}} onClick={closeDropdowns}/>}
                     <div className="toolbar">
                         <button className={`filter-btn ${showFilterSidebar?'active':''}`} onClick={()=>setShowFilterSidebar(!showFilterSidebar)}>
                             <Icon.Filter/>Filtres
@@ -3543,12 +3547,17 @@ const App=()=>{
                             <span className="stat-pill"><strong>{tasks.length}</strong> tâches</span>
                             <span className="stat-pill"><strong>{(totalBudget/1000).toFixed(0)}k€</strong> budget</span>
                         </div>
+                        <div className="view-btn-group" style={{marginLeft:8}}>
+                            <button className="view-btn" onClick={()=>setSelectedYear(y=>y-1)} style={{padding:'4px 8px',fontSize:12}}>◀</button>
+                            <span className="view-btn active" style={{padding:'4px 10px',fontSize:12,cursor:'default'}}>{selectedYear}</span>
+                            <button className="view-btn" onClick={()=>setSelectedYear(y=>y+1)} style={{padding:'4px 8px',fontSize:12}}>▶</button>
+                        </div>
                         <div className="toolbar-spacer"/>
                         <div className="new-btn-container">
                             <button className="v11-btn-secondary" onClick={()=>setShowExportDropdown(!showExportDropdown)}><Icon.Download size={13}/><span>Export</span></button>
-                            {showExportDropdown&&<div className="dropdown-menu open" style={{minWidth:160}}>
-                                <button onClick={(e)=>{e.stopPropagation();setShowExportDropdown(false);exportToJSON();}} className="dropdown-item">Export JSON</button>
-                                <button onClick={(e)=>{e.stopPropagation();setShowExportDropdown(false);exportToCSV();}} className="dropdown-item">Export CSV</button>
+                            {showExportDropdown&&<div className="dropdown-menu open" style={{minWidth:160,zIndex:41}}>
+                                <button onClick={()=>{setShowExportDropdown(false);exportToJSON();}} className="dropdown-item">Export JSON</button>
+                                <button onClick={()=>{setShowExportDropdown(false);exportToCSV();}} className="dropdown-item">Export CSV</button>
                             </div>}
                         </div>
                         <div className="new-btn-container">
@@ -3556,19 +3565,19 @@ const App=()=>{
                                 <Icon.Plus size={13}/>Créer
                                 <svg className="chevron" width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
                             </button>
-                            {showCreateDropdown&&<div className="dropdown-menu open">
-                                <button className="dropdown-item default" onClick={(e)=>{e.stopPropagation();setShowCreateDropdown(false);handleCreateNewTask();}}>
+                            {showCreateDropdown&&<div className="dropdown-menu open" style={{zIndex:41}}>
+                                <button className="dropdown-item default" onClick={()=>{setShowCreateDropdown(false);handleCreateNewTask();}}>
                                     <div className="dropdown-item-icon task"><Icon.Check/></div>
                                     <div className="dropdown-item-content"><div className="dropdown-item-title">Nouvelle tâche</div><div className="dropdown-item-desc">Ajouter une tâche à une action</div></div>
                                     <span className="dropdown-item-shortcut">N</span>
                                 </button>
-                                <button className="dropdown-item" onClick={(e)=>{e.stopPropagation();setShowCreateDropdown(false);setShowNewActionModal(true);}}>
+                                <button className="dropdown-item" onClick={()=>{setShowCreateDropdown(false);setShowNewActionModal(true);}}>
                                     <div className="dropdown-item-icon action"><Icon.List/></div>
                                     <div className="dropdown-item-content"><div className="dropdown-item-title">Nouvelle action</div><div className="dropdown-item-desc">Créer un groupe de tâches</div></div>
                                     <span className="dropdown-item-shortcut">⇧N</span>
                                 </button>
                                 <div className="dropdown-divider"/>
-                                <button className="dropdown-item" onClick={(e)=>{e.stopPropagation();setShowCreateDropdown(false);setShowCategoriesModal(true);}}>
+                                <button className="dropdown-item" onClick={()=>{setShowCreateDropdown(false);setShowCategoriesModal(true);}}>
                                     <div className="dropdown-item-icon category"><Icon.Folder/></div>
                                     <div className="dropdown-item-content"><div className="dropdown-item-title">Gérer les catégories</div><div className="dropdown-item-desc">Créer ou réorganiser les groupes</div></div>
                                 </button>
@@ -3587,8 +3596,8 @@ const App=()=>{
                             <span className="clear-filters" onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})}>Tout effacer</span>
                         </div>
                     )}
-                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries}/>}
-                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters}/>}
+                    {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear}/>}
+                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear}/>}
                     {currentView==='dashboard'&&<DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
                 {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} actions={actions} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null} allCountries={allCountries} onAddCustomCountry={addCustomCountry}/>}
