@@ -3,18 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marketing Project Tracker V2.3.0</title>
+    <title>Marketing Project Tracker V3.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        :root{--primary:#2c2b64;--secondary:#3781ec;--green:#5cc29d;--red:#ff5338;--yellow:#f2cb13}
+        :root{--primary:#6366f1;--secondary:#6366f1;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--bg-page:#fafafa;--bg-primary:#ffffff;--bg-secondary:#f4f4f5;--bg-tertiary:#e8eaed;--text-primary:#18181b;--text-secondary:#52525b;--text-muted:#a1a1aa;--accent:#6366f1;--accent-light:#eef2ff;--accent-hover:#4f46e5;--success:#22c55e;--success-light:#dcfce7;--warning:#f59e0b;--warning-light:#fef3c7;--error:#ef4444;--error-light:#fee2e2;--border:#e4e4e7;--border-light:#f0f0f1;--border-strong:#d4d4d8;--shadow-sm:0 1px 2px rgba(0,0,0,0.04);--shadow-md:0 4px 12px rgba(0,0,0,0.06);--shadow-lg:0 12px 40px rgba(0,0,0,0.1);--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--transition:0.2s cubic-bezier(0.4,0,0.2,1);--font-sans:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;--font-mono:'JetBrains Mono',monospace;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--header-height:56px;--sidebar-width:220px;--kanban-column-width:280px}
         *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:'Plus Jakarta Sans',sans-serif}
-        body.light{background:#f8f9fc;color:#1a1a2e}
-        body.dark{background:#0f0f1a;color:#f0f0f5}
+        body{font-family:var(--font-sans);background:var(--bg-page);color:var(--text-primary);line-height:1.5;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+        body.light{background:var(--bg-page);color:var(--text-primary)}
+        body.dark{background:#18181b;color:#f0f0f5}
         ::-webkit-scrollbar{width:6px;height:6px}
         ::-webkit-scrollbar-thumb{background:#888;border-radius:3px}
         @keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
@@ -31,11 +31,11 @@
         .kanban-column{min-height:200px;max-height:calc(100vh - 250px);overflow-y:auto}
         .modal-backdrop{backdrop-filter:blur(8px)}
         .line-clamp-2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-        .drag-over{border:3px dashed var(--secondary)!important;background:rgba(55,129,236,.2)!important;transition:all .2s;box-shadow:inset 0 0 30px rgba(55,129,236,.3)!important;animation:pulse-border .8s ease-in-out infinite;position:relative}
-        .drag-over::before{content:'';position:absolute;inset:0;border:2px solid rgba(55,129,236,.5);border-radius:4px;pointer-events:none}
-        @keyframes pulse-border{0%,100%{border-color:rgba(55,129,236,.9);box-shadow:inset 0 0 30px rgba(55,129,236,.4)}50%{border-color:rgba(55,129,236,.5);box-shadow:inset 0 0 20px rgba(55,129,236,.2)}}
-        .drop-indicator-before{border-top:4px solid #3781ec!important;box-shadow:0 -2px 8px rgba(55,129,236,0.4)!important}
-        .drop-indicator-after{border-bottom:4px solid #3781ec!important;box-shadow:0 2px 8px rgba(55,129,236,0.4)!important}
+        .drag-over{border:3px dashed var(--accent)!important;background:rgba(99,102,241,.15)!important;transition:all .2s;box-shadow:inset 0 0 30px rgba(99,102,241,.2)!important;animation:pulse-border .8s ease-in-out infinite;position:relative}
+        .drag-over::before{content:'';position:absolute;inset:0;border:2px solid rgba(99,102,241,.4);border-radius:4px;pointer-events:none}
+        @keyframes pulse-border{0%,100%{border-color:rgba(99,102,241,.9);box-shadow:inset 0 0 30px rgba(99,102,241,.3)}50%{border-color:rgba(99,102,241,.5);box-shadow:inset 0 0 20px rgba(99,102,241,.15)}}
+        .drop-indicator-before{border-top:4px solid var(--accent)!important;box-shadow:0 -2px 8px rgba(99,102,241,0.4)!important}
+        .drop-indicator-after{border-bottom:4px solid var(--accent)!important;box-shadow:0 2px 8px rgba(99,102,241,0.4)!important}
         .timeline-bar{position:relative;cursor:grab;transition:opacity .2s,transform .1s;user-select:none;pointer-events:auto;padding:0 22px}
         .timeline-bar.dragging{opacity:0.3;cursor:grabbing;transform:scale(1.05);z-index:9999!important}
         .timeline-bar:hover{cursor:grab;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
@@ -53,11 +53,11 @@
         .resize-handle-left{left:0}
         .resize-handle-right{right:0}
         .drag-ghost{position:fixed;pointer-events:none;z-index:10000;opacity:0.85;transform:rotate(3deg);box-shadow:0 12px 40px rgba(0,0,0,0.4);border-radius:8px;padding:8px 12px;color:white;font-size:12px;font-weight:600;backdrop-filter:blur(8px)}
-        .drag-preview-line{position:absolute;height:40px;background:linear-gradient(90deg,rgba(55,129,236,0.5) 0%,rgba(92,194,157,0.5) 100%);top:8px;border-radius:8px;border:2px solid rgba(55,129,236,0.8);box-shadow:0 0 12px rgba(55,129,236,0.6),inset 0 0 20px rgba(255,255,255,0.2);z-index:15;pointer-events:none;animation:pulse-glow 1s ease-in-out infinite;backdrop-filter:blur(4px)}
-        @keyframes pulse-glow{0%,100%{opacity:0.9;box-shadow:0 0 12px rgba(55,129,236,0.7)}50%{opacity:1;box-shadow:0 0 20px rgba(55,129,236,0.9)}}
-        .action-row-drag-over{background:linear-gradient(90deg,rgba(55,129,236,0.08),rgba(92,194,157,0.08))!important;border:2px dashed rgba(55,129,236,0.4)!important;border-radius:8px!important;box-shadow:inset 0 0 15px rgba(55,129,236,0.15)!important;position:relative}
-        .drop-zone-indicator{position:absolute;top:0;bottom:0;width:4px;background:linear-gradient(180deg,#3781ec,#5cc29d);border-radius:2px;box-shadow:0 0 12px rgba(55,129,236,0.8),0 0 24px rgba(55,129,236,0.4);z-index:25;pointer-events:none;animation:pulse-drop 0.8s ease-in-out infinite}
-        .drop-zone-indicator::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:#3781ec;border-radius:50%;box-shadow:0 0 8px rgba(55,129,236,0.8)}
+        .drag-preview-line{position:absolute;height:40px;background:linear-gradient(90deg,rgba(99,102,241,0.4) 0%,rgba(34,197,94,0.4) 100%);top:8px;border-radius:8px;border:2px solid rgba(99,102,241,0.7);box-shadow:0 0 12px rgba(99,102,241,0.5),inset 0 0 20px rgba(255,255,255,0.2);z-index:15;pointer-events:none;animation:pulse-glow 1s ease-in-out infinite;backdrop-filter:blur(4px)}
+        @keyframes pulse-glow{0%,100%{opacity:0.9;box-shadow:0 0 12px rgba(99,102,241,0.6)}50%{opacity:1;box-shadow:0 0 20px rgba(99,102,241,0.8)}}
+        .action-row-drag-over{background:linear-gradient(90deg,rgba(99,102,241,0.08),rgba(34,197,94,0.08))!important;border:2px dashed rgba(99,102,241,0.4)!important;border-radius:8px!important;box-shadow:inset 0 0 15px rgba(99,102,241,0.15)!important;position:relative}
+        .drop-zone-indicator{position:absolute;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--accent),var(--success));border-radius:2px;box-shadow:0 0 12px rgba(99,102,241,0.7),0 0 24px rgba(99,102,241,0.3);z-index:25;pointer-events:none;animation:pulse-drop 0.8s ease-in-out infinite}
+        .drop-zone-indicator::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:12px;height:12px;background:var(--accent);border-radius:50%;box-shadow:0 0 8px rgba(99,102,241,0.7)}
         @keyframes pulse-drop{0%,100%{opacity:1;transform:scaleY(1)}50%{opacity:0.8;transform:scaleY(0.98)}}
         @media(max-width:768px){
             .kanban-column{min-width:280px}
@@ -73,15 +73,15 @@
             .timeline-bar{padding:0 35px!important}
         }
     </style>
-    <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#2c2b64',secondary:'#3781ec',accent:{green:'#5cc29d',red:'#ff5338',yellow:'#f2cb13'}}}}}</script>
+    <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#6366f1',secondary:'#6366f1','accent-green':'#22c55e','accent-red':'#ef4444','accent-yellow':'#f59e0b',accent:{DEFAULT:'#6366f1',light:'#eef2ff',hover:'#4f46e5',green:'#22c55e',red:'#ef4444',yellow:'#f59e0b'}},borderColor:{DEFAULT:'#e4e4e7'},fontFamily:{sans:['DM Sans','-apple-system','BlinkMacSystemFont','sans-serif'],mono:['JetBrains Mono','monospace']}}}}</script>
 </head>
 <body class="light">
 <div id="root">
-    <div class="min-h-screen flex items-center justify-center bg-gray-950">
-        <div class="text-white text-center">
-            <div class="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+    <div class="min-h-screen flex items-center justify-center" style="background:var(--bg-page)">
+        <div class="text-center" style="color:var(--text-primary)">
+            <div class="animate-spin w-12 h-12 border-4 border-t-transparent rounded-full mx-auto mb-4" style="border-color:var(--accent);border-top-color:transparent"></div>
             <p>Chargement de l'application...</p>
-            <p class="text-xs text-gray-500 mt-2">Si ce message persiste, vérifiez la console (F12)</p>
+            <p class="text-xs mt-2" style="color:var(--text-muted)">Si ce message persiste, vérifiez la console (F12)</p>
         </div>
     </div>
 </div>
@@ -97,16 +97,16 @@ const CONFIG={
     MONTHS_FULL:['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
     STATUSES:[
         {id:'todo',name:'À faire',color:'#94a3b8',icon:'📋'},
-        {id:'creating',name:'En création',color:'#f2cb13',icon:'✏️'},
-        {id:'inprogress',name:'En cours',color:'#3781ec',icon:'🔄'},
-        {id:'review',name:'En revue',color:'#a855f7',icon:'👀'},
-        {id:'completed',name:'Terminé',color:'#5cc29d',icon:'✅'},
-        {id:'paused',name:'En pause',color:'#ff5338',icon:'⏸️'}
+        {id:'creating',name:'En création',color:'#f59e0b',icon:'✏️'},
+        {id:'inprogress',name:'En cours',color:'#3b82f6',icon:'🔄'},
+        {id:'review',name:'En revue',color:'#d97706',icon:'👀'},
+        {id:'completed',name:'Terminé',color:'#22c55e',icon:'✅'},
+        {id:'paused',name:'En pause',color:'#ef4444',icon:'⏸️'}
     ],
     CATEGORIES:[
-        {id:'brand-awareness',name:'Brand Awareness',color:'#3781ec',gradient:'from-blue-500 to-indigo-700'},
-        {id:'consideration',name:'Consideration / Engagement',color:'#5cc29d',gradient:'from-emerald-400 to-cyan-500'},
-        {id:'conversion',name:'Conversion',color:'#f2cb13',gradient:'from-yellow-400 to-orange-500'}
+        {id:'brand-awareness',name:'Brand Awareness',color:'#6366f1',gradient:'from-indigo-500 to-purple-600'},
+        {id:'consideration',name:'Consideration / Engagement',color:'#f59e0b',gradient:'from-amber-400 to-orange-500'},
+        {id:'conversion',name:'Conversion',color:'#22c55e',gradient:'from-green-400 to-emerald-600'}
     ],
     CHANNELS:[{id:'social',name:'Social Media',color:'#3b82f6'},{id:'gads',name:'Google Ads',color:'#ea4335'},{id:'lads',name:'LinkedIn Ads',color:'#0077b5'},{id:'email',name:'Email',color:'#f59e0b'},{id:'press',name:'Press',color:'#8b5cf6'},{id:'events',name:'Events',color:'#ec4899'},{id:'seo',name:'Article/SEO',color:'#10b981'},{id:'web',name:'Website',color:'#6366f1'},{id:'video',name:'Video',color:'#ef4444'},{id:'lp',name:'Landing Page',color:'#14b8a6'},{id:'ia',name:'IA',color:'#a855f7'},{id:'auto',name:'Automation',color:'#f97316'},{id:'other',name:'Other',color:'#6b7280'}],
     COUNTRIES:[
@@ -127,9 +127,9 @@ const CONFIG={
         {id:'australia',name:'Australia',region:'Oceania',color:'#10b981',flag:'🇦🇺'}
     ],
     PRIORITIES:[
-        {id:'high',name:'Haute',color:'#ff5338',icon:'🔴'},
-        {id:'medium',name:'Moyenne',color:'#f2cb13',icon:'🟡'},
-        {id:'low',name:'Basse',color:'#5cc29d',icon:'🟢'}
+        {id:'high',name:'Haute',color:'#ef4444',icon:'🔴'},
+        {id:'medium',name:'Moyenne',color:'#f59e0b',icon:'🟡'},
+        {id:'low',name:'Basse',color:'#22c55e',icon:'🟢'}
     ]
 };
 
@@ -267,7 +267,7 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
     const[editingId,setEditingId]=useState(null);
     const[form,setForm]=useState({});
     const[isAdding,setIsAdding]=useState(false);
-    const[newCategory,setNewCategory]=useState({name:'',color:'#3781ec',gradient:'from-blue-500 to-indigo-700'});
+    const[newCategory,setNewCategory]=useState({name:'',color:'#6366f1',gradient:'from-indigo-500 to-purple-600'});
     const[draggedIndex,setDraggedIndex]=useState(null);
     const[touchStartY,setTouchStartY]=useState(null);
     const[touchCurrentY,setTouchCurrentY]=useState(null);
@@ -286,7 +286,7 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
     const handleAdd=()=>{
         if(!newCategory.name.trim())return;
         onAdd({...newCategory,id:`cat${Date.now()}`});
-        setNewCategory({name:'',color:'#3781ec',gradient:'from-blue-500 to-indigo-700'});
+        setNewCategory({name:'',color:'#6366f1',gradient:'from-indigo-500 to-purple-600'});
         setIsAdding(false);
     };
 
@@ -1464,7 +1464,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const ghost=document.createElement('div');
         const status=CONFIG.STATUSES.find(s=>s.id===task.status);
         const pos=getTaskPosition(task);
-        ghost.style.cssText=`position:absolute;top:-1000px;height:40px;min-width:${Math.max(pos?.width||100,100)}px;background-color:${status?.color||'#3781ec'};border-radius:8px;padding:0 12px;display:flex;align-items:center;color:white;font-size:12px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.3);opacity:0.9;`;
+        ghost.style.cssText=`position:absolute;top:-1000px;height:40px;min-width:${Math.max(pos?.width||100,100)}px;background-color:${status?.color||'#6366f1'};border-radius:8px;padding:0 12px;display:flex;align-items:center;color:white;font-size:12px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.3);opacity:0.9;`;
         ghost.innerHTML=`<span style="margin-right:6px">${status?.icon||'📋'}</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${task.title}</span>${task.budget>0?`<span style="margin-left:8px;opacity:0.75">(${(task.budget/1000).toFixed(0)}k)</span>`:''}`;
         document.body.appendChild(ghost);
         e.dataTransfer.setDragImage(ghost,ghost.offsetWidth/2,20);
@@ -2454,10 +2454,10 @@ const DashboardView=({categories,actions,tasks})=>{
     return(
         <div className="space-y-6 animate-slide-in">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <KPICard title="Avancement" value={`${progressPct}%`} subtitle={`${completedTasks}/${totalTasks} tâches`} icon={Icon.TrendUp} color="#5cc29d"/>
-                <KPICard title="Budget" value={`${(spentBudget/1000).toFixed(0)}k€`} subtitle={`sur ${(totalBudget/1000).toFixed(0)}k€`} icon={Icon.Dollar} color="#3781ec"/>
-                <KPICard title="Ce mois" value={currentTasks.length} subtitle="tâches actives" icon={Icon.Calendar} color="#f2cb13"/>
-                <KPICard title="En retard" value={overdueTasks.length} subtitle={overdueTasks.length>0?'à traiter':'Tout OK!'} icon={Icon.Alert} color={overdueTasks.length>0?'#ff5338':'#5cc29d'}/>
+                <KPICard title="Avancement" value={`${progressPct}%`} subtitle={`${completedTasks}/${totalTasks} tâches`} icon={Icon.TrendUp} color="#22c55e"/>
+                <KPICard title="Budget" value={`${(spentBudget/1000).toFixed(0)}k€`} subtitle={`sur ${(totalBudget/1000).toFixed(0)}k€`} icon={Icon.Dollar} color="#6366f1"/>
+                <KPICard title="Ce mois" value={currentTasks.length} subtitle="tâches actives" icon={Icon.Calendar} color="#f59e0b"/>
+                <KPICard title="En retard" value={overdueTasks.length} subtitle={overdueTasks.length>0?'à traiter':'Tout OK!'} icon={Icon.Alert} color={overdueTasks.length>0?'#ef4444':'#22c55e'}/>
             </div>
             <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${darkMode?'border-gray-800':'border-gray-200'}`}>
                 <h3 className="font-semibold mb-4">Progression par catégorie</h3>
