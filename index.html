@@ -82,38 +82,157 @@
         .v11-icon-btn:hover{background:var(--bg-secondary);color:var(--text-primary)}
         .v11-btn-primary{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:none;border-radius:var(--radius-md);background:var(--accent);color:white;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;transition:var(--transition)}
         .v11-btn-primary:hover{background:var(--accent-hover)}
+        .v11-btn-primary svg{width:13px;height:13px}
+        .v11-btn-primary .chevron{margin-left:2px;transition:var(--transition)}
+        .v11-btn-primary.open .chevron{transform:rotate(180deg)}
         .v11-btn-secondary{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-secondary);font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;transition:var(--transition)}
         .v11-btn-secondary:hover{border-color:var(--border-strong);background:var(--bg-secondary)}
-        .v11-card{background:var(--bg-primary);border-radius:var(--radius-md);padding:var(--space-3);cursor:pointer;transition:var(--transition);border:1px solid var(--border-light)}
-        .v11-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);border-color:var(--border)}
-        .v11-card-tag{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.2px}
-        .v11-card-tag.social{background:#dbeafe;color:#1d4ed8}
-        .v11-card-tag.gads{background:#fef3c7;color:#b45309}
-        .v11-card-tag.lads{background:#e0e7ff;color:#4338ca}
-        .v11-card-tag.events{background:#fce7f3;color:#be185d}
-        .v11-card-tag.seo{background:#dcfce7;color:#166534}
-        .v11-card-tag.press{background:#f3e8ff;color:#7c3aed}
-        .v11-card-tag.email{background:#fef3c7;color:#b45309}
-        .v11-card-tag.web{background:#e0e7ff;color:#4338ca}
-        .v11-card-tag.video{background:#fee2e2;color:#dc2626}
-        .v11-card-tag.lp{background:#ccfbf1;color:#0d9488}
-        .v11-card-tag.ia{background:#f3e8ff;color:#7c3aed}
-        .v11-card-tag.auto{background:#ffedd5;color:#ea580c}
-        .v11-card-tag.other{background:#f4f4f5;color:#52525b}
-        .v11-kanban-wrapper{background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
-        .v11-kanban-column{min-width:var(--kanban-column-width);max-width:var(--kanban-column-width);background:var(--bg-secondary);border-radius:var(--radius-lg);padding:var(--space-3);flex-shrink:0;display:flex;flex-direction:column}
-        .v11-timeline-container{background:var(--bg-primary);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden}
-        .v11-filter-chip{display:flex;align-items:center;gap:5px;padding:4px 6px 4px 8px;background:var(--accent-light);color:var(--accent);border-radius:100px;font-size:11px;font-weight:500}
-        .v11-view-btn-group{display:flex;background:var(--bg-primary);padding:3px;border-radius:var(--radius-sm);gap:2px;box-shadow:var(--shadow-sm)}
-        .v11-view-btn{padding:6px 12px;border:none;border-radius:4px;background:transparent;font-size:11px;font-weight:500;cursor:pointer;transition:var(--transition);color:var(--text-secondary);font-family:inherit}
-        .v11-view-btn:hover{color:var(--text-primary);background:var(--bg-secondary)}
-        .v11-view-btn.active{background:var(--accent);color:white}
-        .v11-toolbar-select{padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11px;font-family:inherit;background:var(--bg-primary);color:var(--text-secondary);cursor:pointer}
-        .v11-progress-bar{height:6px;background:var(--bg-secondary);border-radius:3px;overflow:hidden;margin-bottom:6px}
-        .v11-progress-fill{height:100%;border-radius:3px;transition:var(--transition)}
-        .v11-progress-fill.low{background:linear-gradient(90deg,#fca5a5,#ef4444)}
-        .v11-progress-fill.medium{background:linear-gradient(90deg,#fcd34d,#f59e0b)}
-        .v11-progress-fill.high{background:linear-gradient(90deg,#86efac,#22c55e)}
+        .v11-btn-secondary svg{width:13px;height:13px}
+        /* Toolbar */
+        .toolbar{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+        .filter-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-primary);font-size:12px;font-weight:500;cursor:pointer;transition:var(--transition);font-family:inherit;color:var(--text-secondary)}
+        .filter-btn:hover{border-color:var(--border-strong)}
+        .filter-btn.active{background:var(--accent);color:white;border-color:var(--accent)}
+        .filter-btn svg{width:13px;height:13px}
+        .filter-count{background:var(--accent-light);color:var(--accent);font-size:10px;font-weight:600;padding:2px 6px;border-radius:10px}
+        .filter-btn.active .filter-count{background:rgba(255,255,255,0.2);color:white}
+        .stats-pills{display:flex;gap:16px;font-size:12px;color:var(--text-muted)}
+        .stat-pill strong{color:var(--text-primary);font-weight:600}
+        .toolbar-spacer{flex:1}
+        /* Dropdown */
+        .new-btn-container{position:relative}
+        .dropdown-menu{position:absolute;top:calc(100% + 6px);right:0;background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);min-width:260px;opacity:0;visibility:hidden;transform:translateY(-8px);transition:var(--transition);z-index:50;overflow:hidden}
+        .dropdown-menu.open{opacity:1;visibility:visible;transform:translateY(0)}
+        .dropdown-item{display:flex;align-items:center;gap:10px;padding:10px 12px;font-size:12px;color:var(--text-primary);cursor:pointer;transition:var(--transition);border:none;background:transparent;width:100%;text-align:left;font-family:inherit}
+        .dropdown-item:hover{background:var(--bg-secondary)}
+        .dropdown-item.default{background:var(--accent-light)}
+        .dropdown-item.default:hover{background:#ddd6fe}
+        .dropdown-item-icon{width:28px;height:28px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center}
+        .dropdown-item-icon svg{width:14px;height:14px}
+        .dropdown-item-icon.task{background:#dbeafe;color:#2563eb}
+        .dropdown-item-icon.action{background:#fef3c7;color:#d97706}
+        .dropdown-item-icon.category{background:#f3e8ff;color:#7c3aed}
+        .dropdown-item-content{flex:1}
+        .dropdown-item-title{font-weight:500}
+        .dropdown-item-desc{font-size:10px;color:var(--text-muted)}
+        .dropdown-item-shortcut{font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--text-muted);background:var(--bg-secondary);padding:2px 6px;border-radius:4px}
+        .dropdown-divider{height:1px;background:var(--border);margin:4px 0}
+        /* Active Filters */
+        .active-filters{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+        .active-filters-label{font-size:11px;color:var(--text-muted);font-weight:500;text-transform:uppercase;letter-spacing:0.3px}
+        .filter-chip{display:flex;align-items:center;gap:5px;padding:4px 6px 4px 8px;background:var(--accent-light);color:var(--accent);border-radius:100px;font-size:11px;font-weight:500}
+        .filter-chip button{width:16px;height:16px;border-radius:50%;border:none;background:rgba(99,102,241,0.15);color:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;transition:var(--transition)}
+        .filter-chip button:hover{background:var(--accent);color:white}
+        .clear-filters{font-size:11px;color:var(--text-muted);cursor:pointer;margin-left:4px}
+        .clear-filters:hover{color:var(--text-secondary);text-decoration:underline}
+        /* Filter Sidebar */
+        .filter-sidebar{position:fixed;right:0;top:56px;width:280px;height:calc(100vh - 56px);background:var(--bg-primary);border-left:1px solid var(--border);transform:translateX(100%);transition:var(--transition);z-index:50;overflow-y:auto;display:flex;flex-direction:column}
+        .filter-sidebar.open{transform:translateX(0)}
+        .sidebar-header{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--bg-primary);z-index:1}
+        .sidebar-title{font-weight:600;font-size:14px}
+        .sidebar-close{width:28px;height:28px;border-radius:var(--radius-sm);border:none;background:var(--bg-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:12px;transition:var(--transition)}
+        .sidebar-close:hover{background:var(--bg-tertiary)}
+        .sidebar-close svg{width:12px;height:12px}
+        .filter-section{padding:16px;border-bottom:1px solid var(--border-light)}
+        .filter-section-title{font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-secondary);margin-bottom:10px}
+        .filter-options{display:flex;flex-wrap:wrap;gap:6px}
+        .filter-option{padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11px;cursor:pointer;transition:var(--transition);background:var(--bg-primary);color:var(--text-secondary);font-family:inherit}
+        .filter-option:hover{border-color:var(--accent);color:var(--accent)}
+        .filter-option.selected{background:var(--accent);color:white;border-color:var(--accent)}
+        .sidebar-footer{padding:16px;display:flex;gap:8px;position:sticky;bottom:0;background:var(--bg-primary);border-top:1px solid var(--border);margin-top:auto}
+        .sidebar-footer button{flex:1;padding:10px;font-size:12px;font-family:inherit;border-radius:var(--radius-sm);cursor:pointer;transition:var(--transition)}
+        /* Kanban */
+        .kanban-wrapper{background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+        .kanban-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-secondary);border-bottom:1px solid var(--border)}
+        .kanban-toolbar-left{display:flex;align-items:center;gap:10px}
+        .kanban-toolbar-right{display:flex;align-items:center;gap:8px}
+        .view-btn-group{display:flex;background:var(--bg-primary);padding:3px;border-radius:var(--radius-sm);gap:2px;box-shadow:var(--shadow-sm)}
+        .view-btn{padding:6px 12px;border:none;border-radius:4px;background:transparent;font-size:11px;font-weight:500;cursor:pointer;transition:var(--transition);color:var(--text-secondary);font-family:inherit}
+        .view-btn:hover{color:var(--text-primary);background:var(--bg-secondary)}
+        .view-btn.active{background:var(--accent);color:white}
+        .toolbar-label{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.3px}
+        .toolbar-select{padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11px;font-family:inherit;background:var(--bg-primary);color:var(--text-secondary);cursor:pointer}
+        .quarter-nav-group{display:flex;gap:4px;margin-left:16px;padding-left:16px;border-left:1px solid var(--border)}
+        .quarter-btn{padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-primary);font-size:10px;font-weight:500;cursor:pointer;transition:var(--transition);color:var(--text-muted);font-family:inherit}
+        .quarter-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+        .kanban-board{display:flex;gap:16px;padding:16px;overflow-x:auto;background:var(--bg-page)}
+        .kanban-column{min-width:280px;max-width:280px;background:var(--bg-secondary);border-radius:var(--radius-lg);padding:12px;flex-shrink:0;display:flex;flex-direction:column}
+        .column-header{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 12px}
+        .column-title{display:flex;align-items:center;gap:8px}
+        .column-icon{width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center}
+        .column-icon svg{width:12px;height:12px}
+        .column-icon.todo{background:var(--bg-primary);border:1px solid var(--border);color:var(--text-muted)}
+        .column-icon.in-progress{background:#dbeafe;color:#2563eb}
+        .column-icon.creating{background:#fef3c7;color:#d97706}
+        .column-icon.review{background:#fef3c7;color:#d97706}
+        .column-icon.done{background:#dcfce7;color:#16a34a}
+        .column-icon.inprogress{background:#dbeafe;color:#2563eb}
+        .column-icon.completed{background:#dcfce7;color:#16a34a}
+        .column-name{font-weight:600;font-size:13px}
+        .column-count{color:var(--text-muted);font-size:12px;font-weight:500}
+        .column-menu{width:24px;height:24px;border-radius:var(--radius-sm);border:none;background:transparent;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;justify-content:center;font-size:14px}
+        .column-menu:hover{background:var(--bg-tertiary)}
+        .column-menu svg{width:14px;height:14px}
+        .kanban-cards{display:flex;flex-direction:column;gap:8px;flex:1}
+        .column-empty{flex:1;display:flex;align-items:center;justify-content:center;padding:24px 16px;color:var(--text-muted);font-size:12px;text-align:center;border:1px dashed var(--border);border-radius:var(--radius-md);background:var(--bg-primary)}
+        /* Task Cards */
+        .kanban-card{background:var(--bg-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;transition:var(--transition);border:1px solid var(--border-light)}
+        .kanban-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);border-color:var(--border)}
+        .kanban-card[draggable=true]{cursor:grab}
+        .kanban-card[draggable=true]:active{cursor:grabbing}
+        .card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
+        .card-title{font-weight:600;font-size:13px;line-height:1.4;flex:1;color:var(--text-primary)}
+        .card-priority{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+        .card-priority.high{background:var(--error)}
+        .card-priority.medium{background:var(--warning)}
+        .card-priority.low{background:var(--success)}
+        .card-tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+        .card-tag{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.2px}
+        .card-tag.social{background:#dbeafe;color:#1d4ed8}
+        .card-tag.gads{background:#fef3c7;color:#b45309}
+        .card-tag.lads{background:#e0e7ff;color:#4338ca}
+        .card-tag.events{background:#fce7f3;color:#be185d}
+        .card-tag.seo{background:#dcfce7;color:#166534}
+        .card-tag.press{background:#f3e8ff;color:#7c3aed}
+        .card-tag.email{background:#fef3c7;color:#b45309}
+        .card-tag.web{background:#e0e7ff;color:#4338ca}
+        .card-tag.video{background:#fee2e2;color:#dc2626}
+        .card-tag.lp{background:#ccfbf1;color:#0d9488}
+        .card-tag.ia{background:#f3e8ff;color:#7c3aed}
+        .card-tag.auto{background:#ffedd5;color:#ea580c}
+        .card-tag.other{background:#f4f4f5;color:#52525b}
+        .card-footer{display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--border-light)}
+        .card-date{font-size:11px;color:var(--text-muted)}
+        .card-date.overdue{color:var(--error);font-weight:600}
+        .card-date.soon{color:var(--warning);font-weight:600}
+        .card-budget{font-size:12px;font-weight:700;color:var(--accent);font-family:'JetBrains Mono',monospace}
+        /* Action Cards */
+        .action-card{background:var(--bg-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;transition:var(--transition);border:1px solid var(--border)}
+        .action-card:hover{border-color:var(--accent);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+        .action-card[draggable=true]{cursor:grab}
+        .action-card .card-title{font-size:13px;font-weight:700}
+        .action-card .card-tags{margin-bottom:12px}
+        .action-progress-section{margin-bottom:10px}
+        .action-progress-bar{height:6px;background:var(--bg-secondary);border-radius:3px;overflow:hidden;margin-bottom:6px}
+        .action-progress-fill{height:100%;border-radius:3px;transition:var(--transition)}
+        .action-progress-fill.low{background:linear-gradient(90deg,#fca5a5,#ef4444)}
+        .action-progress-fill.medium{background:linear-gradient(90deg,#fcd34d,#f59e0b)}
+        .action-progress-fill.high{background:linear-gradient(90deg,#86efac,#22c55e)}
+        .action-progress-label{display:flex;justify-content:space-between;font-size:11px}
+        .action-task-count{color:var(--text-muted)}
+        .action-task-count strong{color:var(--text-secondary)}
+        .action-progress-percent{font-weight:700;color:var(--text-primary)}
+        .add-card-btn{width:100%;padding:10px;border:none;border-radius:var(--radius-md);background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;transition:var(--transition);display:flex;align-items:center;justify-content:center;gap:4px;margin-top:4px;font-family:inherit}
+        .add-card-btn:hover{color:var(--accent);background:var(--accent-light)}
+        /* Timeline */
+        .timeline-container{background:var(--bg-primary);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden}
+        .timeline-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-secondary)}
+        .timeline-header-left{display:flex;align-items:center}
+        .timeline-nav{display:flex;align-items:center;gap:8px}
+        .timeline-nav-btn{width:28px;height:28px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-primary);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-size:14px;transition:var(--transition);font-family:inherit}
+        .timeline-nav-btn:hover{border-color:var(--border-strong)}
+        .timeline-current{font-size:13px;font-weight:600;min-width:60px;text-align:center}
+        /* Modals */
         .v11-modal-overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px)}
         .v11-modal{background:var(--bg-primary);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:100%;overflow:hidden}
         .v11-modal-header{padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
@@ -124,10 +243,10 @@
         .v11-select{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:var(--bg-primary);color:var(--text-primary);cursor:pointer}
         .v11-label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px}
         *:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-        @media(max-width:1200px){.content-area{padding:var(--space-3) var(--space-4)}.v11-kanban-column{min-width:260px;max-width:260px}:root{--sidebar-width:180px}}
-        @media(max-width:768px){.v11-view-tabs{display:none}.stats-pills{display:none}:root{--sidebar-width:150px}}
-        @media(max-width:480px){.v11-btn-secondary span{display:none}}
-    </style>
+        @media(max-width:1200px){.kanban-column{min-width:260px;max-width:260px}:root{--sidebar-width:180px}}
+        @media(max-width:768px){.v11-view-tabs{display:none}.stats-pills{display:none}:root{--sidebar-width:150px}.timeline-cell{min-width:80px}}
+        @media(max-width:480px){.filter-sidebar{width:100%}.v11-btn-secondary span{display:none}.kanban-board{gap:12px;padding:12px}.kanban-column{min-width:280px}}
+        </style>
     <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#6366f1',secondary:'#6366f1','accent-green':'#22c55e','accent-red':'#ef4444','accent-yellow':'#f59e0b',accent:{DEFAULT:'#6366f1',light:'#eef2ff',hover:'#4f46e5',green:'#22c55e',red:'#ef4444',yellow:'#f59e0b'}},borderColor:{DEFAULT:'#e4e4e7'},fontFamily:{sans:['DM Sans','-apple-system','BlinkMacSystemFont','sans-serif'],mono:['JetBrains Mono','monospace']}}}}</script>
 </head>
 <body>
@@ -654,15 +773,17 @@ const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={(e)=>{if(!e.defaultPrevented)onOpen(action);}}
-            className={`v11-card card-hover relative group ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`} style={{cursor:'move',padding:'var(--space-4)'}}>
-            {onMoveAction&&<div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'up');}} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{background:'var(--bg-secondary)'}} title="Déplacer vers le haut">⬆️</button>
-                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'down');}} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{background:'var(--bg-secondary)'}} title="Déplacer vers le bas">⬇️</button>
-            </div>}
-            <div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${cat?.gradient}`}/>
-            <h4 className="font-semibold text-sm mb-2">{action.name}</h4>
-            <div className="mb-2"><div className="flex justify-between text-xs mb-1" style={{color:'var(--text-muted)'}}><span>{completed}/{actionTasks.length} tâches</span><span style={{fontWeight:700}}>{pct}%</span></div><div className="v11-progress-bar"><div className={`v11-progress-fill ${pct>=70?'high':pct>=40?'medium':'low'}`} style={{width:`${pct}%`}}/></div></div>
-            {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=>{const ch=CONFIG.CHANNELS.find(c=>c.id===t);return <span key={t} className={`v11-card-tag ${t}`}>{ch?.name||t}</span>;})}</div>}
+            className={`action-card ${dragOverPosition==='before'?'drop-indicator-before':dragOverPosition==='after'?'drop-indicator-after':''}`}>
+            <div className="card-header">
+                <div className="card-title">{action.name}</div>
+                <div className={`card-priority ${action.priority||'medium'}`}/>
+            </div>
+            {action.tags?.length>0&&<div className="card-tags">{action.tags.slice(0,3).map(t=>{const ch=CONFIG.CHANNELS.find(c=>c.id===t);return <span key={t} className={`card-tag ${t}`}>{ch?.name||t}</span>;})}</div>}
+            <div className="action-progress-section">
+                <div className="action-progress-bar"><div className={`action-progress-fill ${pct>=70?'high':pct>=40?'medium':'low'}`} style={{width:`${pct}%`}}/></div>
+                <div className="action-progress-label"><span className="action-task-count"><strong>{completed}</strong>/{actionTasks.length} tâches</span><span className="action-progress-percent">{pct}%</span></div>
+            </div>
+            {actionTasks.reduce((s,t)=>s+(t.budget||0),0)>0&&<div className="card-footer"><span/><span className="card-budget">{actionTasks.reduce((s,t)=>s+(t.budget||0),0).toLocaleString()}€</span></div>}
         </div>
     );
 };
@@ -742,30 +863,18 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onClick={()=>onOpen(task)}
-            className={`v11-card card-hover transition-all relative group ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`} style={{cursor:'pointer',padding:'var(--space-4)'}}>
-            {onMoveTask&&<div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'up');}} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{background:'var(--bg-secondary)'}} title="Déplacer vers le haut">⬆️</button>
-                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'down');}} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{background:'var(--bg-secondary)'}} title="Déplacer vers le bas">⬇️</button>
+            className={`kanban-card ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'drop-indicator-before':dragOverPosition==='after'?'drop-indicator-after':''}`}>
+            <div className="card-header">
+                <div className="card-title">{task.title}</div>
+                <div className={`card-priority ${task.priority}`}/>
+            </div>
+            {(task.channels||action?.tags||[]).length>0&&<div className="card-tags">
+                {(task.channels||action?.tags||[]).slice(0,2).map(chId=>{const ch=CONFIG.CHANNELS.find(c=>c.id===chId);return ch?<span key={chId} className={`card-tag ${chId}`}>{ch.name}</span>:null;})}
             </div>}
-            {showAction&&category&&<div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${category.gradient}`}/>}
-            <div className="flex items-start justify-between mb-2">
-                <span className="px-2 py-1 rounded-lg text-xs font-medium text-white" style={{backgroundColor:status?.color}}>{status?.icon} {status?.name}</span>
-                <span className="text-sm">{priority?.icon}</span>
-            </div>
-            <h4 className="font-semibold text-sm mb-2 line-clamp-2">{task.title}</h4>
-            {showAction&&action&&<p className="text-xs mb-2 truncate" style={{color:'var(--text-muted)'}}>📁 {action.name}</p>}
-            {task.description&&<p className="text-xs mb-2 line-clamp-2" style={{color:'var(--text-muted)'}}>📝 {task.description}</p>}
-            {task.channels&&task.channels.length>0&&<div className="mb-2"><ChannelTags channels={task.channels} editable={false}/></div>}
-            {task.countries&&task.countries.length>0&&<div className="mb-2"><CountryTags countries={task.countries} editable={false} allCountries={allCountries}/></div>}
-            {checklistPct!==null&&(<div className="mb-3"><div className="flex items-center justify-between text-xs mb-1" style={{color:'var(--text-muted)'}}><span>Checklist</span><span>{checklistPct}%</span></div><div className="v11-progress-bar"><div className={`v11-progress-fill ${checklistPct>=70?'high':checklistPct>=40?'medium':'low'}`} style={{width:`${checklistPct}%`}}/></div></div>)}
-            <div className="flex items-center justify-between text-xs" style={{color:'var(--text-muted)'}}>
-                <div className="flex items-center space-x-3">
-                    {task.comments?.length>0&&<span className="flex items-center space-x-1"><Icon.Comment/><span>{task.comments.length}</span></span>}
-                    {task.checklist?.length>0&&<span className="flex items-center space-x-1"><Icon.Check/><span>{task.checklist.filter(c=>c.done).length}/{task.checklist.length}</span></span>}
-                </div>
-                {task.dueDate&&<span className="flex items-center space-x-1"><Icon.Calendar/><span>{new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</span></span>}
-            </div>
-            {task.budget>0&&<div className="mt-2 pt-2" style={{borderTop:'1px solid var(--border)'}}><span className="text-sm font-semibold" style={{color:'var(--accent)',fontFamily:'var(--font-mono)'}}>{task.budget.toLocaleString()}€</span></div>}
+            {(task.dueDate||task.budget>0)&&<div className="card-footer">
+                <span className={`card-date ${task.dueDate&&new Date(task.dueDate)<new Date()&&task.status!=='completed'?'overdue':''}`}>{task.dueDate?new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):''}</span>
+                {task.budget>0&&<span className="card-budget">{task.budget.toLocaleString()}€</span>}
+            </div>}
         </div>
     );
 };
@@ -1026,49 +1135,28 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 
     return(
         <div className="animate-slide-in">
-            <div className="v11-card" style={{padding:'var(--space-4)',marginBottom:'var(--space-4)',cursor:'default'}}>
-                <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                    <div className="flex items-center space-x-2">
-                        <span className="text-sm" style={{color:'var(--text-muted)'}}>Vue:</span>
-                        <div className="flex rounded-lg overflow-hidden" style={{border:'1px solid var(--border)'}}>
-                            {[{id:'month',label:'Par Mois',icon:Icon.Calendar},{id:'quarter',label:'Par Trimestre',icon:Icon.Calendar},{id:'category',label:'Par Catégorie',icon:Icon.Folder},{id:'action',label:'Par Action',icon:Icon.List}].map(v=>(
-                                <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`px-4 py-2 text-sm flex items-center space-x-2 ${viewMode===v.id?'bg-primary text-white':''}`} style={viewMode!==v.id?{color:'var(--text-secondary)'}:{}}><v.icon/><span className="hidden sm:inline">{v.label}</span></button>
-                            ))}
-                        </div>
+            <div className="kanban-wrapper">
+            <div className="kanban-toolbar">
+                <div className="kanban-toolbar-left">
+                    <div className="view-btn-group">
+                        {[{id:'month',label:'Par Mois'},{id:'category',label:'Par Catégorie'},{id:'action',label:'Par Action'}].map(v=>(
+                            <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
+                        ))}
                     </div>
-                    {viewMode!=='category'&&<div className="flex items-center space-x-2">
-                        <span className="text-sm" style={{color:'var(--text-muted)'}}>Tri:</span>
-                        <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="v11-select">
-                            <option value="order">Manuel</option>
-                            <option value="name">Nom A→Z</option>
-                            <option value="created">Date création</option>
-                            <option value="date">Date début</option>
-                            <option value="deadline">Deadline</option>
-                            <option value="priority">Priorité</option>
-                        </select>
-                    </div>}
                 </div>
-                {(viewMode==='month'||viewMode==='quarter'||viewMode==='action')&&(
-                    <div>
-                        <label className="v11-label">Filtrer par action:</label>
-                        <div className="flex flex-wrap gap-2">
-                            <button onClick={()=>setActionFilters([])} className={`px-3 py-1.5 rounded-full text-xs ${actionFilters.length===0?'bg-primary text-white':''}`} style={actionFilters.length!==0?{background:'var(--bg-secondary)'}:{}}>Toutes</button>
-                            {actions.map(a=>(
-                                <button key={a.id} onClick={()=>{
-                                    if(viewMode==='action')setSelectedAction(a.id===selectedAction?null:a.id);
-                                    const idx=actionFilters.indexOf(a.id);
-                                    if(idx>=0)setActionFilters(actionFilters.filter(id=>id!==a.id));
-                                    else setActionFilters([...actionFilters,a.id]);
-                                }} className={`px-3 py-1.5 rounded-full text-xs truncate max-w-[160px] ${(viewMode==='action'&&selectedAction===a.id)||((viewMode==='month'||viewMode==='quarter')&&actionFilters.includes(a.id))?'bg-secondary text-white':''}`} style={!((viewMode==='action'&&selectedAction===a.id)||((viewMode==='month'||viewMode==='quarter')&&actionFilters.includes(a.id)))?{background:'var(--bg-secondary)'}:{}} title={a.name}>
-                                    {a.name.length>20?a.name.substring(0,20)+'...':a.name}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                <div className="kanban-toolbar-right">
+                    {viewMode!=='category'&&<><span className="toolbar-label">Tri:</span>
+                    <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="toolbar-select">
+                        <option value="order">Manuel</option>
+                        <option value="name">Nom A→Z</option>
+                        <option value="created">Date création</option>
+                        <option value="date">Date début</option>
+                        <option value="deadline">Deadline</option>
+                        <option value="priority">Priorité</option>
+                    </select></>}
+                </div>
             </div>
-            <div className="overflow-x-auto pb-4">
-                <div className="flex gap-4" style={{minWidth:viewMode==='month'?'2800px':viewMode==='quarter'?'1200px':'1200px'}}>
+            <div className="kanban-board" style={{minWidth:viewMode==='month'?'2800px':viewMode==='quarter'?'1200px':'auto'}}>
                     {getColumns().map(col=>(
                         <div
                             key={col.key}
@@ -1112,14 +1200,20 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     }
                                 }
                             }}
-                            className={`kanban-column flex-shrink-0 ${viewMode==='category'?'w-80':'w-64'} rounded-xl p-3 min-h-[200px]`} style={{background:'var(--bg-secondary)'}}>
-                            <div className="mb-3">
-                                {col.gradient&&<div className={`h-1 rounded-full bg-gradient-to-r ${col.gradient} mb-2`}/>}
-                                <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{col.icon&&<span className="mr-1">{col.icon}</span>}{col.name}</h3><span className="px-2 py-0.5 rounded-full text-xs" style={{background:'var(--bg-tertiary)'}}>{col.items.length}</span></div>
+                            className="kanban-column" >
+                            <div className="column-header">
+                                <div className="column-title">
+                                    {col.color&&<div className={`column-icon ${col.key}`}>{col.icon}</div>}
+                                    {col.gradient&&<div className="column-icon" style={{background:`linear-gradient(135deg, var(--accent), #8b5cf6)`,color:'white',fontSize:'10px'}}>●</div>}
+                                    {!col.color&&!col.gradient&&<div className="column-icon todo">{col.icon||'📅'}</div>}
+                                    <span className="column-name">{col.name}</span>
+                                    <span className="column-count">{col.items.length}</span>
+                                </div>
+                                <button className="column-menu" onClick={(e)=>e.stopPropagation()}>⋮</button>
                             </div>
-                            <div className="space-y-3">
+                            <div className="kanban-cards">
                                 {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories} allCountries={allCountries}/>)}
-                                {col.items.length===0&&<div className="text-center py-8 border-2 border-dashed rounded-lg" style={{borderColor:'var(--border)'}}><p className="text-xs" style={{color:'var(--text-muted)'}}>Aucune tâche</p></div>}
+                                {col.items.length===0&&<div className="column-empty">Aucune tâche</div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
                                         const monthIdx=col.key;
@@ -1139,9 +1233,8 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         onAddTask(newTask);
                                         setTimeout(()=>onOpenTask(newTask),100);
                                     }
-                                }} className="w-full mt-3 px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-1 transition-colors" style={{background:'var(--bg-secondary)',color:'var(--text-muted)'}}>
-                                    <Icon.Plus size={16}/>
-                                    <span>Ajouter une carte</span>
+                                }} className="add-card-btn">
+                                    + Ajouter
                                 </button>
                             </div>
                         </div>
@@ -2363,25 +2456,24 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
     return(
         <div className="animate-slide-in">
-            <div className="v11-card" style={{padding:'var(--space-4)',marginBottom:'var(--space-4)',cursor:'default'}}>
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                            <span className="text-sm" style={{color:'var(--text-muted)'}}>Zoom:</span>
-                            <div className="flex rounded-lg overflow-hidden" style={{border:'1px solid var(--border)'}}>
-                                {[{id:'day',label:'Jour'},{id:'week',label:'Semaine'},{id:'month',label:'Mois'},{id:'quarter',label:'Trimestre'}].map(z=>(
-                                    <button key={z.id} onClick={()=>handleZoomChange(z.id)} className={`px-3 py-1.5 text-sm ${zoom===z.id?'bg-primary text-white':''}`} style={zoom!==z.id?{color:'var(--text-secondary)'}:{}}>{z.label}</button>
-                                ))}
-                            </div>
+            <div className="timeline-container">
+                <div className="timeline-header">
+                    <div className="timeline-header-left">
+                        <div className="view-btn-group">
+                            {[{id:'week',label:'Semaine'},{id:'month',label:'Mois'},{id:'quarter',label:'Trimestre'}].map(z=>(
+                                <button key={z.id} onClick={()=>handleZoomChange(z.id)} className={`view-btn ${zoom===z.id?'active':''}`}>{z.label}</button>
+                            ))}
                         </div>
-                        <div className="flex items-center space-x-1">
-                            {[1,2,3,4].map(q=>(<button key={q} onClick={()=>scrollToQuarter(q)} className="px-3 py-1.5 text-sm rounded" style={{background:'var(--bg-secondary)'}}>Q{q}</button>))}
+                        <div className="quarter-nav-group">
+                            {[1,2,3,4].map(q=>(<button key={q} onClick={()=>scrollToQuarter(q)} className="quarter-btn">Q{q}</button>))}
                         </div>
                     </div>
-                    <div className="flex items-center space-x-2 text-sm" style={{color:'var(--text-muted)'}}><Icon.Hand/><span>Espace+Clic pour naviguer</span></div>
+                    <div className="timeline-nav">
+                        <button className="timeline-nav-btn" onClick={()=>scrollToQuarter(Math.max(1,Math.ceil((new Date().getMonth()+1)/3)-1))}>◀</button>
+                        <span className="timeline-current">2026</span>
+                        <button className="timeline-nav-btn" onClick={()=>scrollToQuarter(Math.min(4,Math.ceil((new Date().getMonth()+1)/3)+1))}>▶</button>
+                    </div>
                 </div>
-            </div>
-            <div className="v11-timeline-container">
                 <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
                     <div style={{minWidth:`${headers.length*colWidth+250}px`}}>
                         {(zoom==='week'||zoom==='day')&&monthHeaders&&(
@@ -2469,8 +2561,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                     </div>
                 </div>
             </div>
-            <div className={`mt-4 bg-[var(--bg-primary)] rounded-xl p-4 border border-[var(--border)]`}>
-                <p className="text-sm text-[var(--text-muted)] mb-2">Légende:</p>
+            <div style={{marginTop:16,background:'var(--bg-primary)',borderRadius:'var(--radius-lg)',padding:16,border:'1px solid var(--border)'}}>
+                <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:8}}>Légende:</p>
                 <div className="flex flex-wrap gap-4">{CONFIG.STATUSES.map(s=><div key={s.id} className="flex items-center space-x-2"><div className="w-4 h-4 rounded" style={{backgroundColor:s.color}}/><span className="text-sm">{s.icon} {s.name}</span></div>)}</div>
             </div>
         </div>
@@ -2557,27 +2649,42 @@ const DashboardView=({categories,actions,tasks})=>{
     );
 };
 
-// FILTER BAR
-const FilterBar=({filters,setFilters,actions,categories,allCountries})=>{
-    const[showFilters,setShowFilters]=useState(false);
-    const activeCount=Object.values(filters).filter(v=>Array.isArray(v)?v.length>0:v).length;
-
+// FILTER SIDEBAR
+const FilterSidebar=({show,onClose,filters,setFilters,categories,allCountries})=>{
     return(
-        <div className="v11-card" style={{padding:'var(--space-4)',marginBottom:'var(--space-4)',cursor:'default'}}>
-            <div className="flex flex-wrap items-center gap-3">
-                <div className="flex-1 min-w-[200px]"><input type="text" placeholder="Rechercher..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className="v11-input"/></div>
-                <button onClick={()=>setShowFilters(!showFilters)} className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${showFilters||activeCount>0?'bg-secondary text-white border-secondary':''}`} style={!(showFilters||activeCount>0)?{borderColor:'var(--border)'}:{}}><Icon.Filter/><span>Filtres</span>{activeCount>0&&<span className="bg-[var(--bg-primary)] text-secondary px-2 py-0.5 rounded-full text-xs font-bold">{activeCount}</span>}</button>
-                {activeCount>0&&<button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],action:[],channel:[],country:[]})} className="text-accent-red text-sm">Effacer</button>}
+        <div className={`filter-sidebar ${show?'open':''}`}>
+            <div className="sidebar-header">
+                <span className="sidebar-title">Filtres</span>
+                <button className="sidebar-close" onClick={onClose}><Icon.Close/></button>
             </div>
-            {showFilters&&(
-                <div className="mt-4 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-slide-in" style={{borderTop:'1px solid var(--border)'}}>
-                    <div><label className="v11-label">Statut</label><div className="flex flex-wrap gap-1">{CONFIG.STATUSES.map(s=>(<button key={s.id} onClick={()=>{const n=filters.status.includes(s.id)?filters.status.filter(x=>x!==s.id):[...filters.status,s.id];setFilters({...filters,status:n});}} className={`px-2 py-1 rounded text-xs ${filters.status.includes(s.id)?'text-white':''}`} style={!filters.status.includes(s.id)?{background:'var(--bg-secondary)'}:{}} style={filters.status.includes(s.id)?{backgroundColor:s.color}:{}}>{s.icon}</button>))}</div></div>
-                    <div><label className="v11-label">Catégorie</label><div className="flex flex-wrap gap-1">{categories.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`px-2 py-1 rounded text-xs ${filters.category.includes(c.id)?'text-white bg-gradient-to-r '+c.gradient:''}`} style={!filters.category.includes(c.id)?{background:'var(--bg-secondary)'}:{}}>{c.name.split(' ')[0]}</button>))}</div></div>
-                    <div><label className="v11-label">Priorité</label><div className="flex gap-1">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`px-2 py-1 rounded text-xs ${filters.priority.includes(p.id)?'text-white':''}`} style={!filters.priority.includes(p.id)?{background:'var(--bg-secondary)'}:{}} style={filters.priority.includes(p.id)?{backgroundColor:p.color}:{}}>{p.icon}</button>))}</div></div>
-                    <div className="sm:col-span-3"><label className="v11-label">Canal</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,channel:[]})} className={`px-2 py-1 rounded text-xs ${!filters.channel||filters.channel.length===0?'bg-primary text-white':''}`} style={filters.channel&&filters.channel.length>0?{background:'var(--bg-secondary)'}:{}}>Tous</button>{CONFIG.CHANNELS.map(ch=>(<button key={ch.id} onClick={()=>{const n=filters.channel?.includes(ch.id)?filters.channel.filter(x=>x!==ch.id):[...(filters.channel||[]),ch.id];setFilters({...filters,channel:n});}} className={`px-2 py-1 rounded text-xs ${filters.channel?.includes(ch.id)?'text-white':''}`} style={!filters.channel?.includes(ch.id)?{background:'var(--bg-secondary)'}:{}} style={filters.channel?.includes(ch.id)?{backgroundColor:ch.color}:{}}>{ch.name}</button>))}</div></div>
-                    <div className="sm:col-span-3"><label className="v11-label">Pays</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,country:[]})} className={`px-2 py-1 rounded text-xs ${!filters.country||filters.country.length===0?'bg-primary text-white':''}`} style={filters.country&&filters.country.length>0?{background:'var(--bg-secondary)'}:{}}>Tous</button>{allCountries.map(co=>(<button key={co.id} onClick={()=>{const n=filters.country?.includes(co.id)?filters.country.filter(x=>x!==co.id):[...(filters.country||[]),co.id];setFilters({...filters,country:n});}} className={`px-2 py-1 rounded text-xs ${filters.country?.includes(co.id)?'text-white':''}`} style={!filters.country?.includes(co.id)?{background:'var(--bg-secondary)'}:{}} style={filters.country?.includes(co.id)?{backgroundColor:co.color}:{}}>{co.flag} {co.name}</button>))}</div></div>
-                </div>
-            )}
+            <div className="filter-section">
+                <div className="filter-section-title">Recherche</div>
+                <input type="text" placeholder="Rechercher..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className="v11-input"/>
+            </div>
+            <div className="filter-section">
+                <div className="filter-section-title">Statut</div>
+                <div className="filter-options">{CONFIG.STATUSES.map(s=>(<button key={s.id} onClick={()=>{const n=filters.status.includes(s.id)?filters.status.filter(x=>x!==s.id):[...filters.status,s.id];setFilters({...filters,status:n});}} className={`filter-option ${filters.status.includes(s.id)?'selected':''}`}>{s.icon} {s.name}</button>))}</div>
+            </div>
+            <div className="filter-section">
+                <div className="filter-section-title">Catégorie</div>
+                <div className="filter-options">{categories.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`filter-option ${filters.category.includes(c.id)?'selected':''}`}>{c.name}</button>))}</div>
+            </div>
+            <div className="filter-section">
+                <div className="filter-section-title">Priorité</div>
+                <div className="filter-options">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`filter-option ${filters.priority.includes(p.id)?'selected':''}`}>{p.icon} {p.name}</button>))}</div>
+            </div>
+            <div className="filter-section">
+                <div className="filter-section-title">Canal</div>
+                <div className="filter-options">{CONFIG.CHANNELS.map(ch=>(<button key={ch.id} onClick={()=>{const n=(filters.channel||[]).includes(ch.id)?(filters.channel||[]).filter(x=>x!==ch.id):[...(filters.channel||[]),ch.id];setFilters({...filters,channel:n});}} className={`filter-option ${(filters.channel||[]).includes(ch.id)?'selected':''}`}>{ch.name}</button>))}</div>
+            </div>
+            <div className="filter-section">
+                <div className="filter-section-title">Pays</div>
+                <div className="filter-options">{allCountries.map(co=>(<button key={co.id} onClick={()=>{const n=(filters.country||[]).includes(co.id)?(filters.country||[]).filter(x=>x!==co.id):[...(filters.country||[]),co.id];setFilters({...filters,country:n});}} className={`filter-option ${(filters.country||[]).includes(co.id)?'selected':''}`}>{co.flag} {co.name}</button>))}</div>
+            </div>
+            <div className="sidebar-footer">
+                <button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})} className="v11-btn-secondary" style={{flex:1}}>Réinitialiser</button>
+                <button onClick={onClose} className="v11-btn-primary" style={{flex:1}}>Appliquer</button>
+            </div>
         </div>
     );
 };
@@ -2599,6 +2706,9 @@ const App=()=>{
     const[showCategoriesModal,setShowCategoriesModal]=useState(false);
     const[showNewActionModal,setShowNewActionModal]=useState(false);
     const[showNewTaskModal,setShowNewTaskModal]=useState(false);
+    const[showCreateDropdown,setShowCreateDropdown]=useState(false);
+    const[showExportDropdown,setShowExportDropdown]=useState(false);
+    const[showFilterSidebar,setShowFilterSidebar]=useState(false);
     const[dataLoaded,setDataLoaded]=useState(false);
     const[fileSha,setFileSha]=useState(()=>{
         // CRITICAL FIX: Restore SHA from localStorage on init
@@ -2691,6 +2801,8 @@ const App=()=>{
                 if(selectedTask)setSelectedTask(null);
                 else if(selectedAction)setSelectedAction(null);
                 else if(showCategoriesModal)setShowCategoriesModal(false);
+                else if(showCreateDropdown)setShowCreateDropdown(false);
+                else if(showFilterSidebar)setShowFilterSidebar(false);
                 else if(showNewActionModal)setShowNewActionModal(false);
                 else if(showNewTaskModal)setShowNewTaskModal(false);
             }
@@ -3386,6 +3498,15 @@ const App=()=>{
 
     const totalBudget=tasks.reduce((s,t)=>s+(t.budget||0),0);
     const completedCount=tasks.filter(t=>t.status==='completed').length;
+    const activeFilterCount=[filters.status,filters.category,filters.priority,filters.channel,filters.country].reduce((c,arr)=>c+(Array.isArray(arr)?arr.length:0),0)+(filters.search?1:0);
+
+    // Close dropdowns on outside click
+    useEffect(()=>{
+        if(!showCreateDropdown&&!showExportDropdown)return;
+        const handleClick=()=>{setShowCreateDropdown(false);setShowExportDropdown(false);};
+        setTimeout(()=>document.addEventListener('click',handleClick),0);
+        return()=>document.removeEventListener('click',handleClick);
+    },[showCreateDropdown,showExportDropdown]);
 
     if(!dataLoaded)return(<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Chargement des données...</p></div></div>);
 
@@ -3394,40 +3515,57 @@ const App=()=>{
             <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
-                    <div className="flex flex-wrap items-center justify-between gap-3" style={{marginBottom:'var(--space-3)'}}>
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-3" style={{fontSize:12,color:'var(--text-muted)'}}>
-                                <span><strong style={{color:'var(--text-primary)'}}>{tasks.length}</strong> tâches</span>
-                                <span><strong style={{color:'var(--text-primary)'}}>{(totalBudget/1000).toFixed(0)}k€</strong> budget</span>
-                            </div>
+                    <div className="toolbar">
+                        <button className={`filter-btn ${showFilterSidebar?'active':''}`} onClick={()=>setShowFilterSidebar(!showFilterSidebar)}>
+                            <Icon.Filter/>Filtres
+                            {activeFilterCount>0&&<span className="filter-count">{activeFilterCount}</span>}
+                        </button>
+                        <div className="stats-pills">
+                            <span className="stat-pill"><strong>{tasks.length}</strong> tâches</span>
+                            <span className="stat-pill"><strong>{(totalBudget/1000).toFixed(0)}k€</strong> budget</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <div className="relative group">
-                                <button className="v11-btn-secondary"><Icon.Download size={13}/><span className="hidden sm:inline">Export</span></button>
-                                <div className="absolute right-0 mt-1 w-40 rounded-lg shadow-lg hidden group-hover:block z-50" style={{borderColor:'var(--border)'}}>
-                                    <button onClick={exportToJSON} className="w-full px-4 py-2 text-left text-sm rounded-t-lg" style={{color:'var(--text-secondary)'}}>Export JSON</button>
-                                    <button onClick={exportToCSV} className="w-full px-4 py-2 text-left text-sm rounded-b-lg" style={{color:'var(--text-secondary)'}}>Export CSV</button>
-                                </div>
-                            </div>
-                            <button onClick={()=>setShowCategoriesModal(true)} className="v11-btn-secondary"><Icon.Folder size={13}/><span className="hidden sm:inline">Catégories</span></button>
-                            <button onClick={()=>setShowNewActionModal(true)} className="v11-btn-secondary"><Icon.List size={13}/><span className="hidden sm:inline">Nouvelle action</span></button>
-                            <button onClick={handleCreateNewTask} className="v11-btn-primary"><Icon.Plus size={13}/><span>Créer</span></button>
+                        <div className="toolbar-spacer"/>
+                        <div className="new-btn-container">
+                            <button className="v11-btn-secondary" onClick={()=>setShowExportDropdown(!showExportDropdown)}><Icon.Download size={13}/><span>Export</span></button>
+                            {showExportDropdown&&<div className="dropdown-menu open" style={{minWidth:160}} onClick={()=>setShowExportDropdown(false)}>
+                                <button onClick={exportToJSON} className="dropdown-item">Export JSON</button>
+                                <button onClick={exportToCSV} className="dropdown-item">Export CSV</button>
+                            </div>}
+                        </div>
+                        <div className="new-btn-container">
+                            <button className={`v11-btn-primary ${showCreateDropdown?'open':''}`} onClick={()=>setShowCreateDropdown(!showCreateDropdown)}>
+                                <Icon.Plus size={13}/>Créer
+                                <svg className="chevron" width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
+                            </button>
+                            {showCreateDropdown&&<div className="dropdown-menu open" onClick={()=>setShowCreateDropdown(false)}>
+                                <button className="dropdown-item default" onClick={handleCreateNewTask}>
+                                    <div className="dropdown-item-icon task"><Icon.Check/></div>
+                                    <div className="dropdown-item-content"><div className="dropdown-item-title">Nouvelle tâche</div><div className="dropdown-item-desc">Ajouter une tâche à une action</div></div>
+                                    <span className="dropdown-item-shortcut">N</span>
+                                </button>
+                                <button className="dropdown-item" onClick={()=>setShowNewActionModal(true)}>
+                                    <div className="dropdown-item-icon action"><Icon.List/></div>
+                                    <div className="dropdown-item-content"><div className="dropdown-item-title">Nouvelle action</div><div className="dropdown-item-desc">Créer un groupe de tâches</div></div>
+                                    <span className="dropdown-item-shortcut">⇧N</span>
+                                </button>
+                                <div className="dropdown-divider"/>
+                                <button className="dropdown-item" onClick={()=>setShowCategoriesModal(true)}>
+                                    <div className="dropdown-item-icon category"><Icon.Folder/></div>
+                                    <div className="dropdown-item-content"><div className="dropdown-item-title">Gérer les catégories</div><div className="dropdown-item-desc">Créer ou réorganiser les groupes</div></div>
+                                </button>
+                            </div>}
                         </div>
                     </div>
-                    <FilterBar filters={filters} setFilters={setFilters} actions={actions} categories={categories} allCountries={allCountries}/>
-                    {(filters.search||filters.status.length>0||filters.category.length>0||filters.priority.length>0||filters.channel.length>0||filters.country.length>0)&&(
-                        <div className="mb-4 px-4 py-2 rounded-lg flex items-center justify-between" style={{background:'var(--accent-light)',border:'1px solid var(--accent)',borderRadius:'var(--radius-md)'}}>
-                            <span className="text-sm" style={{color:'var(--accent)'}}>Filtres actifs — {tasks.filter(t=>{
-                                const action=actions.find(a=>a.id===t.actionId);
-                                if(filters.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
-                                if(filters.status.length>0&&!filters.status.includes(t.status))return false;
-                                if(filters.priority.length>0&&!filters.priority.includes(t.priority))return false;
-                                if(filters.category.length>0&&action&&!filters.category.includes(action.categoryId))return false;
-                                if(filters.channel.length>0){const taskChannels=t.channels||action?.tags||[];if(!filters.channel.some(c=>taskChannels.includes(c)))return false;}
-                                if(filters.country.length>0){const taskCountries=t.countries||[];if(!filters.country.some(c=>taskCountries.includes(c)))return false;}
-                                return true;
-                            }).length} tâches trouvées</span>
-                            <button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})} className="text-xs text-secondary hover:underline">Effacer filtres</button>
+                    {activeFilterCount>0&&(
+                        <div className="active-filters">
+                            <span className="active-filters-label">Filtres:</span>
+                            {filters.search&&<div className="filter-chip">"{filters.search}"<button onClick={()=>setFilters({...filters,search:''})}>✕</button></div>}
+                            {filters.status.map(s=>{const st=CONFIG.STATUSES.find(x=>x.id===s);return <div key={s} className="filter-chip">{st?.icon} {st?.name}<button onClick={()=>setFilters({...filters,status:filters.status.filter(x=>x!==s)})}>✕</button></div>;})}
+                            {filters.category.map(c=>{const cat=categories.find(x=>x.id===c);return <div key={c} className="filter-chip">{cat?.name}<button onClick={()=>setFilters({...filters,category:filters.category.filter(x=>x!==c)})}>✕</button></div>;})}
+                            {filters.priority.map(p=>{const pr=CONFIG.PRIORITIES.find(x=>x.id===p);return <div key={p} className="filter-chip">{pr?.icon} {pr?.name}<button onClick={()=>setFilters({...filters,priority:filters.priority.filter(x=>x!==p)})}>✕</button></div>;})}
+                            {(filters.channel||[]).map(c=>{const ch=CONFIG.CHANNELS.find(x=>x.id===c);return <div key={c} className="filter-chip">{ch?.name}<button onClick={()=>setFilters({...filters,channel:filters.channel.filter(x=>x!==c)})}>✕</button></div>;})}
+                            {(filters.country||[]).map(c=>{const co=allCountries.find(x=>x.id===c);return <div key={c} className="filter-chip">{co?.flag} {co?.name}<button onClick={()=>setFilters({...filters,country:filters.country.filter(x=>x!==c)})}>✕</button></div>;})}
+                            <span className="clear-filters" onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})}>Tout effacer</span>
                         </div>
                     )}
                     {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries}/>}
@@ -3440,6 +3578,7 @@ const App=()=>{
                 {showCategoriesModal&&<CategoriesManagementModal categories={categories} onClose={()=>setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories} />}
                 {showNewActionModal&&<NewActionModal categories={categories} onClose={()=>setShowNewActionModal(false)} onAdd={handleAddAction}/>}
                 {showNewTaskModal&&<NewTaskModal actions={actions} categories={categories} onClose={()=>setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={()=>{setShowNewTaskModal(false);setShowNewActionModal(true);}}/>}
+                <FilterSidebar show={showFilterSidebar} onClose={()=>setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries}/>
                 {notification&&<div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
             </div>
         </AppContext.Provider>
