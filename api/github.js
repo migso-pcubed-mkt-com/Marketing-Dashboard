@@ -25,8 +25,8 @@ export default async function handler(req, res) {
 
     // Configuration GitHub (à synchroniser avec votre frontend)
     const GITHUB_CONFIG = {
-        owner: 'FbnCrr',
-        repo: 'Dashboard-marketing',
+        owner: 'migso-pcubed-mkt-com',
+        repo: 'Marketing-Dashboard',
         branch: 'main',
         path: 'data.json'
     };

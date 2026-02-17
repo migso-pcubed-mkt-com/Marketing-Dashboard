@@ -35,7 +35,7 @@ Ouvrez : **https://github.com/settings/tokens?type=beta**
    - **Token name**: `Marketing Tracker Vercel`
    - **Expiration**: `No expiration` (ou 90 days)
    - **Repository access**: `Only select repositories`
-   - Sélectionnez : `FbnCrr/Dashboard-marketing`
+   - Sélectionnez : `migso-pcubed-mkt-com/Marketing-Dashboard`
 
 ### 1.3 Configurer les permissions
 
@@ -57,7 +57,7 @@ Dans **"Repository permissions"** :
 
 1. Allez sur **https://vercel.com/dashboard**
 2. Cliquez **"Add New..."** → **"Project"**
-3. Trouvez et sélectionnez **`Dashboard-marketing`**
+3. Trouvez et sélectionnez **`Marketing-Dashboard`**
 4. Cliquez **"Import"**
 
 ### 2.2 Configuration du projet
@@ -142,7 +142,7 @@ Par défaut, Vercel déploie automatiquement à chaque push sur `main`.
 
 Pour changer la branche :
 1. Settings → **Git** → **Production Branch**
-2. Changez pour `claude/marketing-tracker-v2.2-R2gHZ` si besoin
+2. Changez pour la branche de votre choix si besoin
 
 ---
 
