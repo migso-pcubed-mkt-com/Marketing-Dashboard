@@ -14,7 +14,6 @@
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:var(--font-sans);background:var(--bg-page);color:var(--text-primary);line-height:1.5;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
         body.light{background:var(--bg-page);color:var(--text-primary)}
-        body.dark{background:#18181b;color:#f0f0f5}
         ::-webkit-scrollbar{width:6px;height:6px}
         ::-webkit-scrollbar-thumb{background:#888;border-radius:3px}
         @keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
@@ -72,6 +71,63 @@
             .card-hover:active{transform:scale(0.98)}
             .timeline-bar{padding:0 35px!important}
         }
+        /* ===== V11 DESIGN SYSTEM ===== */
+        .v11-header{background:var(--bg-primary);border-bottom:1px solid var(--border);padding:0 var(--space-6);position:sticky;top:0;z-index:100;height:var(--header-height)}
+        .v11-header-inner{max-width:1600px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:100%;gap:var(--space-4)}
+        .v11-logo{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#8b5cf6);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px}
+        .v11-view-tabs{display:flex;background:var(--bg-secondary);padding:3px;border-radius:var(--radius-md);gap:2px}
+        .v11-view-tab{padding:6px 14px;border-radius:var(--radius-sm);font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:6px;border:none;background:transparent}
+        .v11-view-tab:hover{color:var(--text-primary)}
+        .v11-view-tab.active{background:var(--bg-primary);color:var(--text-primary);box-shadow:var(--shadow-sm)}
+        .v11-icon-btn{width:34px;height:34px;border-radius:var(--radius-sm);border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:var(--transition)}
+        .v11-icon-btn:hover{background:var(--bg-secondary);color:var(--text-primary)}
+        .v11-btn-primary{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:none;border-radius:var(--radius-md);background:var(--accent);color:white;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;transition:var(--transition)}
+        .v11-btn-primary:hover{background:var(--accent-hover)}
+        .v11-btn-secondary{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-secondary);font-size:12px;font-weight:500;font-family:inherit;cursor:pointer;transition:var(--transition)}
+        .v11-btn-secondary:hover{border-color:var(--border-strong);background:var(--bg-secondary)}
+        .v11-card{background:var(--bg-primary);border-radius:var(--radius-md);padding:var(--space-3);cursor:pointer;transition:var(--transition);border:1px solid var(--border-light)}
+        .v11-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);border-color:var(--border)}
+        .v11-card-tag{padding:3px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.2px}
+        .v11-card-tag.social{background:#dbeafe;color:#1d4ed8}
+        .v11-card-tag.gads{background:#fef3c7;color:#b45309}
+        .v11-card-tag.lads{background:#e0e7ff;color:#4338ca}
+        .v11-card-tag.events{background:#fce7f3;color:#be185d}
+        .v11-card-tag.seo{background:#dcfce7;color:#166534}
+        .v11-card-tag.press{background:#f3e8ff;color:#7c3aed}
+        .v11-card-tag.email{background:#fef3c7;color:#b45309}
+        .v11-card-tag.web{background:#e0e7ff;color:#4338ca}
+        .v11-card-tag.video{background:#fee2e2;color:#dc2626}
+        .v11-card-tag.lp{background:#ccfbf1;color:#0d9488}
+        .v11-card-tag.ia{background:#f3e8ff;color:#7c3aed}
+        .v11-card-tag.auto{background:#ffedd5;color:#ea580c}
+        .v11-card-tag.other{background:#f4f4f5;color:#52525b}
+        .v11-kanban-wrapper{background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+        .v11-kanban-column{min-width:var(--kanban-column-width);max-width:var(--kanban-column-width);background:var(--bg-secondary);border-radius:var(--radius-lg);padding:var(--space-3);flex-shrink:0;display:flex;flex-direction:column}
+        .v11-timeline-container{background:var(--bg-primary);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden}
+        .v11-filter-chip{display:flex;align-items:center;gap:5px;padding:4px 6px 4px 8px;background:var(--accent-light);color:var(--accent);border-radius:100px;font-size:11px;font-weight:500}
+        .v11-view-btn-group{display:flex;background:var(--bg-primary);padding:3px;border-radius:var(--radius-sm);gap:2px;box-shadow:var(--shadow-sm)}
+        .v11-view-btn{padding:6px 12px;border:none;border-radius:4px;background:transparent;font-size:11px;font-weight:500;cursor:pointer;transition:var(--transition);color:var(--text-secondary);font-family:inherit}
+        .v11-view-btn:hover{color:var(--text-primary);background:var(--bg-secondary)}
+        .v11-view-btn.active{background:var(--accent);color:white}
+        .v11-toolbar-select{padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:11px;font-family:inherit;background:var(--bg-primary);color:var(--text-secondary);cursor:pointer}
+        .v11-progress-bar{height:6px;background:var(--bg-secondary);border-radius:3px;overflow:hidden;margin-bottom:6px}
+        .v11-progress-fill{height:100%;border-radius:3px;transition:var(--transition)}
+        .v11-progress-fill.low{background:linear-gradient(90deg,#fca5a5,#ef4444)}
+        .v11-progress-fill.medium{background:linear-gradient(90deg,#fcd34d,#f59e0b)}
+        .v11-progress-fill.high{background:linear-gradient(90deg,#86efac,#22c55e)}
+        .v11-modal-overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px)}
+        .v11-modal{background:var(--bg-primary);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:100%;overflow:hidden}
+        .v11-modal-header{padding:var(--space-4) var(--space-5);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+        .v11-modal-body{padding:var(--space-5);max-height:70vh;overflow-y:auto}
+        .v11-modal-footer{padding:var(--space-4) var(--space-5);border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:var(--space-2)}
+        .v11-input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:var(--bg-primary);color:var(--text-primary);transition:var(--transition)}
+        .v11-input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-light)}
+        .v11-select{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;background:var(--bg-primary);color:var(--text-primary);cursor:pointer}
+        .v11-label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px}
+        *:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+        @media(max-width:1200px){.content-area{padding:var(--space-3) var(--space-4)}.v11-kanban-column{min-width:260px;max-width:260px}:root{--sidebar-width:180px}}
+        @media(max-width:768px){.v11-view-tabs{display:none}.stats-pills{display:none}:root{--sidebar-width:150px}}
+        @media(max-width:480px){.v11-btn-secondary span{display:none}}
     </style>
     <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#6366f1',secondary:'#6366f1','accent-green':'#22c55e','accent-red':'#ef4444','accent-yellow':'#f59e0b',accent:{DEFAULT:'#6366f1',light:'#eef2ff',hover:'#4f46e5',green:'#22c55e',red:'#ef4444',yellow:'#f59e0b'}},borderColor:{DEFAULT:'#e4e4e7'},fontFamily:{sans:['DM Sans','-apple-system','BlinkMacSystemFont','sans-serif'],mono:['JetBrains Mono','monospace']}}}}</script>
 </head>
@@ -263,7 +319,7 @@ const Icon={
 // Plus besoin de modal de configuration pour un usage multi-device transparent
 
 // CATEGORIES MANAGEMENT MODAL
-const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onReorder,darkMode})=>{
+const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onReorder})=>{
     const[editingId,setEditingId]=useState(null);
     const[form,setForm]=useState({});
     const[isAdding,setIsAdding]=useState(false);
@@ -351,39 +407,39 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
 
     return(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
-            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up`} onClick={e=>e.stopPropagation()}>
-                <div className="bg-gradient-to-r from-primary to-secondary h-2 rounded-t-2xl"/>
+            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up`} onClick={e=>e.stopPropagation()}>
+                <div style="height:3px;background:var(--accent);borderRadius:var(--radius-lg) var(--radius-lg) 0 0"/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold">📂 Gestion des Catégories</h2>
-                        <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
+                        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><Icon.Close/></button>
                     </div>
                     <div className="space-y-3 mb-4">
                         {categories.map((cat,index)=>(
-                            <div key={cat.id} data-category-index={index} draggable={editingId!==cat.id} onDragStart={()=>handleDragStart(index)} onDragOver={(e)=>handleDragOver(e,index)} onDragEnd={handleDragEnd} onTouchStart={(e)=>handleTouchStart(e,index)} onTouchMove={(e)=>handleTouchMove(e,index)} onTouchEnd={handleTouchEnd} className={`p-4 rounded-lg border ${darkMode?'border-gray-700 bg-gray-800':'border-gray-200 bg-gray-50'} ${draggedIndex===index?'opacity-50':''} ${editingId===cat.id?'':'cursor-move touch-none'}`}>
+                            <div key={cat.id} data-category-index={index} draggable={editingId!==cat.id} onDragStart={()=>handleDragStart(index)} onDragOver={(e)=>handleDragOver(e,index)} onDragEnd={handleDragEnd} onTouchStart={(e)=>handleTouchStart(e,index)} onTouchMove={(e)=>handleTouchMove(e,index)} onTouchEnd={handleTouchEnd} className={`p-4 rounded-lg border border-gray-200 bg-gray-50 ${draggedIndex===index?'opacity-50':''} ${editingId===cat.id?'':'cursor-move touch-none'}`}>
                                 {editingId===cat.id?(
                                     <div className="space-y-3">
-                                        <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className={`w-full px-3 py-2 rounded-lg border ${darkMode?'bg-gray-700 border-gray-600':'bg-white border-gray-300'}`}/>
+                                        <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className={`w-full px-3 py-2 rounded-lg border bg-white border-gray-300`}/>
                                         <div><label className="block text-xs text-gray-500 mb-2">Gradient:</label><div className="flex gap-2">{gradientPresets.map(g=>(<button key={g.name} onClick={()=>setForm({...form,gradient:g.gradient})} className={`flex-1 h-8 rounded-lg bg-gradient-to-r ${g.gradient} ${form.gradient===g.gradient?'ring-2 ring-secondary':''}`}/>))}</div></div>
-                                        <div className="flex gap-2"><button onClick={saveEdit} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Sauvegarder</button><button onClick={cancelEdit} className={`px-4 py-2 rounded-lg text-sm ${darkMode?'hover:bg-gray-700':'hover:bg-gray-200'}`}>Annuler</button></div>
+                                        <div className="flex gap-2"><button onClick={saveEdit} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Sauvegarder</button><button onClick={cancelEdit} className={`px-4 py-2 rounded-lg text-sm hover:bg-gray-200`}>Annuler</button></div>
                                     </div>
                                 ):(
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center space-x-3"><div className="cursor-move text-gray-400" title="Glisser pour réorganiser">⋮⋮</div><div className={`w-12 h-8 rounded-lg bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium">{cat.name}</span></div>
-                                        <div className="flex gap-2"><button onClick={()=>startEdit(cat)} className="px-3 py-1 text-sm text-secondary hover:bg-secondary/10 rounded-lg">Modifier</button><button onClick={()=>onDelete(cat.id)} className="px-3 py-1 text-sm text-accent-red hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">Supprimer</button></div>
+                                        <div className="flex gap-2"><button onClick={()=>startEdit(cat)} className="px-3 py-1 text-sm text-secondary hover:bg-secondary/10 rounded-lg">Modifier</button><button onClick={()=>onDelete(cat.id)} className="px-3 py-1 text-sm text-accent-red hover:bg-red-50 rounded-lg">Supprimer</button></div>
                                     </div>
                                 )}
                             </div>
                         ))}
                     </div>
                     {isAdding?(
-                        <div className={`p-4 rounded-lg border-2 border-dashed ${darkMode?'border-gray-600':'border-gray-300'} space-y-3`}>
-                            <input type="text" value={newCategory.name} onChange={e=>setNewCategory({...newCategory,name:e.target.value})} placeholder="Nom de la catégorie" className={`w-full px-3 py-2 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/>
+                        <div className={`p-4 rounded-lg border-2 border-dashed border-gray-300 space-y-3`}>
+                            <input type="text" value={newCategory.name} onChange={e=>setNewCategory({...newCategory,name:e.target.value})} placeholder="Nom de la catégorie" className={`w-full px-3 py-2 rounded-lg border bg-gray-50 border-gray-200`}/>
                             <div><label className="block text-xs text-gray-500 mb-2">Gradient:</label><div className="flex gap-2">{gradientPresets.map(g=>(<button key={g.name} onClick={()=>setNewCategory({...newCategory,gradient:g.gradient})} className={`flex-1 h-8 rounded-lg bg-gradient-to-r ${g.gradient} ${newCategory.gradient===g.gradient?'ring-2 ring-secondary':''}`}/>))}</div></div>
-                            <div className="flex gap-2"><button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Ajouter</button><button onClick={()=>setIsAdding(false)} className={`px-4 py-2 rounded-lg text-sm ${darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}>Annuler</button></div>
+                            <div className="flex gap-2"><button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Ajouter</button><button onClick={()=>setIsAdding(false)} className={`px-4 py-2 rounded-lg text-sm hover:bg-gray-100`}>Annuler</button></div>
                         </div>
                     ):(
-                        <button onClick={()=>setIsAdding(true)} className="w-full px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 hover:border-secondary hover:text-secondary flex items-center justify-center space-x-2"><Icon.Plus/><span>Nouvelle Catégorie</span></button>
+                        <button onClick={()=>setIsAdding(true)} className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-secondary hover:text-secondary flex items-center justify-center space-x-2"><Icon.Plus/><span>Nouvelle Catégorie</span></button>
                     )}
                 </div>
             </div>
@@ -392,7 +448,7 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
 };
 
 // NEW ACTION MODAL
-const NewActionModal=({categories,onClose,onAdd,darkMode})=>{
+const NewActionModal=({categories,onClose,onAdd})=>{
     const[form,setForm]=useState({name:'',categoryId:categories[0]?.id||'',budget:0,priority:'medium',tags:[]});
     const handleAdd=()=>{
         if(!form.name.trim()||!form.categoryId)return;
@@ -401,23 +457,23 @@ const NewActionModal=({categories,onClose,onAdd,darkMode})=>{
     };
     return(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
-            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-2xl shadow-2xl w-full max-w-lg animate-slide-up`} onClick={e=>e.stopPropagation()}>
-                <div className="bg-gradient-to-r from-primary to-secondary h-2 rounded-t-2xl"/>
+            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-slide-up`} onClick={e=>e.stopPropagation()}>
+                <div style="height:3px;background:var(--accent);borderRadius:var(--radius-lg) var(--radius-lg) 0 0"/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold">📁 Nouvelle Action</h2>
-                        <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
+                        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">
-                        <div><label className="block text-sm font-medium mb-2">Nom de l'action</label><input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: Google Ads - Brand" className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
-                        <div><label className="block text-sm font-medium mb-2">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                        <div><label className="block text-sm font-medium mb-2">Nom de l'action</label><input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: Google Ads - Brand" className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
+                        <div><label className="block text-sm font-medium mb-2">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
                         </div>
                         <div><label className="block text-sm font-medium mb-2">Tags Canal</label><ChannelTags channels={form.tags} onAdd={id=>setForm({...form,tags:[...form.tags,id]})} onRemove={id=>setForm({...form,tags:form.tags.filter(t=>t!==id)})}/></div>
                     </div>
-                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className={`px-4 py-2 rounded-lg ${darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}>Annuler</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Créer l'action</button></div>
+                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className={`px-4 py-2 rounded-lg hover:bg-gray-100`}>Annuler</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Créer l'action</button></div>
                 </div>
             </div>
         </div>
@@ -425,7 +481,7 @@ const NewActionModal=({categories,onClose,onAdd,darkMode})=>{
 };
 
 // NEW TASK MODAL
-const NewTaskModal=({actions,categories,onClose,onAdd,onCreateAction,darkMode})=>{
+const NewTaskModal=({actions,categories,onClose,onAdd,onCreateAction})=>{
     const[form,setForm]=useState({title:'',actionId:actions[0]?.id||'',startDate:new Date().toISOString().split('T')[0],dueDate:'',priority:'medium',status:'todo',description:'',budget:0});
     const handleAdd=()=>{
         if(!form.title.trim()||!form.actionId)return;
@@ -438,30 +494,30 @@ const NewTaskModal=({actions,categories,onClose,onAdd,onCreateAction,darkMode})=
     const actionCategory=categories.find(c=>c.id===selectedAction?.categoryId);
     return(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
-            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-2xl shadow-2xl w-full max-w-lg animate-slide-up`} onClick={e=>e.stopPropagation()}>
+            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-slide-up`} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${actionCategory?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold">✨ Nouvelle Tâche</h2>
-                        <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
+                        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">
-                        <div><label className="block text-sm font-medium mb-2">Titre</label><input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Ex: Post LinkedIn Janvier" className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
+                        <div><label className="block text-sm font-medium mb-2">Titre</label><input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Ex: Post LinkedIn Janvier" className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
                         <div>
                             <div className="flex items-center justify-between mb-2"><label className="block text-sm font-medium">Action</label><button onClick={onCreateAction} className="text-xs text-secondary hover:underline flex items-center gap-1"><Icon.Plus/>Créer une action</button></div>
-                            <select value={form.actionId} onChange={e=>setForm({...form,actionId:e.target.value})} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{actions.map(a=>{const cat=categories.find(c=>c.id===a.categoryId);return<option key={a.id} value={a.id}>{a.name} ({cat?.name})</option>;})}</select>
+                            <select value={form.actionId} onChange={e=>setForm({...form,actionId:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}>{actions.map(a=>{const cat=categories.find(c=>c.id===a.categoryId);return<option key={a.id} value={a.id}>{a.name} ({cat?.name})</option>;})}</select>
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Date début</label><input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Date fin</label><input type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Date début</label><input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Date fin</label><input type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
                         </div>
-                        <div><label className="block text-sm font-medium mb-2">Description</label><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} rows={3} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'} resize-none`}/></div>
+                        <div><label className="block text-sm font-medium mb-2">Description</label><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} rows={3} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200 resize-none`}/></div>
                     </div>
-                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className={`px-4 py-2 rounded-lg ${darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}>Annuler</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Créer la tâche</button></div>
+                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className={`px-4 py-2 rounded-lg hover:bg-gray-100`}>Annuler</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Créer la tâche</button></div>
                 </div>
             </div>
         </div>
@@ -469,53 +525,48 @@ const NewTaskModal=({actions,categories,onClose,onAdd,onCreateAction,darkMode})=
 };
 
 // HEADER
-const Header=({darkMode,setDarkMode,currentView,setCurrentView,onSync,syncing,githubConnected,savingStatus})=>{
+const Header=({currentView,setCurrentView,onSync,syncing,githubConnected,savingStatus})=>{
     const[mobileMenu,setMobileMenu]=useState(false);
     const navItems=[{id:'kanban',icon:Icon.Kanban,label:'Kanban'},{id:'timeline',icon:Icon.Timeline,label:'Timeline'},{id:'dashboard',icon:Icon.Dashboard,label:'KPIs'}];
     return(
-        <header className={`sticky top-0 z-50 ${darkMode?'bg-gray-900/95':'bg-white/95'} backdrop-blur-sm border-b ${darkMode?'border-gray-800':'border-gray-200'}`}>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-16">
-                    <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg"><span className="text-white font-bold text-lg">M</span></div>
-                        <div><h1 className="font-bold text-lg text-primary dark:text-white">Marketing Project Tracker</h1><p className="text-xs text-gray-500">Version 2.2</p></div>
-                    </div>
-                    <nav className="hidden md:flex items-center space-x-1">
-                        {navItems.map(({id,icon:I,label})=>(
-                            <button key={id} onClick={()=>setCurrentView(id)} className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all ${currentView===id?'bg-primary text-white shadow-md':darkMode?'text-gray-300 hover:bg-gray-800':'text-gray-600 hover:bg-gray-100'}`}><I/><span className="font-medium">{label}</span></button>
-                        ))}
-                    </nav>
-                    <div className="flex items-center space-x-2">
-                        {savingStatus&&<span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 ${savingStatus==='error'?'bg-red-500/10 text-red-500':'bg-secondary/10 text-secondary'}`}>{savingStatus==='saving'?'💾 Sauvegarde...':savingStatus==='error'?'❌ Erreur':'✅ Sauvegardé'}</span>}
-                        <button onClick={onSync} disabled={syncing} className={`p-2 rounded-lg ${darkMode?'hover:bg-gray-800':'hover:bg-gray-100'} ${syncing?'animate-spin':''} relative`} title="Synchroniser avec GitHub">
-                            <Icon.Refresh/>
-                            {githubConnected&&<span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"/>}
-                        </button>
-                        <button onClick={()=>setDarkMode(!darkMode)} className={`p-2 rounded-lg ${darkMode?'hover:bg-gray-800 text-yellow-400':'hover:bg-gray-100'}`}>{darkMode?<Icon.Sun/>:<Icon.Moon/>}</button>
-                        <button onClick={()=>setMobileMenu(!mobileMenu)} className="md:hidden p-2 rounded-lg">{mobileMenu?<Icon.Close/>:<Icon.Menu/>}</button>
-                    </div>
+        <header className="v11-header" style={{background:'var(--bg-primary)',borderBottom:'1px solid var(--border)'}}>
+            <div className="v11-header-inner" style={{maxWidth:1600,margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'space-between',height:'100%',gap:16,padding:'0 24px'}}>
+                <div className="flex items-center gap-2.5">
+                    <div className="v11-logo">M</div>
+                    <div><span className="font-semibold text-sm" style={{color:'var(--text-primary)'}}>Marketing Tracker</span><span className="block text-xs" style={{color:'var(--text-muted)',fontFamily:'var(--font-mono)'}}>MIGSO-PCUBED - V3.0</span></div>
                 </div>
-                {mobileMenu&&(<div className="md:hidden py-4 border-t border-gray-200 dark:border-gray-800 animate-slide-in">{navItems.map(({id,icon:I,label})=>(<button key={id} onClick={()=>{setCurrentView(id);setMobileMenu(false);}} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-lg ${currentView===id?'bg-primary text-white':''}`}><I/><span>{label}</span></button>))}</div>)}
+                <nav className="hidden md:flex v11-view-tabs">
+                    {navItems.map(({id,icon:I,label})=>(
+                        <button key={id} onClick={()=>setCurrentView(id)} className={`v11-view-tab ${currentView===id?'active':''}`}><I size={14}/><span>{label}</span></button>
+                    ))}
+                </nav>
+                <div className="flex items-center gap-1.5">
+                    {savingStatus&&<span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{background:savingStatus==='error'?'var(--error-light)':'var(--accent-light)',color:savingStatus==='error'?'var(--error)':'var(--accent)'}}>{savingStatus==='saving'?'Sauvegarde...':savingStatus==='error'?'Erreur':'Sauvegardé'}</span>}
+                    <button onClick={onSync} disabled={syncing} className={`v11-icon-btn ${syncing?'animate-spin':''}`} style={{position:'relative'}} title="Synchroniser avec GitHub">
+                        <Icon.Refresh/>
+                        {githubConnected&&<span className="absolute top-1 right-1 w-2 h-2 rounded-full" style={{background:'var(--success)'}}/>}
+                    </button>
+                    <button onClick={()=>setMobileMenu(!mobileMenu)} className="md:hidden v11-icon-btn">{mobileMenu?<Icon.Close/>:<Icon.Menu/>}</button>
+                </div>
             </div>
+            {mobileMenu&&(<div className="md:hidden py-3 border-t animate-slide-in" style={{borderColor:'var(--border)'}}>{navItems.map(({id,icon:I,label})=>(<button key={id} onClick={()=>{setCurrentView(id);setMobileMenu(false);}} className={`flex items-center space-x-3 w-full px-4 py-3 rounded-lg text-sm ${currentView===id?'bg-primary text-white':''}`}><I/><span>{label}</span></button>))}</div>)}
         </header>
     );
 };
 
 // TASK CARD
 const ChannelTags=({channels=[],onAdd,onRemove,editable=true})=>{
-    const{darkMode}=useApp();
     const[showPicker,setShowPicker]=useState(false);
     const available=CONFIG.CHANNELS.filter(c=>!channels.includes(c.id));
     return(
         <div className="flex flex-wrap gap-1 items-center">
             {channels.map(chId=>{const ch=CONFIG.CHANNELS.find(c=>c.id===chId);return ch?(<span key={chId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:ch.color}}>{ch.name}{editable&&<button onClick={()=>onRemove(chId)} className="ml-1 hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
-            {editable&&available.length>0&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?"bg-gray-700 hover:bg-gray-600":"bg-gray-200 hover:bg-gray-300"} flex items-center space-x-1`}><Icon.Plus/><span>Tag</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 ${darkMode?"bg-gray-800":"bg-white"} rounded-lg shadow-xl border ${darkMode?"border-gray-700":"border-gray-200"} p-2 z-50 min-w-[150px] max-h-48 overflow-y-auto`}>{available.map(ch=>(<button key={ch.id} onClick={()=>{onAdd(ch.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs ${darkMode?"hover:bg-gray-700":"hover:bg-gray-100"} flex items-center space-x-2`}><span className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:ch.color}}/><span>{ch.name}</span></button>))}</div>)}</div>)}
+            {editable&&available.length>0&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs bg-gray-200 hover:bg-gray-300 flex items-center space-x-1`}><Icon.Plus/><span>Tag</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-50 min-w-[150px] max-h-48 overflow-y-auto`}>{available.map(ch=>(<button key={ch.id} onClick={()=>{onAdd(ch.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 flex items-center space-x-2`}><span className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:ch.color}}/><span>{ch.name}</span></button>))}</div>)}</div>)}
         </div>
     );
 };
 
 const CountryTags=({countries=[],onAdd,onRemove,editable=true,allCountries=CONFIG.COUNTRIES,onAddCustomCountry})=>{
-    const{darkMode}=useApp();
     const[showPicker,setShowPicker]=useState(false);
     const[showNewCountryForm,setShowNewCountryForm]=useState(false);
     const[newCountryName,setNewCountryName]=useState('');
@@ -551,14 +602,13 @@ const CountryTags=({countries=[],onAdd,onRemove,editable=true,allCountries=CONFI
     return(
         <div className="flex flex-wrap gap-1 items-center">
             {countries.map(countryId=>{const country=allCountries.find(c=>c.id===countryId);return country?(<span key={countryId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:country.color}}>{country.flag} {country.name}{editable&&<button onClick={()=>onRemove(countryId)} className="ml-1 hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
-            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?"bg-gray-700 hover:bg-gray-600":"bg-gray-200 hover:bg-gray-300"} flex items-center space-x-1`}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 ${darkMode?"bg-gray-800":"bg-white"} rounded-lg shadow-xl border ${darkMode?"border-gray-700":"border-gray-200"} p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto`}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold text-gray-500 px-2 py-1">{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs ${darkMode?"hover:bg-gray-700":"hover:bg-gray-100"} flex items-center space-x-2`}><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className={`w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed ${darkMode?"border-gray-600 hover:bg-gray-700":"border-gray-300 hover:bg-gray-100"} flex items-center justify-center space-x-1`}><Icon.Plus/><span>Nouveau pays</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Ajouter un pays</div><input type="text" placeholder="Nom du pays" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border ${darkMode?"bg-gray-700 border-gray-600":"bg-white border-gray-300"}`}/><input type="text" placeholder="Emoji (ex: 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border ${darkMode?"bg-gray-700 border-gray-600":"bg-white border-gray-300"}`} maxLength="4"/><div className="mb-2"><label className="text-xs block mb-1">Continent:</label><select value={newCountryRegion} onChange={e=>setNewCountryRegion(e.target.value)} className={`w-full px-2 py-1 text-xs rounded border ${darkMode?"bg-gray-700 border-gray-600":"bg-white border-gray-300"}`}>{availableRegions.map(region=><option key={region} value={region}>{region}</option>)}</select></div><div className="flex items-center gap-2 mb-2"><label className="text-xs">Couleur:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Ajouter</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');setNewCountryRegion('Europe');}} className={`flex-1 px-2 py-1 text-xs rounded ${darkMode?"bg-gray-700":"bg-gray-200"}`}>Annuler</button></div></div>)}</div>)}</div>)}
+            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs bg-gray-200 hover:bg-gray-300 flex items-center space-x-1`}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto`}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold text-gray-500 px-2 py-1">{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 flex items-center space-x-2`}><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className={`w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed border-gray-300 hover:bg-gray-100 flex items-center justify-center space-x-1`}><Icon.Plus/><span>Nouveau pays</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Ajouter un pays</div><input type="text" placeholder="Nom du pays" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border bg-white border-gray-300`}/><input type="text" placeholder="Emoji (ex: 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border bg-white border-gray-300`} maxLength="4"/><div className="mb-2"><label className="text-xs block mb-1">Continent:</label><select value={newCountryRegion} onChange={e=>setNewCountryRegion(e.target.value)} className={`w-full px-2 py-1 text-xs rounded border bg-white border-gray-300`}>{availableRegions.map(region=><option key={region} value={region}>{region}</option>)}</select></div><div className="flex items-center gap-2 mb-2"><label className="text-xs">Couleur:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Ajouter</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');setNewCountryRegion('Europe');}} className={`flex-1 px-2 py-1 text-xs rounded bg-gray-200`}>Annuler</button></div></div>)}</div>)}</div>)}
         </div>
     );
 };
 
 // ACTION CARD (for category view with drag & drop reordering)
 const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})=>{
-    const{darkMode}=useApp();
     const[dragOverPosition,setDragOverPosition]=useState(null);
     const cardRef=useRef(null);
 
@@ -605,21 +655,20 @@ const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={(e)=>{if(!e.defaultPrevented)onOpen(action);}}
-            className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-move card-hover relative group ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`}>
+            className={`bg-white rounded-xl p-4 shadow-sm border border-gray-200 cursor-move card-hover relative group ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`}>
             {onMoveAction&&<div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'up');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le haut">⬆️</button>
-                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'down');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le bas">⬇️</button>
+                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'up');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs bg-gray-200 hover:bg-gray-300`} title="Déplacer vers le haut">⬆️</button>
+                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'down');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs bg-gray-200 hover:bg-gray-300`} title="Déplacer vers le bas">⬇️</button>
             </div>}
             <div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${cat?.gradient}`}/>
             <h4 className="font-semibold text-sm mb-2">{action.name}</h4>
-            <div className="mb-2"><div className="flex justify-between text-xs text-gray-500 mb-1"><span>{completed}/{actionTasks.length} tâches</span><span>{pct}%</span></div><div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat?.gradient}`} style={{width:`${pct}%`}}/></div></div>
-            {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=><span key={t} className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-700':'bg-gray-100'}`}>{t}</span>)}</div>}
+            <div className="mb-2"><div className="flex justify-between text-xs text-gray-500 mb-1"><span>{completed}/{actionTasks.length} tâches</span><span>{pct}%</span></div><div className="h-2 bg-gray-200 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat?.gradient}`} style={{width:`${pct}%`}}/></div></div>
+            {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=><span key={t} className={`px-2 py-0.5 rounded-full text-xs bg-gray-100`}>{t}</span>)}</div>}
         </div>
     );
 };
 
 const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,onTouchDrag,categories,allCountries})=>{
-    const{darkMode}=useApp();
     const[touching,setTouching]=useState(false);
     const[dragOverPosition,setDragOverPosition]=useState(null); // 'before' | 'after' | null
     const cardRef=useRef(null);
@@ -694,10 +743,10 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onClick={()=>onOpen(task)}
-            className={`${darkMode?'bg-gray-800':'bg-white'} rounded-xl p-4 shadow-sm border ${darkMode?'border-gray-700':'border-gray-200'} cursor-pointer card-hover transition-all relative group ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`}>
+            className={`bg-white rounded-xl p-4 shadow-sm border border-gray-200 cursor-pointer card-hover transition-all relative group ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`}>
             {onMoveTask&&<div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'up');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le haut">⬆️</button>
-                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'down');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs ${darkMode?'bg-gray-700 hover:bg-gray-600':'bg-gray-200 hover:bg-gray-300'}`} title="Déplacer vers le bas">⬇️</button>
+                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'up');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs bg-gray-200 hover:bg-gray-300`} title="Déplacer vers le haut">⬆️</button>
+                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'down');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs bg-gray-200 hover:bg-gray-300`} title="Déplacer vers le bas">⬇️</button>
             </div>}
             {showAction&&category&&<div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${category.gradient}`}/>}
             <div className="flex items-start justify-between mb-2">
@@ -709,7 +758,7 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
             {task.description&&<p className="text-xs text-gray-500 mb-2 line-clamp-2">{task.description}</p>}
             {task.channels&&task.channels.length>0&&<div className="mb-2"><ChannelTags channels={task.channels} editable={false}/></div>}
             {task.countries&&task.countries.length>0&&<div className="mb-2"><CountryTags countries={task.countries} editable={false} allCountries={allCountries}/></div>}
-            {checklistPct!==null&&(<div className="mb-3"><div className="flex items-center justify-between text-xs text-gray-500 mb-1"><span>Checklist</span><span>{checklistPct}%</span></div><div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div></div>)}
+            {checklistPct!==null&&(<div className="mb-3"><div className="flex items-center justify-between text-xs text-gray-500 mb-1"><span>Checklist</span><span>{checklistPct}%</span></div><div className="h-1.5 bg-gray-200 rounded-full"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div></div>)}
             <div className="flex items-center justify-between text-xs text-gray-500">
                 <div className="flex items-center space-x-3">
                     {task.comments?.length>0&&<span className="flex items-center space-x-1"><Icon.Comment/><span>{task.comments.length}</span></span>}
@@ -717,14 +766,13 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
                 </div>
                 {task.dueDate&&<span className="flex items-center space-x-1"><Icon.Calendar/><span>{new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</span></span>}
             </div>
-            {task.budget>0&&<div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700"><span className="text-sm font-semibold text-secondary">{task.budget.toLocaleString()}€</span></div>}
+            {task.budget>0&&<div className="mt-2 pt-2 border-t border-gray-200"><span className="text-sm font-semibold text-secondary">{task.budget.toLocaleString()}€</span></div>}
         </div>
     );
 };
 
 // TASK DETAIL MODAL
 const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry})=>{
-    const{darkMode}=useApp();
     const[form,setForm]=useState({...task});
     const[descriptionDraft,setDescriptionDraft]=useState(task.description||''); // Draft pour description
     const[descriptionSaved,setDescriptionSaved]=useState(true); // Track si sauvegardé
@@ -770,44 +818,44 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
 
     return(
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 modal-backdrop bg-black/60 overflow-y-auto" onClick={handleClose}>
-            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-2xl shadow-2xl w-full max-w-2xl animate-slide-up mb-8`} onClick={e=>e.stopPropagation()}>
+            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-slide-up mb-8`} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
-                            <input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/>
+                            <input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border bg-gray-50 border-gray-200`}/>
                             <div className="flex items-center gap-2 mt-1">
                                 <p className="text-sm text-gray-500">📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
                                 {onBackToAction&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Retour à l'action</button>}
                             </div>
                         </div>
-                        <button onClick={handleClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
+                        <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg"><Icon.Close/></button>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-6">
-                        {actions&&<div className="w-full"><label className="block text-xs text-gray-500 mb-1">📋 Action</label><select value={form.actionId} onChange={e=>{const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className={`w-full px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
-                        <div><label className="block text-xs text-gray-500 mb-1">Statut</label><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Début</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Fin</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-24 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
+                        {actions&&<div className="w-full"><label className="block text-xs text-gray-500 mb-1">📋 Action</label><select value={form.actionId} onChange={e=>{const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className={`w-full px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
+                        <div><label className="block text-xs text-gray-500 mb-1">Statut</label><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}>{CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Début</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}/></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Fin</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}/></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-24 bg-gray-50 border-gray-200`}/></div>
                     </div>
                     <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🏷️ Tags Canal</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
                     <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🌍 Tags Pays</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry}/></div>
-                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className={`w-full px-4 py-3 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'} resize-none`}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Sauvegarder</button>}</div>
+                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200 resize-none`}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Sauvegarder</button>}</div>
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm text-gray-500">{checklistPct}%</span>}</div>
-                        {form.checklist?.length>0&&<div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full mb-3"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div>}
-                        <div className="space-y-2 mb-3">{form.checklist?.map(item=>(<div key={item.id} className={`flex items-center space-x-3 p-2 rounded-lg ${darkMode?'bg-gray-800':'bg-gray-50'}`}><button onClick={()=>toggleChecklistItem(item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':'border-gray-400'}`}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through text-gray-400':''}`}>{item.text}</span><button onClick={()=>removeChecklistItem(item.id)} className="text-gray-400 hover:text-accent-red"><Icon.Trash/></button></div>))}</div>
-                        <div className="flex space-x-2"><input type="text" value={newChecklistItem} onChange={e=>setNewChecklistItem(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addChecklistItem()} placeholder="Ajouter..." className={`flex-1 px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/><button onClick={addChecklistItem} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>
+                        {form.checklist?.length>0&&<div className="h-2 bg-gray-200 rounded-full mb-3"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div>}
+                        <div className="space-y-2 mb-3">{form.checklist?.map(item=>(<div key={item.id} className={`flex items-center space-x-3 p-2 rounded-lg bg-gray-50`}><button onClick={()=>toggleChecklistItem(item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':'border-gray-400'}`}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through text-gray-400':''}`}>{item.text}</span><button onClick={()=>removeChecklistItem(item.id)} className="text-gray-400 hover:text-accent-red"><Icon.Trash/></button></div>))}</div>
+                        <div className="flex space-x-2"><input type="text" value={newChecklistItem} onChange={e=>setNewChecklistItem(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addChecklistItem()} placeholder="Ajouter..." className={`flex-1 px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}/><button onClick={addChecklistItem} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>
                     </div>
                     <div className="mb-6">
                         <label className="block text-sm font-medium mb-2">💬 Commentaires ({form.comments?.length||0})</label>
-                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{form.comments?.map(c=>(<div key={c.id} className={`p-3 rounded-lg ${darkMode?'bg-gray-800':'bg-gray-50'}`}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs text-gray-500">{new Date(c.date).toLocaleDateString('fr-FR')}</span></div><p className="text-sm text-gray-600 dark:text-gray-300">{c.text}</p></div>))}</div>
-                        <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Écrire..." className={`flex-1 px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Envoyer</button></div>
+                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{form.comments?.map(c=>(<div key={c.id} className={`p-3 rounded-lg bg-gray-50`}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs text-gray-500">{new Date(c.date).toLocaleDateString('fr-FR')}</span></div><p className="text-sm text-gray-600">{c.text}</p></div>))}</div>
+                        <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Écrire..." className={`flex-1 px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Envoyer</button></div>
                     </div>
-                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📎 Pièces jointes</label><div className={`border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg p-6 text-center`}><p className="text-sm text-gray-500">Glissez des fichiers ici</p><p className="text-xs text-gray-400">(Disponible avec Google Drive)</p></div></div>
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
+                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📎 Pièces jointes</label><div className={`border-2 border-dashed border-gray-300 rounded-lg p-6 text-center`}><p className="text-sm text-gray-500">Glissez des fichiers ici</p><p className="text-xs text-gray-400">(Disponible avec Google Drive)</p></div></div>
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                        <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
                         <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Fermer</button>
                     </div>
                 </div>
@@ -817,7 +865,6 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
 };
 
 const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask,onDeleteAction})=>{
-    const{darkMode}=useApp();
     const[form,setForm]=useState({...action});
     const[showConfirmDelete,setShowConfirmDelete]=useState(false);
     const actionTasks=tasks.filter(t=>t.actionId===action.id);
@@ -834,28 +881,28 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 
     return(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={handleClose}>
-            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up`} onClick={e=>e.stopPropagation()}>
+            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up`} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
                             <span className="text-xs text-gray-500">📁 ACTION</span>
-                            <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border mt-1 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/>
+                            <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border mt-1 bg-gray-50 border-gray-200`}/>
                         </div>
-                        <button onClick={handleClose} className="ml-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"><Icon.Close/></button>
+                        <button onClick={handleClose} className="ml-2 p-2 hover:bg-gray-100 rounded-lg"><Icon.Close/></button>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-4">
-                        <div><label className="block text-xs text-gray-500 mb-1">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-32 ${darkMode?'bg-gray-800 border-gray-700':'bg-gray-50 border-gray-200'}`}/></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                        <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-32 bg-gray-50 border-gray-200`}/></div>
                     </div>
-                    <div className={`${darkMode?'bg-gray-800':'bg-gray-50'} rounded-xl p-4 mb-4`}>
+                    <div className={`bg-gray-50 rounded-xl p-4 mb-4`}>
                         <div className="flex justify-between mb-3">
                             <div><span className="text-xs text-gray-500">💰 Budget Total Tâches</span><p className="text-lg font-bold text-secondary">{totalBudget.toLocaleString()}€</p></div>
                             <div><span className="text-xs text-gray-500">📊 Progression</span><p className="text-lg font-bold">{progressPct}%</p></div>
                             <div><span className="text-xs text-gray-500">📋 Tâches</span><p className="text-lg font-bold">{completedTasks}/{actionTasks.length}</p></div>
                         </div>
-                        <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${category?.gradient}`} style={{width:`${progressPct}%`}}/></div>
+                        <div className="h-3 bg-gray-200 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${category?.gradient}`} style={{width:`${progressPct}%`}}/></div>
                     </div>
                     <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🏷️ Tags Canal</label><ChannelTags channels={form.tags||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
                     <div className="mb-4">
@@ -867,7 +914,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                             {actionTasks.length>0?actionTasks.map(task=>{
                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
                                 return(
-                                    <div key={task.id} className={`${darkMode?'bg-gray-800':'bg-gray-50'} rounded-lg p-3 border ${darkMode?'border-gray-700':'border-gray-200'}`}>
+                                    <div key={task.id} className={`bg-gray-50 rounded-lg p-3 border border-gray-200`}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center space-x-3 flex-1 min-w-0">
                                                 <select value={task.status} onChange={e=>handleStatusChange(task.id,e.target.value)} className="px-2 py-1 rounded text-xs text-white border-0 cursor-pointer" style={{backgroundColor:status?.color}}>
@@ -880,7 +927,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                             </div>
                                             <div className="flex items-center space-x-2">
                                                 {task.budget>0&&<span className="text-xs font-semibold text-secondary">{task.budget}€</span>}
-                                                <button onClick={()=>onOpenTask(task)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-500"><Icon.External/></button>
+                                                <button onClick={()=>onOpenTask(task)} className="p-1 hover:bg-gray-200 rounded text-gray-500"><Icon.External/></button>
                                             </div>
                                         </div>
                                     </div>
@@ -889,17 +936,17 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         </div>
                     </div>
                     {showConfirmDelete&&(
-                        <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                            <p className="text-sm font-medium text-red-800 dark:text-red-300 mb-2">⚠️ Confirmer la suppression ?</p>
-                            <p className="text-xs text-red-600 dark:text-red-400 mb-3">Cette action et ses {actionTasks.length} tâche(s) seront définitivement supprimées.</p>
+                        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-sm font-medium text-red-800 mb-2">⚠️ Confirmer la suppression ?</p>
+                            <p className="text-xs text-red-600 mb-3">Cette action et ses {actionTasks.length} tâche(s) seront définitivement supprimées.</p>
                             <div className="flex space-x-2">
                                 <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">Confirmer</button>
-                                <button onClick={()=>setShowConfirmDelete(false)} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg text-sm">Annuler</button>
+                                <button onClick={()=>setShowConfirmDelete(false)} className="px-4 py-2 bg-gray-200 rounded-lg text-sm">Annuler</button>
                             </div>
                         </div>
                     )}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <button onClick={()=>setShowConfirmDelete(true)} className="px-4 py-2 text-accent-red hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                        <button onClick={()=>setShowConfirmDelete(true)} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
                         <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Fermer</button>
                     </div>
                 </div>
@@ -910,7 +957,6 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 
 // KANBAN VIEW
 const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries})=>{
-    const{darkMode}=useApp();
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
@@ -981,19 +1027,19 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 
     return(
         <div className="animate-slide-in">
-            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-4 border ${darkMode?'border-gray-800':'border-gray-200'} mb-4`}>
+            <div className={`bg-white rounded-xl p-4 border border-gray-200 mb-4`}>
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                     <div className="flex items-center space-x-2">
                         <span className="text-sm text-gray-500">Vue:</span>
-                        <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                        <div className="flex rounded-lg overflow-hidden border border-gray-200">
                             {[{id:'month',label:'Par Mois',icon:Icon.Calendar},{id:'quarter',label:'Par Trimestre',icon:Icon.Calendar},{id:'category',label:'Par Catégorie',icon:Icon.Folder},{id:'action',label:'Par Action',icon:Icon.List}].map(v=>(
-                                <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`px-4 py-2 text-sm flex items-center space-x-2 ${viewMode===v.id?'bg-primary text-white':darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}><v.icon/><span className="hidden sm:inline">{v.label}</span></button>
+                                <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`px-4 py-2 text-sm flex items-center space-x-2 ${viewMode===v.id?'bg-primary text-white':'hover:bg-gray-100'}`}><v.icon/><span className="hidden sm:inline">{v.label}</span></button>
                             ))}
                         </div>
                     </div>
                     {viewMode!=='category'&&<div className="flex items-center space-x-2">
                         <span className="text-sm text-gray-500">Tri:</span>
-                        <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className={`px-3 py-2 text-sm rounded-lg border ${darkMode?'bg-gray-800 border-gray-700 text-white':'bg-white border-gray-200'}`}>
+                        <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className={`px-3 py-2 text-sm rounded-lg border bg-white border-gray-200`}>
                             <option value="order">Manuel</option>
                             <option value="name">Nom A→Z</option>
                             <option value="created">Date création</option>
@@ -1007,14 +1053,14 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     <div>
                         <label className="block text-xs text-gray-500 mb-2">Filtrer par action:</label>
                         <div className="flex flex-wrap gap-2">
-                            <button onClick={()=>setActionFilters([])} className={`px-3 py-1.5 rounded-full text-xs ${actionFilters.length===0?'bg-primary text-white':darkMode?'bg-gray-800':'bg-gray-100'}`}>Toutes</button>
+                            <button onClick={()=>setActionFilters([])} className={`px-3 py-1.5 rounded-full text-xs ${actionFilters.length===0?'bg-primary text-white':'bg-gray-100'}`}>Toutes</button>
                             {actions.map(a=>(
                                 <button key={a.id} onClick={()=>{
                                     if(viewMode==='action')setSelectedAction(a.id===selectedAction?null:a.id);
                                     const idx=actionFilters.indexOf(a.id);
                                     if(idx>=0)setActionFilters(actionFilters.filter(id=>id!==a.id));
                                     else setActionFilters([...actionFilters,a.id]);
-                                }} className={`px-3 py-1.5 rounded-full text-xs truncate max-w-[160px] ${(viewMode==='action'&&selectedAction===a.id)||((viewMode==='month'||viewMode==='quarter')&&actionFilters.includes(a.id))?'bg-secondary text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} title={a.name}>
+                                }} className={`px-3 py-1.5 rounded-full text-xs truncate max-w-[160px] ${(viewMode==='action'&&selectedAction===a.id)||((viewMode==='month'||viewMode==='quarter')&&actionFilters.includes(a.id))?'bg-secondary text-white':'bg-gray-100'}`} title={a.name}>
                                     {a.name.length>20?a.name.substring(0,20)+'...':a.name}
                                 </button>
                             ))}
@@ -1067,14 +1113,14 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     }
                                 }
                             }}
-                            className={`kanban-column flex-shrink-0 ${viewMode==='category'?'w-80':'w-64'} ${darkMode?'bg-gray-900/50':'bg-gray-100/50'} rounded-xl p-3 min-h-[200px]`}>
+                            className={`kanban-column flex-shrink-0 ${viewMode==='category'?'w-80':'w-64'} bg-gray-100/50 rounded-xl p-3 min-h-[200px]`}>
                             <div className="mb-3">
                                 {col.gradient&&<div className={`h-1 rounded-full bg-gradient-to-r ${col.gradient} mb-2`}/>}
-                                <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{col.icon&&<span className="mr-1">{col.icon}</span>}{col.name}</h3><span className={`px-2 py-0.5 rounded-full text-xs ${darkMode?'bg-gray-800':'bg-gray-200'}`}>{col.items.length}</span></div>
+                                <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{col.icon&&<span className="mr-1">{col.icon}</span>}{col.name}</h3><span className={`px-2 py-0.5 rounded-full text-xs bg-gray-200`}>{col.items.length}</span></div>
                             </div>
                             <div className="space-y-3">
                                 {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories} allCountries={allCountries}/>)}
-                                {col.items.length===0&&<div className={`text-center py-8 border-2 border-dashed ${darkMode?'border-gray-700':'border-gray-300'} rounded-lg`}><p className="text-xs text-gray-400">Aucune tâche</p></div>}
+                                {col.items.length===0&&<div className={`text-center py-8 border-2 border-dashed border-gray-300 rounded-lg`}><p className="text-xs text-gray-400">Aucune tâche</p></div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
                                         const monthIdx=col.key;
@@ -1094,7 +1140,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         onAddTask(newTask);
                                         setTimeout(()=>onOpenTask(newTask),100);
                                     }
-                                }} className={`w-full mt-3 px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-1 ${darkMode?'bg-gray-800 hover:bg-gray-700 text-gray-300':'bg-gray-100 hover:bg-gray-200 text-gray-600'} transition-colors`}>
+                                }} className={`w-full mt-3 px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors`}>
                                     <Icon.Plus size={16}/>
                                     <span>Ajouter une carte</span>
                                 </button>
@@ -1118,7 +1164,6 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 // - Prévention des conflits : clic sur handle ne déclenche pas l'ouverture de carte
 // - Styles CSS optimisés pour mobile/tactile (handles 28px, opacity 0.7)
 const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters})=>{
-    const{darkMode}=useApp();
     const timelineRef=useRef(null);
     const dragGhostRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -2319,57 +2364,57 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
     return(
         <div className="animate-slide-in">
-            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-4 border ${darkMode?'border-gray-800':'border-gray-200'} mb-4`}>
+            <div className={`bg-white rounded-xl p-4 border border-gray-200 mb-4`}>
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center space-x-4">
                         <div className="flex items-center space-x-2">
                             <span className="text-sm text-gray-500">Zoom:</span>
-                            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                            <div className="flex rounded-lg overflow-hidden border border-gray-200">
                                 {[{id:'day',label:'Jour'},{id:'week',label:'Semaine'},{id:'month',label:'Mois'},{id:'quarter',label:'Trimestre'}].map(z=>(
-                                    <button key={z.id} onClick={()=>handleZoomChange(z.id)} className={`px-3 py-1.5 text-sm ${zoom===z.id?'bg-primary text-white':darkMode?'hover:bg-gray-800':'hover:bg-gray-100'}`}>{z.label}</button>
+                                    <button key={z.id} onClick={()=>handleZoomChange(z.id)} className={`px-3 py-1.5 text-sm ${zoom===z.id?'bg-primary text-white':'hover:bg-gray-100'}`}>{z.label}</button>
                                 ))}
                             </div>
                         </div>
                         <div className="flex items-center space-x-1">
-                            {[1,2,3,4].map(q=>(<button key={q} onClick={()=>scrollToQuarter(q)} className={`px-3 py-1.5 text-sm rounded ${darkMode?'bg-gray-800 hover:bg-gray-700':'bg-gray-100 hover:bg-gray-200'}`}>Q{q}</button>))}
+                            {[1,2,3,4].map(q=>(<button key={q} onClick={()=>scrollToQuarter(q)} className={`px-3 py-1.5 text-sm rounded bg-gray-100 hover:bg-gray-200`}>Q{q}</button>))}
                         </div>
                     </div>
                     <div className="flex items-center space-x-2 text-sm text-gray-500"><Icon.Hand/><span>Espace+Clic pour naviguer</span></div>
                 </div>
             </div>
-            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl border ${darkMode?'border-gray-800':'border-gray-200'} overflow-hidden`}>
+            <div className={`bg-white rounded-xl border border-gray-200 overflow-hidden`}>
                 <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
                     <div style={{minWidth:`${headers.length*colWidth+250}px`}}>
                         {(zoom==='week'||zoom==='day')&&monthHeaders&&(
-                            <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} sticky top-0 z-20 ${darkMode?'bg-gray-900':'bg-white'}`}>
-                                <div className={`w-[250px] flex-shrink-0 sticky left-0 z-30 ${darkMode?'bg-gray-900':'bg-white'}`}/>
+                            <div className={`flex border-b border-gray-200 sticky top-0 z-20 bg-white`}>
+                                <div className={`w-[250px] flex-shrink-0 sticky left-0 z-30 bg-white`}/>
                                 {monthHeaders.map((m,idx)=>(
-                                    <div key={idx} className={`flex-shrink-0 p-2 text-center font-semibold border-l ${darkMode?'border-gray-800':'border-gray-200'} ${m.month===currentMonth?'bg-secondary/10 text-secondary':''}`} style={{width:zoom==='week'?(m.endWeek-m.startWeek)*colWidth:m.days*colWidth}}>
+                                    <div key={idx} className={`flex-shrink-0 p-2 text-center font-semibold border-l border-gray-200 ${m.month===currentMonth?'bg-accent/10 text-accent':''}`} style={{width:zoom==='week'?(m.endWeek-m.startWeek)*colWidth:m.days*colWidth}}>
                                         {m.label}
                                     </div>
                                 ))}
                             </div>
                         )}
-                        <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} ${(zoom==='week'||zoom==='day')?'':'sticky top-0 z-10'} ${darkMode?'bg-gray-900':'bg-white'}`}>
-                            <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 ${darkMode?'bg-gray-900':'bg-white'} border-r ${darkMode?'border-gray-800':'border-gray-200'}`}>Actions</div>
+                        <div className={`flex border-b border-gray-200 ${(zoom==='week'||zoom==='day')?'':'sticky top-0 z-10'} bg-white`}>
+                            <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 bg-white border-r border-gray-200`}>Actions</div>
                             {zoom==='quarter'?headers.map(h=>(
-                                <div key={h.q} className={`flex-shrink-0 p-3 text-center font-semibold border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}}>
+                                <div key={h.q} className={`flex-shrink-0 p-3 text-center font-semibold border-l border-gray-200`} style={{width:colWidth}}>
                                     <div>{h.label}</div>
                                     <div className="flex justify-around text-xs text-gray-500 mt-1">{h.months.map(m=><span key={m}>{CONFIG.MONTHS[m]}</span>)}</div>
                                 </div>
                             )):zoom==='week'?headers.map((h,i)=>(
-                                <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l ${darkMode?'border-gray-800':'border-gray-200'} ${h.week===currentWeek?'bg-secondary/10 text-secondary':''}`} style={{width:colWidth}}>{h.label}</div>
+                                <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l border-gray-200 ${h.week===currentWeek?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
                             )):zoom==='day'?headers.map((h,i)=>(
-                                <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l ${darkMode?'border-gray-800':'border-gray-200'} ${h.month===currentMonth&&h.date===new Date().getDate()?'bg-secondary/10 text-secondary':''}`} style={{width:colWidth}}>{h.label}</div>
+                                <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l border-gray-200 ${h.month===currentMonth&&h.date===new Date().getDate()?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
                             )):headers.map((h,i)=>(
-                                <div key={i} className={`flex-shrink-0 p-2 text-center text-xs font-medium border-l ${darkMode?'border-gray-800':'border-gray-200'} ${h.month===currentMonth?'bg-secondary/10 text-secondary':''}`} style={{width:colWidth}}>{h.label}</div>
+                                <div key={i} className={`flex-shrink-0 p-2 text-center text-xs font-medium border-l border-gray-200 ${h.month===currentMonth?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
                             ))}
                         </div>
                         {groupedByCategory.map(({category,actions:catActions})=>(
                             <div key={category.id}>
-                                <div className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'}`} onDragOver={(e)=>{if(onUpdateAction){const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.add('drag-over');}}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}}>
+                                <div className={`flex border-b border-gray-200`} onDragOver={(e)=>{if(onUpdateAction){const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.add('drag-over');}}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}}>
                                     <div className={`w-[250px] flex-shrink-0 p-3 font-bold text-white text-sm bg-gradient-to-r ${category.gradient} sticky left-0 z-10`}>{category.name}</div>
-                                    <div className="flex-1" style={{background:darkMode?'rgba(55,65,81,0.3)':'rgba(243,244,246,0.5)'}}/>
+                                    <div className="flex-1" style={{background:'rgba(243,244,246,0.5)'}}/>
                                 </div>
                                 {catActions.sort((a,b)=>(a.action.order||0)-(b.action.order||0)).map(({action,tasks:actionTasks})=>{
                                     const isDragOverAction=dragOverAction?.actionId===action.id;
@@ -2377,8 +2422,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     const{swimLanes,maxLanes}=calculateSwimLanes(actionTasks);
                                     const rowHeight=Math.max(60,maxLanes*48+16);
                                     return(
-                                    <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b ${darkMode?'border-gray-800':'border-gray-200'} hover:bg-gray-50 dark:hover:bg-gray-800/30 group relative ${dragOverActionClass}`}>
-                                        <div className={`w-[250px] flex-shrink-0 p-2 relative sticky left-0 z-30 ${darkMode?'bg-gray-900':'bg-white'} border-r ${darkMode?'border-gray-800':'border-gray-200'} group-hover:bg-gray-50 dark:group-hover:bg-gray-800/30`} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
+                                    <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b border-gray-200 hover:bg-gray-50/30 group relative ${dragOverActionClass}`}>
+                                        <div className={`w-[250px] flex-shrink-0 p-2 relative sticky left-0 z-30 bg-white border-r border-gray-200 group-hover:bg-gray-50`} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
                                             <p className="text-sm font-medium truncate hover:text-secondary">{action.name}</p>
                                             <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
                                             {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs text-gray-400" title="Glisser pour réordonner">⋮⋮</div>}
@@ -2386,7 +2431,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                         <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:`${rowHeight}px`,zIndex:20}} onMouseDown={(e)=>handleCreateTaskStart(e,action)} onDragOver={(e)=>{handleActionRowDragOver(e,action);}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleActionRowDrop(e,action);}}}>
                                             <div className="absolute inset-0 flex pointer-events-none">
                                                 {headers.map((_,i)=>(
-                                                    <div key={i} className={`border-l ${darkMode?'border-gray-800':'border-gray-200'}`} style={{width:colWidth}}/>
+                                                    <div key={i} className={`border-l border-gray-200`} style={{width:colWidth}}/>
                                                 ))}
                                             </div>
                                             {dragPreview&&dragPreview.actionId===action.id&&(
@@ -2425,7 +2470,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                     </div>
                 </div>
             </div>
-            <div className={`mt-4 ${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-4 border ${darkMode?'border-gray-800':'border-gray-200'}`}>
+            <div className={`mt-4 bg-white rounded-xl p-4 border border-gray-200`}>
                 <p className="text-sm text-gray-500 mb-2">Légende:</p>
                 <div className="flex flex-wrap gap-4">{CONFIG.STATUSES.map(s=><div key={s.id} className="flex items-center space-x-2"><div className="w-4 h-4 rounded" style={{backgroundColor:s.color}}/><span className="text-sm">{s.icon} {s.name}</span></div>)}</div>
             </div>
@@ -2435,7 +2480,6 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
 // DASHBOARD VIEW// DASHBOARD VIEW
 const DashboardView=({categories,actions,tasks})=>{
-    const{darkMode}=useApp();
     const totalTasks=tasks.length;
     const completedTasks=tasks.filter(t=>t.status==='completed').length;
     const totalBudget=tasks.reduce((s,t)=>s+(t.budget||0),0);
@@ -2446,7 +2490,7 @@ const DashboardView=({categories,actions,tasks})=>{
     const overdueTasks=tasks.filter(t=>t.status!=='completed'&&(t.month<currentMonth||(t.dueDate&&new Date(t.dueDate)<new Date())));
 
     const KPICard=({title,value,subtitle,icon:I,color})=>(
-        <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${darkMode?'border-gray-800':'border-gray-200'} shadow-sm`}>
+        <div className={`bg-white rounded-xl p-6 border border-gray-200 shadow-sm`}>
             <div className="flex items-start justify-between"><div><p className="text-sm text-gray-500 mb-1">{title}</p><p className="text-3xl font-bold" style={{color}}>{value}</p>{subtitle&&<p className="text-sm text-gray-400 mt-1">{subtitle}</p>}</div><div className="p-3 rounded-xl" style={{backgroundColor:`${color}20`}}><I/></div></div>
         </div>
     );
@@ -2459,7 +2503,7 @@ const DashboardView=({categories,actions,tasks})=>{
                 <KPICard title="Ce mois" value={currentTasks.length} subtitle="tâches actives" icon={Icon.Calendar} color="#f59e0b"/>
                 <KPICard title="En retard" value={overdueTasks.length} subtitle={overdueTasks.length>0?'à traiter':'Tout OK!'} icon={Icon.Alert} color={overdueTasks.length>0?'#ef4444':'#22c55e'}/>
             </div>
-            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${darkMode?'border-gray-800':'border-gray-200'}`}>
+            <div className={`bg-white rounded-xl p-6 border border-gray-200`}>
                 <h3 className="font-semibold mb-4">Progression par catégorie</h3>
                 <div className="space-y-4">
                     {categories.map(cat=>{
@@ -2471,34 +2515,34 @@ const DashboardView=({categories,actions,tasks})=>{
                         return(
                             <div key={cat.id}>
                                 <div className="flex items-center justify-between mb-2"><div className="flex items-center space-x-3"><div className={`w-3 h-3 rounded-full bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium text-sm">{cat.name}</span></div><div className="flex items-center space-x-4 text-sm"><span className="text-gray-500">{catCompleted}/{catTasks.length}</span><span className="font-semibold text-secondary">{(catBudget/1000).toFixed(0)}k€</span><span className="font-bold">{catPct}%</span></div></div>
-                                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat.gradient}`} style={{width:`${catPct}%`}}/></div>
+                                <div className="h-3 bg-gray-200 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat.gradient}`} style={{width:`${catPct}%`}}/></div>
                             </div>
                         );
                     })}
                 </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${darkMode?'border-gray-800':'border-gray-200'}`}>
+                <div className={`bg-white rounded-xl p-6 border border-gray-200`}>
                     <h3 className="font-semibold mb-4">Par statut</h3>
                     <div className="space-y-3">
-                        {CONFIG.STATUSES.map(s=>{const count=tasks.filter(t=>t.status===s.id).length;const pct=totalTasks>0?Math.round((count/totalTasks)*100):0;return(<div key={s.id} className="flex items-center"><div className="w-28 flex items-center space-x-2"><span>{s.icon}</span><span className="text-sm">{s.name}</span></div><div className="flex-1 h-4 bg-gray-200 dark:bg-gray-700 rounded-full mx-3"><div className="h-full rounded-full" style={{width:`${pct}%`,backgroundColor:s.color}}/></div><span className="w-8 text-right text-sm font-medium">{count}</span></div>);})}
+                        {CONFIG.STATUSES.map(s=>{const count=tasks.filter(t=>t.status===s.id).length;const pct=totalTasks>0?Math.round((count/totalTasks)*100):0;return(<div key={s.id} className="flex items-center"><div className="w-28 flex items-center space-x-2"><span>{s.icon}</span><span className="text-sm">{s.name}</span></div><div className="flex-1 h-4 bg-gray-200 rounded-full mx-3"><div className="h-full rounded-full" style={{width:`${pct}%`,backgroundColor:s.color}}/></div><span className="w-8 text-right text-sm font-medium">{count}</span></div>);})}
                     </div>
                 </div>
-                <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${overdueTasks.length>0?'border-accent-red':darkMode?'border-gray-800':'border-gray-200'}`}>
+                <div className={`bg-white rounded-xl p-6 border ${overdueTasks.length>0?'border-accent-red':'border-gray-200'}`}>
                     <h3 className="font-semibold mb-4">🚨 En retard</h3>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {overdueTasks.length>0?overdueTasks.slice(0,8).map(t=>{const action=actions.find(a=>a.id===t.actionId);return<div key={t.id} className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"><p className="font-medium text-sm">{t.title}</p><p className="text-xs text-red-600">{action?.name} • {CONFIG.MONTHS_FULL[t.month]}</p></div>;}):<div className="text-center py-8"><span className="text-4xl">✅</span><p className="text-gray-500 text-sm mt-2">Tout est à jour!</p></div>}
+                        {overdueTasks.length>0?overdueTasks.slice(0,8).map(t=>{const action=actions.find(a=>a.id===t.actionId);return<div key={t.id} className="p-3 rounded-lg bg-red-50 border border-red-200"><p className="font-medium text-sm">{t.title}</p><p className="text-xs text-red-600">{action?.name} • {CONFIG.MONTHS_FULL[t.month]}</p></div>;}):<div className="text-center py-8"><span className="text-4xl">✅</span><p className="text-gray-500 text-sm mt-2">Tout est à jour!</p></div>}
                     </div>
                 </div>
             </div>
-            <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl p-6 border ${darkMode?'border-gray-800':'border-gray-200'}`}>
+            <div className={`bg-white rounded-xl p-6 border border-gray-200`}>
                 <h3 className="font-semibold mb-4">📢 Par canal</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {CONFIG.CHANNELS.map(ch=>{
                         const chTasks=tasks.filter(t=>(t.channels||[]).includes(ch.id));
                         const chCompleted=chTasks.filter(t=>t.status==='completed').length;
                         return(
-                            <div key={ch.id} className={`p-3 rounded-lg border ${darkMode?'border-gray-700 bg-gray-800/50':'border-gray-200 bg-gray-50'}`}>
+                            <div key={ch.id} className={`p-3 rounded-lg border border-gray-200 bg-gray-50`}>
                                 <div className="flex items-center space-x-2 mb-2">
                                     <div className="w-3 h-3 rounded-full" style={{backgroundColor:ch.color}}/>
                                     <span className="text-sm font-medium truncate">{ch.name}</span>
@@ -2516,24 +2560,23 @@ const DashboardView=({categories,actions,tasks})=>{
 
 // FILTER BAR
 const FilterBar=({filters,setFilters,actions,categories,allCountries})=>{
-    const{darkMode}=useApp();
     const[showFilters,setShowFilters]=useState(false);
     const activeCount=Object.values(filters).filter(v=>Array.isArray(v)?v.length>0:v).length;
 
     return(
-        <div className={`${darkMode?'bg-gray-900':'bg-white'} rounded-xl shadow-sm border ${darkMode?'border-gray-800':'border-gray-200'} p-4 mb-4`}>
+        <div className={`bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4`}>
             <div className="flex flex-wrap items-center gap-3">
-                <div className="flex-1 min-w-[200px]"><input type="text" placeholder="Rechercher..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className={`w-full px-4 py-2 rounded-lg border ${darkMode?'bg-gray-800 border-gray-700 text-white':'bg-gray-50 border-gray-200'} focus:outline-none focus:ring-2 focus:ring-secondary`}/></div>
-                <button onClick={()=>setShowFilters(!showFilters)} className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${showFilters||activeCount>0?'bg-secondary text-white border-secondary':darkMode?'border-gray-700':'border-gray-200'}`}><Icon.Filter/><span>Filtres</span>{activeCount>0&&<span className="bg-white text-secondary px-2 py-0.5 rounded-full text-xs font-bold">{activeCount}</span>}</button>
+                <div className="flex-1 min-w-[200px]"><input type="text" placeholder="Rechercher..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className={`w-full px-4 py-2 rounded-lg border bg-gray-50 border-gray-200 focus:outline-none focus:ring-2 focus:ring-secondary`}/></div>
+                <button onClick={()=>setShowFilters(!showFilters)} className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${showFilters||activeCount>0?'bg-secondary text-white border-secondary':'border-gray-200'}`}><Icon.Filter/><span>Filtres</span>{activeCount>0&&<span className="bg-white text-secondary px-2 py-0.5 rounded-full text-xs font-bold">{activeCount}</span>}</button>
                 {activeCount>0&&<button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],action:[],channel:[],country:[]})} className="text-accent-red text-sm">Effacer</button>}
             </div>
             {showFilters&&(
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-slide-in">
-                    <div><label className="block text-xs text-gray-500 mb-2">Statut</label><div className="flex flex-wrap gap-1">{CONFIG.STATUSES.map(s=>(<button key={s.id} onClick={()=>{const n=filters.status.includes(s.id)?filters.status.filter(x=>x!==s.id):[...filters.status,s.id];setFilters({...filters,status:n});}} className={`px-2 py-1 rounded text-xs ${filters.status.includes(s.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.status.includes(s.id)?{backgroundColor:s.color}:{}}>{s.icon}</button>))}</div></div>
-                    <div><label className="block text-xs text-gray-500 mb-2">Catégorie</label><div className="flex flex-wrap gap-1">{categories.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`px-2 py-1 rounded text-xs ${filters.category.includes(c.id)?'text-white bg-gradient-to-r '+c.gradient:darkMode?'bg-gray-800':'bg-gray-100'}`}>{c.name.split(' ')[0]}</button>))}</div></div>
-                    <div><label className="block text-xs text-gray-500 mb-2">Priorité</label><div className="flex gap-1">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`px-2 py-1 rounded text-xs ${filters.priority.includes(p.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.priority.includes(p.id)?{backgroundColor:p.color}:{}}>{p.icon}</button>))}</div></div>
-                    <div className="sm:col-span-3"><label className="block text-xs text-gray-500 mb-2">Canal</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,channel:[]})} className={`px-2 py-1 rounded text-xs ${!filters.channel||filters.channel.length===0?'bg-primary text-white':darkMode?'bg-gray-800':'bg-gray-100'}`}>Tous</button>{CONFIG.CHANNELS.map(ch=>(<button key={ch.id} onClick={()=>{const n=filters.channel?.includes(ch.id)?filters.channel.filter(x=>x!==ch.id):[...(filters.channel||[]),ch.id];setFilters({...filters,channel:n});}} className={`px-2 py-1 rounded text-xs ${filters.channel?.includes(ch.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.channel?.includes(ch.id)?{backgroundColor:ch.color}:{}}>{ch.name}</button>))}</div></div>
-                    <div className="sm:col-span-3"><label className="block text-xs text-gray-500 mb-2">Pays</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,country:[]})} className={`px-2 py-1 rounded text-xs ${!filters.country||filters.country.length===0?'bg-primary text-white':darkMode?'bg-gray-800':'bg-gray-100'}`}>Tous</button>{allCountries.map(co=>(<button key={co.id} onClick={()=>{const n=filters.country?.includes(co.id)?filters.country.filter(x=>x!==co.id):[...(filters.country||[]),co.id];setFilters({...filters,country:n});}} className={`px-2 py-1 rounded text-xs ${filters.country?.includes(co.id)?'text-white':darkMode?'bg-gray-800':'bg-gray-100'}`} style={filters.country?.includes(co.id)?{backgroundColor:co.color}:{}}>{co.flag} {co.name}</button>))}</div></div>
+                <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-slide-in">
+                    <div><label className="block text-xs text-gray-500 mb-2">Statut</label><div className="flex flex-wrap gap-1">{CONFIG.STATUSES.map(s=>(<button key={s.id} onClick={()=>{const n=filters.status.includes(s.id)?filters.status.filter(x=>x!==s.id):[...filters.status,s.id];setFilters({...filters,status:n});}} className={`px-2 py-1 rounded text-xs ${filters.status.includes(s.id)?'text-white':'bg-gray-100'}`} style={filters.status.includes(s.id)?{backgroundColor:s.color}:{}}>{s.icon}</button>))}</div></div>
+                    <div><label className="block text-xs text-gray-500 mb-2">Catégorie</label><div className="flex flex-wrap gap-1">{categories.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`px-2 py-1 rounded text-xs ${filters.category.includes(c.id)?'text-white bg-gradient-to-r '+c.gradient:'bg-gray-100'}`}>{c.name.split(' ')[0]}</button>))}</div></div>
+                    <div><label className="block text-xs text-gray-500 mb-2">Priorité</label><div className="flex gap-1">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`px-2 py-1 rounded text-xs ${filters.priority.includes(p.id)?'text-white':'bg-gray-100'}`} style={filters.priority.includes(p.id)?{backgroundColor:p.color}:{}}>{p.icon}</button>))}</div></div>
+                    <div className="sm:col-span-3"><label className="block text-xs text-gray-500 mb-2">Canal</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,channel:[]})} className={`px-2 py-1 rounded text-xs ${!filters.channel||filters.channel.length===0?'bg-primary text-white':'bg-gray-100'}`}>Tous</button>{CONFIG.CHANNELS.map(ch=>(<button key={ch.id} onClick={()=>{const n=filters.channel?.includes(ch.id)?filters.channel.filter(x=>x!==ch.id):[...(filters.channel||[]),ch.id];setFilters({...filters,channel:n});}} className={`px-2 py-1 rounded text-xs ${filters.channel?.includes(ch.id)?'text-white':'bg-gray-100'}`} style={filters.channel?.includes(ch.id)?{backgroundColor:ch.color}:{}}>{ch.name}</button>))}</div></div>
+                    <div className="sm:col-span-3"><label className="block text-xs text-gray-500 mb-2">Pays</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,country:[]})} className={`px-2 py-1 rounded text-xs ${!filters.country||filters.country.length===0?'bg-primary text-white':'bg-gray-100'}`}>Tous</button>{allCountries.map(co=>(<button key={co.id} onClick={()=>{const n=filters.country?.includes(co.id)?filters.country.filter(x=>x!==co.id):[...(filters.country||[]),co.id];setFilters({...filters,country:n});}} className={`px-2 py-1 rounded text-xs ${filters.country?.includes(co.id)?'text-white':'bg-gray-100'}`} style={filters.country?.includes(co.id)?{backgroundColor:co.color}:{}}>{co.flag} {co.name}</button>))}</div></div>
                 </div>
             )}
         </div>
@@ -2542,10 +2585,7 @@ const FilterBar=({filters,setFilters,actions,categories,allCountries})=>{
 
 // MAIN APP
 const App=()=>{
-    const[darkMode,setDarkMode]=useState(()=>{
-        const saved=localStorage.getItem('darkMode');
-        return saved?saved==='true':false;
-    });
+    const darkMode=false;
     const[currentView,setCurrentView]=useState('kanban');
     const[categories,setCategories]=useState(CONFIG.CATEGORIES);
     const[actions,setActions]=useState(ACTIONS);
@@ -2642,7 +2682,7 @@ const App=()=>{
         });
     };
 
-    useEffect(()=>{document.body.className=darkMode?'dark':'light';},[darkMode]);
+    useEffect(()=>{document.body.className='light';},[]);
 
     // Keyboard shortcuts
     useEffect(()=>{
@@ -2695,10 +2735,7 @@ const App=()=>{
         };
     },[]);
 
-    // Persist dark mode preference
-    useEffect(()=>{
-        localStorage.setItem('darkMode',darkMode);
-    },[darkMode]);
+
 
     // CRITICAL FIX: Persist SHA to localStorage whenever it changes
     useEffect(()=>{
@@ -3351,32 +3388,37 @@ const App=()=>{
     const totalBudget=tasks.reduce((s,t)=>s+(t.budget||0),0);
     const completedCount=tasks.filter(t=>t.status==='completed').length;
 
-    if(!dataLoaded)return(<div className="min-h-screen flex items-center justify-center bg-gray-950"><div className="text-white text-center"><div className="animate-spin w-12 h-12 border-4 border-secondary border-t-transparent rounded-full mx-auto mb-4"/><p>Chargement des données...</p></div></div>);
+    if(!dataLoaded)return(<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Chargement des données...</p></div></div>);
 
     return(
-        <AppContext.Provider value={{darkMode}}>
-            <div className={`min-h-screen ${darkMode?'bg-gray-950':'bg-gray-50'}`}>
-                <Header darkMode={darkMode} setDarkMode={setDarkMode} currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus}/>
-                <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                        <div><h2 className="text-2xl font-bold">{currentView==='kanban'?'📋 Kanban':currentView==='timeline'?'📅 Timeline':'📊 KPIs'}</h2><p className="text-gray-500 text-sm">{tasks.length} tâches • {completedCount} terminées • Budget: {(totalBudget/1000).toFixed(0)}k€</p><p className="text-xs text-gray-400 mt-1">Raccourcis: N=Nouvelle tâche • 1/2/3=Vues • ESC=Fermer</p></div>
-                        <div className="flex gap-2">
+        <AppContext.Provider value={{}}>
+            <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
+                <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus}/>
+                <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
+                    <div className="flex flex-wrap items-center justify-between gap-3" style={{marginBottom:'var(--space-3)'}}>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3" style={{fontSize:12,color:'var(--text-muted)'}}>
+                                <span><strong style={{color:'var(--text-primary)'}}>{tasks.length}</strong> tâches</span>
+                                <span><strong style={{color:'var(--text-primary)'}}>{(totalBudget/1000).toFixed(0)}k€</strong> budget</span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
                             <div className="relative group">
-                                <button className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${darkMode?'bg-gray-800 hover:bg-gray-700':'bg-gray-200 hover:bg-gray-300'}`}><Icon.Download/><span className="hidden sm:inline">Export</span></button>
-                                <div className={`absolute right-0 mt-1 w-40 rounded-lg shadow-lg ${darkMode?'bg-gray-800 border border-gray-700':'bg-white border border-gray-200'} hidden group-hover:block z-50`}>
-                                    <button onClick={exportToJSON} className={`w-full px-4 py-2 text-left text-sm hover:bg-secondary/10 rounded-t-lg`}>📄 Export JSON</button>
-                                    <button onClick={exportToCSV} className={`w-full px-4 py-2 text-left text-sm hover:bg-secondary/10 rounded-b-lg`}>📊 Export CSV</button>
+                                <button className="v11-btn-secondary"><Icon.Download size={13}/><span className="hidden sm:inline">Export</span></button>
+                                <div className="absolute right-0 mt-1 w-40 rounded-lg shadow-lg bg-white border border-gray-200 hidden group-hover:block z-50" style={{borderColor:'var(--border)'}}>
+                                    <button onClick={exportToJSON} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 rounded-t-lg">Export JSON</button>
+                                    <button onClick={exportToCSV} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 rounded-b-lg">Export CSV</button>
                                 </div>
                             </div>
-                            <button onClick={()=>setShowCategoriesModal(true)} className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${darkMode?'bg-gray-800 hover:bg-gray-700':'bg-gray-200 hover:bg-gray-300'}`}><Icon.Folder/><span className="hidden sm:inline">Catégories</span></button>
-                            <button onClick={()=>setShowNewActionModal(true)} className={`px-4 py-2 rounded-lg flex items-center space-x-2 ${darkMode?'bg-gray-800 hover:bg-gray-700':'bg-gray-200 hover:bg-gray-300'}`}><Icon.List/><span className="hidden sm:inline">Nouvelle action</span></button>
-                            <button onClick={handleCreateNewTask} className="px-4 py-2 bg-primary text-white rounded-lg flex items-center space-x-2 hover:bg-primary/90 shadow-md"><Icon.Plus/><span>Nouvelle tâche</span></button>
+                            <button onClick={()=>setShowCategoriesModal(true)} className="v11-btn-secondary"><Icon.Folder size={13}/><span className="hidden sm:inline">Catégories</span></button>
+                            <button onClick={()=>setShowNewActionModal(true)} className="v11-btn-secondary"><Icon.List size={13}/><span className="hidden sm:inline">Nouvelle action</span></button>
+                            <button onClick={handleCreateNewTask} className="v11-btn-primary"><Icon.Plus size={13}/><span>Créer</span></button>
                         </div>
                     </div>
                     <FilterBar filters={filters} setFilters={setFilters} actions={actions} categories={categories} allCountries={allCountries}/>
                     {(filters.search||filters.status.length>0||filters.category.length>0||filters.priority.length>0||filters.channel.length>0||filters.country.length>0)&&(
-                        <div className={`mb-4 px-4 py-2 rounded-lg flex items-center justify-between ${darkMode?'bg-secondary/10 border border-secondary/20':'bg-blue-50 border border-blue-200'}`}>
-                            <span className="text-sm text-secondary">🔍 Filtres actifs • {tasks.filter(t=>{
+                        <div className="mb-4 px-4 py-2 rounded-lg flex items-center justify-between" style={{background:'var(--accent-light)',border:'1px solid var(--accent)',borderRadius:'var(--radius-md)'}}>
+                            <span className="text-sm" style={{color:'var(--accent)'}}>Filtres actifs — {tasks.filter(t=>{
                                 const action=actions.find(a=>a.id===t.actionId);
                                 if(filters.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
                                 if(filters.status.length>0&&!filters.status.includes(t.status))return false;
@@ -3396,10 +3438,10 @@ const App=()=>{
                 {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} actions={actions} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null} allCountries={allCountries} onAddCustomCountry={addCustomCountry}/>}
                 {selectedAction&&!selectedTask&&<ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={()=>setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t=>{setSelectedTask(t);}} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
                 {/* GitHubSettingsModal supprimé - Token intégré directement dans GITHUB_CONFIG */}
-                {showCategoriesModal&&<CategoriesManagementModal categories={categories} onClose={()=>setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories} darkMode={darkMode}/>}
-                {showNewActionModal&&<NewActionModal categories={categories} onClose={()=>setShowNewActionModal(false)} onAdd={handleAddAction} darkMode={darkMode}/>}
-                {showNewTaskModal&&<NewTaskModal actions={actions} categories={categories} onClose={()=>setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={()=>{setShowNewTaskModal(false);setShowNewActionModal(true);}} darkMode={darkMode}/>}
-                {notification&&<div className="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg bg-primary text-white animate-slide-in">{notification}</div>}
+                {showCategoriesModal&&<CategoriesManagementModal categories={categories} onClose={()=>setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories} />}
+                {showNewActionModal&&<NewActionModal categories={categories} onClose={()=>setShowNewActionModal(false)} onAdd={handleAddAction}/>}
+                {showNewTaskModal&&<NewTaskModal actions={actions} categories={categories} onClose={()=>setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={()=>{setShowNewTaskModal(false);setShowNewActionModal(true);}}/>}
+                {notification&&<div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
             </div>
         </AppContext.Provider>
     );
