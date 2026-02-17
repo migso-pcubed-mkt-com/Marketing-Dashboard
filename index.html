@@ -13,7 +13,6 @@
         :root{--primary:#6366f1;--secondary:#6366f1;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--bg-page:#fafafa;--bg-primary:#ffffff;--bg-secondary:#f4f4f5;--bg-tertiary:#e8eaed;--text-primary:#18181b;--text-secondary:#52525b;--text-muted:#a1a1aa;--accent:#6366f1;--accent-light:#eef2ff;--accent-hover:#4f46e5;--success:#22c55e;--success-light:#dcfce7;--warning:#f59e0b;--warning-light:#fef3c7;--error:#ef4444;--error-light:#fee2e2;--border:#e4e4e7;--border-light:#f0f0f1;--border-strong:#d4d4d8;--shadow-sm:0 1px 2px rgba(0,0,0,0.04);--shadow-md:0 4px 12px rgba(0,0,0,0.06);--shadow-lg:0 12px 40px rgba(0,0,0,0.1);--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--transition:0.2s cubic-bezier(0.4,0,0.2,1);--font-sans:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;--font-mono:'JetBrains Mono',monospace;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--header-height:56px;--sidebar-width:220px;--kanban-column-width:280px}
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:var(--font-sans);background:var(--bg-page);color:var(--text-primary);line-height:1.5;font-size:14px;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-        body.light{background:var(--bg-page);color:var(--text-primary)}
         ::-webkit-scrollbar{width:6px;height:6px}
         ::-webkit-scrollbar-thumb{background:#888;border-radius:3px}
         @keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
@@ -131,7 +130,7 @@
     </style>
     <script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#6366f1',secondary:'#6366f1','accent-green':'#22c55e','accent-red':'#ef4444','accent-yellow':'#f59e0b',accent:{DEFAULT:'#6366f1',light:'#eef2ff',hover:'#4f46e5',green:'#22c55e',red:'#ef4444',yellow:'#f59e0b'}},borderColor:{DEFAULT:'#e4e4e7'},fontFamily:{sans:['DM Sans','-apple-system','BlinkMacSystemFont','sans-serif'],mono:['JetBrains Mono','monospace']}}}}</script>
 </head>
-<body class="light">
+<body>
 <div id="root">
     <div class="min-h-screen flex items-center justify-center" style="background:var(--bg-page)">
         <div class="text-center" style="color:var(--text-primary)">
@@ -406,26 +405,26 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
     };
 
     return(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
-            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up`} onClick={e=>e.stopPropagation()}>
+        <div className="v11-modal-overlay" onClick={onClose}>
+            <div className="v11-modal animate-slide-up" style={{maxWidth:672,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
                 <div style="height:3px;background:var(--accent);borderRadius:var(--radius-lg) var(--radius-lg) 0 0"/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold">📂 Gestion des Catégories</h2>
-                        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><Icon.Close/></button>
+                        <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-3 mb-4">
                         {categories.map((cat,index)=>(
-                            <div key={cat.id} data-category-index={index} draggable={editingId!==cat.id} onDragStart={()=>handleDragStart(index)} onDragOver={(e)=>handleDragOver(e,index)} onDragEnd={handleDragEnd} onTouchStart={(e)=>handleTouchStart(e,index)} onTouchMove={(e)=>handleTouchMove(e,index)} onTouchEnd={handleTouchEnd} className={`p-4 rounded-lg border border-gray-200 bg-gray-50 ${draggedIndex===index?'opacity-50':''} ${editingId===cat.id?'':'cursor-move touch-none'}`}>
+                            <div key={cat.id} data-category-index={index} draggable={editingId!==cat.id} onDragStart={()=>handleDragStart(index)} onDragOver={(e)=>handleDragOver(e,index)} onDragEnd={handleDragEnd} onTouchStart={(e)=>handleTouchStart(e,index)} onTouchMove={(e)=>handleTouchMove(e,index)} onTouchEnd={handleTouchEnd} className={`p-4 rounded-lg ${draggedIndex===index?'opacity-50':''} ${editingId===cat.id?'':'cursor-move touch-none'}`} style={{border:'1px solid var(--border)',background:'var(--bg-secondary)'}}>
                                 {editingId===cat.id?(
                                     <div className="space-y-3">
-                                        <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className={`w-full px-3 py-2 rounded-lg border bg-white border-gray-300`}/>
-                                        <div><label className="block text-xs text-gray-500 mb-2">Gradient:</label><div className="flex gap-2">{gradientPresets.map(g=>(<button key={g.name} onClick={()=>setForm({...form,gradient:g.gradient})} className={`flex-1 h-8 rounded-lg bg-gradient-to-r ${g.gradient} ${form.gradient===g.gradient?'ring-2 ring-secondary':''}`}/>))}</div></div>
-                                        <div className="flex gap-2"><button onClick={saveEdit} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Sauvegarder</button><button onClick={cancelEdit} className={`px-4 py-2 rounded-lg text-sm hover:bg-gray-200`}>Annuler</button></div>
+                                        <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="v11-input"/>
+                                        <div><label className="v11-label">Gradient:</label><div className="flex gap-2">{gradientPresets.map(g=>(<button key={g.name} onClick={()=>setForm({...form,gradient:g.gradient})} className={`flex-1 h-8 rounded-lg bg-gradient-to-r ${g.gradient} ${form.gradient===g.gradient?'ring-2 ring-secondary':''}`}/>))}</div></div>
+                                        <div className="flex gap-2"><button onClick={saveEdit} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Sauvegarder</button><button onClick={cancelEdit} className="v11-btn-secondary">Annuler</button></div>
                                     </div>
                                 ):(
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-3"><div className="cursor-move text-gray-400" title="Glisser pour réorganiser">⋮⋮</div><div className={`w-12 h-8 rounded-lg bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium">{cat.name}</span></div>
+                                        <div className="flex items-center space-x-3"><div className="cursor-move" style={{color:'var(--text-muted)'}} title="Glisser pour réorganiser">⋮⋮</div><div className={`w-12 h-8 rounded-lg bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium">{cat.name}</span></div>
                                         <div className="flex gap-2"><button onClick={()=>startEdit(cat)} className="px-3 py-1 text-sm text-secondary hover:bg-secondary/10 rounded-lg">Modifier</button><button onClick={()=>onDelete(cat.id)} className="px-3 py-1 text-sm text-accent-red hover:bg-red-50 rounded-lg">Supprimer</button></div>
                                     </div>
                                 )}
@@ -433,13 +432,13 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
                         ))}
                     </div>
                     {isAdding?(
-                        <div className={`p-4 rounded-lg border-2 border-dashed border-gray-300 space-y-3`}>
-                            <input type="text" value={newCategory.name} onChange={e=>setNewCategory({...newCategory,name:e.target.value})} placeholder="Nom de la catégorie" className={`w-full px-3 py-2 rounded-lg border bg-gray-50 border-gray-200`}/>
-                            <div><label className="block text-xs text-gray-500 mb-2">Gradient:</label><div className="flex gap-2">{gradientPresets.map(g=>(<button key={g.name} onClick={()=>setNewCategory({...newCategory,gradient:g.gradient})} className={`flex-1 h-8 rounded-lg bg-gradient-to-r ${g.gradient} ${newCategory.gradient===g.gradient?'ring-2 ring-secondary':''}`}/>))}</div></div>
-                            <div className="flex gap-2"><button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Ajouter</button><button onClick={()=>setIsAdding(false)} className={`px-4 py-2 rounded-lg text-sm hover:bg-gray-100`}>Annuler</button></div>
+                        <div className="p-4 rounded-lg border-2 border-dashed space-y-3" style={{borderColor:'var(--border)'}}>
+                            <input type="text" value={newCategory.name} onChange={e=>setNewCategory({...newCategory,name:e.target.value})} placeholder="Nom de la catégorie" className="v11-input"/>
+                            <div><label className="v11-label">Gradient:</label><div className="flex gap-2">{gradientPresets.map(g=>(<button key={g.name} onClick={()=>setNewCategory({...newCategory,gradient:g.gradient})} className={`flex-1 h-8 rounded-lg bg-gradient-to-r ${g.gradient} ${newCategory.gradient===g.gradient?'ring-2 ring-secondary':''}`}/>))}</div></div>
+                            <div className="flex gap-2"><button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Ajouter</button><button onClick={()=>setIsAdding(false)} className="v11-btn-secondary">Annuler</button></div>
                         </div>
                     ):(
-                        <button onClick={()=>setIsAdding(true)} className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-secondary hover:text-secondary flex items-center justify-center space-x-2"><Icon.Plus/><span>Nouvelle Catégorie</span></button>
+                        <button onClick={()=>setIsAdding(true)} className="w-full px-4 py-3 border-2 border-dashed rounded-lg hover:border-secondary hover:text-secondary flex items-center justify-center space-x-2" style={{borderColor:'var(--border)',color:'var(--text-muted)'}}><Icon.Plus/><span>Nouvelle Catégorie</span></button>
                     )}
                 </div>
             </div>
@@ -456,24 +455,24 @@ const NewActionModal=({categories,onClose,onAdd})=>{
         onClose();
     };
     return(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
-            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-slide-up`} onClick={e=>e.stopPropagation()}>
+        <div className="v11-modal-overlay" onClick={onClose}>
+            <div className="v11-modal animate-slide-up" style={{maxWidth:512}} onClick={e=>e.stopPropagation()}>
                 <div style="height:3px;background:var(--accent);borderRadius:var(--radius-lg) var(--radius-lg) 0 0"/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold">📁 Nouvelle Action</h2>
-                        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><Icon.Close/></button>
+                        <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">
-                        <div><label className="block text-sm font-medium mb-2">Nom de l'action</label><input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: Google Ads - Brand" className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
-                        <div><label className="block text-sm font-medium mb-2">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                        <div><label className="block text-sm font-medium mb-2">Nom de l'action</label><input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: Google Ads - Brand" className="v11-input"/></div>
+                        <div><label className="block text-sm font-medium mb-2">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-input">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input"/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-input">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
                         </div>
                         <div><label className="block text-sm font-medium mb-2">Tags Canal</label><ChannelTags channels={form.tags} onAdd={id=>setForm({...form,tags:[...form.tags,id]})} onRemove={id=>setForm({...form,tags:form.tags.filter(t=>t!==id)})}/></div>
                     </div>
-                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className={`px-4 py-2 rounded-lg hover:bg-gray-100`}>Annuler</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Créer l'action</button></div>
+                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className="v11-btn-secondary">Annuler</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Créer l'action</button></div>
                 </div>
             </div>
         </div>
@@ -493,31 +492,31 @@ const NewTaskModal=({actions,categories,onClose,onAdd,onCreateAction})=>{
     const selectedAction=actions.find(a=>a.id===form.actionId);
     const actionCategory=categories.find(c=>c.id===selectedAction?.categoryId);
     return(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
-            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-slide-up`} onClick={e=>e.stopPropagation()}>
+        <div className="v11-modal-overlay" onClick={onClose}>
+            <div className="v11-modal animate-slide-up" style={{maxWidth:512}} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${actionCategory?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold">✨ Nouvelle Tâche</h2>
-                        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><Icon.Close/></button>
+                        <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">
-                        <div><label className="block text-sm font-medium mb-2">Titre</label><input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Ex: Post LinkedIn Janvier" className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
+                        <div><label className="block text-sm font-medium mb-2">Titre</label><input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Ex: Post LinkedIn Janvier" className="v11-input"/></div>
                         <div>
                             <div className="flex items-center justify-between mb-2"><label className="block text-sm font-medium">Action</label><button onClick={onCreateAction} className="text-xs text-secondary hover:underline flex items-center gap-1"><Icon.Plus/>Créer une action</button></div>
-                            <select value={form.actionId} onChange={e=>setForm({...form,actionId:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}>{actions.map(a=>{const cat=categories.find(c=>c.id===a.categoryId);return<option key={a.id} value={a.id}>{a.name} ({cat?.name})</option>;})}</select>
+                            <select value={form.actionId} onChange={e=>setForm({...form,actionId:e.target.value})} className="v11-input">{actions.map(a=>{const cat=categories.find(c=>c.id===a.categoryId);return<option key={a.id} value={a.id}>{a.name} ({cat?.name})</option>;})}</select>
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Date début</label><input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Date fin</label><input type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Date début</label><input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input"/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Date fin</label><input type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200`}/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-input">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input"/></div>
                         </div>
-                        <div><label className="block text-sm font-medium mb-2">Description</label><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} rows={3} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200 resize-none`}/></div>
+                        <div><label className="block text-sm font-medium mb-2">Description</label><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} rows={3} className="v11-input" style={{resize:'none'}}/></div>
                     </div>
-                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className={`px-4 py-2 rounded-lg hover:bg-gray-100`}>Annuler</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Créer la tâche</button></div>
+                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className="v11-btn-secondary">Annuler</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Créer la tâche</button></div>
                 </div>
             </div>
         </div>
@@ -560,8 +559,8 @@ const ChannelTags=({channels=[],onAdd,onRemove,editable=true})=>{
     const available=CONFIG.CHANNELS.filter(c=>!channels.includes(c.id));
     return(
         <div className="flex flex-wrap gap-1 items-center">
-            {channels.map(chId=>{const ch=CONFIG.CHANNELS.find(c=>c.id===chId);return ch?(<span key={chId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:ch.color}}>{ch.name}{editable&&<button onClick={()=>onRemove(chId)} className="ml-1 hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
-            {editable&&available.length>0&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs bg-gray-200 hover:bg-gray-300 flex items-center space-x-1`}><Icon.Plus/><span>Tag</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-50 min-w-[150px] max-h-48 overflow-y-auto`}>{available.map(ch=>(<button key={ch.id} onClick={()=>{onAdd(ch.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 flex items-center space-x-2`}><span className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:ch.color}}/><span>{ch.name}</span></button>))}</div>)}</div>)}
+            {channels.map(chId=>{const ch=CONFIG.CHANNELS.find(c=>c.id===chId);return ch?(<span key={chId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:ch.color}}>{ch.name}{editable&&<button onClick={()=>onRemove(chId)} className="ml-1 hover:bg-[var(--bg-primary)]/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
+            {editable&&available.length>0&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className="px-2 py-0.5 rounded-full text-xs flex items-center space-x-1" style={{background:'var(--bg-secondary)'}}><Icon.Plus/><span>Tag</span></button>{showPicker&&(<div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl p-2 z-50 min-w-[150px] max-h-48 overflow-y-auto" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>{available.map(ch=>(<button key={ch.id} onClick={()=>{onAdd(ch.id);setShowPicker(false);}} className="w-full text-left px-2 py-1.5 rounded text-xs flex items-center space-x-2" style={{}}><span className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:ch.color}}/><span>{ch.name}</span></button>))}</div>)}</div>)}
         </div>
     );
 };
@@ -601,8 +600,8 @@ const CountryTags=({countries=[],onAdd,onRemove,editable=true,allCountries=CONFI
 
     return(
         <div className="flex flex-wrap gap-1 items-center">
-            {countries.map(countryId=>{const country=allCountries.find(c=>c.id===countryId);return country?(<span key={countryId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:country.color}}>{country.flag} {country.name}{editable&&<button onClick={()=>onRemove(countryId)} className="ml-1 hover:bg-white/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
-            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className={`px-2 py-0.5 rounded-full text-xs bg-gray-200 hover:bg-gray-300 flex items-center space-x-1`}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className={`absolute top-full left-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto`}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold text-gray-500 px-2 py-1">{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className={`w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 flex items-center space-x-2`}><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className={`w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed border-gray-300 hover:bg-gray-100 flex items-center justify-center space-x-1`}><Icon.Plus/><span>Nouveau pays</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Ajouter un pays</div><input type="text" placeholder="Nom du pays" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border bg-white border-gray-300`}/><input type="text" placeholder="Emoji (ex: 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className={`w-full px-2 py-1 mb-2 text-xs rounded border bg-white border-gray-300`} maxLength="4"/><div className="mb-2"><label className="text-xs block mb-1">Continent:</label><select value={newCountryRegion} onChange={e=>setNewCountryRegion(e.target.value)} className={`w-full px-2 py-1 text-xs rounded border bg-white border-gray-300`}>{availableRegions.map(region=><option key={region} value={region}>{region}</option>)}</select></div><div className="flex items-center gap-2 mb-2"><label className="text-xs">Couleur:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Ajouter</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');setNewCountryRegion('Europe');}} className={`flex-1 px-2 py-1 text-xs rounded bg-gray-200`}>Annuler</button></div></div>)}</div>)}</div>)}
+            {countries.map(countryId=>{const country=allCountries.find(c=>c.id===countryId);return country?(<span key={countryId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:country.color}}>{country.flag} {country.name}{editable&&<button onClick={()=>onRemove(countryId)} className="ml-1 hover:bg-[var(--bg-primary)]/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
+            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className="px-2 py-0.5 rounded-full text-xs flex items-center space-x-1" style={{background:'var(--bg-secondary)'}}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold px-2 py-1" style={{color:'var(--text-muted)'}}>{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className="w-full text-left px-2 py-1.5 rounded text-xs flex items-center space-x-2"><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className="w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed flex items-center justify-center space-x-1" style={{borderColor:'var(--border)'}}><Icon.Plus/><span>Nouveau pays</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Ajouter un pays</div><input type="text" placeholder="Nom du pays" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className="v11-input" style={{fontSize:11,marginBottom:8}}/><input type="text" placeholder="Emoji (ex: 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className="v11-input" style={{fontSize:11,marginBottom:8}} maxLength="4"/><div className="mb-2"><label className="text-xs block mb-1">Continent:</label><select value={newCountryRegion} onChange={e=>setNewCountryRegion(e.target.value)} className="v11-select" style={{fontSize:11,width:'100%'}}>{availableRegions.map(region=><option key={region} value={region}>{region}</option>)}</select></div><div className="flex items-center gap-2 mb-2"><label className="text-xs">Couleur:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Ajouter</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');setNewCountryRegion('Europe');}} className="v11-btn-secondary" style={{flex:1,fontSize:11}}>Annuler</button></div></div>)}</div>)}</div>)}
         </div>
     );
 };
@@ -655,15 +654,15 @@ const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={(e)=>{if(!e.defaultPrevented)onOpen(action);}}
-            className={`bg-white rounded-xl p-4 shadow-sm border border-gray-200 cursor-move card-hover relative group ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`}>
+            className={`v11-card card-hover relative group ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`} style={{cursor:'move',padding:'var(--space-4)'}}>
             {onMoveAction&&<div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'up');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs bg-gray-200 hover:bg-gray-300`} title="Déplacer vers le haut">⬆️</button>
-                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'down');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs bg-gray-200 hover:bg-gray-300`} title="Déplacer vers le bas">⬇️</button>
+                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'up');}} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{background:'var(--bg-secondary)'}} title="Déplacer vers le haut">⬆️</button>
+                <button onClick={(e)=>{e.stopPropagation();onMoveAction(action.id,'down');}} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{background:'var(--bg-secondary)'}} title="Déplacer vers le bas">⬇️</button>
             </div>}
             <div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${cat?.gradient}`}/>
             <h4 className="font-semibold text-sm mb-2">{action.name}</h4>
-            <div className="mb-2"><div className="flex justify-between text-xs text-gray-500 mb-1"><span>{completed}/{actionTasks.length} tâches</span><span>{pct}%</span></div><div className="h-2 bg-gray-200 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat?.gradient}`} style={{width:`${pct}%`}}/></div></div>
-            {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=><span key={t} className={`px-2 py-0.5 rounded-full text-xs bg-gray-100`}>{t}</span>)}</div>}
+            <div className="mb-2"><div className="flex justify-between text-xs mb-1" style={{color:'var(--text-muted)'}}><span>{completed}/{actionTasks.length} tâches</span><span style={{fontWeight:700}}>{pct}%</span></div><div className="v11-progress-bar"><div className={`v11-progress-fill ${pct>=70?'high':pct>=40?'medium':'low'}`} style={{width:`${pct}%`}}/></div></div>
+            {action.tags?.length>0&&<div className="flex flex-wrap gap-1">{action.tags.slice(0,3).map(t=>{const ch=CONFIG.CHANNELS.find(c=>c.id===t);return <span key={t} className={`v11-card-tag ${t}`}>{ch?.name||t}</span>;})}</div>}
         </div>
     );
 };
@@ -743,10 +742,10 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onClick={()=>onOpen(task)}
-            className={`bg-white rounded-xl p-4 shadow-sm border border-gray-200 cursor-pointer card-hover transition-all relative group ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`}>
+            className={`v11-card card-hover transition-all relative group ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'border-t-4 border-t-secondary':dragOverPosition==='after'?'border-b-4 border-b-secondary':''}`} style={{cursor:'pointer',padding:'var(--space-4)'}}>
             {onMoveTask&&<div className="absolute top-2 right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'up');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs bg-gray-200 hover:bg-gray-300`} title="Déplacer vers le haut">⬆️</button>
-                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'down');}} className={`w-6 h-6 rounded flex items-center justify-center text-xs bg-gray-200 hover:bg-gray-300`} title="Déplacer vers le bas">⬇️</button>
+                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'up');}} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{background:'var(--bg-secondary)'}} title="Déplacer vers le haut">⬆️</button>
+                <button onClick={(e)=>{e.stopPropagation();onMoveTask(task.id,'down');}} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{background:'var(--bg-secondary)'}} title="Déplacer vers le bas">⬇️</button>
             </div>}
             {showAction&&category&&<div className={`h-1 w-full rounded-full mb-3 bg-gradient-to-r ${category.gradient}`}/>}
             <div className="flex items-start justify-between mb-2">
@@ -754,19 +753,19 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
                 <span className="text-sm">{priority?.icon}</span>
             </div>
             <h4 className="font-semibold text-sm mb-2 line-clamp-2">{task.title}</h4>
-            {showAction&&action&&<p className="text-xs text-gray-500 mb-2 truncate">📁 {action.name}</p>}
-            {task.description&&<p className="text-xs text-gray-500 mb-2 line-clamp-2">{task.description}</p>}
+            {showAction&&action&&<p className="text-xs mb-2 truncate" style={{color:'var(--text-muted)'}}>📁 {action.name}</p>}
+            {task.description&&<p className="text-xs mb-2 line-clamp-2" style={{color:'var(--text-muted)'}}>📝 {task.description}</p>}
             {task.channels&&task.channels.length>0&&<div className="mb-2"><ChannelTags channels={task.channels} editable={false}/></div>}
             {task.countries&&task.countries.length>0&&<div className="mb-2"><CountryTags countries={task.countries} editable={false} allCountries={allCountries}/></div>}
-            {checklistPct!==null&&(<div className="mb-3"><div className="flex items-center justify-between text-xs text-gray-500 mb-1"><span>Checklist</span><span>{checklistPct}%</span></div><div className="h-1.5 bg-gray-200 rounded-full"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div></div>)}
-            <div className="flex items-center justify-between text-xs text-gray-500">
+            {checklistPct!==null&&(<div className="mb-3"><div className="flex items-center justify-between text-xs mb-1" style={{color:'var(--text-muted)'}}><span>Checklist</span><span>{checklistPct}%</span></div><div className="v11-progress-bar"><div className={`v11-progress-fill ${checklistPct>=70?'high':checklistPct>=40?'medium':'low'}`} style={{width:`${checklistPct}%`}}/></div></div>)}
+            <div className="flex items-center justify-between text-xs" style={{color:'var(--text-muted)'}}>
                 <div className="flex items-center space-x-3">
                     {task.comments?.length>0&&<span className="flex items-center space-x-1"><Icon.Comment/><span>{task.comments.length}</span></span>}
                     {task.checklist?.length>0&&<span className="flex items-center space-x-1"><Icon.Check/><span>{task.checklist.filter(c=>c.done).length}/{task.checklist.length}</span></span>}
                 </div>
                 {task.dueDate&&<span className="flex items-center space-x-1"><Icon.Calendar/><span>{new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'})}</span></span>}
             </div>
-            {task.budget>0&&<div className="mt-2 pt-2 border-t border-gray-200"><span className="text-sm font-semibold text-secondary">{task.budget.toLocaleString()}€</span></div>}
+            {task.budget>0&&<div className="mt-2 pt-2" style={{borderTop:'1px solid var(--border)'}}><span className="text-sm font-semibold" style={{color:'var(--accent)',fontFamily:'var(--font-mono)'}}>{task.budget.toLocaleString()}€</span></div>}
         </div>
     );
 };
@@ -817,44 +816,44 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     },[task.id,onDelete,onClose]);
 
     return(
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 modal-backdrop bg-black/60 overflow-y-auto" onClick={handleClose}>
-            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-slide-up mb-8`} onClick={e=>e.stopPropagation()}>
+        <div className="v11-modal-overlay" onClick={handleClose} style={{alignItems:'flex-start',paddingTop:64,overflowY:'auto'}}>
+            <div className="v11-modal animate-slide-up" style={{maxWidth:672,marginBottom:32}} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
-                            <input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border bg-gray-50 border-gray-200`}/>
+                            <input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className="v11-input" style={{fontSize:'1.25rem',fontWeight:700}}/>
                             <div className="flex items-center gap-2 mt-1">
-                                <p className="text-sm text-gray-500">📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
+                                <p className="text-sm" style={{color:'var(--text-muted)'}}>📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
                                 {onBackToAction&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Retour à l'action</button>}
                             </div>
                         </div>
-                        <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-lg"><Icon.Close/></button>
+                        <button onClick={handleClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-6">
-                        {actions&&<div className="w-full"><label className="block text-xs text-gray-500 mb-1">📋 Action</label><select value={form.actionId} onChange={e=>{const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className={`w-full px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
-                        <div><label className="block text-xs text-gray-500 mb-1">Statut</label><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}>{CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Début</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}/></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Fin</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}/></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-24 bg-gray-50 border-gray-200`}/></div>
+                        {actions&&<div className="w-full"><label className="v11-label">📋 Action</label><select value={form.actionId} onChange={e=>{const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className="v11-select" style={{width:'100%'}}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
+                        <div><label className="v11-label">Statut</label><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="v11-select">{CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select></div>
+                        <div><label className="v11-label">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-select">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                        <div><label className="v11-label">Début</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input"/></div>
+                        <div><label className="v11-label">Fin</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
+                        <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}}/></div>
                     </div>
-                    <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🏷️ Tags Canal</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
-                    <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🌍 Tags Pays</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry}/></div>
-                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className={`w-full px-4 py-3 rounded-lg border bg-gray-50 border-gray-200 resize-none`}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Sauvegarder</button>}</div>
+                    <div className="mb-4"><label className="v11-label">🏷️ Tags Canal</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
+                    <div className="mb-4"><label className="v11-label">🌍 Tags Pays</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry}/></div>
+                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className="v11-input" style={{resize:'none'}}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Sauvegarder</button>}</div>
                     <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm text-gray-500">{checklistPct}%</span>}</div>
-                        {form.checklist?.length>0&&<div className="h-2 bg-gray-200 rounded-full mb-3"><div className="h-full bg-accent-green rounded-full" style={{width:`${checklistPct}%`}}/></div>}
-                        <div className="space-y-2 mb-3">{form.checklist?.map(item=>(<div key={item.id} className={`flex items-center space-x-3 p-2 rounded-lg bg-gray-50`}><button onClick={()=>toggleChecklistItem(item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':'border-gray-400'}`}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through text-gray-400':''}`}>{item.text}</span><button onClick={()=>removeChecklistItem(item.id)} className="text-gray-400 hover:text-accent-red"><Icon.Trash/></button></div>))}</div>
-                        <div className="flex space-x-2"><input type="text" value={newChecklistItem} onChange={e=>setNewChecklistItem(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addChecklistItem()} placeholder="Ajouter..." className={`flex-1 px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}/><button onClick={addChecklistItem} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>
+                        <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm" style={{color:'var(--text-muted)'}}>{checklistPct}%</span>}</div>
+                        {form.checklist?.length>0&&<div className="v11-progress-bar" style={{height:8,marginBottom:12}}><div className={`v11-progress-fill ${checklistPct>=70?'high':checklistPct>=40?'medium':'low'}`} style={{width:`${checklistPct}%`}}/></div>}
+                        <div className="space-y-2 mb-3">{form.checklist?.map(item=>(<div key={item.id} className="flex items-center space-x-3 p-2 rounded-lg" style={{background:'var(--bg-secondary)'}}><button onClick={()=>toggleChecklistItem(item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':''}`} style={!item.done?{borderColor:'var(--border-strong)'}:{}}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through':''}`} style={item.done?{color:'var(--text-muted)'}:{}}>{item.text}</span><button onClick={()=>removeChecklistItem(item.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)'}}><Icon.Trash/></button></div>))}</div>
+                        <div className="flex space-x-2"><input type="text" value={newChecklistItem} onChange={e=>setNewChecklistItem(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addChecklistItem()} placeholder="Ajouter..." className="v11-input" style={{flex:1}}/><button onClick={addChecklistItem} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>
                     </div>
                     <div className="mb-6">
                         <label className="block text-sm font-medium mb-2">💬 Commentaires ({form.comments?.length||0})</label>
-                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{form.comments?.map(c=>(<div key={c.id} className={`p-3 rounded-lg bg-gray-50`}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs text-gray-500">{new Date(c.date).toLocaleDateString('fr-FR')}</span></div><p className="text-sm text-gray-600">{c.text}</p></div>))}</div>
-                        <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Écrire..." className={`flex-1 px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Envoyer</button></div>
+                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{form.comments?.map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-secondary)'}}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleDateString('fr-FR')}</span></div><p className="text-sm" style={{color:'var(--text-secondary)'}}>{c.text}</p></div>))}</div>
+                        <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Écrire..." className="v11-input" style={{flex:1}}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Envoyer</button></div>
                     </div>
-                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📎 Pièces jointes</label><div className={`border-2 border-dashed border-gray-300 rounded-lg p-6 text-center`}><p className="text-sm text-gray-500">Glissez des fichiers ici</p><p className="text-xs text-gray-400">(Disponible avec Google Drive)</p></div></div>
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📎 Pièces jointes</label><div className="border-2 border-dashed rounded-lg p-6 text-center" style={{borderColor:'var(--border)'}}><p className="text-sm" style={{color:'var(--text-muted)'}}>Glissez des fichiers ici</p><p className="text-xs" style={{color:'var(--text-muted)'}}>(Disponible avec Google Drive)</p></div></div>
+                    <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
                         <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
                         <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Fermer</button>
                     </div>
@@ -880,31 +879,31 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     const removeChannel=(id)=>setForm({...form,tags:(form.tags||[]).filter(c=>c!==id)});
 
     return(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" onClick={handleClose}>
-            <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-slide-up`} onClick={e=>e.stopPropagation()}>
+        <div className="v11-modal-overlay" onClick={handleClose}>
+            <div className="v11-modal animate-slide-up" style={{maxWidth:512,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
-                            <span className="text-xs text-gray-500">📁 ACTION</span>
-                            <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className={`w-full text-xl font-bold px-3 py-2 rounded-lg border mt-1 bg-gray-50 border-gray-200`}/>
+                            <span className="text-xs" style={{color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:0.5,fontWeight:600}}>📁 ACTION</span>
+                            <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="v11-input" style={{fontSize:'1.25rem',fontWeight:700,marginTop:4}}/>
                         </div>
-                        <button onClick={handleClose} className="ml-2 p-2 hover:bg-gray-100 rounded-lg"><Icon.Close/></button>
+                        <button onClick={handleClose} className="ml-2 v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-4">
-                        <div><label className="block text-xs text-gray-500 mb-1">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className={`px-3 py-2 rounded-lg border text-sm bg-gray-50 border-gray-200`}>{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
-                        <div><label className="block text-xs text-gray-500 mb-1">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className={`px-3 py-2 rounded-lg border text-sm w-32 bg-gray-50 border-gray-200`}/></div>
+                        <div><label className="v11-label">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-select">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                        <div><label className="v11-label">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-select">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                        <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:128}}/></div>
                     </div>
-                    <div className={`bg-gray-50 rounded-xl p-4 mb-4`}>
+                    <div className="rounded-xl p-4 mb-4" style={{background:'var(--bg-secondary)'}}>
                         <div className="flex justify-between mb-3">
-                            <div><span className="text-xs text-gray-500">💰 Budget Total Tâches</span><p className="text-lg font-bold text-secondary">{totalBudget.toLocaleString()}€</p></div>
-                            <div><span className="text-xs text-gray-500">📊 Progression</span><p className="text-lg font-bold">{progressPct}%</p></div>
-                            <div><span className="text-xs text-gray-500">📋 Tâches</span><p className="text-lg font-bold">{completedTasks}/{actionTasks.length}</p></div>
+                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>💰 Budget Total Tâches</span><p className="text-lg font-bold text-secondary">{totalBudget.toLocaleString()}€</p></div>
+                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>📊 Progression</span><p className="text-lg font-bold">{progressPct}%</p></div>
+                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>📋 Tâches</span><p className="text-lg font-bold">{completedTasks}/{actionTasks.length}</p></div>
                         </div>
-                        <div className="h-3 bg-gray-200 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${category?.gradient}`} style={{width:`${progressPct}%`}}/></div>
+                        <div className="v11-progress-bar" style={{height:12}}><div className={`v11-progress-fill ${progressPct>=70?'high':progressPct>=40?'medium':'low'}`} style={{width:`${progressPct}%`}}/></div>
                     </div>
-                    <div className="mb-4"><label className="block text-xs text-gray-500 mb-2">🏷️ Tags Canal</label><ChannelTags channels={form.tags||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
+                    <div className="mb-4"><label className="v11-label">🏷️ Tags Canal</label><ChannelTags channels={form.tags||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
                     <div className="mb-4">
                         <div className="flex items-center justify-between mb-3">
                             <label className="text-sm font-medium">📋 TÂCHES ({actionTasks.length})</label>
@@ -914,7 +913,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                             {actionTasks.length>0?actionTasks.map(task=>{
                                 const status=CONFIG.STATUSES.find(s=>s.id===task.status);
                                 return(
-                                    <div key={task.id} className={`bg-gray-50 rounded-lg p-3 border border-gray-200`}>
+                                    <div key={task.id} className="rounded-lg p-3" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)'}}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center space-x-3 flex-1 min-w-0">
                                                 <select value={task.status} onChange={e=>handleStatusChange(task.id,e.target.value)} className="px-2 py-1 rounded text-xs text-white border-0 cursor-pointer" style={{backgroundColor:status?.color}}>
@@ -922,17 +921,17 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                 </select>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-medium text-sm truncate">{task.title}</p>
-                                                    <p className="text-xs text-gray-500">📅 {task.startDate?new Date(task.startDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'} → {task.dueDate?new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'}</p>
+                                                    <p className="text-xs" style={{color:'var(--text-muted)'}}>📅 {task.startDate?new Date(task.startDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'} → {task.dueDate?new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'}</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center space-x-2">
                                                 {task.budget>0&&<span className="text-xs font-semibold text-secondary">{task.budget}€</span>}
-                                                <button onClick={()=>onOpenTask(task)} className="p-1 hover:bg-gray-200 rounded text-gray-500"><Icon.External/></button>
+                                                <button onClick={()=>onOpenTask(task)} className="p-1 rounded" style={{color:'var(--text-muted)'}}><Icon.External/></button>
                                             </div>
                                         </div>
                                     </div>
                                 );
-                            }):<p className="text-center text-gray-500 py-4 text-sm">Aucune tâche</p>}
+                            }):<p className="text-center py-4 text-sm" style={{color:'var(--text-muted)'}}>Aucune tâche</p>}
                         </div>
                     </div>
                     {showConfirmDelete&&(
@@ -941,11 +940,11 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                             <p className="text-xs text-red-600 mb-3">Cette action et ses {actionTasks.length} tâche(s) seront définitivement supprimées.</p>
                             <div className="flex space-x-2">
                                 <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">Confirmer</button>
-                                <button onClick={()=>setShowConfirmDelete(false)} className="px-4 py-2 bg-gray-200 rounded-lg text-sm">Annuler</button>
+                                <button onClick={()=>setShowConfirmDelete(false)} className="v11-btn-secondary">Annuler</button>
                             </div>
                         </div>
                     )}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                    <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
                         <button onClick={()=>setShowConfirmDelete(true)} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
                         <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Fermer</button>
                     </div>
@@ -1027,19 +1026,19 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 
     return(
         <div className="animate-slide-in">
-            <div className={`bg-white rounded-xl p-4 border border-gray-200 mb-4`}>
+            <div className="v11-card" style={{padding:'var(--space-4)',marginBottom:'var(--space-4)',cursor:'default'}}>
                 <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                     <div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-500">Vue:</span>
-                        <div className="flex rounded-lg overflow-hidden border border-gray-200">
+                        <span className="text-sm" style={{color:'var(--text-muted)'}}>Vue:</span>
+                        <div className="flex rounded-lg overflow-hidden" style={{border:'1px solid var(--border)'}}>
                             {[{id:'month',label:'Par Mois',icon:Icon.Calendar},{id:'quarter',label:'Par Trimestre',icon:Icon.Calendar},{id:'category',label:'Par Catégorie',icon:Icon.Folder},{id:'action',label:'Par Action',icon:Icon.List}].map(v=>(
-                                <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`px-4 py-2 text-sm flex items-center space-x-2 ${viewMode===v.id?'bg-primary text-white':'hover:bg-gray-100'}`}><v.icon/><span className="hidden sm:inline">{v.label}</span></button>
+                                <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`px-4 py-2 text-sm flex items-center space-x-2 ${viewMode===v.id?'bg-primary text-white':''}`} style={viewMode!==v.id?{color:'var(--text-secondary)'}:{}}><v.icon/><span className="hidden sm:inline">{v.label}</span></button>
                             ))}
                         </div>
                     </div>
                     {viewMode!=='category'&&<div className="flex items-center space-x-2">
-                        <span className="text-sm text-gray-500">Tri:</span>
-                        <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className={`px-3 py-2 text-sm rounded-lg border bg-white border-gray-200`}>
+                        <span className="text-sm" style={{color:'var(--text-muted)'}}>Tri:</span>
+                        <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="v11-select">
                             <option value="order">Manuel</option>
                             <option value="name">Nom A→Z</option>
                             <option value="created">Date création</option>
@@ -1051,16 +1050,16 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                 </div>
                 {(viewMode==='month'||viewMode==='quarter'||viewMode==='action')&&(
                     <div>
-                        <label className="block text-xs text-gray-500 mb-2">Filtrer par action:</label>
+                        <label className="v11-label">Filtrer par action:</label>
                         <div className="flex flex-wrap gap-2">
-                            <button onClick={()=>setActionFilters([])} className={`px-3 py-1.5 rounded-full text-xs ${actionFilters.length===0?'bg-primary text-white':'bg-gray-100'}`}>Toutes</button>
+                            <button onClick={()=>setActionFilters([])} className={`px-3 py-1.5 rounded-full text-xs ${actionFilters.length===0?'bg-primary text-white':''}`} style={actionFilters.length!==0?{background:'var(--bg-secondary)'}:{}}>Toutes</button>
                             {actions.map(a=>(
                                 <button key={a.id} onClick={()=>{
                                     if(viewMode==='action')setSelectedAction(a.id===selectedAction?null:a.id);
                                     const idx=actionFilters.indexOf(a.id);
                                     if(idx>=0)setActionFilters(actionFilters.filter(id=>id!==a.id));
                                     else setActionFilters([...actionFilters,a.id]);
-                                }} className={`px-3 py-1.5 rounded-full text-xs truncate max-w-[160px] ${(viewMode==='action'&&selectedAction===a.id)||((viewMode==='month'||viewMode==='quarter')&&actionFilters.includes(a.id))?'bg-secondary text-white':'bg-gray-100'}`} title={a.name}>
+                                }} className={`px-3 py-1.5 rounded-full text-xs truncate max-w-[160px] ${(viewMode==='action'&&selectedAction===a.id)||((viewMode==='month'||viewMode==='quarter')&&actionFilters.includes(a.id))?'bg-secondary text-white':''}`} style={!((viewMode==='action'&&selectedAction===a.id)||((viewMode==='month'||viewMode==='quarter')&&actionFilters.includes(a.id)))?{background:'var(--bg-secondary)'}:{}} title={a.name}>
                                     {a.name.length>20?a.name.substring(0,20)+'...':a.name}
                                 </button>
                             ))}
@@ -1113,14 +1112,14 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     }
                                 }
                             }}
-                            className={`kanban-column flex-shrink-0 ${viewMode==='category'?'w-80':'w-64'} bg-gray-100/50 rounded-xl p-3 min-h-[200px]`}>
+                            className={`kanban-column flex-shrink-0 ${viewMode==='category'?'w-80':'w-64'} rounded-xl p-3 min-h-[200px]`} style={{background:'var(--bg-secondary)'}}>
                             <div className="mb-3">
                                 {col.gradient&&<div className={`h-1 rounded-full bg-gradient-to-r ${col.gradient} mb-2`}/>}
-                                <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{col.icon&&<span className="mr-1">{col.icon}</span>}{col.name}</h3><span className={`px-2 py-0.5 rounded-full text-xs bg-gray-200`}>{col.items.length}</span></div>
+                                <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{col.icon&&<span className="mr-1">{col.icon}</span>}{col.name}</h3><span className="px-2 py-0.5 rounded-full text-xs" style={{background:'var(--bg-tertiary)'}}>{col.items.length}</span></div>
                             </div>
                             <div className="space-y-3">
                                 {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories} allCountries={allCountries}/>)}
-                                {col.items.length===0&&<div className={`text-center py-8 border-2 border-dashed border-gray-300 rounded-lg`}><p className="text-xs text-gray-400">Aucune tâche</p></div>}
+                                {col.items.length===0&&<div className="text-center py-8 border-2 border-dashed rounded-lg" style={{borderColor:'var(--border)'}}><p className="text-xs" style={{color:'var(--text-muted)'}}>Aucune tâche</p></div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
                                         const monthIdx=col.key;
@@ -1140,7 +1139,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         onAddTask(newTask);
                                         setTimeout(()=>onOpenTask(newTask),100);
                                     }
-                                }} className={`w-full mt-3 px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors`}>
+                                }} className="w-full mt-3 px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-1 transition-colors" style={{background:'var(--bg-secondary)',color:'var(--text-muted)'}}>
                                     <Icon.Plus size={16}/>
                                     <span>Ajouter une carte</span>
                                 </button>
@@ -2364,55 +2363,55 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
     return(
         <div className="animate-slide-in">
-            <div className={`bg-white rounded-xl p-4 border border-gray-200 mb-4`}>
+            <div className="v11-card" style={{padding:'var(--space-4)',marginBottom:'var(--space-4)',cursor:'default'}}>
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center space-x-4">
                         <div className="flex items-center space-x-2">
-                            <span className="text-sm text-gray-500">Zoom:</span>
-                            <div className="flex rounded-lg overflow-hidden border border-gray-200">
+                            <span className="text-sm" style={{color:'var(--text-muted)'}}>Zoom:</span>
+                            <div className="flex rounded-lg overflow-hidden" style={{border:'1px solid var(--border)'}}>
                                 {[{id:'day',label:'Jour'},{id:'week',label:'Semaine'},{id:'month',label:'Mois'},{id:'quarter',label:'Trimestre'}].map(z=>(
-                                    <button key={z.id} onClick={()=>handleZoomChange(z.id)} className={`px-3 py-1.5 text-sm ${zoom===z.id?'bg-primary text-white':'hover:bg-gray-100'}`}>{z.label}</button>
+                                    <button key={z.id} onClick={()=>handleZoomChange(z.id)} className={`px-3 py-1.5 text-sm ${zoom===z.id?'bg-primary text-white':''}`} style={zoom!==z.id?{color:'var(--text-secondary)'}:{}}>{z.label}</button>
                                 ))}
                             </div>
                         </div>
                         <div className="flex items-center space-x-1">
-                            {[1,2,3,4].map(q=>(<button key={q} onClick={()=>scrollToQuarter(q)} className={`px-3 py-1.5 text-sm rounded bg-gray-100 hover:bg-gray-200`}>Q{q}</button>))}
+                            {[1,2,3,4].map(q=>(<button key={q} onClick={()=>scrollToQuarter(q)} className="px-3 py-1.5 text-sm rounded" style={{background:'var(--bg-secondary)'}}>Q{q}</button>))}
                         </div>
                     </div>
-                    <div className="flex items-center space-x-2 text-sm text-gray-500"><Icon.Hand/><span>Espace+Clic pour naviguer</span></div>
+                    <div className="flex items-center space-x-2 text-sm" style={{color:'var(--text-muted)'}}><Icon.Hand/><span>Espace+Clic pour naviguer</span></div>
                 </div>
             </div>
-            <div className={`bg-white rounded-xl border border-gray-200 overflow-hidden`}>
+            <div className="v11-timeline-container">
                 <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
                     <div style={{minWidth:`${headers.length*colWidth+250}px`}}>
                         {(zoom==='week'||zoom==='day')&&monthHeaders&&(
-                            <div className={`flex border-b border-gray-200 sticky top-0 z-20 bg-white`}>
-                                <div className={`w-[250px] flex-shrink-0 sticky left-0 z-30 bg-white`}/>
+                            <div className={`flex border-b border-[var(--border)] sticky top-0 z-20 bg-[var(--bg-primary)]`}>
+                                <div className={`w-[250px] flex-shrink-0 sticky left-0 z-30 bg-[var(--bg-primary)]`}/>
                                 {monthHeaders.map((m,idx)=>(
-                                    <div key={idx} className={`flex-shrink-0 p-2 text-center font-semibold border-l border-gray-200 ${m.month===currentMonth?'bg-accent/10 text-accent':''}`} style={{width:zoom==='week'?(m.endWeek-m.startWeek)*colWidth:m.days*colWidth}}>
+                                    <div key={idx} className={`flex-shrink-0 p-2 text-center font-semibold border-l border-[var(--border)] ${m.month===currentMonth?'bg-accent/10 text-accent':''}`} style={{width:zoom==='week'?(m.endWeek-m.startWeek)*colWidth:m.days*colWidth}}>
                                         {m.label}
                                     </div>
                                 ))}
                             </div>
                         )}
-                        <div className={`flex border-b border-gray-200 ${(zoom==='week'||zoom==='day')?'':'sticky top-0 z-10'} bg-white`}>
-                            <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 bg-white border-r border-gray-200`}>Actions</div>
+                        <div className={`flex border-b border-[var(--border)] ${(zoom==='week'||zoom==='day')?'':'sticky top-0 z-10'} bg-[var(--bg-primary)]`}>
+                            <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 bg-[var(--bg-primary)] border-r border-[var(--border)]`}>Actions</div>
                             {zoom==='quarter'?headers.map(h=>(
-                                <div key={h.q} className={`flex-shrink-0 p-3 text-center font-semibold border-l border-gray-200`} style={{width:colWidth}}>
+                                <div key={h.q} className={`flex-shrink-0 p-3 text-center font-semibold border-l border-[var(--border)]`} style={{width:colWidth}}>
                                     <div>{h.label}</div>
-                                    <div className="flex justify-around text-xs text-gray-500 mt-1">{h.months.map(m=><span key={m}>{CONFIG.MONTHS[m]}</span>)}</div>
+                                    <div className="flex justify-around text-xs text-[var(--text-muted)] mt-1">{h.months.map(m=><span key={m}>{CONFIG.MONTHS[m]}</span>)}</div>
                                 </div>
                             )):zoom==='week'?headers.map((h,i)=>(
-                                <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l border-gray-200 ${h.week===currentWeek?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
+                                <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l border-[var(--border)] ${h.week===currentWeek?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
                             )):zoom==='day'?headers.map((h,i)=>(
-                                <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l border-gray-200 ${h.month===currentMonth&&h.date===new Date().getDate()?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
+                                <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l border-[var(--border)] ${h.month===currentMonth&&h.date===new Date().getDate()?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
                             )):headers.map((h,i)=>(
-                                <div key={i} className={`flex-shrink-0 p-2 text-center text-xs font-medium border-l border-gray-200 ${h.month===currentMonth?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
+                                <div key={i} className={`flex-shrink-0 p-2 text-center text-xs font-medium border-l border-[var(--border)] ${h.month===currentMonth?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
                             ))}
                         </div>
                         {groupedByCategory.map(({category,actions:catActions})=>(
                             <div key={category.id}>
-                                <div className={`flex border-b border-gray-200`} onDragOver={(e)=>{if(onUpdateAction){const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.add('drag-over');}}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}}>
+                                <div className={`flex border-b border-[var(--border)]`} onDragOver={(e)=>{if(onUpdateAction){const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.add('drag-over');}}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}}>
                                     <div className={`w-[250px] flex-shrink-0 p-3 font-bold text-white text-sm bg-gradient-to-r ${category.gradient} sticky left-0 z-10`}>{category.name}</div>
                                     <div className="flex-1" style={{background:'rgba(243,244,246,0.5)'}}/>
                                 </div>
@@ -2422,16 +2421,16 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     const{swimLanes,maxLanes}=calculateSwimLanes(actionTasks);
                                     const rowHeight=Math.max(60,maxLanes*48+16);
                                     return(
-                                    <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex border-b border-gray-200 hover:bg-gray-50/30 group relative ${dragOverActionClass}`}>
-                                        <div className={`w-[250px] flex-shrink-0 p-2 relative sticky left-0 z-30 bg-white border-r border-gray-200 group-hover:bg-gray-50`} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
+                                    <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex group relative ${dragOverActionClass}`} style={{borderBottom:'1px solid var(--border-light)'}}>
+                                        <div className="w-[250px] flex-shrink-0 p-2 relative sticky left-0 z-30" style={{background:'var(--bg-primary)',borderRight:'1px solid var(--border)'}} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
                                             <p className="text-sm font-medium truncate hover:text-secondary">{action.name}</p>
-                                            <p className="text-xs text-gray-500">{actionTasks.length} tâches</p>
-                                            {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs text-gray-400" title="Glisser pour réordonner">⋮⋮</div>}
+                                            <p className="text-xs text-[var(--text-muted)]">{actionTasks.length} tâches</p>
+                                            {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs text-[var(--text-muted)]" title="Glisser pour réordonner">⋮⋮</div>}
                                         </div>
                                         <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:`${rowHeight}px`,zIndex:20}} onMouseDown={(e)=>handleCreateTaskStart(e,action)} onDragOver={(e)=>{handleActionRowDragOver(e,action);}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleActionRowDrop(e,action);}}}>
                                             <div className="absolute inset-0 flex pointer-events-none">
                                                 {headers.map((_,i)=>(
-                                                    <div key={i} className={`border-l border-gray-200`} style={{width:colWidth}}/>
+                                                    <div key={i} className={`border-l border-[var(--border)]`} style={{width:colWidth}}/>
                                                 ))}
                                             </div>
                                             {dragPreview&&dragPreview.actionId===action.id&&(
@@ -2470,8 +2469,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                     </div>
                 </div>
             </div>
-            <div className={`mt-4 bg-white rounded-xl p-4 border border-gray-200`}>
-                <p className="text-sm text-gray-500 mb-2">Légende:</p>
+            <div className={`mt-4 bg-[var(--bg-primary)] rounded-xl p-4 border border-[var(--border)]`}>
+                <p className="text-sm text-[var(--text-muted)] mb-2">Légende:</p>
                 <div className="flex flex-wrap gap-4">{CONFIG.STATUSES.map(s=><div key={s.id} className="flex items-center space-x-2"><div className="w-4 h-4 rounded" style={{backgroundColor:s.color}}/><span className="text-sm">{s.icon} {s.name}</span></div>)}</div>
             </div>
         </div>
@@ -2490,8 +2489,8 @@ const DashboardView=({categories,actions,tasks})=>{
     const overdueTasks=tasks.filter(t=>t.status!=='completed'&&(t.month<currentMonth||(t.dueDate&&new Date(t.dueDate)<new Date())));
 
     const KPICard=({title,value,subtitle,icon:I,color})=>(
-        <div className={`bg-white rounded-xl p-6 border border-gray-200 shadow-sm`}>
-            <div className="flex items-start justify-between"><div><p className="text-sm text-gray-500 mb-1">{title}</p><p className="text-3xl font-bold" style={{color}}>{value}</p>{subtitle&&<p className="text-sm text-gray-400 mt-1">{subtitle}</p>}</div><div className="p-3 rounded-xl" style={{backgroundColor:`${color}20`}}><I/></div></div>
+        <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
+            <div className="flex items-start justify-between"><div><p className="text-sm mb-1" style={{color:'var(--text-muted)'}}>{title}</p><p className="text-3xl font-bold" style={{color}}>{value}</p>{subtitle&&<p className="text-sm mt-1" style={{color:'var(--text-muted)'}}>{subtitle}</p>}</div><div className="p-3 rounded-xl" style={{backgroundColor:`${color}20`}}><I/></div></div>
         </div>
     );
 
@@ -2503,7 +2502,7 @@ const DashboardView=({categories,actions,tasks})=>{
                 <KPICard title="Ce mois" value={currentTasks.length} subtitle="tâches actives" icon={Icon.Calendar} color="#f59e0b"/>
                 <KPICard title="En retard" value={overdueTasks.length} subtitle={overdueTasks.length>0?'à traiter':'Tout OK!'} icon={Icon.Alert} color={overdueTasks.length>0?'#ef4444':'#22c55e'}/>
             </div>
-            <div className={`bg-white rounded-xl p-6 border border-gray-200`}>
+            <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
                 <h3 className="font-semibold mb-4">Progression par catégorie</h3>
                 <div className="space-y-4">
                     {categories.map(cat=>{
@@ -2514,41 +2513,41 @@ const DashboardView=({categories,actions,tasks})=>{
                         const catBudget=catTasks.reduce((s,t)=>s+(t.budget||0),0);
                         return(
                             <div key={cat.id}>
-                                <div className="flex items-center justify-between mb-2"><div className="flex items-center space-x-3"><div className={`w-3 h-3 rounded-full bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium text-sm">{cat.name}</span></div><div className="flex items-center space-x-4 text-sm"><span className="text-gray-500">{catCompleted}/{catTasks.length}</span><span className="font-semibold text-secondary">{(catBudget/1000).toFixed(0)}k€</span><span className="font-bold">{catPct}%</span></div></div>
-                                <div className="h-3 bg-gray-200 rounded-full"><div className={`h-full rounded-full bg-gradient-to-r ${cat.gradient}`} style={{width:`${catPct}%`}}/></div>
+                                <div className="flex items-center justify-between mb-2"><div className="flex items-center space-x-3"><div className={`w-3 h-3 rounded-full bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium text-sm">{cat.name}</span></div><div className="flex items-center space-x-4 text-sm"><span style={{color:'var(--text-muted)'}}>{catCompleted}/{catTasks.length}</span><span className="font-semibold text-secondary">{(catBudget/1000).toFixed(0)}k€</span><span className="font-bold">{catPct}%</span></div></div>
+                                <div className="v11-progress-bar" style={{height:12}}><div className={`h-full rounded-full bg-gradient-to-r ${cat.gradient}`} style={{width:`${catPct}%`}}/></div>
                             </div>
                         );
                     })}
                 </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className={`bg-white rounded-xl p-6 border border-gray-200`}>
+                <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
                     <h3 className="font-semibold mb-4">Par statut</h3>
                     <div className="space-y-3">
-                        {CONFIG.STATUSES.map(s=>{const count=tasks.filter(t=>t.status===s.id).length;const pct=totalTasks>0?Math.round((count/totalTasks)*100):0;return(<div key={s.id} className="flex items-center"><div className="w-28 flex items-center space-x-2"><span>{s.icon}</span><span className="text-sm">{s.name}</span></div><div className="flex-1 h-4 bg-gray-200 rounded-full mx-3"><div className="h-full rounded-full" style={{width:`${pct}%`,backgroundColor:s.color}}/></div><span className="w-8 text-right text-sm font-medium">{count}</span></div>);})}
+                        {CONFIG.STATUSES.map(s=>{const count=tasks.filter(t=>t.status===s.id).length;const pct=totalTasks>0?Math.round((count/totalTasks)*100):0;return(<div key={s.id} className="flex items-center"><div className="w-28 flex items-center space-x-2"><span>{s.icon}</span><span className="text-sm">{s.name}</span></div><div className="flex-1 h-4 rounded-full mx-3" style={{background:'var(--bg-secondary)'}}><div className="h-full rounded-full" style={{width:`${pct}%`,backgroundColor:s.color}}/></div><span className="w-8 text-right text-sm font-medium">{count}</span></div>);})}
                     </div>
                 </div>
-                <div className={`bg-white rounded-xl p-6 border ${overdueTasks.length>0?'border-accent-red':'border-gray-200'}`}>
+                <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default',borderColor:overdueTasks.length>0?'var(--error)':'var(--border-light)'}}>
                     <h3 className="font-semibold mb-4">🚨 En retard</h3>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {overdueTasks.length>0?overdueTasks.slice(0,8).map(t=>{const action=actions.find(a=>a.id===t.actionId);return<div key={t.id} className="p-3 rounded-lg bg-red-50 border border-red-200"><p className="font-medium text-sm">{t.title}</p><p className="text-xs text-red-600">{action?.name} • {CONFIG.MONTHS_FULL[t.month]}</p></div>;}):<div className="text-center py-8"><span className="text-4xl">✅</span><p className="text-gray-500 text-sm mt-2">Tout est à jour!</p></div>}
+                        {overdueTasks.length>0?overdueTasks.slice(0,8).map(t=>{const action=actions.find(a=>a.id===t.actionId);return<div key={t.id} className="p-3 rounded-lg bg-red-50 border border-red-200"><p className="font-medium text-sm">{t.title}</p><p className="text-xs text-red-600">{action?.name} • {CONFIG.MONTHS_FULL[t.month]}</p></div>;}):<div className="text-center py-8"><span className="text-4xl">✅</span><p className="text-sm mt-2" style={{color:'var(--text-muted)'}}>Tout est à jour!</p></div>}
                     </div>
                 </div>
             </div>
-            <div className={`bg-white rounded-xl p-6 border border-gray-200`}>
+            <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
                 <h3 className="font-semibold mb-4">📢 Par canal</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {CONFIG.CHANNELS.map(ch=>{
                         const chTasks=tasks.filter(t=>(t.channels||[]).includes(ch.id));
                         const chCompleted=chTasks.filter(t=>t.status==='completed').length;
                         return(
-                            <div key={ch.id} className={`p-3 rounded-lg border border-gray-200 bg-gray-50`}>
+                            <div key={ch.id} className="p-3 rounded-lg" style={{border:'1px solid var(--border-light)',background:'var(--bg-secondary)'}}>
                                 <div className="flex items-center space-x-2 mb-2">
                                     <div className="w-3 h-3 rounded-full" style={{backgroundColor:ch.color}}/>
                                     <span className="text-sm font-medium truncate">{ch.name}</span>
                                 </div>
                                 <div className="text-2xl font-bold">{chTasks.length}</div>
-                                <div className="text-xs text-gray-500">{chCompleted} terminées</div>
+                                <div className="text-xs" style={{color:'var(--text-muted)'}}>{chCompleted} terminées</div>
                             </div>
                         );
                     })}
@@ -2564,19 +2563,19 @@ const FilterBar=({filters,setFilters,actions,categories,allCountries})=>{
     const activeCount=Object.values(filters).filter(v=>Array.isArray(v)?v.length>0:v).length;
 
     return(
-        <div className={`bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4`}>
+        <div className="v11-card" style={{padding:'var(--space-4)',marginBottom:'var(--space-4)',cursor:'default'}}>
             <div className="flex flex-wrap items-center gap-3">
-                <div className="flex-1 min-w-[200px]"><input type="text" placeholder="Rechercher..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className={`w-full px-4 py-2 rounded-lg border bg-gray-50 border-gray-200 focus:outline-none focus:ring-2 focus:ring-secondary`}/></div>
-                <button onClick={()=>setShowFilters(!showFilters)} className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${showFilters||activeCount>0?'bg-secondary text-white border-secondary':'border-gray-200'}`}><Icon.Filter/><span>Filtres</span>{activeCount>0&&<span className="bg-white text-secondary px-2 py-0.5 rounded-full text-xs font-bold">{activeCount}</span>}</button>
+                <div className="flex-1 min-w-[200px]"><input type="text" placeholder="Rechercher..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className="v11-input"/></div>
+                <button onClick={()=>setShowFilters(!showFilters)} className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${showFilters||activeCount>0?'bg-secondary text-white border-secondary':''}`} style={!(showFilters||activeCount>0)?{borderColor:'var(--border)'}:{}}><Icon.Filter/><span>Filtres</span>{activeCount>0&&<span className="bg-[var(--bg-primary)] text-secondary px-2 py-0.5 rounded-full text-xs font-bold">{activeCount}</span>}</button>
                 {activeCount>0&&<button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],action:[],channel:[],country:[]})} className="text-accent-red text-sm">Effacer</button>}
             </div>
             {showFilters&&(
-                <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-slide-in">
-                    <div><label className="block text-xs text-gray-500 mb-2">Statut</label><div className="flex flex-wrap gap-1">{CONFIG.STATUSES.map(s=>(<button key={s.id} onClick={()=>{const n=filters.status.includes(s.id)?filters.status.filter(x=>x!==s.id):[...filters.status,s.id];setFilters({...filters,status:n});}} className={`px-2 py-1 rounded text-xs ${filters.status.includes(s.id)?'text-white':'bg-gray-100'}`} style={filters.status.includes(s.id)?{backgroundColor:s.color}:{}}>{s.icon}</button>))}</div></div>
-                    <div><label className="block text-xs text-gray-500 mb-2">Catégorie</label><div className="flex flex-wrap gap-1">{categories.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`px-2 py-1 rounded text-xs ${filters.category.includes(c.id)?'text-white bg-gradient-to-r '+c.gradient:'bg-gray-100'}`}>{c.name.split(' ')[0]}</button>))}</div></div>
-                    <div><label className="block text-xs text-gray-500 mb-2">Priorité</label><div className="flex gap-1">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`px-2 py-1 rounded text-xs ${filters.priority.includes(p.id)?'text-white':'bg-gray-100'}`} style={filters.priority.includes(p.id)?{backgroundColor:p.color}:{}}>{p.icon}</button>))}</div></div>
-                    <div className="sm:col-span-3"><label className="block text-xs text-gray-500 mb-2">Canal</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,channel:[]})} className={`px-2 py-1 rounded text-xs ${!filters.channel||filters.channel.length===0?'bg-primary text-white':'bg-gray-100'}`}>Tous</button>{CONFIG.CHANNELS.map(ch=>(<button key={ch.id} onClick={()=>{const n=filters.channel?.includes(ch.id)?filters.channel.filter(x=>x!==ch.id):[...(filters.channel||[]),ch.id];setFilters({...filters,channel:n});}} className={`px-2 py-1 rounded text-xs ${filters.channel?.includes(ch.id)?'text-white':'bg-gray-100'}`} style={filters.channel?.includes(ch.id)?{backgroundColor:ch.color}:{}}>{ch.name}</button>))}</div></div>
-                    <div className="sm:col-span-3"><label className="block text-xs text-gray-500 mb-2">Pays</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,country:[]})} className={`px-2 py-1 rounded text-xs ${!filters.country||filters.country.length===0?'bg-primary text-white':'bg-gray-100'}`}>Tous</button>{allCountries.map(co=>(<button key={co.id} onClick={()=>{const n=filters.country?.includes(co.id)?filters.country.filter(x=>x!==co.id):[...(filters.country||[]),co.id];setFilters({...filters,country:n});}} className={`px-2 py-1 rounded text-xs ${filters.country?.includes(co.id)?'text-white':'bg-gray-100'}`} style={filters.country?.includes(co.id)?{backgroundColor:co.color}:{}}>{co.flag} {co.name}</button>))}</div></div>
+                <div className="mt-4 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-slide-in" style={{borderTop:'1px solid var(--border)'}}>
+                    <div><label className="v11-label">Statut</label><div className="flex flex-wrap gap-1">{CONFIG.STATUSES.map(s=>(<button key={s.id} onClick={()=>{const n=filters.status.includes(s.id)?filters.status.filter(x=>x!==s.id):[...filters.status,s.id];setFilters({...filters,status:n});}} className={`px-2 py-1 rounded text-xs ${filters.status.includes(s.id)?'text-white':''}`} style={!filters.status.includes(s.id)?{background:'var(--bg-secondary)'}:{}} style={filters.status.includes(s.id)?{backgroundColor:s.color}:{}}>{s.icon}</button>))}</div></div>
+                    <div><label className="v11-label">Catégorie</label><div className="flex flex-wrap gap-1">{categories.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`px-2 py-1 rounded text-xs ${filters.category.includes(c.id)?'text-white bg-gradient-to-r '+c.gradient:''}`} style={!filters.category.includes(c.id)?{background:'var(--bg-secondary)'}:{}}>{c.name.split(' ')[0]}</button>))}</div></div>
+                    <div><label className="v11-label">Priorité</label><div className="flex gap-1">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`px-2 py-1 rounded text-xs ${filters.priority.includes(p.id)?'text-white':''}`} style={!filters.priority.includes(p.id)?{background:'var(--bg-secondary)'}:{}} style={filters.priority.includes(p.id)?{backgroundColor:p.color}:{}}>{p.icon}</button>))}</div></div>
+                    <div className="sm:col-span-3"><label className="v11-label">Canal</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,channel:[]})} className={`px-2 py-1 rounded text-xs ${!filters.channel||filters.channel.length===0?'bg-primary text-white':''}`} style={filters.channel&&filters.channel.length>0?{background:'var(--bg-secondary)'}:{}}>Tous</button>{CONFIG.CHANNELS.map(ch=>(<button key={ch.id} onClick={()=>{const n=filters.channel?.includes(ch.id)?filters.channel.filter(x=>x!==ch.id):[...(filters.channel||[]),ch.id];setFilters({...filters,channel:n});}} className={`px-2 py-1 rounded text-xs ${filters.channel?.includes(ch.id)?'text-white':''}`} style={!filters.channel?.includes(ch.id)?{background:'var(--bg-secondary)'}:{}} style={filters.channel?.includes(ch.id)?{backgroundColor:ch.color}:{}}>{ch.name}</button>))}</div></div>
+                    <div className="sm:col-span-3"><label className="v11-label">Pays</label><div className="flex flex-wrap gap-1"><button onClick={()=>setFilters({...filters,country:[]})} className={`px-2 py-1 rounded text-xs ${!filters.country||filters.country.length===0?'bg-primary text-white':''}`} style={filters.country&&filters.country.length>0?{background:'var(--bg-secondary)'}:{}}>Tous</button>{allCountries.map(co=>(<button key={co.id} onClick={()=>{const n=filters.country?.includes(co.id)?filters.country.filter(x=>x!==co.id):[...(filters.country||[]),co.id];setFilters({...filters,country:n});}} className={`px-2 py-1 rounded text-xs ${filters.country?.includes(co.id)?'text-white':''}`} style={!filters.country?.includes(co.id)?{background:'var(--bg-secondary)'}:{}} style={filters.country?.includes(co.id)?{backgroundColor:co.color}:{}}>{co.flag} {co.name}</button>))}</div></div>
                 </div>
             )}
         </div>
@@ -3405,9 +3404,9 @@ const App=()=>{
                         <div className="flex items-center gap-2">
                             <div className="relative group">
                                 <button className="v11-btn-secondary"><Icon.Download size={13}/><span className="hidden sm:inline">Export</span></button>
-                                <div className="absolute right-0 mt-1 w-40 rounded-lg shadow-lg bg-white border border-gray-200 hidden group-hover:block z-50" style={{borderColor:'var(--border)'}}>
-                                    <button onClick={exportToJSON} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 rounded-t-lg">Export JSON</button>
-                                    <button onClick={exportToCSV} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 rounded-b-lg">Export CSV</button>
+                                <div className="absolute right-0 mt-1 w-40 rounded-lg shadow-lg hidden group-hover:block z-50" style={{borderColor:'var(--border)'}}>
+                                    <button onClick={exportToJSON} className="w-full px-4 py-2 text-left text-sm rounded-t-lg" style={{color:'var(--text-secondary)'}}>Export JSON</button>
+                                    <button onClick={exportToCSV} className="w-full px-4 py-2 text-left text-sm rounded-b-lg" style={{color:'var(--text-secondary)'}}>Export CSV</button>
                                 </div>
                             </div>
                             <button onClick={()=>setShowCategoriesModal(true)} className="v11-btn-secondary"><Icon.Folder size={13}/><span className="hidden sm:inline">Catégories</span></button>
@@ -3456,14 +3455,14 @@ setTimeout(() => {
     const root = document.getElementById('root');
     if (root && root.innerHTML.includes('Chargement de l\'application...')) {
         root.innerHTML = `
-            <div class="min-h-screen flex items-center justify-center bg-gray-950">
-                <div class="text-white text-center max-w-md p-6">
+            <div class="min-h-screen flex items-center justify-center" style="background:var(--bg-page)">
+                <div class="text-center max-w-md p-6" style="color:var(--text-primary)">
                     <div class="text-6xl mb-4">⚠️</div>
                     <h1 class="text-2xl font-bold mb-4">Erreur de chargement</h1>
-                    <p class="text-gray-400 mb-6">L'application n'a pas pu se charger correctement.</p>
-                    <div class="bg-gray-800 p-4 rounded-lg text-left text-sm mb-4">
+                    <p class="mb-6" style="color:var(--text-muted)">L'application n'a pas pu se charger correctement.</p>
+                    <div class="p-4 rounded-lg text-left text-sm mb-4" style="background:var(--bg-secondary)">
                         <p class="mb-2">Causes possibles:</p>
-                        <ul class="list-disc list-inside text-gray-400 space-y-1">
+                        <ul class="list-disc list-inside space-y-1" style="color:var(--text-muted)">
                             <li>Les CDN (React, Babel) ne sont pas accessibles</li>
                             <li>Une erreur JavaScript bloque l'exécution</li>
                             <li>Le navigateur bloque le chargement</li>
@@ -3472,7 +3471,7 @@ setTimeout(() => {
                     <button onclick="location.reload()" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold">
                         🔄 Recharger la page
                     </button>
-                    <p class="text-xs text-gray-500 mt-4">Ouvrez la console (F12) pour plus d'informations</p>
+                    <p class="text-xs mt-4" style="color:var(--text-muted)">Ouvrez la console (F12) pour plus d'informations</p>
                 </div>
             </div>
         `;
