@@ -35,7 +35,7 @@
         .drop-indicator-before{border-top:4px solid var(--accent)!important;box-shadow:0 -2px 8px rgba(99,102,241,0.4)!important}
         .drop-indicator-after{border-bottom:4px solid var(--accent)!important;box-shadow:0 2px 8px rgba(99,102,241,0.4)!important}
         .timeline-bar{position:absolute;cursor:grab;transition:opacity .2s,transform .1s;user-select:none;pointer-events:auto;padding:0 8px}
-        .timeline-bar.dragging{opacity:0.3;cursor:grabbing;transform:scale(1.05);z-index:9999!important}
+        .timeline-bar.dragging{opacity:0.7;cursor:grabbing;z-index:9999!important}
         .timeline-bar:hover{cursor:grab;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
         .timeline-bar:active{cursor:grabbing}
         .timeline-bar:hover .resize-handle{pointer-events:auto;opacity:1}
@@ -50,8 +50,8 @@
         .resize-handle::after{content:'';width:3px;height:16px;background:rgba(255,255,255,0.9);border-radius:2px;box-shadow:0 0 4px rgba(0,0,0,0.3)}
         .resize-handle-left{left:0}
         .resize-handle-right{right:0}
-        .drag-ghost{position:fixed;pointer-events:none;z-index:10000;opacity:0.85;transform:rotate(3deg);box-shadow:0 12px 40px rgba(0,0,0,0.4);border-radius:8px;padding:8px 12px;color:white;font-size:12px;font-weight:600;backdrop-filter:blur(8px)}
-        .drag-preview-line{position:absolute;height:40px;background:linear-gradient(90deg,rgba(99,102,241,0.4) 0%,rgba(34,197,94,0.4) 100%);top:8px;border-radius:8px;border:2px solid rgba(99,102,241,0.7);box-shadow:0 0 12px rgba(99,102,241,0.5),inset 0 0 20px rgba(255,255,255,0.2);z-index:15;pointer-events:none;animation:pulse-glow 1s ease-in-out infinite;backdrop-filter:blur(4px)}
+        .drag-ghost{position:fixed;pointer-events:none;z-index:10000;opacity:0.85;box-shadow:0 4px 12px rgba(0,0,0,0.3);border-radius:5px;padding:0 8px;color:white;font-size:10px;font-weight:500;height:26px;display:flex;align-items:center}
+        .drag-preview-line{position:absolute;height:26px;background:linear-gradient(90deg,rgba(99,102,241,0.3) 0%,rgba(34,197,94,0.3) 100%);top:8px;border-radius:5px;border:2px solid rgba(99,102,241,0.6);box-shadow:0 0 8px rgba(99,102,241,0.4);z-index:15;pointer-events:none;animation:pulse-glow 1s ease-in-out infinite}
         @keyframes pulse-glow{0%,100%{opacity:0.9;box-shadow:0 0 12px rgba(99,102,241,0.6)}50%{opacity:1;box-shadow:0 0 20px rgba(99,102,241,0.8)}}
         .action-row-drag-over{background:linear-gradient(90deg,rgba(99,102,241,0.08),rgba(34,197,94,0.08))!important;border:2px dashed rgba(99,102,241,0.4)!important;border-radius:8px!important;box-shadow:inset 0 0 15px rgba(99,102,241,0.15)!important;position:relative}
         .drop-zone-indicator{position:absolute;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--accent),var(--success));border-radius:2px;box-shadow:0 0 12px rgba(99,102,241,0.7),0 0 24px rgba(99,102,241,0.3);z-index:25;pointer-events:none;animation:pulse-drop 0.8s ease-in-out infinite}
@@ -155,7 +155,7 @@
         .quarter-nav-group{display:flex;gap:4px;margin-left:16px;padding-left:16px;border-left:1px solid var(--border)}
         .quarter-btn{padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-primary);font-size:10px;font-weight:500;cursor:pointer;transition:var(--transition);color:var(--text-muted);font-family:inherit}
         .quarter-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
-        .kanban-board{display:flex;gap:16px;padding:16px;overflow-x:auto;background:var(--bg-page)}
+        .kanban-board{display:flex;gap:16px;padding:16px;overflow-x:auto;overflow-y:auto;background:var(--bg-page);max-height:calc(100vh - 200px)}
         .kanban-column{min-width:280px;max-width:280px;background:var(--bg-secondary);border-radius:var(--radius-lg);padding:12px;flex-shrink:0;display:flex;flex-direction:column}
         .column-header{display:flex;align-items:center;justify-content:space-between;padding:4px 4px 12px}
         .column-title{display:flex;align-items:center;gap:8px}
@@ -178,7 +178,7 @@
         /* Task Cards */
         .kanban-card{background:var(--bg-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;transition:var(--transition);border:1px solid var(--border-light)}
         .kanban-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);border-color:var(--border)}
-        .kanban-card.completed{opacity:0.5;background:var(--bg-secondary)}
+        .kanban-card.completed{opacity:0.65;background:var(--bg-secondary)}
         .kanban-card[draggable=true]{cursor:grab}
         .kanban-card[draggable=true]:active{cursor:grabbing}
         .card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
@@ -226,7 +226,7 @@
         .add-card-btn{width:100%;padding:10px;border:none;border-radius:var(--radius-md);background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;transition:var(--transition);display:flex;align-items:center;justify-content:center;gap:4px;margin-top:4px;font-family:inherit}
         .add-card-btn:hover{color:var(--accent);background:var(--accent-light)}
         /* Timeline */
-        .timeline-container{background:var(--bg-primary);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden}
+        .timeline-container{background:var(--bg-primary);border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column;max-height:calc(100vh - 160px)}
         .timeline-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-secondary)}
         .timeline-header-left{display:flex;align-items:center}
         .timeline-nav{display:flex;align-items:center;gap:8px}
@@ -243,6 +243,14 @@
         .timeline-action-sidebar:hover .timeline-action-name{color:var(--accent)}
         .timeline-action-name{font-size:12px;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .timeline-action-count{font-size:10px;color:var(--text-muted)}
+        /* Dashboard Cards */
+        .v11-card{background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);transition:var(--transition)}
+        .v11-card:hover{box-shadow:var(--shadow-md)}
+        .v11-progress-bar{width:100%;background:var(--bg-secondary);border-radius:100px;overflow:hidden}
+        .v11-progress-fill{height:100%;border-radius:100px;transition:width 0.3s ease}
+        .v11-progress-fill.low{background:linear-gradient(90deg,#fca5a5,#ef4444)}
+        .v11-progress-fill.medium{background:linear-gradient(90deg,#fcd34d,#f59e0b)}
+        .v11-progress-fill.high{background:linear-gradient(90deg,#86efac,#22c55e)}
         /* Modals */
         .v11-modal-overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px)}
         .v11-modal{background:var(--bg-primary);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);width:100%;overflow:hidden}
@@ -537,7 +545,7 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
     return(
         <div className="v11-modal-overlay" onClick={onClose}>
             <div className="v11-modal animate-slide-up" style={{maxWidth:672,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
-                <div style="height:3px;background:var(--accent);borderRadius:var(--radius-lg) var(--radius-lg) 0 0"/>
+                <div style={{height:3,background:'var(--accent)',borderRadius:'var(--radius-lg) var(--radius-lg) 0 0'}}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold">📂 Gestion des Catégories</h2>
@@ -587,7 +595,7 @@ const NewActionModal=({categories,onClose,onAdd})=>{
     return(
         <div className="v11-modal-overlay" onClick={onClose}>
             <div className="v11-modal animate-slide-up" style={{maxWidth:512}} onClick={e=>e.stopPropagation()}>
-                <div style="height:3px;background:var(--accent);borderRadius:var(--radius-lg) var(--radius-lg) 0 0"/>
+                <div style={{height:3,background:'var(--accent)',borderRadius:'var(--radius-lg) var(--radius-lg) 0 0'}}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-bold">📁 Nouvelle Action</h2>
@@ -1086,7 +1094,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
-        if(selectedYear&&(viewMode==='month'||viewMode==='quarter')){
+        if(selectedYear){
             const taskYear=t.startDate?new Date(t.startDate).getFullYear():null;
             if(taskYear&&taskYear!==selectedYear)return false;
         }
@@ -1272,7 +1280,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 // - Zone de drop des tâches entre actions avec bordure pointillée et fond coloré
 // - Prévention des conflits : clic sur handle ne déclenche pas l'ouverture de carte
 // - Styles CSS optimisés pour mobile/tactile (handles 28px, opacity 0.7)
-const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange})=>{
     const timelineRef=useRef(null);
     const dragGhostRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -1964,6 +1972,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
+        if(selectedYear){
+            const taskYear=t.startDate?new Date(t.startDate).getFullYear():null;
+            if(taskYear&&taskYear!==selectedYear)return false;
+        }
         if(filters?.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
         if(filters?.status.length>0&&!filters.status.includes(t.status))return false;
         if(filters?.priority.length>0&&!filters.priority.includes(t.priority))return false;
@@ -2486,10 +2498,12 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                         </div>
                     </div>
                     <div className="timeline-nav">
+                        <button className="timeline-nav-btn" onClick={()=>onYearChange&&onYearChange(selectedYear-1)}>◀</button>
                         <span className="timeline-current">{selectedYear}</span>
+                        <button className="timeline-nav-btn" onClick={()=>onYearChange&&onYearChange(selectedYear+1)}>▶</button>
                     </div>
                 </div>
-                <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+                <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll',flex:1,overflowY:'auto'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
                     <div style={{minWidth:`${headers.length*colWidth+250}px`}}>
                         {(zoom==='week'||zoom==='day')&&monthHeaders&&(
                             <div className={`flex border-b border-[var(--border)] sticky top-0 z-20 bg-[var(--bg-primary)]`}>
@@ -2519,7 +2533,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                         {groupedByCategory.map(({category,actions:catActions})=>(
                             <div key={category.id}>
                                 <div className="timeline-category-row flex" onDragOver={(e)=>{if(onUpdateAction){const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.add('drag-over');}}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}}>
-                                    <div className="w-[250px] flex-shrink-0 sticky left-0 z-10 flex items-center" style={{background:'var(--bg-secondary)'}}>
+                                    <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-center" style={{background:'var(--bg-secondary)'}}>
                                         <div style={{width:4,alignSelf:'stretch',background:category.color,flexShrink:0}}/>
                                         <div className="timeline-category-sidebar">
                                             <div className="timeline-category-name">{category.name}</div>
@@ -2535,7 +2549,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     const rowHeight=Math.max(48,maxLanes*34+16);
                                     return(
                                     <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex group relative ${dragOverActionClass}`} style={{borderBottom:'1px solid var(--border-light)'}}>
-                                        <div className="w-[250px] flex-shrink-0 relative sticky left-0 z-30 timeline-action-sidebar" style={{background:'var(--bg-primary)',borderRight:'1px solid var(--border)'}} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}} style={{cursor:onReorderAction?'grab':'pointer'}}>
+                                        <div className="w-[250px] flex-shrink-0 relative sticky left-0 z-30 timeline-action-sidebar" style={{background:'var(--bg-primary)',borderRight:'1px solid var(--border)',cursor:onReorderAction?'grab':'pointer'}} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}}>
                                             <div className="timeline-action-name">{action.name}</div>
                                             <div className="timeline-action-count">{actionTasks.length} tâches</div>
                                             {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs" style={{color:'var(--text-muted)'}} title="Glisser pour réordonner">⋮⋮</div>}
@@ -2608,8 +2622,17 @@ const DashboardView=({categories,actions,tasks})=>{
     const overdueTasks=tasks.filter(t=>t.status!=='completed'&&(t.month<currentMonth||(t.dueDate&&new Date(t.dueDate)<new Date())));
 
     const KPICard=({title,value,subtitle,icon:I,color})=>(
-        <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
-            <div className="flex items-start justify-between"><div><p className="text-sm mb-1" style={{color:'var(--text-muted)'}}>{title}</p><p className="text-3xl font-bold" style={{color}}>{value}</p>{subtitle&&<p className="text-sm mt-1" style={{color:'var(--text-muted)'}}>{subtitle}</p>}</div><div className="p-3 rounded-xl" style={{backgroundColor:`${color}20`}}><I/></div></div>
+        <div className="v11-card" style={{padding:'20px 24px',cursor:'default'}}>
+            <div className="flex items-start justify-between">
+                <div>
+                    <p style={{fontSize:12,fontWeight:500,color:'var(--text-muted)',marginBottom:4,textTransform:'uppercase',letterSpacing:'0.3px'}}>{title}</p>
+                    <p style={{fontSize:28,fontWeight:700,color,lineHeight:1.2}}>{value}</p>
+                    {subtitle&&<p style={{fontSize:12,color:'var(--text-muted)',marginTop:4}}>{subtitle}</p>}
+                </div>
+                <div style={{padding:10,borderRadius:'var(--radius-md)',backgroundColor:`${color}15`}}>
+                    <I size={20} color={color}/>
+                </div>
+            </div>
         </div>
     );
 
@@ -2649,7 +2672,7 @@ const DashboardView=({categories,actions,tasks})=>{
                 <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default',borderColor:overdueTasks.length>0?'var(--error)':'var(--border-light)'}}>
                     <h3 className="font-semibold mb-4">🚨 En retard</h3>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {overdueTasks.length>0?overdueTasks.slice(0,8).map(t=>{const action=actions.find(a=>a.id===t.actionId);return<div key={t.id} className="p-3 rounded-lg bg-red-50 border border-red-200"><p className="font-medium text-sm">{t.title}</p><p className="text-xs text-red-600">{action?.name} • {CONFIG.MONTHS_FULL[t.month]}</p></div>;}):<div className="text-center py-8"><span className="text-4xl">✅</span><p className="text-sm mt-2" style={{color:'var(--text-muted)'}}>Tout est à jour!</p></div>}
+                        {overdueTasks.length>0?overdueTasks.slice(0,8).map(t=>{const action=actions.find(a=>a.id===t.actionId);return<div key={t.id} style={{padding:'10px 14px',borderRadius:'var(--radius-sm)',background:'var(--error-light)',border:'1px solid #fecaca'}}><p style={{fontWeight:600,fontSize:13}}>{t.title}</p><p style={{fontSize:11,color:'var(--error)',marginTop:2}}>{action?.name} • {CONFIG.MONTHS_FULL[t.month]}</p></div>;}):<div className="text-center" style={{padding:'32px 0'}}><span style={{fontSize:32}}>✅</span><p style={{fontSize:13,color:'var(--text-muted)',marginTop:8}}>Tout est à jour!</p></div>}
                     </div>
                 </div>
             </div>
@@ -2660,13 +2683,13 @@ const DashboardView=({categories,actions,tasks})=>{
                         const chTasks=tasks.filter(t=>(t.channels||[]).includes(ch.id));
                         const chCompleted=chTasks.filter(t=>t.status==='completed').length;
                         return(
-                            <div key={ch.id} className="p-3 rounded-lg" style={{border:'1px solid var(--border-light)',background:'var(--bg-secondary)'}}>
-                                <div className="flex items-center space-x-2 mb-2">
-                                    <div className="w-3 h-3 rounded-full" style={{backgroundColor:ch.color}}/>
-                                    <span className="text-sm font-medium truncate">{ch.name}</span>
+                            <div key={ch.id} style={{padding:'14px 16px',borderRadius:'var(--radius-md)',border:'1px solid var(--border)',background:'var(--bg-primary)'}}>
+                                <div className="flex items-center space-x-2" style={{marginBottom:8}}>
+                                    <div style={{width:10,height:10,borderRadius:'50%',backgroundColor:ch.color,flexShrink:0}}/>
+                                    <span style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ch.name}</span>
                                 </div>
-                                <div className="text-2xl font-bold">{chTasks.length}</div>
-                                <div className="text-xs" style={{color:'var(--text-muted)'}}>{chCompleted} terminées</div>
+                                <div style={{fontSize:22,fontWeight:700}}>{chTasks.length}</div>
+                                <div style={{fontSize:11,color:'var(--text-muted)'}}>{chCompleted} terminées</div>
                             </div>
                         );
                     })}
@@ -2748,6 +2771,23 @@ const App=()=>{
     });
     const saveQueueRef=useRef([]);
     const isSavingRef=useRef(false);
+    const createDropdownRef=useRef(null);
+    const exportDropdownRef=useRef(null);
+
+    // Close dropdowns on outside click
+    useEffect(()=>{
+        if(!showCreateDropdown&&!showExportDropdown)return;
+        const handler=(e)=>{
+            if(showCreateDropdown&&createDropdownRef.current&&!createDropdownRef.current.contains(e.target)){
+                setShowCreateDropdown(false);
+            }
+            if(showExportDropdown&&exportDropdownRef.current&&!exportDropdownRef.current.contains(e.target)){
+                setShowExportDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown',handler);
+        return()=>document.removeEventListener('mousedown',handler);
+    },[showCreateDropdown,showExportDropdown]);
 
     // Save custom countries to localStorage whenever they change
     useEffect(()=>{
@@ -3528,8 +3568,6 @@ const App=()=>{
     const completedCount=tasks.filter(t=>t.status==='completed').length;
     const activeFilterCount=[filters.status,filters.category,filters.priority,filters.channel,filters.country].reduce((c,arr)=>c+(Array.isArray(arr)?arr.length:0),0)+(filters.search?1:0);
 
-    const closeDropdowns=()=>{setShowCreateDropdown(false);setShowExportDropdown(false);};
-
     if(!dataLoaded)return(<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Chargement des données...</p></div></div>);
 
     return(
@@ -3537,7 +3575,6 @@ const App=()=>{
             <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
-                    {(showCreateDropdown||showExportDropdown)&&<div style={{position:'fixed',inset:0,zIndex:40}} onClick={closeDropdowns}/>}
                     <div className="toolbar">
                         <button className={`filter-btn ${showFilterSidebar?'active':''}`} onClick={()=>setShowFilterSidebar(!showFilterSidebar)}>
                             <Icon.Filter/>Filtres
@@ -3547,25 +3584,25 @@ const App=()=>{
                             <span className="stat-pill"><strong>{tasks.length}</strong> tâches</span>
                             <span className="stat-pill"><strong>{(totalBudget/1000).toFixed(0)}k€</strong> budget</span>
                         </div>
-                        <div className="view-btn-group" style={{marginLeft:8}}>
-                            <button className="view-btn" onClick={()=>setSelectedYear(y=>y-1)} style={{padding:'4px 8px',fontSize:12}}>◀</button>
-                            <span className="view-btn active" style={{padding:'4px 10px',fontSize:12,cursor:'default'}}>{selectedYear}</span>
-                            <button className="view-btn" onClick={()=>setSelectedYear(y=>y+1)} style={{padding:'4px 8px',fontSize:12}}>▶</button>
+                        <div className="timeline-nav" style={{marginLeft:8}}>
+                            <button className="timeline-nav-btn" onClick={()=>setSelectedYear(y=>y-1)}>◀</button>
+                            <span className="timeline-current">{selectedYear}</span>
+                            <button className="timeline-nav-btn" onClick={()=>setSelectedYear(y=>y+1)}>▶</button>
                         </div>
                         <div className="toolbar-spacer"/>
-                        <div className="new-btn-container">
-                            <button className="v11-btn-secondary" onClick={()=>setShowExportDropdown(!showExportDropdown)}><Icon.Download size={13}/><span>Export</span></button>
-                            {showExportDropdown&&<div className="dropdown-menu open" style={{minWidth:160,zIndex:41}}>
+                        <div className="new-btn-container" ref={exportDropdownRef}>
+                            <button className="v11-btn-secondary" onClick={()=>{setShowCreateDropdown(false);setShowExportDropdown(!showExportDropdown);}}><Icon.Download size={13}/><span>Export</span></button>
+                            {showExportDropdown&&<div className="dropdown-menu open" style={{minWidth:160}}>
                                 <button onClick={()=>{setShowExportDropdown(false);exportToJSON();}} className="dropdown-item">Export JSON</button>
                                 <button onClick={()=>{setShowExportDropdown(false);exportToCSV();}} className="dropdown-item">Export CSV</button>
                             </div>}
                         </div>
-                        <div className="new-btn-container">
-                            <button className={`v11-btn-primary ${showCreateDropdown?'open':''}`} onClick={()=>setShowCreateDropdown(!showCreateDropdown)}>
+                        <div className="new-btn-container" ref={createDropdownRef}>
+                            <button className={`v11-btn-primary ${showCreateDropdown?'open':''}`} onClick={()=>{setShowExportDropdown(false);setShowCreateDropdown(!showCreateDropdown);}}>
                                 <Icon.Plus size={13}/>Créer
                                 <svg className="chevron" width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
                             </button>
-                            {showCreateDropdown&&<div className="dropdown-menu open" style={{zIndex:41}}>
+                            {showCreateDropdown&&<div className="dropdown-menu open">
                                 <button className="dropdown-item default" onClick={()=>{setShowCreateDropdown(false);handleCreateNewTask();}}>
                                     <div className="dropdown-item-icon task"><Icon.Check/></div>
                                     <div className="dropdown-item-content"><div className="dropdown-item-title">Nouvelle tâche</div><div className="dropdown-item-desc">Ajouter une tâche à une action</div></div>
@@ -3597,7 +3634,7 @@ const App=()=>{
                         </div>
                     )}
                     {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear}/>}
-                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear}/>}
+                    {currentView==='timeline'&&<TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear}/>}
                     {currentView==='dashboard'&&<DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
                 {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} actions={actions} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null} allCountries={allCountries} onAddCustomCountry={addCustomCountry}/>}
