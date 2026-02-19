@@ -202,7 +202,7 @@
       "channels": [
         "social"
       ],
-      "order": 33,
+      "order": 6,
       "createdAt": "2026-01-20T10:00:47.390Z",
       "countries": [
         "france"
@@ -226,7 +226,7 @@
         "seo"
       ],
       "budget": 0,
-      "order": 28,
+      "order": 4,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
     {
@@ -427,7 +427,7 @@
       "channels": [
         "lads"
       ],
-      "order": 1,
+      "order": 0,
       "createdAt": "2026-01-20T10:00:47.390Z",
       "countries": [
         "france",
@@ -632,7 +632,7 @@
       "channels": [
         "social"
       ],
-      "order": 5,
+      "order": 1,
       "createdAt": "2026-01-20T10:00:47.390Z",
       "countries": [
         "france",
@@ -797,7 +797,7 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "order": 25,
+      "order": 3,
       "createdAt": "2026-01-30T13:37:04.891Z"
     },
     {
@@ -817,7 +817,7 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "order": 29,
+      "order": 5,
       "createdAt": "2026-01-30T13:38:49.439Z"
     },
     {
@@ -879,7 +879,7 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "order": 32,
+      "order": 2,
       "createdAt": "2026-02-18T17:34:13.429Z"
     },
     {
@@ -899,7 +899,7 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "order": 34,
+      "order": 7,
       "createdAt": "2026-02-19T15:58:29.392Z"
     }
   ]
