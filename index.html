@@ -51,7 +51,7 @@
         .resize-handle-left{left:0}
         .resize-handle-right{right:0}
         .drag-ghost{position:fixed;pointer-events:none;z-index:10000;opacity:0.85;box-shadow:0 4px 12px rgba(0,0,0,0.3);border-radius:5px;padding:0 8px;color:white;font-size:10px;font-weight:500;height:26px;display:flex;align-items:center}
-        .drag-preview-line{position:absolute;height:26px;background:linear-gradient(90deg,rgba(99,102,241,0.3) 0%,rgba(34,197,94,0.3) 100%);top:8px;border-radius:5px;border:2px solid rgba(99,102,241,0.6);box-shadow:0 0 8px rgba(99,102,241,0.4);z-index:15;pointer-events:none;animation:pulse-glow 1s ease-in-out infinite}
+        .drag-preview-line{position:absolute;height:26px;background:var(--accent);opacity:0.45;top:8px;border-radius:5px;z-index:15;pointer-events:none;transition:left 0.08s ease-out,width 0.08s ease-out}
         @keyframes pulse-glow{0%,100%{opacity:0.9;box-shadow:0 0 12px rgba(99,102,241,0.6)}50%{opacity:1;box-shadow:0 0 20px rgba(99,102,241,0.8)}}
         .action-row-drag-over{background:rgba(99,102,241,0.04)!important;position:relative}
         .drop-zone-indicator{position:absolute;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--accent),var(--success));border-radius:2px;box-shadow:0 0 12px rgba(99,102,241,0.7),0 0 24px rgba(99,102,241,0.3);z-index:25;pointer-events:none;animation:pulse-drop 0.8s ease-in-out infinite}
@@ -178,7 +178,7 @@
         /* Task Cards */
         .kanban-card{background:var(--bg-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;transition:var(--transition);border:1px solid var(--border-light)}
         .kanban-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);border-color:var(--border)}
-        .kanban-card.completed{opacity:0.65;background:var(--bg-secondary)}
+        .kanban-card.completed{opacity:0.7;background:var(--bg-primary);border:1px solid var(--border)}
         .kanban-card[draggable=true]{cursor:grab}
         .kanban-card[draggable=true]:active{cursor:grabbing}
         .card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px}
@@ -901,6 +901,7 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
 // TASK DETAIL MODAL
 const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry})=>{
     const[form,setForm]=useState({...task});
+    const[previewAttachment,setPreviewAttachment]=useState(null);
     const[descriptionDraft,setDescriptionDraft]=useState(task.description||''); // Draft pour description
     const[descriptionSaved,setDescriptionSaved]=useState(true); // Track si sauvegardé
     const[newComment,setNewComment]=useState('');
@@ -987,7 +988,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         <label className="block text-sm font-medium mb-2">📎 Pièces jointes ({(form.attachments||[]).length})</label>
                         {(form.attachments||[]).length>0&&<div className="space-y-2 mb-3">
                             {(form.attachments||[]).map(att=>(
-                                <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg" style={{background:'var(--bg-secondary)'}}>
+                                <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg" style={{background:'var(--bg-secondary)',cursor:'pointer'}} onClick={()=>setPreviewAttachment(att)}>
                                     {att.type?.startsWith('image/')?
                                         <img src={att.data} alt={att.name} style={{width:40,height:40,objectFit:'cover',borderRadius:'var(--radius-sm)',flexShrink:0}}/>:
                                         <div style={{width:40,height:40,borderRadius:'var(--radius-sm)',background:'var(--accent-light)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:16}}>📄</div>
@@ -996,8 +997,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                         <div style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{att.name}</div>
                                         <div style={{fontSize:11,color:'var(--text-muted)'}}>{att.size?`${(att.size/1024).toFixed(1)} Ko`:''} • {att.date?new Date(att.date).toLocaleDateString('fr-FR'):''}</div>
                                     </div>
-                                    {att.data&&<a href={att.data} download={att.name} onClick={e=>e.stopPropagation()} style={{color:'var(--accent)',fontSize:12,fontWeight:500,flexShrink:0,cursor:'pointer'}}>↓</a>}
-                                    <button onClick={()=>setForm({...form,attachments:(form.attachments||[]).filter(a=>a.id!==att.id)})} style={{color:'var(--text-muted)',cursor:'pointer',flexShrink:0,background:'none',border:'none',fontSize:14}} title="Supprimer">✕</button>
+                                    {att.data&&<a href={att.data} download={att.name} onClick={e=>e.stopPropagation()} style={{color:'var(--accent)',fontSize:12,fontWeight:500,flexShrink:0,cursor:'pointer'}} title="Télécharger">↓</a>}
+                                    <button onClick={(e)=>{e.stopPropagation();setForm({...form,attachments:(form.attachments||[]).filter(a=>a.id!==att.id)});}} style={{color:'var(--text-muted)',cursor:'pointer',flexShrink:0,background:'none',border:'none',fontSize:14}} title="Supprimer">✕</button>
                                 </div>
                             ))}
                         </div>}
@@ -1044,6 +1045,27 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                 </div>
             </div>
         </div>
+        {previewAttachment&&(
+            <div onClick={()=>setPreviewAttachment(null)} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(0,0,0,0.85)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'zoom-out',padding:24}}>
+                <div style={{position:'absolute',top:16,right:16,display:'flex',gap:8}}>
+                    {previewAttachment.data&&<a href={previewAttachment.data} download={previewAttachment.name} onClick={e=>e.stopPropagation()} style={{padding:'8px 16px',background:'rgba(255,255,255,0.15)',color:'white',borderRadius:'var(--radius-sm)',fontSize:13,fontWeight:500,textDecoration:'none',cursor:'pointer',backdropFilter:'blur(8px)'}}>↓ Télécharger</a>}
+                    <button onClick={()=>setPreviewAttachment(null)} style={{padding:'8px 16px',background:'rgba(255,255,255,0.15)',color:'white',borderRadius:'var(--radius-sm)',fontSize:13,fontWeight:500,border:'none',cursor:'pointer',backdropFilter:'blur(8px)'}}>✕ Fermer</button>
+                </div>
+                {previewAttachment.type?.startsWith('image/')?
+                    <img src={previewAttachment.data} alt={previewAttachment.name} onClick={e=>e.stopPropagation()} style={{maxWidth:'90vw',maxHeight:'85vh',objectFit:'contain',borderRadius:'var(--radius-lg)',boxShadow:'0 20px 60px rgba(0,0,0,0.5)',cursor:'default'}}/>:
+                    previewAttachment.type==='application/pdf'?
+                    <iframe src={previewAttachment.data} onClick={e=>e.stopPropagation()} style={{width:'80vw',height:'85vh',borderRadius:'var(--radius-lg)',border:'none',background:'white',cursor:'default'}}/>:
+                    <div onClick={e=>e.stopPropagation()} style={{background:'var(--bg-primary)',borderRadius:'var(--radius-lg)',padding:40,textAlign:'center',cursor:'default',maxWidth:400}}>
+                        <div style={{fontSize:48,marginBottom:16}}>📄</div>
+                        <div style={{fontSize:16,fontWeight:600,marginBottom:8}}>{previewAttachment.name}</div>
+                        <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>{previewAttachment.size?`${(previewAttachment.size/1024).toFixed(1)} Ko`:''}</div>
+                        <p style={{fontSize:12,color:'var(--text-muted)'}}>Aperçu non disponible pour ce type de fichier</p>
+                        {previewAttachment.data&&<a href={previewAttachment.data} download={previewAttachment.name} style={{display:'inline-block',marginTop:16,padding:'10px 20px',background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',fontSize:13,fontWeight:600,textDecoration:'none'}}>Télécharger</a>}
+                    </div>
+                }
+                <div style={{color:'rgba(255,255,255,0.7)',fontSize:12,marginTop:12}}>{previewAttachment.name}</div>
+            </div>
+        )}
     );
 };
 
@@ -1680,21 +1702,13 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         e.dataTransfer.setData('taskId',task.id);
         e.dataTransfer.setData('text/plain',task.id); // Fallback for compatibility
 
-        // Create custom drag ghost that matches thin V11 bar style
+        // Use minimal invisible ghost — the preview line is the real indicator
         const ghost=document.createElement('div');
-        const status=CONFIG.STATUSES.find(s=>s.id===task.status);
-        const pos=getTaskPosition(task);
-        const channels=task.channels||[];
-        const mainChannel=channels[0]||'';
-        const channelColors={social:'#60a5fa',gads:'#fbbf24',lads:'#818cf8',events:'#f472b6',seo:'#4ade80',press:'#c4b5fd',email:'#fbbf24',web:'#818cf8',video:'#f87171',lp:'#2dd4bf',ia:'#c4b5fd',auto:'#fb923c'};
-        const barColor=channelColors[mainChannel]||status?.color||'#94a3b8';
-        const darkChannels=['gads','email'];
-        const txtColor=darkChannels.includes(mainChannel)?'#78350f':'white';
-        ghost.style.cssText=`position:absolute;top:-1000px;height:26px;min-width:${Math.max(pos?.width||80,80)}px;background-color:${barColor};border-radius:5px;padding:0 8px;display:flex;align-items:center;color:${txtColor};font-size:10px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,0.25);opacity:0.9;`;
-        ghost.innerHTML=`<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${task.title}</span>`;
+        ghost.style.cssText='position:absolute;top:-1000px;width:1px;height:1px;opacity:0.01;';
         document.body.appendChild(ghost);
-        e.dataTransfer.setDragImage(ghost,ghost.offsetWidth/2,13);
+        e.dataTransfer.setDragImage(ghost,0,0);
         setTimeout(()=>document.body.removeChild(ghost),0);
+        const pos=getTaskPosition(task);
 
         setDragging({taskId:task.id,task:task,startX:e.clientX,startY:e.clientY,originalLeft:pos?.left||0});
         e.currentTarget.classList.add('dragging');
@@ -1947,8 +1961,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const taskStart=pos.left;
             const taskEnd=pos.left+pos.width;
 
-            // Find first available lane
-            let assignedLane=0;
+            // Find first available lane where this task doesn't overlap
+            let assignedLane=-1;
             for(let i=0;i<lanes.length;i++){
                 let canFit=true;
                 for(const existingTask of lanes[i]){
@@ -1964,23 +1978,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 }
             }
 
-            // If no lane found, create new one
-            if(assignedLane===0&&lanes.length>0){
-                const lastLane=lanes[lanes.length-1];
-                let canFitInLast=true;
-                for(const existingTask of lastLane){
-                    if(taskStart<existingTask.end&&taskEnd>existingTask.start){
-                        canFitInLast=false;
-                        break;
-                    }
-                }
-                if(!canFitInLast){
-                    assignedLane=lanes.length;
-                    lanes.push([{id:task.id,start:taskStart,end:taskEnd}]);
-                }else{
-                    lanes[lanes.length-1].push({id:task.id,start:taskStart,end:taskEnd});
-                }
-            }else if(lanes.length===0){
+            // No existing lane can fit this task — create a new one
+            if(assignedLane===-1){
+                assignedLane=lanes.length;
                 lanes.push([{id:task.id,start:taskStart,end:taskEnd}]);
             }
 
@@ -2409,7 +2409,30 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const previewLeft=dateToPixel(snapDate);
                 const previewWidth=Math.max(dateToPixel(dayAfterEnd)-previewLeft,20);
 
-                setDragPreview({left:previewLeft,width:previewWidth,actionId:targetAction.id});
+                // Calculate which swim lane the preview would occupy
+                const actionTasks=filteredTasks.filter(t=>t.actionId===targetAction.id&&t.id!==(dragging?.task?.id));
+                const existingPositions=actionTasks.map(t=>{const p=getTaskPosition(t);return p?{start:p.left,end:p.left+p.width}:null;}).filter(Boolean);
+                let previewLane=0;
+                const checkOverlap=(lane)=>existingPositions.some(ep=>{
+                    // Check if this existing task is in this lane
+                    const tLanes=calculateSwimLanes(actionTasks);
+                    const tId=actionTasks.find(t=>{const p=getTaskPosition(t);return p&&p.left===ep.start;})?.id;
+                    return tId&&tLanes.swimLanes[tId]===lane&&previewLeft<ep.end&&(previewLeft+previewWidth)>ep.start;
+                });
+                // Simple approach: find first lane where preview doesn't overlap
+                const tempLanes=[];
+                for(let i=0;i<10;i++){
+                    const overlaps=existingPositions.some(ep=>{
+                        const tId=actionTasks.find(t=>{const p=getTaskPosition(t);return p&&Math.abs(p.left-ep.start)<1;})?.id;
+                        if(!tId)return false;
+                        const laneCalc=calculateSwimLanes(actionTasks);
+                        return laneCalc.swimLanes[tId]===i&&previewLeft<ep.end&&(previewLeft+previewWidth)>ep.start;
+                    });
+                    if(!overlaps){previewLane=i;break;}
+                }
+                const previewTop=8+previewLane*34;
+
+                setDragPreview({left:previewLeft,width:previewWidth,top:previewTop,actionId:targetAction.id});
                 setDropIndicator({left:previewLeft,actionId:targetAction.id});
             }
         }
@@ -2616,7 +2639,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 ))}
                                             </div>
                                             {dragPreview&&dragPreview.actionId===action.id&&(
-                                                <div className="drag-preview-line" style={{left:dragPreview.left,width:dragPreview.width}}/>
+                                                <div className="drag-preview-line" style={{left:dragPreview.left,width:dragPreview.width,top:dragPreview.top||8}}/>
                                             )}
                                             {creatingTask&&creatingTask.actionId===action.id&&(
                                                 <div className="absolute top-2 h-10 rounded-lg border-2 border-dashed border-secondary bg-secondary/20 flex items-center justify-center text-secondary text-xs font-medium pointer-events-none" style={{left:Math.min(creatingTask.startX,creatingTask.currentX),width:Math.abs(creatingTask.currentX-creatingTask.startX)||colWidth}}>
@@ -2639,10 +2662,11 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 const barColor=channelColors[mainChannel]||status?.color||'#94a3b8';
                                                 const darkChannels=['gads','email'];
                                                 const textColor=darkChannels.includes(mainChannel)?'#78350f':'white';
+                                                const isCompleted=task.status==='completed';
                                                 return(
-                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute flex items-center overflow-visible ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,top:`${topOffset}px`,height:26,borderRadius:5,padding:'0 8px',fontSize:10,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',backgroundColor:barColor,color:textColor,zIndex:1,transition:'transform 0.15s, box-shadow 0.15s',...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
+                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute flex items-center overflow-visible ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,top:`${topOffset}px`,height:26,borderRadius:5,padding:'0 8px',fontSize:10,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',backgroundColor:barColor,color:textColor,zIndex:1,transition:'transform 0.15s, box-shadow 0.15s',opacity:isCompleted?0.45:1,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
                                                         <div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner début"/>
-                                                        <span className="truncate flex-1 pointer-events-none">{task.title}</span>
+                                                        <span className="truncate flex-1 pointer-events-none" style={isCompleted?{textDecoration:'line-through'}:{}}>{task.title}</span>
                                                         {task.budget>0&&(zoom==='month'||zoom==='quarter')&&<span style={{marginLeft:4,opacity:0.8,fontSize:9}} className="pointer-events-none">({(task.budget/1000).toFixed(0)}k)</span>}
                                                         <div className="resize-handle resize-handle-right" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner fin"/>
                                                     </div>
