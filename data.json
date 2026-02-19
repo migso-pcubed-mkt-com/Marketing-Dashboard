@@ -721,7 +721,7 @@
       "startDate": "2026-04-02",
       "title": "Nouvelle tâche",
       "description": "",
-      "status": "completed",
+      "status": "todo",
       "priority": "medium",
       "dueDate": "2026-05-17",
       "budget": 0,
