@@ -945,6 +945,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     },[task.id,onDelete,onClose]);
 
     return(
+        <React.Fragment>
         <div className="v11-modal-overlay" onClick={handleClose} style={{alignItems:'flex-start',paddingTop:64,overflowY:'auto'}}>
             <div className="v11-modal animate-slide-up" style={{maxWidth:672,marginBottom:32}} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
@@ -1066,6 +1067,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                 <div style={{color:'rgba(255,255,255,0.7)',fontSize:12,marginTop:12}}>{previewAttachment.name}</div>
             </div>
         )}
+        </React.Fragment>
     );
 };
 
