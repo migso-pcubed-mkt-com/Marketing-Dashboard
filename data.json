@@ -171,13 +171,13 @@
     {
       "id": "t1",
       "actionId": "a1",
-      "month": 4,
-      "startDate": "2026-05-02",
+      "month": 2,
+      "startDate": "2026-03-02",
       "title": "Vœux nouvel an 9",
       "description": "Post LinkedIn + Instagram 2",
       "status": "todo",
       "priority": "high",
-      "dueDate": "2026-05-31",
+      "dueDate": "2026-03-31",
       "checklist": [
         {
           "id": "c1",
