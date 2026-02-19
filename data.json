@@ -86,7 +86,7 @@
         "seo",
         "social"
       ],
-      "order": 0
+      "order": 1
     },
     {
       "id": "a7",
@@ -97,7 +97,7 @@
       "tags": [
         "seo"
       ],
-      "order": 1
+      "order": 0
     },
     {
       "id": "a8",
