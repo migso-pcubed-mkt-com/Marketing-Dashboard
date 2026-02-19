@@ -7,16 +7,16 @@
       "gradient": "from-blue-500 to-indigo-700"
     },
     {
-      "id": "consideration",
-      "name": "Consideration / Engagement",
-      "color": "#5cc29d",
-      "gradient": "from-emerald-400 to-cyan-500"
-    },
-    {
       "id": "conversion",
       "name": "Conversion",
       "color": "#f2cb13",
       "gradient": "from-yellow-400 to-orange-500"
+    },
+    {
+      "id": "consideration",
+      "name": "Consideration / Engagement",
+      "color": "#5cc29d",
+      "gradient": "from-emerald-400 to-cyan-500"
     }
   ],
   "actions": [
