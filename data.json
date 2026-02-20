@@ -404,7 +404,9 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "channels": [],
+      "channels": [
+        "lads"
+      ],
       "order": 9,
       "createdAt": "2026-01-20T10:00:47.390Z"
     },
