@@ -35,7 +35,7 @@
         .drop-indicator-before{border-top:4px solid var(--accent)!important;box-shadow:0 -2px 8px rgba(99,102,241,0.4)!important}
         .drop-indicator-after{border-bottom:4px solid var(--accent)!important;box-shadow:0 2px 8px rgba(99,102,241,0.4)!important}
         .timeline-bar{position:absolute;cursor:grab;transition:opacity .2s,transform .1s;user-select:none;pointer-events:auto;padding:0 8px}
-        .timeline-bar.dragging{opacity:0.15;cursor:grabbing;z-index:1!important}
+        .timeline-bar.dragging{opacity:0.15;cursor:grabbing;z-index:1!important;pointer-events:none}
         .timeline-bar:hover{cursor:grab;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
         .timeline-bar:active{cursor:grabbing}
         .timeline-bar:hover .resize-handle{pointer-events:auto;opacity:1}
@@ -320,9 +320,9 @@ const CONFIG={
         {id:'australia',name:'Australia',region:'Oceania',color:'#10b981',flag:'🇦🇺'}
     ],
     PRIORITIES:[
-        {id:'high',name:'Haute',color:'#ef4444',icon:'🔴'},
-        {id:'medium',name:'Moyenne',color:'#f59e0b',icon:'🟡'},
-        {id:'low',name:'Basse',color:'#22c55e',icon:'🟢'}
+        {id:'high',name:'Haute',color:'#ef4444',icon:'▲'},
+        {id:'medium',name:'Moyenne',color:'#f59e0b',icon:'●'},
+        {id:'low',name:'Basse',color:'#22c55e',icon:'▼'}
     ]
 };
 
@@ -471,6 +471,22 @@ const StatusIcon=({statusId,size=16})=>{
     };
     const c=colorMap[statusId]||{bg:'var(--bg-secondary)',border:'none',color:'var(--text-muted)'};
     return(<div style={{width:size+6,height:size+6,borderRadius:5,display:'inline-flex',alignItems:'center',justifyContent:'center',background:c.bg,border:c.border,color:c.color,flexShrink:0}}>{iconSvgs[statusId]}</div>);
+};
+
+// PRIORITY ICON COMPONENT — flat V11 style (replaces 3D emoji circles)
+const PriorityIcon=({priority,size=12})=>{
+    const icons={
+        high:<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width={size} height={size}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 15l7-7 7 7"/></svg>,
+        medium:<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width={size} height={size}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 12h14"/></svg>,
+        low:<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width={size} height={size}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7"/></svg>
+    };
+    const colors={
+        high:{bg:'#fee2e2',color:'#dc2626'},
+        medium:{bg:'#fef3c7',color:'#d97706'},
+        low:{bg:'#dcfce7',color:'#16a34a'}
+    };
+    const c=colors[priority]||colors.medium;
+    return(<div style={{width:size+6,height:size+6,borderRadius:4,display:'inline-flex',alignItems:'center',justifyContent:'center',background:c.bg,color:c.color,flexShrink:0}}>{icons[priority]}</div>);
 };
 
 // ⚠️ GITHUB SETTINGS MODAL - SUPPRIMÉ
@@ -817,7 +833,7 @@ const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})
             className={`action-card ${dragOverPosition==='before'?'drop-indicator-before':dragOverPosition==='after'?'drop-indicator-after':''}`}>
             <div className="card-header">
                 <div className="card-title">{action.name}</div>
-                <div className={`card-priority ${action.priority||'medium'}`}/>
+                <PriorityIcon priority={action.priority||'medium'} size={10}/>
             </div>
             {action.tags?.length>0&&<div className="card-tags">{action.tags.slice(0,3).map(t=>{const ch=CONFIG.CHANNELS.find(c=>c.id===t);return <span key={t} className={`card-tag ${t}`}>{ch?.name||t}</span>;})}</div>}
             <div className="action-progress-section">
@@ -907,7 +923,7 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
             className={`kanban-card ${task.status==='completed'?'completed':''} ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'drop-indicator-before':dragOverPosition==='after'?'drop-indicator-after':''}`}>
             <div className="card-header">
                 <div className="card-title" style={task.status==='completed'?{textDecoration:'line-through',color:'var(--text-muted)'}:{}}>{task.title}</div>
-                <div className={`card-priority ${task.priority}`}/>
+                <PriorityIcon priority={task.priority} size={10}/>
             </div>
             {(task.channels||action?.tags||[]).length>0&&<div className="card-tags">
                 {(task.channels||action?.tags||[]).slice(0,2).map(chId=>{const ch=CONFIG.CHANNELS.find(c=>c.id===chId);return ch?<span key={chId} className={`card-tag ${chId}`}>{ch.name}</span>:null;})}
@@ -1333,7 +1349,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                             className="kanban-column" >
                             <div className="column-header">
                                 <div className="column-title">
-                                    {col.color&&(()=>{const iconMap={todo:<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><circle cx="12" cy="12" r="10" strokeWidth="2"/></svg>,creating:<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>,inprogress:<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>,review:<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>,completed:<svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="12" height="12"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"/></svg>};const cls=col.key==='inprogress'?'in-progress':col.key==='completed'?'done':col.key;return <div className={`column-icon ${cls}`}>{iconMap[col.key]||col.icon}</div>;})()}
+                                    {col.color&&<StatusIcon statusId={col.key} size={12}/>}
                                     {col.gradient&&<div style={{background:categories.find(c=>c.id===col.key)?.color||'var(--accent)',width:4,height:20,borderRadius:2,flexShrink:0}}/>}
                                     <span className="column-name">{col.name}</span>
                                     <span className="column-count">{col.items.length}</span>
@@ -2056,7 +2072,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const mFrac=(qFrac*3)-miq;
             const targetMonth=qIdx*3+miq;
             const dim=new Date(year,targetMonth+1,0).getDate();
-            const day=Math.max(1,Math.round(mFrac*dim/7)*7||1);
+            const day=Math.max(1,Math.round(mFrac*dim));
             return new Date(year,targetMonth,Math.min(day,dim));
         }
     };
@@ -2521,7 +2537,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll',flex:1,overflowY:'auto'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
                     <div style={{minWidth:`${headers.length*colWidth+250}px`}}>
                         {(zoom==='week'||zoom==='day')&&monthHeaders&&(
-                            <div className={`flex border-b border-[var(--border)] sticky top-0 z-20 bg-[var(--bg-primary)]`}>
+                            <div className={`flex border-b border-[var(--border)] sticky top-0 z-40 bg-[var(--bg-primary)]`}>
                                 <div className={`w-[250px] flex-shrink-0 sticky left-0 z-30 bg-[var(--bg-primary)]`}/>
                                 {monthHeaders.map((m,idx)=>(
                                     <div key={idx} className={`flex-shrink-0 p-2 text-center font-semibold border-l border-[var(--border)] ${m.month===currentMonth?'bg-accent/10 text-accent':''}`} style={{width:zoom==='week'?(m.endWeek-m.startWeek)*colWidth:m.days*colWidth}}>
@@ -2530,7 +2546,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                 ))}
                             </div>
                         )}
-                        <div className={`flex border-b border-[var(--border)] ${(zoom==='week'||zoom==='day')?'':'sticky top-0 z-10'} bg-[var(--bg-primary)]`}>
+                        <div className={`flex border-b border-[var(--border)] ${(zoom==='week'||zoom==='day')?'sticky top-[37px] z-30':'sticky top-0 z-40'} bg-[var(--bg-primary)]`}>
                             <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 bg-[var(--bg-primary)] border-r border-[var(--border)]`}>Actions</div>
                             {zoom==='quarter'?headers.map(h=>(
                                 <div key={h.q} className={`flex-shrink-0 p-3 text-center font-semibold border-l border-[var(--border)]`} style={{width:colWidth}}>
@@ -2617,10 +2633,6 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                         ))}
                     </div>
                 </div>
-            </div>
-            <div style={{marginTop:16,background:'var(--bg-primary)',borderRadius:'var(--radius-lg)',padding:16,border:'1px solid var(--border)'}}>
-                <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:8}}>Légende:</p>
-                <div className="flex flex-wrap gap-4">{CONFIG.STATUSES.map(s=><div key={s.id} className="flex items-center space-x-2"><StatusIcon statusId={s.id} size={12}/><span className="text-sm">{s.name}</span></div>)}</div>
             </div>
         </div>
     );
@@ -2737,7 +2749,7 @@ const FilterSidebar=({show,onClose,filters,setFilters,categories,allCountries})=
             </div>
             <div className="filter-section">
                 <div className="filter-section-title">Priorité</div>
-                <div className="filter-options">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`filter-option ${filters.priority.includes(p.id)?'selected':''}`}>{p.icon} {p.name}</button>))}</div>
+                <div className="filter-options">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`filter-option ${filters.priority.includes(p.id)?'selected':''}`} style={{display:'flex',alignItems:'center',gap:4}}><PriorityIcon priority={p.id} size={10}/> {p.name}</button>))}</div>
             </div>
             <div className="filter-section">
                 <div className="filter-section-title">Canal</div>
@@ -3636,9 +3648,9 @@ const App=()=>{
                         <div className="active-filters">
                             <span className="active-filters-label">Filtres:</span>
                             {filters.search&&<div className="filter-chip">"{filters.search}"<button onClick={()=>setFilters({...filters,search:''})}>✕</button></div>}
-                            {filters.status.map(s=>{const st=CONFIG.STATUSES.find(x=>x.id===s);return <div key={s} className="filter-chip">{st?.icon} {st?.name}<button onClick={()=>setFilters({...filters,status:filters.status.filter(x=>x!==s)})}>✕</button></div>;})}
+                            {filters.status.map(s=>{const st=CONFIG.STATUSES.find(x=>x.id===s);return <div key={s} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><StatusIcon statusId={s} size={10}/> {st?.name}<button onClick={()=>setFilters({...filters,status:filters.status.filter(x=>x!==s)})}>✕</button></div>;})}
                             {filters.category.map(c=>{const cat=categories.find(x=>x.id===c);return <div key={c} className="filter-chip">{cat?.name}<button onClick={()=>setFilters({...filters,category:filters.category.filter(x=>x!==c)})}>✕</button></div>;})}
-                            {filters.priority.map(p=>{const pr=CONFIG.PRIORITIES.find(x=>x.id===p);return <div key={p} className="filter-chip">{pr?.icon} {pr?.name}<button onClick={()=>setFilters({...filters,priority:filters.priority.filter(x=>x!==p)})}>✕</button></div>;})}
+                            {filters.priority.map(p=>{const pr=CONFIG.PRIORITIES.find(x=>x.id===p);return <div key={p} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><PriorityIcon priority={p} size={9}/> {pr?.name}<button onClick={()=>setFilters({...filters,priority:filters.priority.filter(x=>x!==p)})}>✕</button></div>;})}
                             {(filters.channel||[]).map(c=>{const ch=CONFIG.CHANNELS.find(x=>x.id===c);return <div key={c} className="filter-chip">{ch?.name}<button onClick={()=>setFilters({...filters,channel:filters.channel.filter(x=>x!==c)})}>✕</button></div>;})}
                             {(filters.country||[]).map(c=>{const co=allCountries.find(x=>x.id===c);return <div key={c} className="filter-chip">{co?.flag} {co?.name}<button onClick={()=>setFilters({...filters,country:filters.country.filter(x=>x!==c)})}>✕</button></div>;})}
                             <span className="clear-filters" onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})}>Tout effacer</span>
