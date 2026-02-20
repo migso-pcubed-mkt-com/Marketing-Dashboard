@@ -771,7 +771,8 @@
       "dueDate": "2026-06-25",
       "budget": 0,
       "channels": [
-        "video"
+        "video",
+        "email"
       ],
       "checklist": [],
       "comments": [],
