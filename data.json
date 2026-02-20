@@ -904,14 +904,14 @@
     },
     {
       "id": "t1771584452570",
-      "actionId": "a3",
-      "month": 3,
-      "startDate": "2026-04-02",
+      "actionId": "a2",
+      "month": 2,
+      "startDate": "2026-02-01",
       "title": "Nouvelle tâche",
       "description": "",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2026-04-30",
+      "dueDate": "2026-03-01",
       "budget": 0,
       "channels": [
         "social",
@@ -920,7 +920,7 @@
       "checklist": [],
       "comments": [],
       "attachments": [],
-      "order": 10,
+      "order": 32,
       "createdAt": "2026-02-20T10:47:32.570Z"
     }
   ]
