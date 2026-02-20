@@ -803,13 +803,13 @@
     {
       "id": "t1769780329439",
       "actionId": "a4",
-      "month": 2,
-      "startDate": "2026-02-01",
+      "month": 4,
+      "startDate": "2026-03-15",
       "title": "Nouvelle tâche",
       "description": "",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2026-03-20",
+      "dueDate": "2026-05-01",
       "budget": 0,
       "channels": [
         "lads"
