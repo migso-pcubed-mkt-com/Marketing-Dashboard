@@ -489,6 +489,38 @@ const PriorityIcon=({priority,size=12})=>{
     return(<div style={{width:size+6,height:size+6,borderRadius:4,display:'inline-flex',alignItems:'center',justifyContent:'center',background:c.bg,color:c.color,flexShrink:0}}>{icons[priority]}</div>);
 };
 
+// ICON SELECT — custom dropdown with colored icons (replaces native <select> for status/priority)
+const IconSelect=({value,options,onChange,renderOption,className,style})=>{
+    const[open,setOpen]=useState(false);
+    const ref=useRef(null);
+    useEffect(()=>{
+        const h=(e)=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+        document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);
+    },[]);
+    const selected=options.find(o=>o.id===value)||options[0];
+    return(
+        <div ref={ref} style={{position:'relative',...style}} className={className}>
+            <div onClick={()=>setOpen(!open)} className="v11-select" style={{cursor:'pointer',display:'flex',alignItems:'center',gap:6,paddingRight:24}}>
+                {renderOption(selected)}
+                <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',fontSize:10,color:'var(--text-muted)'}}>▾</span>
+            </div>
+            {open&&(
+                <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:50,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:8,boxShadow:'0 4px 12px rgba(0,0,0,0.15)',maxHeight:200,overflowY:'auto',marginTop:2}}>
+                    {options.map(o=>(
+                        <div key={o.id} onClick={()=>{onChange(o.id);setOpen(false);}} style={{padding:'6px 10px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,background:o.id===value?'var(--bg-secondary)':'transparent'}}
+                            onMouseEnter={e=>e.currentTarget.style.background='var(--bg-secondary)'}
+                            onMouseLeave={e=>e.currentTarget.style.background=o.id===value?'var(--bg-secondary)':'transparent'}>
+                            {renderOption(o)}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+const StatusOption=({status})=>(<><StatusIcon statusId={status.id} size={12}/><span style={{fontSize:13}}>{status.name}</span></>);
+const PriorityOption=({priority})=>(<><div style={{width:8,height:8,borderRadius:'50%',background:priority.color,flexShrink:0}}/><span style={{fontSize:13}}>{priority.name}</span></>);
+
 // ⚠️ GITHUB SETTINGS MODAL - SUPPRIMÉ
 // Le token GitHub est maintenant intégré directement dans GITHUB_CONFIG (voir ligne ~1375-1381)
 // Plus besoin de modal de configuration pour un usage multi-device transparent
@@ -644,7 +676,7 @@ const NewActionModal=({categories,onClose,onAdd})=>{
                         <div><label className="block text-sm font-medium mb-2">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-input">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                         <div className="flex gap-4">
                             <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input"/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-input">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
                         </div>
                         <div><label className="block text-sm font-medium mb-2">Tags Canal</label><ChannelTags channels={form.tags} onAdd={id=>setForm({...form,tags:[...form.tags,id]})} onRemove={id=>setForm({...form,tags:form.tags.filter(t=>t!==id)})}/></div>
                     </div>
@@ -687,7 +719,7 @@ const NewTaskModal=({actions,categories,onClose,onAdd,onCreateAction})=>{
                             <div className="flex-1"><label className="block text-sm font-medium mb-2">Date fin</label><input type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-input">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
                             <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input"/></div>
                         </div>
                         <div><label className="block text-sm font-medium mb-2">Description</label><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} rows={3} className="v11-input" style={{resize:'none'}}/></div>
@@ -1003,8 +1035,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     </div>
                     <div className="flex flex-wrap gap-3 mb-6">
                         {actions&&<div className="w-full"><label className="v11-label">📋 Action</label><select value={form.actionId} onChange={e=>{const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className="v11-select" style={{width:'100%'}}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
-                        <div><label className="v11-label">Statut</label><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="v11-select">{CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select></div>
-                        <div><label className="v11-label">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-select">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                        <div><label className="v11-label">Statut</label><IconSelect value={form.status} options={CONFIG.STATUSES} onChange={v=>setForm({...form,status:v})} renderOption={o=><StatusOption status={o}/>}/></div>
+                        <div><label className="v11-label">Priorité</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
                         <div><label className="v11-label">Début</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input"/></div>
                         <div><label className="v11-label">Fin</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
                         <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}}/></div>
@@ -1138,7 +1170,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     </div>
                     <div className="flex flex-wrap gap-3 mb-4">
                         <div><label className="v11-label">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-select">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                        <div><label className="v11-label">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-select">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+                        <div><label className="v11-label">Priorité</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
                         <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:128}}/></div>
                     </div>
                     <div className="rounded-xl p-4 mb-4" style={{background:'var(--bg-secondary)'}}>
@@ -1162,9 +1194,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                     <div key={task.id} className="rounded-lg p-3" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)'}}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center space-x-3 flex-1 min-w-0">
-                                                <select value={task.status} onChange={e=>handleStatusChange(task.id,e.target.value)} className="px-2 py-1 rounded text-xs text-white border-0 cursor-pointer" style={{backgroundColor:status?.color}}>
-                                                    {CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
-                                                </select>
+                                                <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:120}}/>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-medium text-sm truncate">{task.title}</p>
                                                     <p className="text-xs" style={{color:'var(--text-muted)'}}>📅 {task.startDate?new Date(task.startDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'} → {task.dueDate?new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'}</p>
@@ -1419,7 +1449,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const[centerDateRef,setCenterDateRef]=useState(null); // Reference date for scroll preservation
     const[creatingTask,setCreatingTask]=useState(null); // {actionId, startX, currentX, startDate, actionRow} for task creation
     const currentMonth=new Date().getMonth();
-    const currentWeek=Math.floor((new Date().getTime()-new Date(selectedYear,0,1).getTime())/(7*24*60*60*1000));
+    // Week base: Monday on or before Jan 1 (aligns week columns to real calendar weeks)
+    const jan1=new Date(selectedYear,0,1);const jan1Dow=jan1.getDay();
+    const weekBase=new Date(selectedYear,0,1-(jan1Dow===0?6:jan1Dow-1));
+    const currentWeek=Math.floor((new Date().getTime()-weekBase.getTime())/(7*24*60*60*1000));
 
     // Calculate the date at the center of the current viewport
     const getCenterDate=useCallback(()=>{
@@ -1436,7 +1469,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         }else if(zoom==='week'){
             const pixelsPerDay=colWidth/7;
             const dayIndex=Math.floor(centerX/pixelsPerDay);
-            const date=new Date(year,0,1+dayIndex);
+            const date=new Date(weekBase.getTime()+dayIndex*86400000);
             return date;
         }else if(zoom==='month'){
             const monthIndex=Math.floor(centerX/colWidth);
@@ -1471,9 +1504,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const dayOfYear=Math.floor((targetDate-new Date(year,0,1))/(1000*60*60*24));
             scrollPosition=dayOfYear*colWidth;
         }else if(zoom==='week'){
-            const dayOfYear=Math.floor((targetDate-new Date(year,0,1))/(1000*60*60*24));
+            const daysFromBase=Math.floor((targetDate-weekBase)/(1000*60*60*24));
             const pixelsPerDay=colWidth/7;
-            scrollPosition=dayOfYear*pixelsPerDay;
+            scrollPosition=daysFromBase*pixelsPerDay;
         }else if(zoom==='month'){
             const daysInMonth=new Date(year,month+1,0).getDate();
             const dayProgress=(day-1)/daysInMonth;
@@ -1894,8 +1927,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     };
 
     const getWeekNumber=(date)=>{
-        const startOfYear=new Date(selectedYear,0,1);
-        const diff=date-startOfYear;
+        const diff=date-weekBase;
         return Math.floor(diff/(7*24*60*60*1000));
     };
 
@@ -1919,19 +1951,12 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             return{left,width};
         }
         if(zoom==='week'){
-            // Calculate precise positioning based on days from start of year
-            const yearStart=new Date(selectedYear,0,1);
-            const startDayOfYear=Math.floor((start-yearStart)/(1000*60*60*24));
-            const endDayOfYear=Math.floor((end-yearStart)/(1000*60*60*24));
-
-            // Each week column is 40px (colWidth), representing 7 days
-            // So each day is colWidth/7 pixels
+            // Calculate precise positioning based on days from weekBase (Monday-aligned)
+            const startDaysFromBase=Math.floor((start-weekBase)/(1000*60*60*24));
+            const endDaysFromBase=Math.floor((end-weekBase)/(1000*60*60*24));
             const pixelsPerDay=colWidth/7;
-
-            // Calculate left position and width in pixels
-            const left=startDayOfYear*pixelsPerDay;
-            const width=Math.max((endDayOfYear-startDayOfYear+1)*pixelsPerDay,pixelsPerDay); // At least 1 day width
-
+            const left=startDaysFromBase*pixelsPerDay;
+            const width=Math.max((endDaysFromBase-startDaysFromBase+1)*pixelsPerDay,pixelsPerDay);
             return{left,width};
         }
         if(zoom==='month'){
@@ -2043,8 +2068,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const doy=Math.floor((d-new Date(selectedYear,0,1))/(86400000));
             return doy*colWidth;
         }else if(zoom==='week'){
-            const doy=Math.floor((d-new Date(selectedYear,0,1))/(86400000));
-            return doy*(colWidth/7);
+            const daysFromBase=Math.floor((d-weekBase)/(86400000));
+            return daysFromBase*(colWidth/7);
         }else if(zoom==='month'){
             return m*colWidth+((day-1)/dim)*colWidth;
         }else{
@@ -2061,10 +2086,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         }else if(zoom==='week'){
             const pixelsPerDay=colWidth/7;
             const dayIdx=Math.round(absX/pixelsPerDay);
-            // Snap to week boundary if very close (within 1 day)
+            // Snap to week boundary (Monday) if very close (within 1 day)
             const nearestWeekDay=Math.round(dayIdx/7)*7;
             const snappedDay=Math.abs(dayIdx-nearestWeekDay)<=1?nearestWeekDay:dayIdx;
-            return new Date(year,0,1+Math.max(0,snappedDay));
+            return new Date(weekBase.getTime()+Math.max(0,snappedDay)*86400000);
         }else if(zoom==='month'){
             const monthIdx=Math.max(0,Math.min(11,Math.floor(absX/colWidth)));
             const monthFrac=Math.max(0,(absX-monthIdx*colWidth)/colWidth);
@@ -2103,23 +2128,27 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const getWeekHeaders=()=>{
         const weeks=[];
         const months=[];
-        let currentMonth=-1;
-        for(let w=0;w<52;w++){
-            const weekDate=new Date(selectedYear,0,1+w*7);
-            const month=weekDate.getMonth();
-            if(month!==currentMonth){
-                if(currentMonth!==-1){
-                    months.push({month:currentMonth,label:CONFIG.MONTHS[currentMonth],startWeek:months.length>0?months[months.length-1].endWeek:0,endWeek:w});
-                }else{
-                    months.push({month,label:CONFIG.MONTHS[month],startWeek:0,endWeek:w});
-                }
-                currentMonth=month;
+        const dec31=new Date(selectedYear,11,31);
+        let lastMonth=-1;
+        for(let w=0;w<54;w++){
+            const weekStart=new Date(weekBase.getTime()+w*7*86400000);
+            if(weekStart>dec31)break;
+            // ISO week number for label
+            const thu=new Date(weekStart.getTime()+3*86400000);
+            const isoD=new Date(Date.UTC(thu.getFullYear(),thu.getMonth(),thu.getDate()));
+            isoD.setUTCDate(isoD.getUTCDate()+4-(isoD.getUTCDay()||7));
+            const isoYS=new Date(Date.UTC(isoD.getUTCFullYear(),0,1));
+            const isoWeek=Math.ceil(((isoD-isoYS)/86400000+1)/7);
+            weeks.push({week:w,label:isoWeek.toString()});
+            // Month grouping: use Monday date, but assign to Jan if in previous year
+            const monthIdx=weekStart.getFullYear()<selectedYear?0:weekStart.getMonth();
+            if(monthIdx!==lastMonth){
+                if(months.length>0)months[months.length-1].endWeek=w;
+                months.push({month:monthIdx,label:CONFIG.MONTHS[monthIdx],startWeek:w,endWeek:w+1});
+                lastMonth=monthIdx;
             }
-            weeks.push({week:w,label:(w+1).toString()});
         }
-        if(currentMonth!==-1){
-            months[months.length-1].endWeek=52;
-        }
+        if(months.length>0)months[months.length-1].endWeek=weeks.length;
         return{weeks,months};
     };
 
@@ -2192,10 +2221,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 // Convert half-day slot to day
                 const dayOfWeek=Math.floor(halfDaySlot/2);
 
-                // Calculate the actual date
-                const firstDayOfYear=new Date(year,0,1);
+                // Calculate the actual date (from Monday-aligned weekBase)
                 const daysOffset=weekNumber*7+dayOfWeek;
-                const newStartDate=new Date(year,0,1+daysOffset);
+                const newStartDate=new Date(weekBase.getTime()+daysOffset*86400000);
 
                 // Calculate end date
                 const newEndDate=new Date(newStartDate);
@@ -2440,8 +2468,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const pixelsPerDay=colWidth/7;
             const startDay=Math.floor(startX/pixelsPerDay);
             const endDay=Math.floor(endX/pixelsPerDay);
-            const startDateObj=new Date(year,0,1+startDay);
-            const endDateObj=new Date(year,0,1+endDay);
+            const startDateObj=new Date(weekBase.getTime()+startDay*86400000);
+            const endDateObj=new Date(weekBase.getTime()+endDay*86400000);
             startDate=startDateObj.toISOString().split('T')[0];
             dueDate=endDateObj.toISOString().split('T')[0];
         }else if(zoom==='month'){
@@ -2755,7 +2783,7 @@ const FilterSidebar=({show,onClose,filters,setFilters,categories,allCountries})=
             </div>
             <div className="filter-section">
                 <div className="filter-section-title">Priorité</div>
-                <div className="filter-options">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`filter-option ${filters.priority.includes(p.id)?'selected':''}`} style={{display:'flex',alignItems:'center',gap:4}}><PriorityIcon priority={p.id} size={10}/> {p.name}</button>))}</div>
+                <div className="filter-options">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`filter-option ${filters.priority.includes(p.id)?'selected':''}`} style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,borderRadius:'50%',background:p.color,flexShrink:0}}/> {p.name}</button>))}</div>
             </div>
             <div className="filter-section">
                 <div className="filter-section-title">Canal</div>
@@ -3656,7 +3684,7 @@ const App=()=>{
                             {filters.search&&<div className="filter-chip">"{filters.search}"<button onClick={()=>setFilters({...filters,search:''})}>✕</button></div>}
                             {filters.status.map(s=>{const st=CONFIG.STATUSES.find(x=>x.id===s);return <div key={s} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><StatusIcon statusId={s} size={10}/> {st?.name}<button onClick={()=>setFilters({...filters,status:filters.status.filter(x=>x!==s)})}>✕</button></div>;})}
                             {filters.category.map(c=>{const cat=categories.find(x=>x.id===c);return <div key={c} className="filter-chip">{cat?.name}<button onClick={()=>setFilters({...filters,category:filters.category.filter(x=>x!==c)})}>✕</button></div>;})}
-                            {filters.priority.map(p=>{const pr=CONFIG.PRIORITIES.find(x=>x.id===p);return <div key={p} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><PriorityIcon priority={p} size={9}/> {pr?.name}<button onClick={()=>setFilters({...filters,priority:filters.priority.filter(x=>x!==p)})}>✕</button></div>;})}
+                            {filters.priority.map(p=>{const pr=CONFIG.PRIORITIES.find(x=>x.id===p);return <div key={p} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:pr?.color,flexShrink:0}}/> {pr?.name}<button onClick={()=>setFilters({...filters,priority:filters.priority.filter(x=>x!==p)})}>✕</button></div>;})}
                             {(filters.channel||[]).map(c=>{const ch=CONFIG.CHANNELS.find(x=>x.id===c);return <div key={c} className="filter-chip">{ch?.name}<button onClick={()=>setFilters({...filters,channel:filters.channel.filter(x=>x!==c)})}>✕</button></div>;})}
                             {(filters.country||[]).map(c=>{const co=allCountries.find(x=>x.id===c);return <div key={c} className="filter-chip">{co?.flag} {co?.name}<button onClick={()=>setFilters({...filters,country:filters.country.filter(x=>x!==c)})}>✕</button></div>;})}
                             <span className="clear-filters" onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})}>Tout effacer</span>
