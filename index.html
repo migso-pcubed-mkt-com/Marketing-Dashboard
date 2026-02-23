@@ -882,6 +882,7 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
     const[dragOverPosition,setDragOverPosition]=useState(null); // 'before' | 'after' | null
     const cardRef=useRef(null);
     const touchTimeout=useRef(null);
+    const isCompleted=task.status==='completed';
 
     const handleTouchStart=(e)=>{
         touchTimeout.current=setTimeout(()=>{
@@ -938,6 +939,13 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
     const priority=CONFIG.PRIORITIES.find(p=>p.id===task.priority);
     const category=categories?.find(c=>c.id===action?.categoryId);
     const checklistPct=task.checklist?.length>0?Math.round((task.checklist.filter(c=>c.done).length/task.checklist.length)*100):null;
+
+    const handleToggleComplete=(e)=>{
+        e.stopPropagation();
+        if(onUpdateTask){
+            onUpdateTask(task.id,{status:isCompleted?'todo':'completed'});
+        }
+    };
 
     return(
         <div
@@ -1236,6 +1244,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
     const[sortBy,setSortBy]=useState('order'); // order, name, date, deadline, priority
+    const kanbanScrollRef=useRef(null);
 
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
@@ -1267,19 +1276,29 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     const handleDragLeave=(e)=>{e.currentTarget.classList.remove('drag-over');};
 
     const getColumns=()=>{
-        // Helper to sort items by different criteria
+        // Helper to sort items by different criteria (completed tasks always at bottom)
         const sortItems=(items)=>{
             const sorted=[...items];
-            if(sortBy==='order')return sorted.sort((a,b)=>(a.order||0)-(b.order||0));
-            if(sortBy==='name')return sorted.sort((a,b)=>a.title.localeCompare(b.title));
-            if(sortBy==='date')return sorted.sort((a,b)=>new Date(a.startDate||0)-new Date(b.startDate||0));
-            if(sortBy==='deadline')return sorted.sort((a,b)=>new Date(a.dueDate||'9999')-new Date(b.dueDate||'9999'));
-            if(sortBy==='created')return sorted.sort((a,b)=>new Date(a.createdAt||0)-new Date(b.createdAt||0));
-            if(sortBy==='priority'){
-                const priorityOrder={high:0,medium:1,low:2};
-                return sorted.sort((a,b)=>(priorityOrder[a.priority]||99)-(priorityOrder[b.priority]||99));
-            }
-            return sorted;
+            // First separate completed and non-completed tasks
+            const completed=sorted.filter(t=>t.status==='completed');
+            const notCompleted=sorted.filter(t=>t.status!=='completed');
+
+            // Sort each group separately
+            const sortGroup=(group)=>{
+                if(sortBy==='order')return group.sort((a,b)=>(a.order||0)-(b.order||0));
+                if(sortBy==='name')return group.sort((a,b)=>a.title.localeCompare(b.title));
+                if(sortBy==='date')return group.sort((a,b)=>new Date(a.startDate||0)-new Date(b.startDate||0));
+                if(sortBy==='deadline')return group.sort((a,b)=>new Date(a.dueDate||'9999')-new Date(b.dueDate||'9999'));
+                if(sortBy==='created')return group.sort((a,b)=>new Date(a.createdAt||0)-new Date(b.createdAt||0));
+                if(sortBy==='priority'){
+                    const priorityOrder={high:0,medium:1,low:2};
+                    return group.sort((a,b)=>(priorityOrder[a.priority]||99)-(priorityOrder[b.priority]||99));
+                }
+                return group;
+            };
+
+            // Return non-completed tasks first, then completed tasks
+            return[...sortGroup(notCompleted),...sortGroup(completed)];
         };
 
         // Derive effective month for selected year (handles cross-year tasks)
@@ -1356,6 +1375,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 if(viewMode==='month'){
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
+                                        const task=filteredTasks.find(t=>t.id===taskId);
                                         const monthIdx=col.key;
                                         const year=selectedYear;
                                         const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
@@ -1366,6 +1386,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 }else if(viewMode==='quarter'){
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
+                                        const task=filteredTasks.find(t=>t.id===taskId);
                                         const quarterIdx=col.key;
                                         const year=selectedYear;
                                         const firstMonth=quarterIdx*3;
@@ -1475,7 +1496,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const year=selectedYear;
         if(zoom==='day'){
             const dayIndex=Math.floor(centerX/colWidth);
-            const date=new Date(year,0,1+dayIndex);
+            const date=new Date(year,0,1);
+            date.setDate(date.getDate()+dayIndex);
             return date;
         }else if(zoom==='week'){
             const pixelsPerDay=colWidth/7;
@@ -1501,7 +1523,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             return date;
         }
         return new Date(year,0,1);
-    },[zoom,colWidth]);
+    },[zoom,colWidth,baseYear]);
 
     // Scroll to a specific date in the current zoom level
     const scrollToDate=useCallback((targetDate)=>{
@@ -1534,7 +1556,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         // Center the date in the viewport
         const viewportWidth=timelineRef.current.clientWidth;
         timelineRef.current.scrollLeft=scrollPosition-viewportWidth/2+250; // +250 for left column
-    },[zoom,colWidth]);
+    },[zoom,colWidth,baseYear]);
 
     // Save center date before zoom change and restore after
     const handleZoomChange=useCallback((newZoom)=>{
@@ -1806,6 +1828,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         setDragOverActionRow(null);
         setDragPreview(null);
         setDropIndicator(null);
+        // Clean up all drag-over classes from DOM elements
+        document.querySelectorAll('.drag-over, .action-row-drag-over').forEach(el=>{
+            el.classList.remove('drag-over','action-row-drag-over');
+        });
     };
 
     const handleTaskDragOver=(e,task)=>{
@@ -2021,7 +2047,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         return{left:startMonth*colWidth,width:colWidth};
     };
 
-    // Calculate swim lanes for overlapping tasks
+    // Calculate swim lanes for overlapping tasks (optimized for compactness)
     const calculateSwimLanes=(tasks)=>{
         const swimLanes={};
         const lanes=[];
@@ -2052,7 +2078,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             for(let i=0;i<lanes.length;i++){
                 let canFit=true;
                 for(const existingTask of lanes[i]){
-                    if(taskStart<existingTask.end&&taskEnd>existingTask.start){
+                    // Add small gap (2px) to prevent visual overlap
+                    if(taskStart<existingTask.end+2&&taskEnd>existingTask.start-2){
                         canFit=false;
                         break;
                     }
@@ -2256,14 +2283,24 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
             }else if(zoom==='day'){
                 // For day view: direct day-to-day placement (always snaps to full days)
-                const dayOfYear=colIdx; // colIdx is the day index (0-364)
+                // FIXED: Limit dayOfYear to valid range (0-364 for 2026)
+                const maxDaysInYear=365; // 2026 is not a leap year
+                const dayOfYear=Math.max(0,Math.min(maxDaysInYear-1,colIdx)); // colIdx is the day index (0-364)
 
                 // Calculate the actual date
-                const newStartDate=new Date(year,0,1+dayOfYear);
+                const newStartDate=new Date(year,0,1);
+                newStartDate.setDate(newStartDate.getDate()+dayOfYear);
 
-                // Calculate end date
+                // Calculate end date - ensure it doesn't go beyond year
                 const newEndDate=new Date(newStartDate);
                 newEndDate.setDate(newEndDate.getDate()+duration-1);
+
+                // If end date exceeds current year, clamp it to end of year
+                if(newEndDate.getFullYear()>year){
+                    newEndDate.setFullYear(year);
+                    newEndDate.setMonth(11);
+                    newEndDate.setDate(31);
+                }
 
                 startDate=newStartDate.getFullYear()+'-'+String(newStartDate.getMonth()+1).padStart(2,'0')+'-'+String(newStartDate.getDate()).padStart(2,'0');
                 dueDate=newEndDate.getFullYear()+'-'+String(newEndDate.getMonth()+1).padStart(2,'0')+'-'+String(newEndDate.getDate()).padStart(2,'0');
@@ -2353,6 +2390,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         setDragOverActionRow(null);
         setDragPreview(null);
         setDropIndicator(null);
+        // Clean up all drag-over classes from DOM elements
+        document.querySelectorAll('.drag-over, .action-row-drag-over').forEach(el=>{
+            el.classList.remove('drag-over','action-row-drag-over');
+        });
 
         const taskId=e.dataTransfer.getData('taskId');
         if(!taskId||!onUpdateTask)return;
@@ -3432,7 +3473,7 @@ const App=()=>{
             if(isDifferentMonth){
                 updatedDraggedTask.month=targetTask.month;
                 // Also update dates based on new month
-                const year=2026;
+                const year=targetTask.startDate?new Date(targetTask.startDate).getFullYear():2026;
                 const monthIdx=targetTask.month;
                 const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
                 const lastDay=new Date(year,monthIdx+1,0).getDate();
