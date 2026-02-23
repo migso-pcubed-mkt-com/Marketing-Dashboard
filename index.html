@@ -1282,7 +1282,15 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             return sorted;
         };
 
-        if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:sortItems(filteredTasks.filter(t=>t.month===idx))}));
+        // Derive effective month for selected year (handles cross-year tasks)
+        const getTaskMonth=(t)=>{
+            if(!t.startDate)return t.month;
+            const sy=new Date(t.startDate).getFullYear();
+            if(sy<selectedYear)return 0; // Task from previous year → show in January
+            if(sy>selectedYear)return 11; // Task from next year → show in December
+            return new Date(t.startDate).getMonth();
+        };
+        if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:sortItems(filteredTasks.filter(t=>getTaskMonth(t)===idx))}));
         if(viewMode==='quarter'){
             const quarters=[
                 {key:0,name:'Q1 (Jan-Mars)',months:[0,1,2]},
@@ -1293,7 +1301,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             return quarters.map(q=>({
                 key:q.key,
                 name:q.name,
-                items:sortItems(filteredTasks.filter(t=>q.months.includes(t.month)))
+                items:sortItems(filteredTasks.filter(t=>q.months.includes(getTaskMonth(t))))
             }));
         }
         if(viewMode==='category')return categories.map(cat=>({key:cat.id,name:cat.name,gradient:cat.gradient,items:actions.filter(a=>a.categoryId===cat.id&&filteredTasks.some(t=>t.actionId===a.id))}));
@@ -1455,7 +1463,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     // Week base: Monday on or before Jan 1 (aligns week columns to real calendar weeks)
     const jan1=new Date(selectedYear,0,1);const jan1Dow=jan1.getDay();
     const weekBase=new Date(selectedYear,0,1-(jan1Dow===0?6:jan1Dow-1));
-    const currentWeek=Math.floor((new Date().getTime()-weekBase.getTime())/(7*24*60*60*1000));
+    const now=new Date();const currentWeek=Math.floor(Math.round((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()))/86400000)/7);
 
     // Calculate the date at the center of the current viewport
     const getCenterDate=useCallback(()=>{
@@ -1472,7 +1480,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         }else if(zoom==='week'){
             const pixelsPerDay=colWidth/7;
             const dayIndex=Math.floor(centerX/pixelsPerDay);
-            const date=new Date(weekBase.getTime()+dayIndex*86400000);
+            const date=new Date(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()+dayIndex);
             return date;
         }else if(zoom==='month'){
             const monthIndex=Math.floor(centerX/colWidth);
@@ -1507,7 +1515,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const dayOfYear=Math.floor((targetDate-new Date(year,0,1))/(1000*60*60*24));
             scrollPosition=dayOfYear*colWidth;
         }else if(zoom==='week'){
-            const daysFromBase=Math.floor((targetDate-weekBase)/(1000*60*60*24));
+            const daysFromBase=Math.round((Date.UTC(targetDate.getFullYear(),targetDate.getMonth(),targetDate.getDate())-Date.UTC(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()))/86400000);
             const pixelsPerDay=colWidth/7;
             scrollPosition=daysFromBase*pixelsPerDay;
         }else if(zoom==='month'){
@@ -1936,8 +1944,15 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
     const getTaskPosition=(task)=>{
         if(!task.startDate||!task.dueDate)return null;
-        const start=new Date(task.startDate);
-        const end=new Date(task.dueDate);
+        let start=new Date(task.startDate);
+        let end=new Date(task.dueDate);
+
+        // Clamp dates to selectedYear for correct positioning in month/quarter views
+        const yearStart=new Date(selectedYear,0,1);
+        const yearEnd=new Date(selectedYear,11,31);
+        if(start<yearStart)start=yearStart;
+        if(end>yearEnd)end=yearEnd;
+
         const startMonth=start.getMonth();
         const endMonth=end.getMonth();
         const startDay=start.getDate();
@@ -1946,20 +1961,19 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const daysInEndMonth=new Date(selectedYear,endMonth+1,0).getDate();
 
         if(zoom==='day'){
-            // Calculate day index from start of year (0-364)
-            const startDayOfYear=Math.floor((start-new Date(selectedYear,0,1))/(1000*60*60*24));
-            const endDayOfYear=Math.floor((end-new Date(selectedYear,0,1))/(1000*60*60*24));
-            const left=startDayOfYear*colWidth;
-            const width=Math.max((endDayOfYear-startDayOfYear+1)*colWidth,colWidth); // At least 1 day width
+            const startDOY=Math.round((Date.UTC(start.getFullYear(),start.getMonth(),start.getDate())-Date.UTC(selectedYear,0,1))/86400000);
+            const endDOY=Math.round((Date.UTC(end.getFullYear(),end.getMonth(),end.getDate())-Date.UTC(selectedYear,0,1))/86400000);
+            const left=startDOY*colWidth;
+            const width=Math.max((endDOY-startDOY+1)*colWidth,colWidth);
             return{left,width};
         }
         if(zoom==='week'){
-            // Calculate precise positioning based on days from weekBase (Monday-aligned)
-            const startDaysFromBase=Math.floor((start-weekBase)/(1000*60*60*24));
-            const endDaysFromBase=Math.floor((end-weekBase)/(1000*60*60*24));
+            // DST-safe day calculation using Date.UTC
+            const startDays=Math.round((Date.UTC(start.getFullYear(),start.getMonth(),start.getDate())-Date.UTC(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()))/86400000);
+            const endDays=Math.round((Date.UTC(end.getFullYear(),end.getMonth(),end.getDate())-Date.UTC(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()))/86400000);
             const pixelsPerDay=colWidth/7;
-            const left=startDaysFromBase*pixelsPerDay;
-            const width=Math.max((endDaysFromBase-startDaysFromBase+1)*pixelsPerDay,pixelsPerDay);
+            const left=startDays*pixelsPerDay;
+            const width=Math.max((endDays-startDays+1)*pixelsPerDay,pixelsPerDay);
             return{left,width};
         }
         if(zoom==='month'){
@@ -2071,7 +2085,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const doy=Math.floor((d-new Date(selectedYear,0,1))/(86400000));
             return doy*colWidth;
         }else if(zoom==='week'){
-            const daysFromBase=Math.floor((d-weekBase)/(86400000));
+            // DST-safe day calculation using Date.UTC
+            const daysFromBase=Math.round((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.UTC(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()))/86400000);
             return daysFromBase*(colWidth/7);
         }else if(zoom==='month'){
             return m*colWidth+((day-1)/dim)*colWidth;
@@ -2092,7 +2107,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             // Snap to week boundary (Monday) if very close (within 1 day)
             const nearestWeekDay=Math.round(dayIdx/7)*7;
             const snappedDay=Math.abs(dayIdx-nearestWeekDay)<=1?nearestWeekDay:dayIdx;
-            return new Date(weekBase.getTime()+Math.max(0,snappedDay)*86400000);
+            return new Date(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()+Math.max(0,snappedDay));
         }else if(zoom==='month'){
             const monthIdx=Math.max(0,Math.min(11,Math.floor(absX/colWidth)));
             const monthFrac=Math.max(0,(absX-monthIdx*colWidth)/colWidth);
@@ -2134,10 +2149,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const dec31=new Date(selectedYear,11,31);
         let lastMonth=-1;
         for(let w=0;w<54;w++){
-            const weekStart=new Date(weekBase.getTime()+w*7*86400000);
+            const weekStart=new Date(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()+w*7);
             if(weekStart>dec31)break;
             // ISO week number for label
-            const thu=new Date(weekStart.getTime()+3*86400000);
+            const thu=new Date(weekStart.getFullYear(),weekStart.getMonth(),weekStart.getDate()+3);
             const isoD=new Date(Date.UTC(thu.getFullYear(),thu.getMonth(),thu.getDate()));
             isoD.setUTCDate(isoD.getUTCDate()+4-(isoD.getUTCDay()||7));
             const isoYS=new Date(Date.UTC(isoD.getUTCFullYear(),0,1));
@@ -2230,7 +2245,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
                 // Calculate the actual date (from Monday-aligned weekBase)
                 const daysOffset=weekNumber*7+dayOfWeek;
-                const newStartDate=new Date(weekBase.getTime()+daysOffset*86400000);
+                const newStartDate=new Date(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()+daysOffset);
 
                 // Calculate end date
                 const newEndDate=new Date(newStartDate);
@@ -2482,8 +2497,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const pixelsPerDay=colWidth/7;
             const startDay=Math.floor(startX/pixelsPerDay);
             const endDay=Math.floor(endX/pixelsPerDay);
-            startDate=fmt(new Date(weekBase.getTime()+startDay*86400000));
-            dueDate=fmt(new Date(weekBase.getTime()+endDay*86400000));
+            // DST-safe: use Date constructor with day addition instead of timestamp arithmetic
+            startDate=fmt(new Date(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()+startDay));
+            dueDate=fmt(new Date(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()+endDay));
         }else if(zoom==='month'){
             const startMonth=Math.floor(startX/colWidth);
             const endMonth=Math.floor(endX/colWidth);
@@ -3315,7 +3331,10 @@ const App=()=>{
         setTasks(prev=>prev.map(t=>{
             if(t.id!==taskId)return t;
             const newTask={...t,...updates};
-            if(updates.dueDate){
+            if(updates.startDate){
+                const d=new Date(updates.startDate);
+                newTask.month=d.getMonth();
+            }else if(updates.dueDate){
                 const d=new Date(updates.dueDate);
                 newTask.month=d.getMonth();
             }
