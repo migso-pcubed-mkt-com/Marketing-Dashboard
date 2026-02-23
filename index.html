@@ -35,7 +35,7 @@
         .drop-indicator-before{border-top:4px solid var(--accent)!important;box-shadow:0 -2px 8px rgba(99,102,241,0.4)!important}
         .drop-indicator-after{border-bottom:4px solid var(--accent)!important;box-shadow:0 2px 8px rgba(99,102,241,0.4)!important}
         .timeline-bar{position:absolute;cursor:grab;transition:opacity .2s,transform .1s;user-select:none;pointer-events:auto;padding:0 8px}
-        .timeline-bar.dragging{opacity:0.15;cursor:grabbing;z-index:1!important}
+        .timeline-bar.dragging{opacity:0.15!important;cursor:grabbing!important;z-index:1!important;transform:none!important;box-shadow:none!important}
         .timeline-bar:hover{cursor:grab;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
         .timeline-bar:active{cursor:grabbing}
         .timeline-bar:hover .resize-handle{pointer-events:auto;opacity:1}
@@ -51,7 +51,7 @@
         .resize-handle-left{left:0}
         .resize-handle-right{right:0}
         .drag-ghost{position:fixed;pointer-events:none;z-index:10000;opacity:0.85;box-shadow:0 4px 12px rgba(0,0,0,0.3);border-radius:5px;padding:0 8px;color:white;font-size:10px;font-weight:500;height:26px;display:flex;align-items:center}
-        .drag-preview-line{position:absolute;height:26px;background:var(--accent);opacity:0.45;top:8px;border-radius:5px;z-index:15;pointer-events:none;transition:left 0.08s ease-out,width 0.08s ease-out}
+        .drag-preview-line{position:absolute;height:26px;opacity:0.55;top:8px;border-radius:5px;z-index:15;pointer-events:none;transition:left 0.08s ease-out,width 0.08s ease-out}
         @keyframes pulse-glow{0%,100%{opacity:0.9;box-shadow:0 0 12px rgba(99,102,241,0.6)}50%{opacity:1;box-shadow:0 0 20px rgba(99,102,241,0.8)}}
         .action-row-drag-over{background:rgba(99,102,241,0.04)!important;position:relative}
         .drop-zone-indicator{position:absolute;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--accent),var(--success));border-radius:2px;box-shadow:0 0 12px rgba(99,102,241,0.7),0 0 24px rgba(99,102,241,0.3);z-index:25;pointer-events:none;animation:pulse-drop 0.8s ease-in-out infinite}
@@ -289,12 +289,12 @@ const CONFIG={
     MONTHS:['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'],
     MONTHS_FULL:['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
     STATUSES:[
-        {id:'todo',name:'À faire',color:'#94a3b8',icon:'📋'},
-        {id:'creating',name:'En création',color:'#f59e0b',icon:'✏️'},
-        {id:'inprogress',name:'En cours',color:'#3b82f6',icon:'🔄'},
-        {id:'review',name:'En revue',color:'#d97706',icon:'👀'},
-        {id:'completed',name:'Terminé',color:'#22c55e',icon:'✅'},
-        {id:'paused',name:'En pause',color:'#ef4444',icon:'⏸️'}
+        {id:'todo',name:'À faire',color:'#94a3b8',icon:'○'},
+        {id:'creating',name:'En création',color:'#f59e0b',icon:'✎'},
+        {id:'inprogress',name:'En cours',color:'#3b82f6',icon:'↻'},
+        {id:'review',name:'En revue',color:'#d97706',icon:'◎'},
+        {id:'completed',name:'Terminé',color:'#22c55e',icon:'✓'},
+        {id:'paused',name:'En pause',color:'#ef4444',icon:'⏸'}
     ],
     CATEGORIES:[
         {id:'brand-awareness',name:'Brand Awareness',color:'#6366f1',gradient:'from-indigo-500 to-purple-600'},
@@ -320,9 +320,9 @@ const CONFIG={
         {id:'australia',name:'Australia',region:'Oceania',color:'#10b981',flag:'🇦🇺'}
     ],
     PRIORITIES:[
-        {id:'high',name:'Haute',color:'#ef4444',icon:'▲'},
-        {id:'medium',name:'Moyenne',color:'#f59e0b',icon:'●'},
-        {id:'low',name:'Basse',color:'#22c55e',icon:'▼'}
+        {id:'high',name:'Haute',color:'#ef4444',icon:'⬤'},
+        {id:'medium',name:'Moyenne',color:'#f59e0b',icon:'⬤'},
+        {id:'low',name:'Basse',color:'#22c55e',icon:'⬤'}
     ]
 };
 
@@ -644,7 +644,7 @@ const NewActionModal=({categories,onClose,onAdd})=>{
                         <div><label className="block text-sm font-medium mb-2">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-input">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                         <div className="flex gap-4">
                             <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input"/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><div style={{display:'flex',alignItems:'center',gap:6}}><PriorityIcon priority={form.priority} size={12}/><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-input">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-input">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
                         </div>
                         <div><label className="block text-sm font-medium mb-2">Tags Canal</label><ChannelTags channels={form.tags} onAdd={id=>setForm({...form,tags:[...form.tags,id]})} onRemove={id=>setForm({...form,tags:form.tags.filter(t=>t!==id)})}/></div>
                     </div>
@@ -687,7 +687,7 @@ const NewTaskModal=({actions,categories,onClose,onAdd,onCreateAction})=>{
                             <div className="flex-1"><label className="block text-sm font-medium mb-2">Date fin</label><input type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><div style={{display:'flex',alignItems:'center',gap:6}}><PriorityIcon priority={form.priority} size={12}/><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-input">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-input">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
                             <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input"/></div>
                         </div>
                         <div><label className="block text-sm font-medium mb-2">Description</label><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} rows={3} className="v11-input" style={{resize:'none'}}/></div>
@@ -833,7 +833,7 @@ const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})
             className={`action-card ${dragOverPosition==='before'?'drop-indicator-before':dragOverPosition==='after'?'drop-indicator-after':''}`}>
             <div className="card-header">
                 <div className="card-title">{action.name}</div>
-                <PriorityIcon priority={action.priority||'medium'} size={10}/>
+                <div className={`card-priority ${action.priority||'medium'}`}/>
             </div>
             {action.tags?.length>0&&<div className="card-tags">{action.tags.slice(0,3).map(t=>{const ch=CONFIG.CHANNELS.find(c=>c.id===t);return <span key={t} className={`card-tag ${t}`}>{ch?.name||t}</span>;})}</div>}
             <div className="action-progress-section">
@@ -923,7 +923,7 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
             className={`kanban-card ${task.status==='completed'?'completed':''} ${touching?'touch-dragging':''} ${dragOverPosition==='before'?'drop-indicator-before':dragOverPosition==='after'?'drop-indicator-after':''}`}>
             <div className="card-header">
                 <div className="card-title" style={task.status==='completed'?{textDecoration:'line-through',color:'var(--text-muted)'}:{}}>{task.title}</div>
-                <PriorityIcon priority={task.priority} size={10}/>
+                <div className={`card-priority ${task.priority}`}/>
             </div>
             {(task.channels||action?.tags||[]).length>0&&<div className="card-tags">
                 {(task.channels||action?.tags||[]).slice(0,2).map(chId=>{const ch=CONFIG.CHANNELS.find(c=>c.id===chId);return ch?<span key={chId} className={`card-tag ${chId}`}>{ch.name}</span>:null;})}
@@ -1003,8 +1003,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     </div>
                     <div className="flex flex-wrap gap-3 mb-6">
                         {actions&&<div className="w-full"><label className="v11-label">📋 Action</label><select value={form.actionId} onChange={e=>{const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className="v11-select" style={{width:'100%'}}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
-                        <div><label className="v11-label">Statut</label><div style={{display:'flex',alignItems:'center',gap:6}}><StatusIcon statusId={form.status} size={14}/><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="v11-select">{CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></div></div>
-                        <div><label className="v11-label">Priorité</label><div style={{display:'flex',alignItems:'center',gap:6}}><PriorityIcon priority={form.priority} size={12}/><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-select">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div></div>
+                        <div><label className="v11-label">Statut</label><select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} className="v11-select">{CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}</select></div>
+                        <div><label className="v11-label">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-select">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
                         <div><label className="v11-label">Début</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input"/></div>
                         <div><label className="v11-label">Fin</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
                         <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}}/></div>
@@ -1138,7 +1138,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     </div>
                     <div className="flex flex-wrap gap-3 mb-4">
                         <div><label className="v11-label">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-select">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                        <div><label className="v11-label">Priorité</label><div style={{display:'flex',alignItems:'center',gap:6}}><PriorityIcon priority={form.priority} size={12}/><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-select">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></div></div>
+                        <div><label className="v11-label">Priorité</label><select value={form.priority} onChange={e=>setForm({...form,priority:e.target.value})} className="v11-select">{CONFIG.PRIORITIES.map(p=><option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
                         <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:128}}/></div>
                     </div>
                     <div className="rounded-xl p-4 mb-4" style={{background:'var(--bg-secondary)'}}>
@@ -1162,9 +1162,9 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                     <div key={task.id} className="rounded-lg p-3" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)'}}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center space-x-3 flex-1 min-w-0">
-                                                <div style={{display:'flex',alignItems:'center',gap:4}}><StatusIcon statusId={task.status} size={12}/><select value={task.status} onChange={e=>handleStatusChange(task.id,e.target.value)} className="px-2 py-1 rounded text-xs text-white border-0 cursor-pointer" style={{backgroundColor:status?.color}}>
-                                                    {CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-                                                </select></div>
+                                                <select value={task.status} onChange={e=>handleStatusChange(task.id,e.target.value)} className="px-2 py-1 rounded text-xs text-white border-0 cursor-pointer" style={{backgroundColor:status?.color}}>
+                                                    {CONFIG.STATUSES.map(s=><option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
+                                                </select>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-medium text-sm truncate">{task.title}</p>
                                                     <p className="text-xs" style={{color:'var(--text-muted)'}}>📅 {task.startDate?new Date(task.startDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'} → {task.dueDate?new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'}</p>
@@ -2061,7 +2061,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         }else if(zoom==='week'){
             const pixelsPerDay=colWidth/7;
             const dayIdx=Math.round(absX/pixelsPerDay);
-            return new Date(year,0,1+Math.max(0,dayIdx));
+            // Snap to week boundary if very close (within 1 day)
+            const nearestWeekDay=Math.round(dayIdx/7)*7;
+            const snappedDay=Math.abs(dayIdx-nearestWeekDay)<=1?nearestWeekDay:dayIdx;
+            return new Date(year,0,1+Math.max(0,snappedDay));
         }else if(zoom==='month'){
             const monthIdx=Math.max(0,Math.min(11,Math.floor(absX/colWidth)));
             const monthFrac=Math.max(0,(absX-monthIdx*colWidth)/colWidth);
@@ -2373,22 +2376,22 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const previewLeft=dateToPixel(snapDate);
                 const previewWidth=Math.max(dateToPixel(dayAfterEnd)-previewLeft,20);
 
-                // Calculate swim lane for preview — compute once, not in loop
+                // Calculate swim lane — simulate post-drop state for accurate preview
                 const actionTasks=filteredTasks.filter(t=>t.actionId===targetAction.id&&t.id!==task.id);
-                const laneCalc=calculateSwimLanes(actionTasks);
-                let previewLane=0;
-                for(let i=0;i<10;i++){
-                    const overlaps=actionTasks.some(t=>{
-                        if(laneCalc.swimLanes[t.id]!==i)return false;
-                        const p=getTaskPosition(t);
-                        if(!p)return false;
-                        return previewLeft<(p.left+p.width)&&(previewLeft+previewWidth)>p.left;
-                    });
-                    if(!overlaps){previewLane=i;break;}
-                }
+                const fmt=(d)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+                const fakeTask={...task,startDate:fmt(snapDate),dueDate:fmt(endDate)};
+                const allWithPreview=[...actionTasks,fakeTask];
+                const laneCalc=calculateSwimLanes(allWithPreview);
+                const previewLane=laneCalc.swimLanes[task.id]||0;
                 const previewTop=8+previewLane*34;
 
-                setDragPreview({left:previewLeft,width:previewWidth,top:previewTop,actionId:targetAction.id});
+                // Get task bar color for preview
+                const channels=task.channels||actions.find(a=>a.id===task.actionId)?.tags||[];
+                const mainCh=channels[0]||'';
+                const chColors={social:'#60a5fa',gads:'#fbbf24',lads:'#818cf8',events:'#f472b6',seo:'#4ade80',press:'#c4b5fd',email:'#fbbf24',web:'#818cf8',video:'#f87171',lp:'#2dd4bf',ia:'#c4b5fd',auto:'#fb923c'};
+                const barColor=chColors[mainCh]||CONFIG.STATUSES.find(s=>s.id===task.status)?.color||'#94a3b8';
+
+                setDragPreview({left:previewLeft,width:previewWidth,top:previewTop,actionId:targetAction.id,color:barColor});
                 setDropIndicator({left:previewLeft,actionId:targetAction.id});
             }
         }
@@ -2595,7 +2598,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 ))}
                                             </div>
                                             {dragPreview&&dragPreview.actionId===action.id&&(
-                                                <div className="drag-preview-line" style={{left:dragPreview.left,width:dragPreview.width,top:dragPreview.top||8}}/>
+                                                <div className="drag-preview-line" style={{left:dragPreview.left,width:dragPreview.width,top:dragPreview.top||8,background:dragPreview.color||'var(--accent)'}}/>
                                             )}
                                             {creatingTask&&creatingTask.actionId===action.id&&(
                                                 <div className="absolute rounded-lg border-2 border-dashed border-secondary bg-secondary/20 flex items-center justify-center text-secondary text-xs font-medium pointer-events-none" style={{left:Math.min(creatingTask.startX,creatingTask.currentX),width:Math.abs(creatingTask.currentX-creatingTask.startX)||colWidth,top:8,height:26}}>
