@@ -1042,6 +1042,26 @@
       "attachments": [],
       "order": 37,
       "createdAt": "2026-02-23T16:39:27.062Z"
+    },
+    {
+      "id": "t1771864771632",
+      "actionId": "a1",
+      "month": 0,
+      "startDate": "2025-12-29",
+      "title": "Nouvelle tâche",
+      "description": "",
+      "status": "todo",
+      "priority": "medium",
+      "dueDate": "2026-01-24",
+      "budget": 0,
+      "channels": [
+        "social"
+      ],
+      "checklist": [],
+      "comments": [],
+      "attachments": [],
+      "order": 38,
+      "createdAt": "2026-02-23T16:39:31.632Z"
     }
   ]
 }
