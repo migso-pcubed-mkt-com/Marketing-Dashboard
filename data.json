@@ -925,13 +925,13 @@
     {
       "id": "t1771584967542",
       "actionId": "a2",
-      "month": 3,
-      "startDate": "2026-04-05",
+      "month": 0,
+      "startDate": "2026-01-06",
       "title": "Nouvelle tâche",
       "description": "",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2026-04-30",
+      "dueDate": "2026-01-31",
       "budget": 0,
       "channels": [
         "social",
