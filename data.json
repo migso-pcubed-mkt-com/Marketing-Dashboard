@@ -1007,12 +1007,12 @@
       "id": "t1771864761275",
       "actionId": "a1",
       "month": 2,
-      "startDate": "2026-01-31",
+      "startDate": "2026-02-01",
       "title": "Nouvelle tâche",
       "description": "",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2026-03-02",
+      "dueDate": "2026-03-03",
       "budget": 0,
       "channels": [
         "social"
