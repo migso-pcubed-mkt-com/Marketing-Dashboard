@@ -1240,8 +1240,11 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
         if(selectedYear){
-            const taskYear=t.startDate?new Date(t.startDate).getFullYear():null;
-            if(taskYear&&taskYear!==selectedYear)return false;
+            const taskStartYear=t.startDate?new Date(t.startDate).getFullYear():null;
+            const taskEndYear=t.dueDate?new Date(t.dueDate).getFullYear():null;
+            if(taskStartYear&&taskStartYear>selectedYear)return false;
+            if(taskEndYear&&taskEndYear<selectedYear)return false;
+            if(taskStartYear&&!taskEndYear&&taskStartYear!==selectedYear)return false;
         }
         if(filters.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
         if(filters.status.length>0&&!filters.status.includes(t.status))return false;
@@ -2158,8 +2161,12 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
         if(selectedYear){
-            const taskYear=t.startDate?new Date(t.startDate).getFullYear():null;
-            if(taskYear&&taskYear!==selectedYear)return false;
+            const taskStartYear=t.startDate?new Date(t.startDate).getFullYear():null;
+            const taskEndYear=t.dueDate?new Date(t.dueDate).getFullYear():null;
+            // Show task if its date range overlaps the selected year
+            if(taskStartYear&&taskStartYear>selectedYear)return false;
+            if(taskEndYear&&taskEndYear<selectedYear)return false;
+            if(taskStartYear&&!taskEndYear&&taskStartYear!==selectedYear)return false;
         }
         if(filters?.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
         if(filters?.status.length>0&&!filters.status.includes(t.status))return false;
@@ -2404,13 +2411,21 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const previewLeft=dateToPixel(snapDate);
                 const previewWidth=Math.max(dateToPixel(dayAfterEnd)-previewLeft,20);
 
-                // Calculate swim lane — simulate post-drop state for accurate preview
-                const actionTasks=filteredTasks.filter(t=>t.actionId===targetAction.id&&t.id!==task.id);
-                const fmt=(d)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-                const fakeTask={...task,startDate:fmt(snapDate),dueDate:fmt(endDate)};
-                const allWithPreview=[...actionTasks,fakeTask];
-                const laneCalc=calculateSwimLanes(allWithPreview);
-                const previewLane=laneCalc.swimLanes[task.id]||0;
+                // Calculate swim lane — find free lane among RENDERED task positions (not recalculated)
+                const actionTasksAll=filteredTasks.filter(t=>t.actionId===targetAction.id);
+                const renderedLanes=calculateSwimLanes(actionTasksAll);
+                let previewLane=0;
+                for(let lane=0;lane<20;lane++){
+                    let canFit=true;
+                    for(const t of actionTasksAll){
+                        if(t.id===task.id)continue;
+                        if((renderedLanes.swimLanes[t.id]||0)!==lane)continue;
+                        const tPos=getTaskPosition(t);
+                        if(!tPos)continue;
+                        if(previewLeft<tPos.left+tPos.width&&previewLeft+previewWidth>tPos.left){canFit=false;break;}
+                    }
+                    if(canFit){previewLane=lane;break;}
+                }
                 const previewTop=8+previewLane*34;
 
                 // Get task bar color for preview
@@ -2455,23 +2470,20 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const createTaskAtPosition=(actionId,startX,endX)=>{
         const year=selectedYear;
         let startDate,dueDate;
+        const fmt=(d)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 
         // Calculate dates based on zoom and position
         if(zoom==='day'){
             const startDay=Math.floor(startX/colWidth);
             const endDay=Math.floor(endX/colWidth);
-            const startDateObj=new Date(year,0,1+startDay);
-            const endDateObj=new Date(year,0,1+endDay);
-            startDate=startDateObj.toISOString().split('T')[0];
-            dueDate=endDateObj.toISOString().split('T')[0];
+            startDate=fmt(new Date(year,0,1+startDay));
+            dueDate=fmt(new Date(year,0,1+endDay));
         }else if(zoom==='week'){
             const pixelsPerDay=colWidth/7;
             const startDay=Math.floor(startX/pixelsPerDay);
             const endDay=Math.floor(endX/pixelsPerDay);
-            const startDateObj=new Date(weekBase.getTime()+startDay*86400000);
-            const endDateObj=new Date(weekBase.getTime()+endDay*86400000);
-            startDate=startDateObj.toISOString().split('T')[0];
-            dueDate=endDateObj.toISOString().split('T')[0];
+            startDate=fmt(new Date(weekBase.getTime()+startDay*86400000));
+            dueDate=fmt(new Date(weekBase.getTime()+endDay*86400000));
         }else if(zoom==='month'){
             const startMonth=Math.floor(startX/colWidth);
             const endMonth=Math.floor(endX/colWidth);
