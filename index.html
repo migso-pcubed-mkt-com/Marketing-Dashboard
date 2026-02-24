@@ -1523,7 +1523,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             return date;
         }
         return new Date(year,0,1);
-    },[zoom,colWidth,baseYear]);
+    },[zoom,colWidth]);
 
     // Scroll to a specific date in the current zoom level
     const scrollToDate=useCallback((targetDate)=>{
@@ -1556,7 +1556,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         // Center the date in the viewport
         const viewportWidth=timelineRef.current.clientWidth;
         timelineRef.current.scrollLeft=scrollPosition-viewportWidth/2+250; // +250 for left column
-    },[zoom,colWidth,baseYear]);
+    },[zoom,colWidth]);
 
     // Save center date before zoom change and restore after
     const handleZoomChange=useCallback((newZoom)=>{
