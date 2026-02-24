@@ -967,12 +967,12 @@
       "id": "t1771864735483",
       "actionId": "a1",
       "month": 2,
-      "startDate": "2026-03-07",
+      "startDate": "2026-03-16",
       "title": "Nouvelle tâche e",
       "description": "",
       "status": "todo",
       "priority": "medium",
-      "dueDate": "2026-03-15",
+      "dueDate": "2026-03-24",
       "budget": 0,
       "channels": [
         "social"
