@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root{--primary:#6366f1;--secondary:#6366f1;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--bg-page:#fafafa;--bg-primary:#ffffff;--bg-secondary:#f4f4f5;--bg-tertiary:#e8eaed;--text-primary:#18181b;--text-secondary:#52525b;--text-muted:#a1a1aa;--accent:#6366f1;--accent-light:#eef2ff;--accent-hover:#4f46e5;--success:#22c55e;--success-light:#dcfce7;--warning:#f59e0b;--warning-light:#fef3c7;--error:#ef4444;--error-light:#fee2e2;--border:#e4e4e7;--border-light:#f0f0f1;--border-strong:#d4d4d8;--shadow-sm:0 1px 2px rgba(0,0,0,0.04);--shadow-md:0 4px 12px rgba(0,0,0,0.06);--shadow-lg:0 12px 40px rgba(0,0,0,0.1);--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--transition:0.2s cubic-bezier(0.4,0,0.2,1);--font-sans:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;--font-mono:'JetBrains Mono',monospace;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--header-height:56px;--sidebar-width:220px;--kanban-column-width:280px}
@@ -282,7 +283,25 @@
 console.log('🚀 Script started');
 console.log('React available:', typeof React !== 'undefined');
 console.log('ReactDOM available:', typeof ReactDOM !== 'undefined');
+console.log('Supabase available:', typeof supabase !== 'undefined');
 const{useState,useEffect,useRef,createContext,useContext,useCallback,useMemo}=React;
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║  🗄️ SUPABASE CONFIGURATION                                               ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+// Replace these values with your Supabase project credentials
+const SUPABASE_URL='https://YOUR_PROJECT_ID.supabase.co';
+const SUPABASE_ANON_KEY='YOUR_ANON_KEY';
+
+// Initialize Supabase client (null if not configured)
+let supabaseClient=null;
+const isSupabaseConfigured=SUPABASE_URL!=='https://YOUR_PROJECT_ID.supabase.co'&&SUPABASE_ANON_KEY!=='YOUR_ANON_KEY';
+if(isSupabaseConfigured&&typeof supabase!=='undefined'){
+    supabaseClient=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    console.log('✅ Supabase client initialized');
+}else{
+    console.warn('⚠️ Supabase not configured - falling back to GitHub/localStorage storage');
+}
 
 // CONFIG
 const CONFIG={
@@ -749,7 +768,7 @@ const Header=({currentView,setCurrentView,onSync,syncing,githubConnected,savingS
                 </nav>
                 <div className="flex items-center gap-1.5">
                     {savingStatus&&<span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{background:savingStatus==='error'?'var(--error-light)':'var(--accent-light)',color:savingStatus==='error'?'var(--error)':'var(--accent)'}}>{savingStatus==='saving'?'Saving...':savingStatus==='error'?'Error':'Saved'}</span>}
-                    <button onClick={onSync} disabled={syncing} className={`v11-icon-btn ${syncing?'animate-spin':''}`} style={{position:'relative'}} title="Sync with GitHub">
+                    <button onClick={onSync} disabled={syncing} className={`v11-icon-btn ${syncing?'animate-spin':''}`} style={{position:'relative'}} title="Sync data">
                         <Icon.Refresh/>
                         {githubConnected&&<span className="absolute top-1 right-1 w-2 h-2 rounded-full" style={{background:'var(--success)'}}/>}
                     </button>
@@ -2943,51 +2962,25 @@ const App=()=>{
     };
 
     // ╔════════════════════════════════════════════════════════════════════════════╗
-    // ║  ✅ VERCEL CONFIG - TOKEN SECURED SERVER-SIDE                             ║
+    // ║  🗄️ STORAGE: Supabase (primary) / GitHub API (fallback)                  ║
     // ╚════════════════════════════════════════════════════════════════════════════╝
-    //
-    // GitHub token is now stored securely in Vercel
-    // en tant que variable d'environnement. Plus besoin de le mettre ici !
-    //
-    // Configuration du repository GitHub
+    const useSupabase=isSupabaseConfigured&&supabaseClient;
+
+    // GitHub fallback configuration (kept for backward compatibility)
     const GITHUB_CONFIG={
         owner:'migso-pcubed-mkt-com',
         repo:'Marketing-Dashboard',
         branch:'main',
         path:'data.json'
     };
-
-    // Vercel API URL (automatically detected)
-    // En production: https://votre-app.vercel.app/api/github
-    // Local development: http://localhost:3000/api/github
     const API_BASE_URL=window.location.hostname==='localhost'
         ?'http://localhost:3000'
         :window.location.origin;
-
-    // UTF-8 safe Base64 encoding/decoding
     const base64EncodeUnicode=(str)=>{
         return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,(match,p1)=>String.fromCharCode('0x'+p1)));
     };
     const base64DecodeUnicode=(str)=>{
         return decodeURIComponent(atob(str).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-    };
-
-    // CRITICAL HELPER: Fetch GitHub API with consistent cache busting
-    const fetchGitHubAPI=(url,options={})=>{
-        const timestamp=Date.now();
-        const random=Math.random().toString(36).substring(7);
-        const cacheBustedUrl=`${url}${url.includes('?')?'&':'?'}_=${timestamp}&r=${random}`;
-
-        return fetch(cacheBustedUrl,{
-            ...options,
-            headers:{
-                ...options.headers,
-                'Cache-Control':'no-store, no-cache, must-revalidate, proxy-revalidate',
-                'Pragma':'no-cache',
-                'Expires':'0'
-            },
-            cache:'no-store'
-        });
     };
 
     useEffect(()=>{document.body.className='light';},[]);
@@ -3014,152 +3007,96 @@ const App=()=>{
         return()=>document.removeEventListener('keydown',handleKeyPress);
     },[selectedTask,selectedAction,showCategoriesModal,showNewActionModal,showNewTaskModal]);
 
-    // Load data from Vercel API (which proxies to GitHub)
-    useEffect(()=>{
-        console.log('🚀 Loading data via Vercel API...');
-        setGithubToken('vercel-api'); // Marqueur pour indiquer qu'on utilise l'API
+    // ╔════════════════════════════════════════════════════════════════════════════╗
+    // ║  🗄️ SUPABASE DATA OPERATIONS                                             ║
+    // ╚════════════════════════════════════════════════════════════════════════════╝
 
-        // CRITICAL FIX: Set dataLoaded to true after a small delay to ensure React is mounted
-        // This prevents the app from being stuck on loading screen if API fails
-        const mountTimer = setTimeout(() => {
-            console.log('✅ App mounted, activating interface');
-            setDataLoaded(true);
-        }, 100);
-
-        // Try to load data with timeout fallback
-        const timeoutId = setTimeout(() => {
-            console.warn('⏱️ Loading timeout, using default data');
-            loadFromLocalStorage();
-        }, 5000);
-
-        loadDataFromGitHub().then(() => {
-            clearTimeout(timeoutId);
-        }).catch((err) => {
-            console.error('Error loading data:', err);
-            clearTimeout(timeoutId);
-        });
-
-        return () => {
-            clearTimeout(mountTimer);
-            clearTimeout(timeoutId);
-        };
-    },[]);
-
-
-
-    // CRITICAL FIX: Persist SHA to localStorage whenever it changes
-    useEffect(()=>{
-        if(fileSha){
-            localStorage.setItem('github_file_sha',fileSha);
-            console.log('📌 SHA persisted:',fileSha.substring(0,8)+'...');
-        }else{
-            localStorage.removeItem('github_file_sha');
-        }
-    },[fileSha]);
-
-    // CRITICAL FIX: Auto-save with proper closure handling
-    // Watches categories, actions, tasks and auto-saves when they change
-    useEffect(()=>{
-        // Skip auto-save on initial mount (dataLoaded false)
-        if(!dataLoaded)return;
-
-        console.log('🔄 Data modified, auto-save in 2s...');
-        setSavingStatus('saving');
-
-        // Debounce: clear previous timeout
-        if(autoSaveTimeoutRef.current){
-            clearTimeout(autoSaveTimeoutRef.current);
-        }
-
-        // Set new timeout with current values
-        autoSaveTimeoutRef.current=setTimeout(async()=>{
-            console.log('💾 Auto-save triggered...');
-            if(githubToken){
-                const success=await saveToGitHub();
-                setSavingStatus(success?'saved':'error');
-                if(!success){
-                    saveToLocalStorage(); // Backup if GitHub fails
+    const loadFromSupabase=async()=>{
+        try{
+            console.log('📥 Loading from Supabase...');
+            const{data,error}=await supabaseClient.from('app_data').select('*').eq('id','default').single();
+            if(error){
+                if(error.code==='PGRST116'){
+                    // No data yet - first time, insert default data
+                    console.log('📝 No data in Supabase, inserting defaults...');
+                    const defaultData={id:'default',categories:CONFIG.CATEGORIES,actions:ACTIONS,tasks:TASKS,updated_at:new Date().toISOString()};
+                    const{error:insertError}=await supabaseClient.from('app_data').insert(defaultData);
+                    if(insertError)throw insertError;
+                    showNotification('✅ Default data initialized in Supabase');
+                    return;
                 }
-            }else{
+                throw error;
+            }
+            if(data){
+                if(data.categories)setCategories(data.categories);
+                if(data.actions)setActions(data.actions);
+                if(data.tasks)setTasks(data.tasks);
                 saveToLocalStorage();
-                setSavingStatus('saved');
+                console.log('✅ Supabase loaded. Categories:',data.categories?.length,'Actions:',data.actions?.length,'Tasks:',data.tasks?.length);
+                showNotification('✅ Data loaded from Supabase');
             }
-            setTimeout(()=>setSavingStatus(null),2000);
-        },2000);
+        }catch(e){
+            console.error('Error loading from Supabase:',e);
+            showNotification('⚠️ Supabase load error, trying fallback...');
+            throw e;
+        }
+    };
 
-        // Cleanup on unmount
-        return()=>{
-            if(autoSaveTimeoutRef.current){
-                clearTimeout(autoSaveTimeoutRef.current);
-            }
-        };
-    },[categories,actions,tasks,dataLoaded,githubToken]); // Re-run when data changes
+    const saveToSupabase=async()=>{
+        if(!supabaseClient)return false;
+        setSyncing(true);
+        try{
+            const{error}=await supabaseClient.from('app_data').upsert({
+                id:'default',
+                categories,
+                actions,
+                tasks,
+                updated_at:new Date().toISOString()
+            });
+            if(error)throw error;
+            console.log('✅ Supabase save successful');
+            saveToLocalStorage();
+            return true;
+        }catch(e){
+            console.error('Error saving to Supabase:',e);
+            showNotification(`❌ Save error: ${e.message}`);
+            return false;
+        }finally{
+            setSyncing(false);
+        }
+    };
 
+    // GitHub fallback load (used when Supabase is not configured)
     const loadDataFromGitHub=async()=>{
         try{
             console.log('📥 Loading from GitHub via Vercel API...');
             const url=`${API_BASE_URL}/api/github`;
-
-            const response=await fetch(url,{
-                method:'GET',
-                headers:{
-                    'Accept':'application/json',
-                    'Cache-Control':'no-cache'
-                }
-            });
-
+            const response=await fetch(url,{method:'GET',headers:{'Accept':'application/json','Cache-Control':'no-cache'}});
             if(response.ok){
                 const data=await response.json();
-                console.log('📥 Loaded from GitHub. SHA:',data.sha,'Size:',data.size);
                 const decodedContent=base64DecodeUnicode(data.content.replace(/\n/g,'').replace(/\s/g,''));
                 const content=JSON.parse(decodedContent);
-
-                // Validate loaded data structure
                 const isValidCategories=Array.isArray(content.categories)&&content.categories.every(c=>c.id&&c.name);
                 const isValidActions=Array.isArray(content.actions)&&content.actions.every(a=>a.id&&a.name);
                 const isValidTasks=Array.isArray(content.tasks)&&content.tasks.every(t=>t.id&&t.title);
-
                 if(!isValidCategories||!isValidActions||!isValidTasks){
-                    console.error('⚠️ Invalid data structure from GitHub',{
-                        categories:isValidCategories,
-                        actions:isValidActions,
-                        tasks:isValidTasks
-                    });
                     showNotification('⚠️ Invalid GitHub data, local backup loaded');
-                    loadFromLocalStorage();
-                    setDataLoaded(true);
-                    return;
+                    loadFromLocalStorage();setDataLoaded(true);return;
                 }
-
-                // Update state with loaded data
                 setCategories(content.categories||CONFIG.CATEGORIES);
                 setActions(content.actions||ACTIONS);
                 setTasks(content.tasks||TASKS);
                 setFileSha(data.sha);
-
-                // Save to localStorage as backup
                 saveToLocalStorage();
-
-                console.log('✅ GitHub loaded successfully. Categories:',content.categories?.length,'Actions:',content.actions?.length,'Tasks:',content.tasks?.length);
                 showNotification('✅ Data loaded from GitHub');
             }else if(response.status===404){
-                console.warn('⚠️ File not found on GitHub, will create on first save');
-                showNotification('⚠️ data.json not found - will create on first save');
-                loadFromLocalStorage();
-                setFileSha(''); // Clear SHA for new file
-            }else if(response.status===500){
-                const errorData=await response.json();
-                console.error('❌ ERROR 500: Vercel server issue:',errorData);
-                if(errorData.message&&errorData.message.includes('GITHUB_TOKEN')){
-                    alert('❌ CONFIGURATION REQUIRED\n\nThe GitHub token is not configured in Vercel.\n\nPlease:\n1. Go to your Vercel dashboard\n2. Project → Settings → Environment Variables\n3. Add: GITHUB_TOKEN = your_github_token\n4. Redeploy the application\n\nMeanwhile, local data is being used.');
-                }else{
-                    showNotification(`❌ Error serveur: ${errorData.error}`);
-                }
-                loadFromLocalStorage();
+                loadFromLocalStorage();setFileSha('');
             }else{
-                const errorText=await response.text();
-                console.error('API error:',response.status,errorText);
-                showNotification(`❌ Error API: ${response.status}`);
+                const errorData=await response.json().catch(()=>({}));
+                if(response.status===500&&errorData.message?.includes('GITHUB_TOKEN')){
+                    alert('❌ CONFIGURATION REQUIRED\n\nGitHub token not configured in Vercel.\nPlease add GITHUB_TOKEN in Vercel Environment Variables.');
+                }
+                showNotification(`❌ API Error: ${response.status}`);
                 loadFromLocalStorage();
             }
         }catch(e){
@@ -3167,7 +3104,40 @@ const App=()=>{
             showNotification('⚠️ GitHub load error, local backup loaded');
             loadFromLocalStorage();
         }
-        // Note: dataLoaded is now set to true immediately in useEffect, not here
+    };
+
+    // GitHub fallback save
+    const saveToGitHub=async()=>{
+        if(!githubToken){showNotification('⚠️ API connection missing');return false;}
+        setSyncing(true);
+        try{
+            const jsonString=JSON.stringify({categories,actions,tasks},null,2);
+            const content=base64EncodeUnicode(jsonString);
+            const body={message:`Update data from Marketing Tracker - ${new Date().toISOString()}`,content,sha:fileSha||undefined};
+            const url=`${API_BASE_URL}/api/github`;
+            const response=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)});
+            if(response.ok){
+                const data=await response.json();
+                setFileSha(data.content.sha);
+                saveToLocalStorage();
+                return true;
+            }else{
+                const errorText=await response.text();
+                let errorDetails;try{errorDetails=JSON.parse(errorText);}catch(e){errorDetails={message:errorText};}
+                if(response.status===409||errorDetails.details?.message?.includes('does not match')){
+                    if(confirm('File modified elsewhere. Overwrite?\n\nYES = Overwrite\nNO = Cancel')){
+                        await loadDataFromGitHub();showNotification('⚠️ Data reloaded. Save again.');
+                    }
+                    return false;
+                }
+                showNotification(`❌ Error ${response.status}: ${errorDetails.error||errorDetails.message||''}`);
+                return false;
+            }
+        }catch(e){
+            console.error('Error saving to GitHub:',e);
+            showNotification(`❌ Error: ${e.message}`);
+            return false;
+        }finally{setSyncing(false);}
     };
 
     const loadFromLocalStorage=()=>{
@@ -3180,98 +3150,7 @@ const App=()=>{
                 setTasks(data.tasks||TASKS);
                 showNotification('📦 Local backup loaded');
             }
-        }catch(e){
-            console.error('LocalStorage load error:',e);
-        }
-    };
-
-    const saveToGitHub=async()=>{
-        if(!githubToken){showNotification('⚠️ API connection missing');return;}
-        setSyncing(true);
-        try{
-            const jsonString=JSON.stringify({categories,actions,tasks},null,2);
-            const content=base64EncodeUnicode(jsonString);
-
-            const body={
-                message:`Update data from Marketing Tracker V2.2 - ${new Date().toISOString()}`,
-                content:content,
-                sha:fileSha||undefined // Include SHA if we have it
-            };
-
-            console.log('💾 Saving to GitHub via Vercel API...',{
-                hasSha:!!fileSha,
-                sha:fileSha?fileSha.substring(0,8)+'...':'none',
-                contentLength:content.length,
-                jsonLength:jsonString.length
-            });
-
-            const url=`${API_BASE_URL}/api/github`;
-            const response=await fetch(url,{
-                method:'PUT',
-                headers:{
-                    'Content-Type':'application/json',
-                    'Accept':'application/json'
-                },
-                body:JSON.stringify(body)
-            });
-
-            if(response.ok){
-                const data=await response.json();
-                setFileSha(data.content.sha);
-                console.log('✅ GitHub save successful. New SHA:',data.content.sha.substring(0,8));
-                showNotification('✅ GitHub save successful');
-                // Force localStorage update
-                saveToLocalStorage();
-                return true;
-            }else{
-                const errorText=await response.text();
-                let errorDetails;
-                try{
-                    errorDetails=JSON.parse(errorText);
-                }catch(e){
-                    errorDetails={message:errorText};
-                }
-
-                // Handle server errors (500)
-                if(response.status===500){
-                    console.error('❌ ERROR 500: Vercel server issue:',errorDetails);
-                    if(errorDetails.message&&errorDetails.message.includes('GITHUB_TOKEN')){
-                        alert('❌ CONFIGURATION REQUIRED\n\nThe GitHub token is not configured in Vercel.\n\nPlease:\n1. Go to your Vercel dashboard\n2. Project → Settings → Environment Variables\n3. Add: GITHUB_TOKEN = your_github_token\n4. Redeploy the application\n\nLocal backup saved.');
-                    }
-                    showNotification('❌ Server error - See console');
-                    return false;
-                }
-
-                // Handle SHA conflict (409)
-                if(response.status===409||errorDetails.details?.message?.includes('does not match')){
-                    console.warn('⚠️ SHA conflict detected');
-                    if(confirm('The file has been modified elsewhere. Do you want to overwrite with your local changes?\n\nYES = Overwrite remote changes\nNO = Cancel and reload page')){
-                        // Reload data to get latest SHA, then retry
-                        await loadDataFromGitHub();
-                        // User will need to save again manually
-                        showNotification('⚠️ Data reloaded. Save again.');
-                        return false;
-                    }else{
-                        showNotification('⚠️ Save cancelled - reload the page');
-                        return false;
-                    }
-                }
-
-                console.error('API save error:',{
-                    status:response.status,
-                    statusText:response.statusText,
-                    error:errorDetails
-                });
-                showNotification(`❌ Error ${response.status}: ${errorDetails.error||errorDetails.message||response.statusText}`);
-                return false;
-            }
-        }catch(e){
-            console.error('Error saving to GitHub:',e);
-            showNotification(`❌ Error: ${e.message}`);
-            return false;
-        }finally{
-            setSyncing(false);
-        }
+        }catch(e){console.error('LocalStorage load error:',e);}
     };
 
     const autoSaveTimeoutRef=useRef(null);
@@ -3280,63 +3159,122 @@ const App=()=>{
         try{
             const data={categories,actions,tasks,timestamp:Date.now()};
             localStorage.setItem('marketing_tracker_backup',JSON.stringify(data));
-        }catch(e){
-            console.error('LocalStorage save error:',e);
-        }
+        }catch(e){console.error('LocalStorage save error:',e);}
+    };
+
+    // Unified save function (Supabase or GitHub)
+    const saveData=async()=>{
+        if(useSupabase){return await saveToSupabase();}
+        else if(githubToken){return await saveToGitHub();}
+        else{saveToLocalStorage();return true;}
     };
 
     // ╔════════════════════════════════════════════════════════════════════════════╗
-    // ║  🔄 AUTO-SYNC POLLING - Synchronisation multi-devices automatique         ║
+    // ║  🚀 DATA LOADING ON MOUNT                                                ║
     // ╚════════════════════════════════════════════════════════════════════════════╝
-    const checkForUpdates=async()=>{
-        // Ne pas checker si une modale est ouverte (pour ne pas perdre les modifications en cours)
-        if(selectedTask||selectedAction){
-            console.log('⏸️ Polling paused: modal open');
-            return;
-        }
-
-        // Skip check if currently saving
-        if(syncing||savingStatus==='saving'){
-            console.log('⏸️ Polling paused: saving in progress');
-            return;
-        }
-
-        try{
-            const url=`${API_BASE_URL}/api/github`;
-            const response=await fetch(url,{
-                method:'GET',
-                headers:{
-                    'Accept':'application/json',
-                    'Cache-Control':'no-cache'
-                }
-            });
-
-            if(response.ok){
-                const data=await response.json();
-
-                // If SHA has changed, reload data
-                if(data.sha&&fileSha&&data.sha!==fileSha){
-                    console.log('🔄 Changes detected on GitHub, syncing...');
-                    showNotification('🔄 Syncing with team...');
-                    await loadDataFromGitHub();
-                    showNotification('✅ Synced with team');
-                }
-            }
-        }catch(e){
-            console.log('⚠️ Polling error (silencieux):',e.message);
-            // Don't show error to user to avoid disturbance
-        }
-    };
-
-    // Polling pour auto-sync multi-devices toutes les 15 secondes
     useEffect(()=>{
-        if(!githubToken||!dataLoaded)return;
+        console.log('🚀 Loading data...',useSupabase?'(Supabase)':'(GitHub fallback)');
+        setGithubToken(useSupabase?'supabase':'vercel-api');
 
-        console.log('🔄 Auto-sync polling enabled (15s)');
-        const interval=setInterval(checkForUpdates,15000); // 15 secondes
+        const mountTimer=setTimeout(()=>{
+            console.log('✅ App mounted, activating interface');
+            setDataLoaded(true);
+        },100);
 
-        return()=>clearInterval(interval);
-    },[githubToken,dataLoaded,selectedTask,selectedAction,syncing,savingStatus,fileSha]);
+        const timeoutId=setTimeout(()=>{
+            console.warn('⏱️ Loading timeout, using default data');
+            loadFromLocalStorage();
+        },5000);
+
+        const loadData=async()=>{
+            try{
+                if(useSupabase){
+                    await loadFromSupabase();
+                }else{
+                    await loadDataFromGitHub();
+                }
+                clearTimeout(timeoutId);
+            }catch(err){
+                console.error('Error loading data:',err);
+                clearTimeout(timeoutId);
+                loadFromLocalStorage();
+            }
+        };
+        loadData();
+
+        return()=>{clearTimeout(mountTimer);clearTimeout(timeoutId);};
+    },[]);
+
+    // Persist SHA to localStorage (GitHub fallback)
+    useEffect(()=>{
+        if(fileSha){localStorage.setItem('github_file_sha',fileSha);}
+        else{localStorage.removeItem('github_file_sha');}
+    },[fileSha]);
+
+    // Auto-save with debounce (2s for GitHub, 1s for Supabase)
+    useEffect(()=>{
+        if(!dataLoaded)return;
+        console.log('🔄 Data modified, auto-save...');
+        setSavingStatus('saving');
+        if(autoSaveTimeoutRef.current){clearTimeout(autoSaveTimeoutRef.current);}
+        const delay=useSupabase?1000:2000;
+        autoSaveTimeoutRef.current=setTimeout(async()=>{
+            console.log('💾 Auto-save triggered...');
+            const success=await saveData();
+            setSavingStatus(success?'saved':'error');
+            if(!success)saveToLocalStorage();
+            setTimeout(()=>setSavingStatus(null),2000);
+        },delay);
+        return()=>{if(autoSaveTimeoutRef.current)clearTimeout(autoSaveTimeoutRef.current);};
+    },[categories,actions,tasks,dataLoaded,githubToken]);
+
+    // ╔════════════════════════════════════════════════════════════════════════════╗
+    // ║  🔄 REALTIME SYNC (Supabase) / POLLING (GitHub fallback)                  ║
+    // ╚════════════════════════════════════════════════════════════════════════════╝
+    useEffect(()=>{
+        if(!dataLoaded)return;
+
+        // SUPABASE REALTIME: Subscribe to changes
+        if(useSupabase){
+            console.log('🔄 Supabase Realtime subscription enabled');
+            const channel=supabaseClient.channel('app_data_changes')
+                .on('postgres_changes',{event:'UPDATE',schema:'public',table:'app_data',filter:'id=eq.default'},(payload)=>{
+                    // Don't sync if a modal is open or currently saving
+                    if(selectedTask||selectedAction||syncing||savingStatus==='saving')return;
+                    console.log('🔄 Realtime update received from Supabase');
+                    const d=payload.new;
+                    if(d.categories)setCategories(d.categories);
+                    if(d.actions)setActions(d.actions);
+                    if(d.tasks)setTasks(d.tasks);
+                    saveToLocalStorage();
+                    showNotification('✅ Synced with team');
+                })
+                .subscribe();
+            return()=>{supabaseClient.removeChannel(channel);};
+        }
+
+        // GITHUB FALLBACK: Polling every 15 seconds
+        if(githubToken){
+            console.log('🔄 GitHub polling enabled (15s)');
+            const checkForUpdates=async()=>{
+                if(selectedTask||selectedAction||syncing||savingStatus==='saving')return;
+                try{
+                    const url=`${API_BASE_URL}/api/github`;
+                    const response=await fetch(url,{method:'GET',headers:{'Accept':'application/json','Cache-Control':'no-cache'}});
+                    if(response.ok){
+                        const data=await response.json();
+                        if(data.sha&&fileSha&&data.sha!==fileSha){
+                            showNotification('🔄 Syncing with team...');
+                            await loadDataFromGitHub();
+                            showNotification('✅ Synced with team');
+                        }
+                    }
+                }catch(e){console.log('⚠️ Polling error (silent):',e.message);}
+            };
+            const interval=setInterval(checkForUpdates,15000);
+            return()=>clearInterval(interval);
+        }
+    },[dataLoaded,githubToken,selectedTask,selectedAction,syncing,savingStatus,fileSha]);
 
     // Auto-initialize order and createdAt properties for tasks that don't have them
     useEffect(()=>{
@@ -3366,7 +3304,7 @@ const App=()=>{
         }
     },[dataLoaded,actions.length]);
 
-    const handleSync=()=>saveToGitHub();
+    const handleSync=()=>saveData();
 
     const handleUpdateTask=(taskId,updates)=>{
         setTasks(prev=>prev.map(t=>{
@@ -3739,7 +3677,7 @@ const App=()=>{
                                 </button>
                                 <button className="dropdown-item" onClick={()=>{setShowCreateDropdown(false);setShowNewActionModal(true);}}>
                                     <div className="dropdown-item-icon action"><Icon.List/></div>
-                                    <div className="dropdown-item-content"><div className="dropdown-item-title">New action</div><div className="dropdown-item-desc">Create un groupe de tasks</div></div>
+                                    <div className="dropdown-item-content"><div className="dropdown-item-title">New action</div><div className="dropdown-item-desc">Create a group of tasks</div></div>
                                     <span className="dropdown-item-shortcut">⇧N</span>
                                 </button>
                                 <div className="dropdown-divider"/>
