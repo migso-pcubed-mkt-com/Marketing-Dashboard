@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -280,8 +280,8 @@
 </div>
 <script type="text/babel">
 console.log('🚀 Script started');
-console.log('React disponible:', typeof React !== 'undefined');
-console.log('ReactDOM disponible:', typeof ReactDOM !== 'undefined');
+console.log('React available:', typeof React !== 'undefined');
+console.log('ReactDOM available:', typeof ReactDOM !== 'undefined');
 const{useState,useEffect,useRef,createContext,useContext,useCallback,useMemo}=React;
 
 // CONFIG
@@ -376,7 +376,7 @@ const useTouchDrag=(onDragEnd)=>{
         startPosRef.current={x:touch.clientX,y:touch.clientY};
         dragDataRef.current=data;
         
-        // Create un ghost element après un délai (pour distinguer du scroll)
+        // Create a ghost element after a delay (to distinguish from scroll)
         setTimeout(()=>{
             if(dragDataRef.current){
                 setIsDragging(true);
@@ -521,8 +521,8 @@ const IconSelect=({value,options,onChange,renderOption,className,style})=>{
 const StatusOption=({status})=>(<><StatusIcon statusId={status.id} size={12}/><span style={{fontSize:13}}>{status.name}</span></>);
 const PriorityOption=({priority})=>(<><div style={{width:8,height:8,borderRadius:'50%',background:priority.color,flexShrink:0}}/><span style={{fontSize:13}}>{priority.name}</span></>);
 
-// ⚠️ GITHUB SETTINGS MODAL - SUPPRIMÉ
-// Le token GitHub est maintenant intégré directement dans GITHUB_CONFIG (voir ligne ~1375-1381)
+// ⚠️ GITHUB SETTINGS MODAL - REMOVED
+// GitHub token is now integrated directly in GITHUB_CONFIG
 // Plus besoin de modal de configuration pour un usage multi-device transparent
 
 // CATEGORIES MANAGEMENT MODAL
@@ -809,7 +809,7 @@ const CountryTags=({countries=[],onAdd,onRemove,editable=true,allCountries=CONFI
     return(
         <div className="flex flex-wrap gap-1 items-center">
             {countries.map(countryId=>{const country=allCountries.find(c=>c.id===countryId);return country?(<span key={countryId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:country.color}}>{country.flag} {country.name}{editable&&<button onClick={()=>onRemove(countryId)} className="ml-1 hover:bg-[var(--bg-primary)]/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
-            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className="px-2 py-0.5 rounded-full text-xs flex items-center space-x-1" style={{background:'var(--bg-secondary)'}}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold px-2 py-1" style={{color:'var(--text-muted)'}}>{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className="w-full text-left px-2 py-1.5 rounded text-xs flex items-center space-x-2"><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className="w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed flex items-center justify-center space-x-1" style={{borderColor:'var(--border)'}}><Icon.Plus/><span>New country</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Add un pays</div><input type="text" placeholder="Country name" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className="v11-input" style={{fontSize:11,marginBottom:8}}/><input type="text" placeholder="Emoji (e.g. 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className="v11-input" style={{fontSize:11,marginBottom:8}} maxLength="4"/><div className="mb-2"><label className="text-xs block mb-1">Continent:</label><select value={newCountryRegion} onChange={e=>setNewCountryRegion(e.target.value)} className="v11-select" style={{fontSize:11,width:'100%'}}>{availableRegions.map(region=><option key={region} value={region}>{region}</option>)}</select></div><div className="flex items-center gap-2 mb-2"><label className="text-xs">Color:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Add</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');setNewCountryRegion('Europe');}} className="v11-btn-secondary" style={{flex:1,fontSize:11}}>Cancel</button></div></div>)}</div>)}</div>)}
+            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className="px-2 py-0.5 rounded-full text-xs flex items-center space-x-1" style={{background:'var(--bg-secondary)'}}><Icon.Plus/><span>Country</span></button>{showPicker&&(<div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold px-2 py-1" style={{color:'var(--text-muted)'}}>{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className="w-full text-left px-2 py-1.5 rounded text-xs flex items-center space-x-2"><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className="w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed flex items-center justify-center space-x-1" style={{borderColor:'var(--border)'}}><Icon.Plus/><span>New country</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Add a country</div><input type="text" placeholder="Country name" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className="v11-input" style={{fontSize:11,marginBottom:8}}/><input type="text" placeholder="Emoji (e.g. 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className="v11-input" style={{fontSize:11,marginBottom:8}} maxLength="4"/><div className="mb-2"><label className="text-xs block mb-1">Continent:</label><select value={newCountryRegion} onChange={e=>setNewCountryRegion(e.target.value)} className="v11-select" style={{fontSize:11,width:'100%'}}>{availableRegions.map(region=><option key={region} value={region}>{region}</option>)}</select></div><div className="flex items-center gap-2 mb-2"><label className="text-xs">Color:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Add</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');setNewCountryRegion('Europe');}} className="v11-btn-secondary" style={{flex:1,fontSize:11}}>Cancel</button></div></div>)}</div>)}</div>)}
         </div>
     );
 };
@@ -1340,7 +1340,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             <div className="kanban-toolbar">
                 <div className="kanban-toolbar-left">
                     <div className="view-btn-group">
-                        {[{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'category',label:'Par Category'},{id:'action',label:'By Action'}].map(v=>(
+                        {[{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'category',label:'By Category'},{id:'action',label:'By Action'}].map(v=>(
                             <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
                         ))}
                     </div>
@@ -1453,15 +1453,15 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 };
 
 // TIMELINE VIEW
-// Améliorations drag & drop v2.2 :
-// - Snap à la demi-journée en vue semaine (14 slots) pour une précision doublée
-// - Snap au jour avec demi-journée en vue mois pour meilleure précision
-// - Handles de redimensionnement plus larges (10-20px) et plus visibles (opacity 0.3 par défaut)
-// - Indicateurs visuels améliorés : bordures animées, ombres, feedback en temps réel
-// - Curseur col-resize global pendant le resize pour clarté
-// - Zone de drop des tasks entre actions avec bordure pointillée et fond coloré
-// - Prévention des conflits : clic sur handle ne déclenche pas l'ouverture de carte
-// - Styles CSS optimisés pour mobile/tactile (handles 28px, opacity 0.7)
+// Drag & drop improvements v2.2:
+// - Half-day snapping in week view (14 slots) for doubled precision
+// - Day snapping with half-day in month view for better precision
+// - Wider resize handles (10-20px) and more visible (opacity 0.3 default)
+// - Enhanced visual indicators: animated borders, shadows, real-time feedback
+// - Global col-resize cursor during resize for clarity
+// - Task drop zones between actions with dashed border and colored background
+// - Conflict prevention: clicking handle does not trigger card opening
+// - CSS styles optimized for mobile/touch (handles 28px, opacity 0.7)
 const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange})=>{
     const timelineRef=useRef(null);
     const dragGhostRef=useRef(null);
@@ -1523,7 +1523,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             return date;
         }
         return new Date(year,0,1);
-    },[zoom,colWidth,baseYear]);
+    },[zoom,colWidth]);
 
     // Scroll to a specific date in the current zoom level
     const scrollToDate=useCallback((targetDate)=>{
@@ -1556,7 +1556,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         // Center the date in the viewport
         const viewportWidth=timelineRef.current.clientWidth;
         timelineRef.current.scrollLeft=scrollPosition-viewportWidth/2+250; // +250 for left column
-    },[zoom,colWidth,baseYear]);
+    },[zoom,colWidth]);
 
     // Save center date before zoom change and restore after
     const handleZoomChange=useCallback((newZoom)=>{
@@ -2795,7 +2795,7 @@ const DashboardView=({categories,actions,tasks})=>{
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
-                    <h3 className="font-semibold mb-4">Par statut</h3>
+                    <h3 className="font-semibold mb-4">By Status</h3>
                     <div className="space-y-3">
                         {CONFIG.STATUSES.map(s=>{const count=tasks.filter(t=>t.status===s.id).length;const pct=totalTasks>0?Math.round((count/totalTasks)*100):0;return(<div key={s.id} className="flex items-center"><div className="w-28 flex items-center space-x-2"><StatusIcon statusId={s.id} size={12}/><span className="text-sm">{s.name}</span></div><div className="flex-1 h-4 rounded-full mx-3" style={{background:'var(--bg-secondary)'}}><div className="h-full rounded-full" style={{width:`${pct}%`,backgroundColor:s.color}}/></div><span className="w-8 text-right text-sm font-medium">{count}</span></div>);})}
                     </div>
@@ -2808,7 +2808,7 @@ const DashboardView=({categories,actions,tasks})=>{
                 </div>
             </div>
             <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
-                <h3 className="font-semibold mb-4">📢 Par canal</h3>
+                <h3 className="font-semibold mb-4">📢 By Channel</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {CONFIG.CHANNELS.map(ch=>{
                         const chTasks=tasks.filter(t=>(t.channels||[]).includes(ch.id));
@@ -2839,7 +2839,7 @@ const FilterSidebar=({show,onClose,filters,setFilters,categories,allCountries})=
                 <button className="sidebar-close" onClick={onClose}><Icon.Close/></button>
             </div>
             <div className="filter-section">
-                <div className="filter-section-title">Recherche</div>
+                <div className="filter-section-title">Search</div>
                 <input type="text" placeholder="Search..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className="v11-input"/>
             </div>
             <div className="filter-section">
@@ -2855,11 +2855,11 @@ const FilterSidebar=({show,onClose,filters,setFilters,categories,allCountries})=
                 <div className="filter-options">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`filter-option ${filters.priority.includes(p.id)?'selected':''}`} style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,borderRadius:'50%',background:p.color,flexShrink:0}}/> {p.name}</button>))}</div>
             </div>
             <div className="filter-section">
-                <div className="filter-section-title">Canal</div>
+                <div className="filter-section-title">Channel</div>
                 <div className="filter-options">{CONFIG.CHANNELS.map(ch=>(<button key={ch.id} onClick={()=>{const n=(filters.channel||[]).includes(ch.id)?(filters.channel||[]).filter(x=>x!==ch.id):[...(filters.channel||[]),ch.id];setFilters({...filters,channel:n});}} className={`filter-option ${(filters.channel||[]).includes(ch.id)?'selected':''}`}>{ch.name}</button>))}</div>
             </div>
             <div className="filter-section">
-                <div className="filter-section-title">Pays</div>
+                <div className="filter-section-title">Country</div>
                 <div className="filter-options">{allCountries.map(co=>(<button key={co.id} onClick={()=>{const n=(filters.country||[]).includes(co.id)?(filters.country||[]).filter(x=>x!==co.id):[...(filters.country||[]),co.id];setFilters({...filters,country:n});}} className={`filter-option ${(filters.country||[]).includes(co.id)?'selected':''}`}>{co.flag} {co.name}</button>))}</div>
             </div>
             <div className="sidebar-footer">
@@ -2943,10 +2943,10 @@ const App=()=>{
     };
 
     // ╔════════════════════════════════════════════════════════════════════════════╗
-    // ║  ✅ CONFIGURATION VERCEL - TOKEN SÉCURISÉ CÔTÉ SERVEUR                   ║
+    // ║  ✅ VERCEL CONFIG - TOKEN SECURED SERVER-SIDE                             ║
     // ╚════════════════════════════════════════════════════════════════════════════╝
     //
-    // Le token GitHub est maintenant stocké de manière sécurisée dans Vercel
+    // GitHub token is now stored securely in Vercel
     // en tant que variable d'environnement. Plus besoin de le mettre ici !
     //
     // Configuration du repository GitHub
@@ -2957,9 +2957,9 @@ const App=()=>{
         path:'data.json'
     };
 
-    // URL de l'API Vercel (sera automatiquement détectée)
+    // Vercel API URL (automatically detected)
     // En production: https://votre-app.vercel.app/api/github
-    // En développement local: http://localhost:3000/api/github
+    // Local development: http://localhost:3000/api/github
     const API_BASE_URL=window.location.hostname==='localhost'
         ?'http://localhost:3000'
         :window.location.origin;
@@ -3035,7 +3035,7 @@ const App=()=>{
         loadDataFromGitHub().then(() => {
             clearTimeout(timeoutId);
         }).catch((err) => {
-            console.error('Error lors du chargement:', err);
+            console.error('Error loading data:', err);
             clearTimeout(timeoutId);
         });
 
@@ -3163,7 +3163,7 @@ const App=()=>{
                 loadFromLocalStorage();
             }
         }catch(e){
-            console.error('Error chargement GitHub:',e);
+            console.error('Error loading from GitHub:',e);
             showNotification('⚠️ GitHub load error, local backup loaded');
             loadFromLocalStorage();
         }
@@ -3314,17 +3314,17 @@ const App=()=>{
             if(response.ok){
                 const data=await response.json();
 
-                // Si le SHA a changé, recharger les données
+                // If SHA has changed, reload data
                 if(data.sha&&fileSha&&data.sha!==fileSha){
                     console.log('🔄 Changes detected on GitHub, syncing...');
-                    showNotification('🔄 Synchronisation avec l\'équipe...');
+                    showNotification('🔄 Syncing with team...');
                     await loadDataFromGitHub();
-                    showNotification('✅ Synchronisé avec l\'équipe');
+                    showNotification('✅ Synced with team');
                 }
             }
         }catch(e){
             console.log('⚠️ Polling error (silencieux):',e.message);
-            // On ne montre pas d'erreur à l'utilisateur pour ne pas le déranger
+            // Don't show error to user to avoid disturbance
         }
     };
 
@@ -3609,13 +3609,13 @@ const App=()=>{
 
     const handleUpdateCategory=(catId,updates)=>{
         setCategories(prev=>prev.map(c=>c.id===catId?{...c,...updates}:c));
-        showNotification('✅ Category mise à jour');
+        showNotification('✅ Category updated');
         // Auto-save via useEffect
     };
 
     const handleAddCategory=(newCat)=>{
         setCategories(prev=>[...prev,newCat]);
-        showNotification('✅ Category créée');
+        showNotification('✅ Category created');
         // Auto-save via useEffect
     };
 
@@ -3630,7 +3630,7 @@ const App=()=>{
 
         setCategories(prev=>prev.filter(c=>c.id!==catId));
         setActions(prev=>prev.filter(a=>a.categoryId!==catId));
-        showNotification('🗑️ Category supprimée');
+        showNotification('🗑️ Category deleted');
         // Auto-save via useEffect
     };
 
@@ -3745,7 +3745,7 @@ const App=()=>{
                                 <div className="dropdown-divider"/>
                                 <button className="dropdown-item" onClick={()=>{setShowCreateDropdown(false);setShowCategoriesModal(true);}}>
                                     <div className="dropdown-item-icon category"><Icon.Folder/></div>
-                                    <div className="dropdown-item-content"><div className="dropdown-item-title">Manage categories</div><div className="dropdown-item-desc">Create ou réorganiser les groupes</div></div>
+                                    <div className="dropdown-item-content"><div className="dropdown-item-title">Manage categories</div><div className="dropdown-item-desc">Create or reorganize groups</div></div>
                                 </button>
                             </div>}
                         </div>
@@ -3768,7 +3768,7 @@ const App=()=>{
                 </main>
                 {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} actions={actions} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null} allCountries={allCountries} onAddCustomCountry={addCustomCountry}/>}
                 {selectedAction&&!selectedTask&&<ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={()=>setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t=>{setSelectedTask(t);}} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
-                {/* GitHubSettingsModal supprimé - Token intégré directement dans GITHUB_CONFIG */}
+                {/* GitHubSettingsModal removed - Token integrated directly in GITHUB_CONFIG */}
                 {showCategoriesModal&&<CategoriesManagementModal categories={categories} onClose={()=>setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories} />}
                 {showNewActionModal&&<NewActionModal categories={categories} onClose={()=>setShowNewActionModal(false)} onAdd={handleAddAction}/>}
                 {showNewTaskModal&&<NewTaskModal actions={actions} categories={categories} onClose={()=>setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={()=>{setShowNewTaskModal(false);setShowNewActionModal(true);}}/>}
@@ -3780,31 +3780,31 @@ const App=()=>{
 };
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
-console.log('✅ Application React chargée avec succès');
+console.log('✅ React application loaded successfully');
 </script>
 <script>
-// Fallback: si après 3 secondes le message de chargement est toujours là, afficher une erreur
+// Fallback: if after 3 seconds the loading message is still there, show an error
 setTimeout(() => {
     const root = document.getElementById('root');
-    if (root && root.innerHTML.includes('Chargement de l\'application...')) {
+    if (root && root.innerHTML.includes('Loading application...')) {
         root.innerHTML = `
             <div class="min-h-screen flex items-center justify-center" style="background:var(--bg-page)">
                 <div class="text-center max-w-md p-6" style="color:var(--text-primary)">
                     <div class="text-6xl mb-4">⚠️</div>
-                    <h1 class="text-2xl font-bold mb-4">Error de chargement</h1>
-                    <p class="mb-6" style="color:var(--text-muted)">L'application n'a pas pu se charger correctement.</p>
+                    <h1 class="text-2xl font-bold mb-4">Loading Error</h1>
+                    <p class="mb-6" style="color:var(--text-muted)">The application could not load correctly.</p>
                     <div class="p-4 rounded-lg text-left text-sm mb-4" style="background:var(--bg-secondary)">
-                        <p class="mb-2">Causes possibles:</p>
+                        <p class="mb-2">Possible causes:</p>
                         <ul class="list-disc list-inside space-y-1" style="color:var(--text-muted)">
-                            <li>Les CDN (React, Babel) ne sont pas accessibles</li>
-                            <li>Une erreur JavaScript bloque l'exécution</li>
-                            <li>Le navigateur bloque le chargement</li>
+                            <li>CDNs (React, Babel) are not accessible</li>
+                            <li>A JavaScript error is blocking execution</li>
+                            <li>The browser is blocking loading</li>
                         </ul>
                     </div>
                     <button onclick="location.reload()" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold">
-                        🔄 Recharger la page
+                        🔄 Reload page
                     </button>
-                    <p class="text-xs mt-4" style="color:var(--text-muted)">Ouvrez la console (F12) pour plus d'informations</p>
+                    <p class="text-xs mt-4" style="color:var(--text-muted)">Open the console (F12) for more information</p>
                 </div>
             </div>
         `;

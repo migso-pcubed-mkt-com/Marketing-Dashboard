@@ -1,29 +1,29 @@
 // Vercel Serverless Function - GitHub API Proxy
-// Cette function sécurise votre token GitHub en le gardant côté serveur
+// This function secures your GitHub token by keeping it server-side
 
 export default async function handler(req, res) {
-    // Configuration CORS pour permettre les appels depuis votre frontend
+    // CORS configuration to allow calls from your frontend
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    // Gérer les requêtes OPTIONS (preflight)
+    // Handle OPTIONS requests (preflight)
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
 
-    // Récupérer le token depuis les variables d'environnement Vercel
+    // Retrieve token from Vercel environment variables
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
     if (!GITHUB_TOKEN) {
-        console.error('❌ GITHUB_TOKEN non configuré dans Vercel');
+        console.error('❌ GITHUB_TOKEN not configured in Vercel');
         return res.status(500).json({
-            error: 'Token GitHub non configuré',
-            message: 'Veuillez configurer GITHUB_TOKEN dans les variables d\'environnement Vercel'
+            error: 'GitHub token not configured',
+            message: 'Please configure GITHUB_TOKEN in Vercel environment variables'
         });
     }
 
-    // Configuration GitHub (à synchroniser avec votre frontend)
+    // GitHub configuration (sync with your frontend)
     const GITHUB_CONFIG = {
         owner: 'migso-pcubed-mkt-com',
         repo: 'Marketing-Dashboard',
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     };
 
     try {
-        // GET - Charger les données depuis GitHub
+        // GET - Load data from GitHub
         if (req.method === 'GET') {
             console.log('📥 GET request - Loading from GitHub...');
 
@@ -63,7 +63,7 @@ export default async function handler(req, res) {
             return res.status(200).json(data);
         }
 
-        // PUT - Sauvegarder les données vers GitHub
+        // PUT - Save data to GitHub
         if (req.method === 'PUT') {
             console.log('💾 PUT request - Saving to GitHub...');
 
@@ -84,7 +84,7 @@ export default async function handler(req, res) {
                 branch: GITHUB_CONFIG.branch
             };
 
-            // Ajouter le SHA si fourni (pour les updates)
+            // Add SHA if provided (for updates)
             if (sha) {
                 body.sha = sha;
             }
@@ -124,7 +124,7 @@ export default async function handler(req, res) {
             return res.status(200).json(data);
         }
 
-        // Méthode non supportée
+        // Method not supported
         return res.status(405).json({
             error: 'Method not allowed',
             message: `Method ${req.method} is not supported. Use GET or PUT.`
