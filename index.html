@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +8,7 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root{--primary:#6366f1;--secondary:#6366f1;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--bg-page:#fafafa;--bg-primary:#ffffff;--bg-secondary:#f4f4f5;--bg-tertiary:#e8eaed;--text-primary:#18181b;--text-secondary:#52525b;--text-muted:#a1a1aa;--accent:#6366f1;--accent-light:#eef2ff;--accent-hover:#4f46e5;--success:#22c55e;--success-light:#dcfce7;--warning:#f59e0b;--warning-light:#fef3c7;--error:#ef4444;--error-light:#fee2e2;--border:#e4e4e7;--border-light:#f0f0f1;--border-strong:#d4d4d8;--shadow-sm:0 1px 2px rgba(0,0,0,0.04);--shadow-md:0 4px 12px rgba(0,0,0,0.06);--shadow-lg:0 12px 40px rgba(0,0,0,0.1);--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--transition:0.2s cubic-bezier(0.4,0,0.2,1);--font-sans:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;--font-mono:'JetBrains Mono',monospace;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--header-height:56px;--sidebar-width:220px;--kanban-column-width:280px}
@@ -273,28 +274,46 @@
     <div class="min-h-screen flex items-center justify-center" style="background:var(--bg-page)">
         <div class="text-center" style="color:var(--text-primary)">
             <div class="animate-spin w-12 h-12 border-4 border-t-transparent rounded-full mx-auto mb-4" style="border-color:var(--accent);border-top-color:transparent"></div>
-            <p>Chargement de l'application...</p>
-            <p class="text-xs mt-2" style="color:var(--text-muted)">Si ce message persiste, vérifiez la console (F12)</p>
+            <p>Loading application...</p>
+            <p class="text-xs mt-2" style="color:var(--text-muted)">If this message persists, check the console (F12)</p>
         </div>
     </div>
 </div>
 <script type="text/babel">
-console.log('🚀 Script démarré');
-console.log('React disponible:', typeof React !== 'undefined');
-console.log('ReactDOM disponible:', typeof ReactDOM !== 'undefined');
+console.log('🚀 Script started');
+console.log('React available:', typeof React !== 'undefined');
+console.log('ReactDOM available:', typeof ReactDOM !== 'undefined');
+console.log('Supabase available:', typeof supabase !== 'undefined');
 const{useState,useEffect,useRef,createContext,useContext,useCallback,useMemo}=React;
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║  🗄️ SUPABASE CONFIGURATION                                               ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+// Replace these values with your Supabase project credentials
+const SUPABASE_URL='https://YOUR_PROJECT_ID.supabase.co';
+const SUPABASE_ANON_KEY='YOUR_ANON_KEY';
+
+// Initialize Supabase client (null if not configured)
+let supabaseClient=null;
+const isSupabaseConfigured=SUPABASE_URL!=='https://YOUR_PROJECT_ID.supabase.co'&&SUPABASE_ANON_KEY!=='YOUR_ANON_KEY';
+if(isSupabaseConfigured&&typeof supabase!=='undefined'){
+    supabaseClient=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    console.log('✅ Supabase client initialized');
+}else{
+    console.warn('⚠️ Supabase not configured - falling back to GitHub/localStorage storage');
+}
 
 // CONFIG
 const CONFIG={
-    MONTHS:['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'],
-    MONTHS_FULL:['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'],
+    MONTHS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+    MONTHS_FULL:['January','February','March','April','May','June','July','August','September','October','November','December'],
     STATUSES:[
-        {id:'todo',name:'À faire',color:'#94a3b8',icon:'○'},
-        {id:'creating',name:'En création',color:'#f59e0b',icon:'✎'},
-        {id:'inprogress',name:'En cours',color:'#3b82f6',icon:'↻'},
-        {id:'review',name:'En revue',color:'#d97706',icon:'◎'},
-        {id:'completed',name:'Terminé',color:'#22c55e',icon:'✓'},
-        {id:'paused',name:'En pause',color:'#ef4444',icon:'⏸'}
+        {id:'todo',name:'To Do',color:'#94a3b8',icon:'○'},
+        {id:'creating',name:'Creating',color:'#f59e0b',icon:'✎'},
+        {id:'inprogress',name:'In Progress',color:'#3b82f6',icon:'↻'},
+        {id:'review',name:'In Review',color:'#d97706',icon:'◎'},
+        {id:'completed',name:'Completed',color:'#22c55e',icon:'✓'},
+        {id:'paused',name:'Paused',color:'#ef4444',icon:'⏸'}
     ],
     CATEGORIES:[
         {id:'brand-awareness',name:'Brand Awareness',color:'#6366f1',gradient:'from-indigo-500 to-purple-600'},
@@ -320,9 +339,9 @@ const CONFIG={
         {id:'australia',name:'Australia',region:'Oceania',color:'#10b981',flag:'🇦🇺'}
     ],
     PRIORITIES:[
-        {id:'high',name:'Haute',color:'#ef4444',icon:'⬤'},
-        {id:'medium',name:'Moyenne',color:'#f59e0b',icon:'⬤'},
-        {id:'low',name:'Basse',color:'#22c55e',icon:'⬤'}
+        {id:'high',name:'High',color:'#ef4444',icon:'⬤'},
+        {id:'medium',name:'Medium',color:'#f59e0b',icon:'⬤'},
+        {id:'low',name:'Low',color:'#22c55e',icon:'⬤'}
     ]
 };
 
@@ -343,7 +362,7 @@ const ACTIONS=[
 ];
 
 const TASKS=[
-    {id:'t1',actionId:'a1',month:0,startDate:'2026-01-01',title:'Vœux nouvel an',description:'Post LinkedIn + Instagram',status:'completed',priority:'high',dueDate:'2026-01-15',checklist:[{id:'c1',text:'Créer visuel',done:true},{id:'c2',text:'Rédiger texte',done:true}],comments:[{id:'cm1',author:'Fabien',text:'Bon engagement!',date:'2026-01-16'}],attachments:[],channels:['social']},
+    {id:'t1',actionId:'a1',month:0,startDate:'2026-01-01',title:'Vœux nouvel an',description:'Post LinkedIn + Instagram',status:'completed',priority:'high',dueDate:'2026-01-15',checklist:[{id:'c1',text:'Create visuel',done:true},{id:'c2',text:'Rédiger texte',done:true}],comments:[{id:'cm1',author:'Fabien',text:'Bon engagement!',date:'2026-01-16'}],attachments:[],channels:['social']},
     {id:'t2',actionId:'a1',month:9,startDate:'2026-10-01',title:'Pink October',description:'Campagne Octobre Rose',status:'todo',priority:'medium',dueDate:'2026-10-01',checklist:[],comments:[],attachments:[],channels:['social']},
     {id:'t3',actionId:'a1',month:10,startDate:'2026-11-01',title:'Movember',description:'Campagne Movember',status:'todo',priority:'medium',dueDate:'2026-11-01',checklist:[],comments:[],attachments:[],channels:['social']},
     {id:'t4',actionId:'a1',month:11,startDate:'2026-12-01',title:'Vœux + Video Recap',description:'Vidéo récap année',status:'todo',priority:'high',dueDate:'2026-12-20',checklist:[],comments:[],attachments:[],channels:['social']},
@@ -376,7 +395,7 @@ const useTouchDrag=(onDragEnd)=>{
         startPosRef.current={x:touch.clientX,y:touch.clientY};
         dragDataRef.current=data;
         
-        // Créer un ghost element après un délai (pour distinguer du scroll)
+        // Create a ghost element after a delay (to distinguish from scroll)
         setTimeout(()=>{
             if(dragDataRef.current){
                 setIsDragging(true);
@@ -521,8 +540,8 @@ const IconSelect=({value,options,onChange,renderOption,className,style})=>{
 const StatusOption=({status})=>(<><StatusIcon statusId={status.id} size={12}/><span style={{fontSize:13}}>{status.name}</span></>);
 const PriorityOption=({priority})=>(<><div style={{width:8,height:8,borderRadius:'50%',background:priority.color,flexShrink:0}}/><span style={{fontSize:13}}>{priority.name}</span></>);
 
-// ⚠️ GITHUB SETTINGS MODAL - SUPPRIMÉ
-// Le token GitHub est maintenant intégré directement dans GITHUB_CONFIG (voir ligne ~1375-1381)
+// ⚠️ GITHUB SETTINGS MODAL - REMOVED
+// GitHub token is now integrated directly in GITHUB_CONFIG
 // Plus besoin de modal de configuration pour un usage multi-device transparent
 
 // CATEGORIES MANAGEMENT MODAL
@@ -536,11 +555,11 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
     const[touchCurrentY,setTouchCurrentY]=useState(null);
 
     const gradientPresets=[
-        {name:'Bleu',gradient:'from-blue-500 to-indigo-700'},
-        {name:'Vert',gradient:'from-emerald-400 to-cyan-500'},
+        {name:'Blue',gradient:'from-blue-500 to-indigo-700'},
+        {name:'Green',gradient:'from-emerald-400 to-cyan-500'},
         {name:'Orange',gradient:'from-yellow-400 to-orange-500'},
-        {name:'Violet',gradient:'from-purple-500 to-pink-600'},
-        {name:'Rouge',gradient:'from-red-500 to-pink-500'}
+        {name:'Purple',gradient:'from-purple-500 to-pink-600'},
+        {name:'Red',gradient:'from-red-500 to-pink-500'}
     ];
 
     const startEdit=(cat)=>{setEditingId(cat.id);setForm({...cat});};
@@ -591,7 +610,7 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
         const element=document.elementFromPoint(touch.clientX,touch.clientY);
         if(!element)return;
 
-        // Find the category item
+        // Endd the category item
         const categoryItem=element.closest('[data-category-index]');
         if(!categoryItem)return;
 
@@ -618,7 +637,7 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
                 <div style={{height:3,background:'var(--accent)',borderRadius:'var(--radius-lg) var(--radius-lg) 0 0'}}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold">📂 Gestion des Catégories</h2>
+                        <h2 className="text-xl font-bold">📂 Manage Categories</h2>
                         <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-3 mb-4">
@@ -628,12 +647,12 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
                                     <div className="space-y-3">
                                         <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="v11-input"/>
                                         <div><label className="v11-label">Gradient:</label><div className="flex gap-2">{gradientPresets.map(g=>(<button key={g.name} onClick={()=>setForm({...form,gradient:g.gradient})} className={`flex-1 h-8 rounded-lg bg-gradient-to-r ${g.gradient} ${form.gradient===g.gradient?'ring-2 ring-secondary':''}`}/>))}</div></div>
-                                        <div className="flex gap-2"><button onClick={saveEdit} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Sauvegarder</button><button onClick={cancelEdit} className="v11-btn-secondary">Annuler</button></div>
+                                        <div className="flex gap-2"><button onClick={saveEdit} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Save</button><button onClick={cancelEdit} className="v11-btn-secondary">Cancel</button></div>
                                     </div>
                                 ):(
                                     <div className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-3"><div className="cursor-move" style={{color:'var(--text-muted)'}} title="Glisser pour réorganiser">⋮⋮</div><div className={`w-12 h-8 rounded-lg bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium">{cat.name}</span></div>
-                                        <div className="flex gap-2"><button onClick={()=>startEdit(cat)} className="px-3 py-1 text-sm text-secondary hover:bg-secondary/10 rounded-lg">Modifier</button><button onClick={()=>onDelete(cat.id)} className="px-3 py-1 text-sm text-accent-red hover:bg-red-50 rounded-lg">Supprimer</button></div>
+                                        <div className="flex items-center space-x-3"><div className="cursor-move" style={{color:'var(--text-muted)'}} title="Drag to reorder">⋮⋮</div><div className={`w-12 h-8 rounded-lg bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium">{cat.name}</span></div>
+                                        <div className="flex gap-2"><button onClick={()=>startEdit(cat)} className="px-3 py-1 text-sm text-secondary hover:bg-secondary/10 rounded-lg">Edit</button><button onClick={()=>onDelete(cat.id)} className="px-3 py-1 text-sm text-accent-red hover:bg-red-50 rounded-lg">Delete</button></div>
                                     </div>
                                 )}
                             </div>
@@ -641,12 +660,12 @@ const CategoriesManagementModal=({categories,onClose,onUpdate,onAdd,onDelete,onR
                     </div>
                     {isAdding?(
                         <div className="p-4 rounded-lg border-2 border-dashed space-y-3" style={{borderColor:'var(--border)'}}>
-                            <input type="text" value={newCategory.name} onChange={e=>setNewCategory({...newCategory,name:e.target.value})} placeholder="Nom de la catégorie" className="v11-input"/>
+                            <input type="text" value={newCategory.name} onChange={e=>setNewCategory({...newCategory,name:e.target.value})} placeholder="Category name" className="v11-input"/>
                             <div><label className="v11-label">Gradient:</label><div className="flex gap-2">{gradientPresets.map(g=>(<button key={g.name} onClick={()=>setNewCategory({...newCategory,gradient:g.gradient})} className={`flex-1 h-8 rounded-lg bg-gradient-to-r ${g.gradient} ${newCategory.gradient===g.gradient?'ring-2 ring-secondary':''}`}/>))}</div></div>
-                            <div className="flex gap-2"><button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Ajouter</button><button onClick={()=>setIsAdding(false)} className="v11-btn-secondary">Annuler</button></div>
+                            <div className="flex gap-2"><button onClick={handleAdd} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">Add</button><button onClick={()=>setIsAdding(false)} className="v11-btn-secondary">Cancel</button></div>
                         </div>
                     ):(
-                        <button onClick={()=>setIsAdding(true)} className="w-full px-4 py-3 border-2 border-dashed rounded-lg hover:border-secondary hover:text-secondary flex items-center justify-center space-x-2" style={{borderColor:'var(--border)',color:'var(--text-muted)'}}><Icon.Plus/><span>Nouvelle Catégorie</span></button>
+                        <button onClick={()=>setIsAdding(true)} className="w-full px-4 py-3 border-2 border-dashed rounded-lg hover:border-secondary hover:text-secondary flex items-center justify-center space-x-2" style={{borderColor:'var(--border)',color:'var(--text-muted)'}}><Icon.Plus/><span>New Category</span></button>
                     )}
                 </div>
             </div>
@@ -668,19 +687,19 @@ const NewActionModal=({categories,onClose,onAdd})=>{
                 <div style={{height:3,background:'var(--accent)',borderRadius:'var(--radius-lg) var(--radius-lg) 0 0'}}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold">📁 Nouvelle Action</h2>
+                        <h2 className="text-xl font-bold">📁 New Action</h2>
                         <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">
-                        <div><label className="block text-sm font-medium mb-2">Nom de l'action</label><input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ex: Google Ads - Brand" className="v11-input"/></div>
-                        <div><label className="block text-sm font-medium mb-2">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-input">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                        <div><label className="block text-sm font-medium mb-2">Action name</label><input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="E.g. Google Ads - Brand" className="v11-input"/></div>
+                        <div><label className="block text-sm font-medium mb-2">Category</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-input">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
                         <div className="flex gap-4">
                             <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input"/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
                         </div>
-                        <div><label className="block text-sm font-medium mb-2">Tags Canal</label><ChannelTags channels={form.tags} onAdd={id=>setForm({...form,tags:[...form.tags,id]})} onRemove={id=>setForm({...form,tags:form.tags.filter(t=>t!==id)})}/></div>
+                        <div><label className="block text-sm font-medium mb-2">Channel Tags</label><ChannelTags channels={form.tags} onAdd={id=>setForm({...form,tags:[...form.tags,id]})} onRemove={id=>setForm({...form,tags:form.tags.filter(t=>t!==id)})}/></div>
                     </div>
-                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className="v11-btn-secondary">Annuler</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Créer l'action</button></div>
+                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className="v11-btn-secondary">Cancel</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Create action</button></div>
                 </div>
             </div>
         </div>
@@ -705,26 +724,26 @@ const NewTaskModal=({actions,categories,onClose,onAdd,onCreateAction})=>{
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${actionCategory?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold">✨ Nouvelle Tâche</h2>
+                        <h2 className="text-xl font-bold">✨ New Task</h2>
                         <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">
-                        <div><label className="block text-sm font-medium mb-2">Titre</label><input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="Ex: Post LinkedIn Janvier" className="v11-input"/></div>
+                        <div><label className="block text-sm font-medium mb-2">Title</label><input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="E.g. LinkedIn Post January" className="v11-input"/></div>
                         <div>
-                            <div className="flex items-center justify-between mb-2"><label className="block text-sm font-medium">Action</label><button onClick={onCreateAction} className="text-xs text-secondary hover:underline flex items-center gap-1"><Icon.Plus/>Créer une action</button></div>
+                            <div className="flex items-center justify-between mb-2"><label className="block text-sm font-medium">Action</label><button onClick={onCreateAction} className="text-xs text-secondary hover:underline flex items-center gap-1"><Icon.Plus/>Create an action</button></div>
                             <select value={form.actionId} onChange={e=>setForm({...form,actionId:e.target.value})} className="v11-input">{actions.map(a=>{const cat=categories.find(c=>c.id===a.categoryId);return<option key={a.id} value={a.id}>{a.name} ({cat?.name})</option>;})}</select>
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Date début</label><input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input"/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Date fin</label><input type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Start date</label><input type="date" value={form.startDate} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input"/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">End date</label><input type="date" value={form.dueDate} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priorité</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
+                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
                             <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input"/></div>
                         </div>
                         <div><label className="block text-sm font-medium mb-2">Description</label><textarea value={form.description} onChange={e=>setForm({...form,description:e.target.value})} rows={3} className="v11-input" style={{resize:'none'}}/></div>
                     </div>
-                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className="v11-btn-secondary">Annuler</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Créer la tâche</button></div>
+                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className="v11-btn-secondary">Cancel</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Create task</button></div>
                 </div>
             </div>
         </div>
@@ -748,8 +767,8 @@ const Header=({currentView,setCurrentView,onSync,syncing,githubConnected,savingS
                     ))}
                 </nav>
                 <div className="flex items-center gap-1.5">
-                    {savingStatus&&<span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{background:savingStatus==='error'?'var(--error-light)':'var(--accent-light)',color:savingStatus==='error'?'var(--error)':'var(--accent)'}}>{savingStatus==='saving'?'Sauvegarde...':savingStatus==='error'?'Erreur':'Sauvegardé'}</span>}
-                    <button onClick={onSync} disabled={syncing} className={`v11-icon-btn ${syncing?'animate-spin':''}`} style={{position:'relative'}} title="Synchroniser avec GitHub">
+                    {savingStatus&&<span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{background:savingStatus==='error'?'var(--error-light)':'var(--accent-light)',color:savingStatus==='error'?'var(--error)':'var(--accent)'}}>{savingStatus==='saving'?'Saving...':savingStatus==='error'?'Error':'Saved'}</span>}
+                    <button onClick={onSync} disabled={syncing} className={`v11-icon-btn ${syncing?'animate-spin':''}`} style={{position:'relative'}} title="Sync data">
                         <Icon.Refresh/>
                         {githubConnected&&<span className="absolute top-1 right-1 w-2 h-2 rounded-full" style={{background:'var(--success)'}}/>}
                     </button>
@@ -809,7 +828,7 @@ const CountryTags=({countries=[],onAdd,onRemove,editable=true,allCountries=CONFI
     return(
         <div className="flex flex-wrap gap-1 items-center">
             {countries.map(countryId=>{const country=allCountries.find(c=>c.id===countryId);return country?(<span key={countryId} className="px-2 py-0.5 rounded-full text-xs text-white flex items-center" style={{backgroundColor:country.color}}>{country.flag} {country.name}{editable&&<button onClick={()=>onRemove(countryId)} className="ml-1 hover:bg-[var(--bg-primary)]/20 rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>}</span>):null;})}
-            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className="px-2 py-0.5 rounded-full text-xs flex items-center space-x-1" style={{background:'var(--bg-secondary)'}}><Icon.Plus/><span>Pays</span></button>{showPicker&&(<div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold px-2 py-1" style={{color:'var(--text-muted)'}}>{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className="w-full text-left px-2 py-1.5 rounded text-xs flex items-center space-x-2"><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className="w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed flex items-center justify-center space-x-1" style={{borderColor:'var(--border)'}}><Icon.Plus/><span>Nouveau pays</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Ajouter un pays</div><input type="text" placeholder="Nom du pays" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className="v11-input" style={{fontSize:11,marginBottom:8}}/><input type="text" placeholder="Emoji (ex: 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className="v11-input" style={{fontSize:11,marginBottom:8}} maxLength="4"/><div className="mb-2"><label className="text-xs block mb-1">Continent:</label><select value={newCountryRegion} onChange={e=>setNewCountryRegion(e.target.value)} className="v11-select" style={{fontSize:11,width:'100%'}}>{availableRegions.map(region=><option key={region} value={region}>{region}</option>)}</select></div><div className="flex items-center gap-2 mb-2"><label className="text-xs">Couleur:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Ajouter</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');setNewCountryRegion('Europe');}} className="v11-btn-secondary" style={{flex:1,fontSize:11}}>Annuler</button></div></div>)}</div>)}</div>)}
+            {editable&&(<div className="relative"><button onClick={()=>setShowPicker(!showPicker)} className="px-2 py-0.5 rounded-full text-xs flex items-center space-x-1" style={{background:'var(--bg-secondary)'}}><Icon.Plus/><span>Country</span></button>{showPicker&&(<div className="absolute top-full left-0 mt-1 rounded-lg shadow-xl p-2 z-50 min-w-[200px] max-h-96 overflow-y-auto" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>{!showNewCountryForm?(<>{Object.keys(byRegion).map(region=>(<div key={region}><div className="text-xs font-semibold px-2 py-1" style={{color:'var(--text-muted)'}}>{region}</div>{byRegion[region].map(country=>(<button key={country.id} onClick={()=>{onAdd(country.id);setShowPicker(false);}} className="w-full text-left px-2 py-1.5 rounded text-xs flex items-center space-x-2"><span>{country.flag}</span><span>{country.name}</span></button>))}</div>))}{onAddCustomCountry&&<button onClick={()=>setShowNewCountryForm(true)} className="w-full mt-2 px-2 py-1.5 rounded text-xs border border-dashed flex items-center justify-center space-x-1" style={{borderColor:'var(--border)'}}><Icon.Plus/><span>New country</span></button>}</>):(<div className="p-2"><div className="text-xs font-semibold mb-2">Add a country</div><input type="text" placeholder="Country name" value={newCountryName} onChange={e=>setNewCountryName(e.target.value)} className="v11-input" style={{fontSize:11,marginBottom:8}}/><input type="text" placeholder="Emoji (e.g. 🇫🇷)" value={newCountryFlag} onChange={e=>setNewCountryFlag(e.target.value)} className="v11-input" style={{fontSize:11,marginBottom:8}} maxLength="4"/><div className="mb-2"><label className="text-xs block mb-1">Continent:</label><select value={newCountryRegion} onChange={e=>setNewCountryRegion(e.target.value)} className="v11-select" style={{fontSize:11,width:'100%'}}>{availableRegions.map(region=><option key={region} value={region}>{region}</option>)}</select></div><div className="flex items-center gap-2 mb-2"><label className="text-xs">Color:</label><input type="color" value={newCountryColor} onChange={e=>setNewCountryColor(e.target.value)} className="w-12 h-6 rounded"/></div><div className="flex gap-1"><button onClick={handleAddNewCountry} className="flex-1 px-2 py-1 text-xs bg-secondary text-white rounded">Add</button><button onClick={()=>{setShowNewCountryForm(false);setNewCountryName('');setNewCountryFlag('');setNewCountryRegion('Europe');}} className="v11-btn-secondary" style={{flex:1,fontSize:11}}>Cancel</button></div></div>)}</div>)}</div>)}
         </div>
     );
 };
@@ -870,7 +889,7 @@ const ActionCard=({action,tasks,categories,onOpen,onMoveAction,onReorderAction})
             {action.tags?.length>0&&<div className="card-tags">{action.tags.slice(0,3).map(t=>{const ch=CONFIG.CHANNELS.find(c=>c.id===t);return <span key={t} className={`card-tag ${t}`}>{ch?.name||t}</span>;})}</div>}
             <div className="action-progress-section">
                 <div className="action-progress-bar"><div className={`action-progress-fill ${pct>=70?'high':pct>=40?'medium':'low'}`} style={{width:`${pct}%`}}/></div>
-                <div className="action-progress-label"><span className="action-task-count"><strong>{completed}</strong>/{actionTasks.length} tâches</span><span className="action-progress-percent">{pct}%</span></div>
+                <div className="action-progress-label"><span className="action-task-count"><strong>{completed}</strong>/{actionTasks.length} tasks</span><span className="action-progress-percent">{pct}%</span></div>
             </div>
             {actionTasks.reduce((s,t)=>s+(t.budget||0),0)>0&&<div className="card-footer"><span/><span className="card-budget">{actionTasks.reduce((s,t)=>s+(t.budget||0),0).toLocaleString()}€</span></div>}
         </div>
@@ -969,7 +988,7 @@ const TaskCard=({task,action,onOpen,onMoveTask,onReorderTask,showAction=false,on
                 {(task.channels||action?.tags||[]).slice(0,2).map(chId=>{const ch=CONFIG.CHANNELS.find(c=>c.id===chId);return ch?<span key={chId} className={`card-tag ${chId}`}>{ch.name}</span>:null;})}
             </div>}
             {(task.dueDate||task.budget>0)&&<div className="card-footer">
-                <span className={`card-date ${task.dueDate&&new Date(task.dueDate)<new Date()&&task.status!=='completed'?'overdue':''}`}>{task.dueDate?new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):''}</span>
+                <span className={`card-date ${task.dueDate&&new Date(task.dueDate)<new Date()&&task.status!=='completed'?'overdue':''}`}>{task.dueDate?new Date(task.dueDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):''}</span>
                 {task.budget>0&&<span className="card-budget">{task.budget.toLocaleString()}€</span>}
             </div>}
         </div>
@@ -981,7 +1000,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[form,setForm]=useState({...task});
     const[previewAttachment,setPreviewAttachment]=useState(null);
     const[descriptionDraft,setDescriptionDraft]=useState(task.description||''); // Draft pour description
-    const[descriptionSaved,setDescriptionSaved]=useState(true); // Track si sauvegardé
+    const[descriptionSaved,setDescriptionSaved]=useState(true); // Track if saved
     const[newComment,setNewComment]=useState('');
     const[newChecklistItem,setNewChecklistItem]=useState('');
     const currentAction=actions?.find(a=>a.id===form.actionId)||action;
@@ -1011,7 +1030,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
             // Delete key (or Backspace on Mac)
             if(e.key==='Delete'||e.key==='Backspace'){
                 e.preventDefault();
-                if(window.confirm('Êtes-vous sûr de vouloir supprimer cette tâche ?')){
+                if(window.confirm('Are you sure you want to delete this task?')){
                     onDelete(task.id);
                     onClose();
                 }
@@ -1030,12 +1049,12 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                 <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex items-start gap-3 flex-1">
-                            <button onClick={()=>setForm({...form,status:form.status==='completed'?'todo':'completed'})} className="mt-2 flex-shrink-0" style={{width:22,height:22,borderRadius:6,border:form.status==='completed'?'none':'2px solid var(--border-strong)',background:form.status==='completed'?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'all 0.2s'}} title={form.status==='completed'?'Marquer comme non terminé':'Marquer comme terminé'}>{form.status==='completed'&&<svg width="12" height="12" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}</button>
+                            <button onClick={()=>setForm({...form,status:form.status==='completed'?'todo':'completed'})} className="mt-2 flex-shrink-0" style={{width:22,height:22,borderRadius:6,border:form.status==='completed'?'none':'2px solid var(--border-strong)',background:form.status==='completed'?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'all 0.2s'}} title={form.status==='completed'?'Mark as not completed':'Mark as completed'}>{form.status==='completed'&&<svg width="12" height="12" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}</button>
                             <div className="flex-1">
                                 <input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className="v11-input" style={{fontSize:'1.25rem',fontWeight:700,textDecoration:form.status==='completed'?'line-through':'none'}}/>
                                 <div className="flex items-center gap-2 mt-1">
                                     <p className="text-sm" style={{color:'var(--text-muted)'}}>📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
-                                    {onBackToAction&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Retour à l'action</button>}
+                                    {onBackToAction&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Back to action</button>}
                                 </div>
                             </div>
                         </div>
@@ -1043,28 +1062,28 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     </div>
                     <div className="flex flex-wrap gap-3 mb-6">
                         {actions&&<div className="w-full"><label className="v11-label">📋 Action</label><select value={form.actionId} onChange={e=>{const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className="v11-select" style={{width:'100%'}}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
-                        <div><label className="v11-label">Statut</label><IconSelect value={form.status} options={CONFIG.STATUSES} onChange={v=>setForm({...form,status:v})} renderOption={o=><StatusOption status={o}/>}/></div>
-                        <div><label className="v11-label">Priorité</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
-                        <div><label className="v11-label">Début</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input"/></div>
-                        <div><label className="v11-label">Fin</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
+                        <div><label className="v11-label">Status</label><IconSelect value={form.status} options={CONFIG.STATUSES} onChange={v=>setForm({...form,status:v})} renderOption={o=><StatusOption status={o}/>}/></div>
+                        <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
+                        <div><label className="v11-label">Start</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input"/></div>
+                        <div><label className="v11-label">End</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
                         <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}}/></div>
                     </div>
-                    <div className="mb-4"><label className="v11-label">🏷️ Tags Canal</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
-                    <div className="mb-4"><label className="v11-label">🌍 Tags Pays</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry}/></div>
-                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className="v11-input" style={{resize:'none'}}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Sauvegarder</button>}</div>
+                    <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
+                    <div className="mb-4"><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry}/></div>
+                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className="v11-input" style={{resize:'none'}}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Save</button>}</div>
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm" style={{color:'var(--text-muted)'}}>{checklistPct}%</span>}</div>
                         {form.checklist?.length>0&&<div className="v11-progress-bar" style={{height:8,marginBottom:12}}><div className={`v11-progress-fill ${checklistPct>=70?'high':checklistPct>=40?'medium':'low'}`} style={{width:`${checklistPct}%`}}/></div>}
                         <div className="space-y-2 mb-3">{form.checklist?.map(item=>(<div key={item.id} className="flex items-center space-x-3 p-2 rounded-lg" style={{background:'var(--bg-secondary)'}}><button onClick={()=>toggleChecklistItem(item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':''}`} style={!item.done?{borderColor:'var(--border-strong)'}:{}}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through':''}`} style={item.done?{color:'var(--text-muted)'}:{}}>{item.text}</span><button onClick={()=>removeChecklistItem(item.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)'}}><Icon.Trash/></button></div>))}</div>
-                        <div className="flex space-x-2"><input type="text" value={newChecklistItem} onChange={e=>setNewChecklistItem(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addChecklistItem()} placeholder="Ajouter..." className="v11-input" style={{flex:1}}/><button onClick={addChecklistItem} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>
+                        <div className="flex space-x-2"><input type="text" value={newChecklistItem} onChange={e=>setNewChecklistItem(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addChecklistItem()} placeholder="Add..." className="v11-input" style={{flex:1}}/><button onClick={addChecklistItem} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>
                     </div>
                     <div className="mb-6">
-                        <label className="block text-sm font-medium mb-2">💬 Commentaires ({form.comments?.length||0})</label>
-                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{form.comments?.map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-secondary)'}}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleDateString('fr-FR')}</span></div><p className="text-sm" style={{color:'var(--text-secondary)'}}>{c.text}</p></div>))}</div>
-                        <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Écrire..." className="v11-input" style={{flex:1}}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Envoyer</button></div>
+                        <label className="block text-sm font-medium mb-2">💬 Comments ({form.comments?.length||0})</label>
+                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{form.comments?.map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-secondary)'}}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleDateString('en-US')}</span></div><p className="text-sm" style={{color:'var(--text-secondary)'}}>{c.text}</p></div>))}</div>
+                        <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Write..." className="v11-input" style={{flex:1}}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Send</button></div>
                     </div>
                     <div className="mb-6">
-                        <label className="block text-sm font-medium mb-2">📎 Pièces jointes ({(form.attachments||[]).length})</label>
+                        <label className="block text-sm font-medium mb-2">📎 Attachments ({(form.attachments||[]).length})</label>
                         {(form.attachments||[]).length>0&&<div className="space-y-2 mb-3">
                             {(form.attachments||[]).map(att=>(
                                 <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg" style={{background:'var(--bg-secondary)',cursor:'pointer'}} onClick={()=>setPreviewAttachment(att)}>
@@ -1074,10 +1093,10 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                     }
                                     <div style={{flex:1,minWidth:0}}>
                                         <div style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{att.name}</div>
-                                        <div style={{fontSize:11,color:'var(--text-muted)'}}>{att.size?`${(att.size/1024).toFixed(1)} Ko`:''} • {att.date?new Date(att.date).toLocaleDateString('fr-FR'):''}</div>
+                                        <div style={{fontSize:11,color:'var(--text-muted)'}}>{att.size?`${(att.size/1024).toFixed(1)} KB`:''} • {att.date?new Date(att.date).toLocaleDateString('en-US'):''}</div>
                                     </div>
-                                    {att.data&&<a href={att.data} download={att.name} onClick={e=>e.stopPropagation()} style={{color:'var(--accent)',fontSize:12,fontWeight:500,flexShrink:0,cursor:'pointer'}} title="Télécharger">↓</a>}
-                                    <button onClick={(e)=>{e.stopPropagation();setForm({...form,attachments:(form.attachments||[]).filter(a=>a.id!==att.id)});}} style={{color:'var(--text-muted)',cursor:'pointer',flexShrink:0,background:'none',border:'none',fontSize:14}} title="Supprimer">✕</button>
+                                    {att.data&&<a href={att.data} download={att.name} onClick={e=>e.stopPropagation()} style={{color:'var(--accent)',fontSize:12,fontWeight:500,flexShrink:0,cursor:'pointer'}} title="Download">↓</a>}
+                                    <button onClick={(e)=>{e.stopPropagation();setForm({...form,attachments:(form.attachments||[]).filter(a=>a.id!==att.id)});}} style={{color:'var(--text-muted)',cursor:'pointer',flexShrink:0,background:'none',border:'none',fontSize:14}} title="Delete">✕</button>
                                 </div>
                             ))}
                         </div>}
@@ -1118,8 +1137,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         </div>
                     </div>
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
-                        <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
-                        <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Fermer</button>
+                        <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Delete</span></button>
+                        <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Close</button>
                     </div>
                 </div>
             </div>
@@ -1127,8 +1146,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         {previewAttachment&&(
             <div onClick={()=>setPreviewAttachment(null)} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(0,0,0,0.85)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'zoom-out',padding:24}}>
                 <div style={{position:'absolute',top:16,right:16,display:'flex',gap:8}}>
-                    {previewAttachment.data&&<a href={previewAttachment.data} download={previewAttachment.name} onClick={e=>e.stopPropagation()} style={{padding:'8px 16px',background:'rgba(255,255,255,0.15)',color:'white',borderRadius:'var(--radius-sm)',fontSize:13,fontWeight:500,textDecoration:'none',cursor:'pointer',backdropFilter:'blur(8px)'}}>↓ Télécharger</a>}
-                    <button onClick={()=>setPreviewAttachment(null)} style={{padding:'8px 16px',background:'rgba(255,255,255,0.15)',color:'white',borderRadius:'var(--radius-sm)',fontSize:13,fontWeight:500,border:'none',cursor:'pointer',backdropFilter:'blur(8px)'}}>✕ Fermer</button>
+                    {previewAttachment.data&&<a href={previewAttachment.data} download={previewAttachment.name} onClick={e=>e.stopPropagation()} style={{padding:'8px 16px',background:'rgba(255,255,255,0.15)',color:'white',borderRadius:'var(--radius-sm)',fontSize:13,fontWeight:500,textDecoration:'none',cursor:'pointer',backdropFilter:'blur(8px)'}}>↓ Download</a>}
+                    <button onClick={()=>setPreviewAttachment(null)} style={{padding:'8px 16px',background:'rgba(255,255,255,0.15)',color:'white',borderRadius:'var(--radius-sm)',fontSize:13,fontWeight:500,border:'none',cursor:'pointer',backdropFilter:'blur(8px)'}}>✕ Close</button>
                 </div>
                 {previewAttachment.type?.startsWith('image/')?
                     <img src={previewAttachment.data} alt={previewAttachment.name} onClick={e=>e.stopPropagation()} style={{maxWidth:'90vw',maxHeight:'85vh',objectFit:'contain',borderRadius:'var(--radius-lg)',boxShadow:'0 20px 60px rgba(0,0,0,0.5)',cursor:'default'}}/>:
@@ -1137,9 +1156,9 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     <div onClick={e=>e.stopPropagation()} style={{background:'var(--bg-primary)',borderRadius:'var(--radius-lg)',padding:40,textAlign:'center',cursor:'default',maxWidth:400}}>
                         <div style={{fontSize:48,marginBottom:16}}>📄</div>
                         <div style={{fontSize:16,fontWeight:600,marginBottom:8}}>{previewAttachment.name}</div>
-                        <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>{previewAttachment.size?`${(previewAttachment.size/1024).toFixed(1)} Ko`:''}</div>
-                        <p style={{fontSize:12,color:'var(--text-muted)'}}>Aperçu non disponible pour ce type de fichier</p>
-                        {previewAttachment.data&&<a href={previewAttachment.data} download={previewAttachment.name} style={{display:'inline-block',marginTop:16,padding:'10px 20px',background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',fontSize:13,fontWeight:600,textDecoration:'none'}}>Télécharger</a>}
+                        <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>{previewAttachment.size?`${(previewAttachment.size/1024).toFixed(1)} KB`:''}</div>
+                        <p style={{fontSize:12,color:'var(--text-muted)'}}>Preview not available for this file type</p>
+                        {previewAttachment.data&&<a href={previewAttachment.data} download={previewAttachment.name} style={{display:'inline-block',marginTop:16,padding:'10px 20px',background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',fontSize:13,fontWeight:600,textDecoration:'none'}}>Download</a>}
                     </div>
                 }
                 <div style={{color:'rgba(255,255,255,0.7)',fontSize:12,marginTop:12}}>{previewAttachment.name}</div>
@@ -1177,23 +1196,23 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         <button onClick={handleClose} className="ml-2 v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-4">
-                        <div><label className="v11-label">Catégorie</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-select">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                        <div><label className="v11-label">Priorité</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
+                        <div><label className="v11-label">Category</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-select">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                        <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
                         <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:128}}/></div>
                     </div>
                     <div className="rounded-xl p-4 mb-4" style={{background:'var(--bg-secondary)'}}>
                         <div className="flex justify-between mb-3">
-                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>💰 Budget Total Tâches</span><p className="text-lg font-bold text-secondary">{totalBudget.toLocaleString()}€</p></div>
-                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>📊 Progression</span><p className="text-lg font-bold">{progressPct}%</p></div>
-                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>📋 Tâches</span><p className="text-lg font-bold">{completedTasks}/{actionTasks.length}</p></div>
+                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>💰 Total Tasks Budget</span><p className="text-lg font-bold text-secondary">{totalBudget.toLocaleString()}€</p></div>
+                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>📊 Progress</span><p className="text-lg font-bold">{progressPct}%</p></div>
+                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>📋 Tasks</span><p className="text-lg font-bold">{completedTasks}/{actionTasks.length}</p></div>
                         </div>
                         <div className="v11-progress-bar" style={{height:12}}><div className={`v11-progress-fill ${progressPct>=70?'high':progressPct>=40?'medium':'low'}`} style={{width:`${progressPct}%`}}/></div>
                     </div>
-                    <div className="mb-4"><label className="v11-label">🏷️ Tags Canal</label><ChannelTags channels={form.tags||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
+                    <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.tags||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
                     <div className="mb-4">
                         <div className="flex items-center justify-between mb-3">
-                            <label className="text-sm font-medium">📋 TÂCHES ({actionTasks.length})</label>
-                            <button onClick={()=>onAddTask(action.id)} className="px-3 py-1 bg-secondary text-white rounded-lg text-xs flex items-center space-x-1"><Icon.Plus/><span>Ajouter</span></button>
+                            <label className="text-sm font-medium">📋 TASKS ({actionTasks.length})</label>
+                            <button onClick={()=>onAddTask(action.id)} className="px-3 py-1 bg-secondary text-white rounded-lg text-xs flex items-center space-x-1"><Icon.Plus/><span>Add</span></button>
                         </div>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                             {actionTasks.length>0?actionTasks.map(task=>{
@@ -1205,7 +1224,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                 <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:120}}/>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-medium text-sm truncate">{task.title}</p>
-                                                    <p className="text-xs" style={{color:'var(--text-muted)'}}>📅 {task.startDate?new Date(task.startDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'} → {task.dueDate?new Date(task.dueDate).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'?'}</p>
+                                                    <p className="text-xs" style={{color:'var(--text-muted)'}}>📅 {task.startDate?new Date(task.startDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):'?'} → {task.dueDate?new Date(task.dueDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):'?'}</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center space-x-2">
@@ -1215,22 +1234,22 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                         </div>
                                     </div>
                                 );
-                            }):<p className="text-center py-4 text-sm" style={{color:'var(--text-muted)'}}>Aucune tâche</p>}
+                            }):<p className="text-center py-4 text-sm" style={{color:'var(--text-muted)'}}>No tasks</p>}
                         </div>
                     </div>
                     {showConfirmDelete&&(
                         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-sm font-medium text-red-800 mb-2">⚠️ Confirmer la suppression ?</p>
-                            <p className="text-xs text-red-600 mb-3">Cette action et ses {actionTasks.length} tâche(s) seront définitivement supprimées.</p>
+                            <p className="text-sm font-medium text-red-800 mb-2">⚠️ Confirm deletion?</p>
+                            <p className="text-xs text-red-600 mb-3">This action and its {actionTasks.length} task(s) will be permanently deleted.</p>
                             <div className="flex space-x-2">
-                                <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">Confirmer</button>
-                                <button onClick={()=>setShowConfirmDelete(false)} className="v11-btn-secondary">Annuler</button>
+                                <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">Confirm</button>
+                                <button onClick={()=>setShowConfirmDelete(false)} className="v11-btn-secondary">Cancel</button>
                             </div>
                         </div>
                     )}
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
-                        <button onClick={()=>setShowConfirmDelete(true)} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Supprimer</span></button>
-                        <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Fermer</button>
+                        <button onClick={()=>setShowConfirmDelete(true)} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Delete</span></button>
+                        <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Close</button>
                     </div>
                 </div>
             </div>
@@ -1312,10 +1331,10 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:sortItems(filteredTasks.filter(t=>getTaskMonth(t)===idx))}));
         if(viewMode==='quarter'){
             const quarters=[
-                {key:0,name:'Q1 (Jan-Mars)',months:[0,1,2]},
-                {key:1,name:'Q2 (Avr-Juin)',months:[3,4,5]},
-                {key:2,name:'Q3 (Juil-Sep)',months:[6,7,8]},
-                {key:3,name:'Q4 (Oct-Déc)',months:[9,10,11]}
+                {key:0,name:'Q1 (Jan-Mar)',months:[0,1,2]},
+                {key:1,name:'Q2 (Apr-Jun)',months:[3,4,5]},
+                {key:2,name:'Q3 (Jul-Sep)',months:[6,7,8]},
+                {key:3,name:'Q4 (Oct-Dec)',months:[9,10,11]}
             ];
             return quarters.map(q=>({
                 key:q.key,
@@ -1340,7 +1359,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             <div className="kanban-toolbar">
                 <div className="kanban-toolbar-left">
                     <div className="view-btn-group">
-                        {[{id:'month',label:'Par Mois'},{id:'quarter',label:'Par Trimestre'},{id:'category',label:'Par Catégorie'},{id:'action',label:'Par Action'}].map(v=>(
+                        {[{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'category',label:'By Category'},{id:'action',label:'By Action'}].map(v=>(
                             <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
                         ))}
                     </div>
@@ -1348,12 +1367,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                 <div className="kanban-toolbar-right">
                     {viewMode!=='category'&&<><span className="toolbar-label">Tri:</span>
                     <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="toolbar-select">
-                        <option value="order">Manuel</option>
-                        <option value="name">Nom A→Z</option>
-                        <option value="created">Date création</option>
-                        <option value="date">Date début</option>
+                        <option value="order">Manual</option>
+                        <option value="name">Name A→Z</option>
+                        <option value="created">Created date</option>
+                        <option value="date">Start date</option>
                         <option value="deadline">Deadline</option>
-                        <option value="priority">Priorité</option>
+                        <option value="priority">Priority</option>
                     </select></>}
                     {onYearChange&&<div className="timeline-nav" style={{marginLeft:12}}>
                         <button className="timeline-nav-btn" onClick={()=>onYearChange(selectedYear-1)}>◀</button>
@@ -1420,7 +1439,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                             </div>
                             <div className="kanban-cards">
                                 {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories} allCountries={allCountries}/>)}
-                                {col.items.length===0&&<div className="column-empty">Aucune tâche</div>}
+                                {col.items.length===0&&<div className="column-empty">No tasks</div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
                                         const monthIdx=col.key;
@@ -1428,20 +1447,20 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
                                         const lastDay=new Date(year,monthIdx+1,0).getDate();
                                         const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
-                                        const newTask={id:`t${Date.now()}`,title:'Nouvelle tâche',actionId:actions[0]?.id||'',month:monthIdx,startDate,dueDate,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[]};
+                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:actions[0]?.id||'',month:monthIdx,startDate,dueDate,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[]};
                                         onAddTask(newTask);
                                         setTimeout(()=>onOpenTask(newTask),100);
                                     }else if(viewMode==='category'){
-                                        const newAction={id:`a${Date.now()}`,name:'Nouvelle action',categoryId:col.key,budget:0,priority:'medium',tags:[]};
+                                        const newAction={id:`a${Date.now()}`,name:'New action',categoryId:col.key,budget:0,priority:'medium',tags:[]};
                                         onAddAction(newAction);
                                         setTimeout(()=>onOpenAction(newAction),100);
                                     }else if(viewMode==='action'){
-                                        const newTask={id:`t${Date.now()}`,title:'Nouvelle tâche',actionId:selectedAction||actions[0]?.id||'',month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],dueDate:new Date().toISOString().split('T')[0],status:col.key,priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions.find(a=>a.id===(selectedAction||actions[0]?.id))?.tags||[]};
+                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:selectedAction||actions[0]?.id||'',month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],dueDate:new Date().toISOString().split('T')[0],status:col.key,priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions.find(a=>a.id===(selectedAction||actions[0]?.id))?.tags||[]};
                                         onAddTask(newTask);
                                         setTimeout(()=>onOpenTask(newTask),100);
                                     }
                                 }} className="add-card-btn">
-                                    + Ajouter
+                                    + Add
                                 </button>
                             </div>
                         </div>
@@ -1453,15 +1472,15 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 };
 
 // TIMELINE VIEW
-// Améliorations drag & drop v2.2 :
-// - Snap à la demi-journée en vue semaine (14 slots) pour une précision doublée
-// - Snap au jour avec demi-journée en vue mois pour meilleure précision
-// - Handles de redimensionnement plus larges (10-20px) et plus visibles (opacity 0.3 par défaut)
-// - Indicateurs visuels améliorés : bordures animées, ombres, feedback en temps réel
-// - Curseur col-resize global pendant le resize pour clarté
-// - Zone de drop des tâches entre actions avec bordure pointillée et fond coloré
-// - Prévention des conflits : clic sur handle ne déclenche pas l'ouverture de carte
-// - Styles CSS optimisés pour mobile/tactile (handles 28px, opacity 0.7)
+// Drag & drop improvements v2.2:
+// - Half-day snapping in week view (14 slots) for doubled precision
+// - Day snapping with half-day in month view for better precision
+// - Wider resize handles (10-20px) and more visible (opacity 0.3 default)
+// - Enhanced visual indicators: animated borders, shadows, real-time feedback
+// - Global col-resize cursor during resize for clarity
+// - Task drop zones between actions with dashed border and colored background
+// - Conflict prevention: clicking handle does not trigger card opening
+// - CSS styles optimized for mobile/touch (handles 28px, opacity 0.7)
 const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange})=>{
     const timelineRef=useRef(null);
     const dragGhostRef=useRef(null);
@@ -2073,7 +2092,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const taskStart=pos.left;
             const taskEnd=pos.left+pos.width;
 
-            // Find first available lane where this task doesn't overlap
+            // Endd first available lane where this task doesn't overlap
             let assignedLane=-1;
             for(let i=0;i<lanes.length;i++){
                 let canFit=true;
@@ -2623,7 +2642,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 <div className="timeline-header">
                     <div className="timeline-header-left">
                         <div className="view-btn-group">
-                            {[{id:'week',label:'Semaine'},{id:'month',label:'Mois'},{id:'quarter',label:'Trimestre'}].map(z=>(
+                            {[{id:'week',label:'Week'},{id:'month',label:'Month'},{id:'quarter',label:'Quarter'}].map(z=>(
                                 <button key={z.id} onClick={()=>handleZoomChange(z.id)} className={`view-btn ${zoom===z.id?'active':''}`}>{z.label}</button>
                             ))}
                         </div>
@@ -2685,8 +2704,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex group relative ${dragOverActionClass}`} style={{borderBottom:'1px solid var(--border-light)'}}>
                                         <div className="w-[250px] flex-shrink-0 relative sticky left-0 z-30 timeline-action-sidebar" style={{background:'var(--bg-primary)',borderRight:'1px solid var(--border)',cursor:onReorderAction?'grab':'pointer'}} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}}>
                                             <div className="timeline-action-name">{action.name}</div>
-                                            <div className="timeline-action-count">{actionTasks.length} tâches</div>
-                                            {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs" style={{color:'var(--text-muted)'}} title="Glisser pour réordonner">⋮⋮</div>}
+                                            <div className="timeline-action-count">{actionTasks.length} tasks</div>
+                                            {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs" style={{color:'var(--text-muted)'}} title="Drag to reorder">⋮⋮</div>}
                                         </div>
                                         <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:`${rowHeight}px`,zIndex:20,overflow:'hidden'}} onMouseDown={(e)=>handleCreateTaskStart(e,action)} onDragOver={(e)=>{handleActionRowDragOver(e,action);}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleActionRowDrop(e,action);}}}>
                                             <div className="absolute inset-0 flex pointer-events-none">
@@ -2699,7 +2718,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                             )}
                                             {creatingTask&&creatingTask.actionId===action.id&&(
                                                 <div className="absolute rounded-lg border-2 border-dashed border-secondary bg-secondary/20 flex items-center justify-center text-secondary text-xs font-medium pointer-events-none" style={{left:Math.min(creatingTask.startX,creatingTask.currentX),width:Math.abs(creatingTask.currentX-creatingTask.startX)||colWidth,top:8,height:26}}>
-                                                    <span>Nouvelle tâche</span>
+                                                    <span>New task</span>
                                                 </div>
                                             )}
                                             {actionTasks.sort((a,b)=>(a.order||0)-(b.order||0)).map(task=>{
@@ -2721,10 +2740,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 const isCompleted=task.status==='completed';
                                                 return(
                                                     <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute flex items-center overflow-visible ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:pos.width,top:`${topOffset}px`,height:26,borderRadius:5,padding:'0 8px',fontSize:10,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',backgroundColor:barColor,color:textColor,zIndex:1,transition:'transform 0.15s, box-shadow 0.15s',opacity:isCompleted?0.45:1,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
-                                                        <div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner début"/>
+                                                        <div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Resize start"/>
                                                         <span className="truncate flex-1 pointer-events-none" style={isCompleted?{textDecoration:'line-through'}:{}}>{task.title}</span>
                                                         {task.budget>0&&(zoom==='month'||zoom==='quarter')&&<span style={{marginLeft:4,opacity:0.8,fontSize:9}} className="pointer-events-none">({(task.budget/1000).toFixed(0)}k)</span>}
-                                                        <div className="resize-handle resize-handle-right" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Redimensionner fin"/>
+                                                        <div className="resize-handle resize-handle-right" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Resize end"/>
                                                     </div>
                                                 );
                                             })}
@@ -2770,13 +2789,13 @@ const DashboardView=({categories,actions,tasks})=>{
     return(
         <div className="space-y-6 animate-slide-in">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <KPICard title="Avancement" value={`${progressPct}%`} subtitle={`${completedTasks}/${totalTasks} tâches`} icon={Icon.TrendUp} color="#22c55e"/>
+                <KPICard title="Progress" value={`${progressPct}%`} subtitle={`${completedTasks}/${totalTasks} tasks`} icon={Icon.TrendUp} color="#22c55e"/>
                 <KPICard title="Budget" value={`${(spentBudget/1000).toFixed(0)}k€`} subtitle={`sur ${(totalBudget/1000).toFixed(0)}k€`} icon={Icon.Dollar} color="#6366f1"/>
-                <KPICard title="Ce mois" value={currentTasks.length} subtitle="tâches actives" icon={Icon.Calendar} color="#f59e0b"/>
-                <KPICard title="En retard" value={overdueTasks.length} subtitle={overdueTasks.length>0?'à traiter':'Tout OK!'} icon={Icon.Alert} color={overdueTasks.length>0?'#ef4444':'#22c55e'}/>
+                <KPICard title="This month" value={currentTasks.length} subtitle="tasks actives" icon={Icon.Calendar} color="#f59e0b"/>
+                <KPICard title="Overdue" value={overdueTasks.length} subtitle={overdueTasks.length>0?'to address':'All good!'} icon={Icon.Alert} color={overdueTasks.length>0?'#ef4444':'#22c55e'}/>
             </div>
             <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
-                <h3 className="font-semibold mb-4">Progression par catégorie</h3>
+                <h3 className="font-semibold mb-4">Progress by category</h3>
                 <div className="space-y-4">
                     {categories.map(cat=>{
                         const catActions=actions.filter(a=>a.categoryId===cat.id);
@@ -2795,20 +2814,20 @@ const DashboardView=({categories,actions,tasks})=>{
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
-                    <h3 className="font-semibold mb-4">Par statut</h3>
+                    <h3 className="font-semibold mb-4">By Status</h3>
                     <div className="space-y-3">
                         {CONFIG.STATUSES.map(s=>{const count=tasks.filter(t=>t.status===s.id).length;const pct=totalTasks>0?Math.round((count/totalTasks)*100):0;return(<div key={s.id} className="flex items-center"><div className="w-28 flex items-center space-x-2"><StatusIcon statusId={s.id} size={12}/><span className="text-sm">{s.name}</span></div><div className="flex-1 h-4 rounded-full mx-3" style={{background:'var(--bg-secondary)'}}><div className="h-full rounded-full" style={{width:`${pct}%`,backgroundColor:s.color}}/></div><span className="w-8 text-right text-sm font-medium">{count}</span></div>);})}
                     </div>
                 </div>
                 <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default',borderColor:overdueTasks.length>0?'var(--error)':'var(--border-light)'}}>
-                    <h3 className="font-semibold mb-4">🚨 En retard</h3>
+                    <h3 className="font-semibold mb-4">🚨 Overdue</h3>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {overdueTasks.length>0?overdueTasks.slice(0,8).map(t=>{const action=actions.find(a=>a.id===t.actionId);return<div key={t.id} style={{padding:'10px 14px',borderRadius:'var(--radius-sm)',background:'var(--error-light)',border:'1px solid #fecaca'}}><p style={{fontWeight:600,fontSize:13}}>{t.title}</p><p style={{fontSize:11,color:'var(--error)',marginTop:2}}>{action?.name} • {CONFIG.MONTHS_FULL[t.month]}</p></div>;}):<div className="text-center" style={{padding:'32px 0'}}><span style={{fontSize:32}}>✅</span><p style={{fontSize:13,color:'var(--text-muted)',marginTop:8}}>Tout est à jour!</p></div>}
+                        {overdueTasks.length>0?overdueTasks.slice(0,8).map(t=>{const action=actions.find(a=>a.id===t.actionId);return<div key={t.id} style={{padding:'10px 14px',borderRadius:'var(--radius-sm)',background:'var(--error-light)',border:'1px solid #fecaca'}}><p style={{fontWeight:600,fontSize:13}}>{t.title}</p><p style={{fontSize:11,color:'var(--error)',marginTop:2}}>{action?.name} • {CONFIG.MONTHS_FULL[t.month]}</p></div>;}):<div className="text-center" style={{padding:'32px 0'}}><span style={{fontSize:32}}>✅</span><p style={{fontSize:13,color:'var(--text-muted)',marginTop:8}}>All up to date!</p></div>}
                     </div>
                 </div>
             </div>
             <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
-                <h3 className="font-semibold mb-4">📢 Par canal</h3>
+                <h3 className="font-semibold mb-4">📢 By Channel</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {CONFIG.CHANNELS.map(ch=>{
                         const chTasks=tasks.filter(t=>(t.channels||[]).includes(ch.id));
@@ -2820,7 +2839,7 @@ const DashboardView=({categories,actions,tasks})=>{
                                     <span style={{fontSize:12,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{ch.name}</span>
                                 </div>
                                 <div style={{fontSize:22,fontWeight:700}}>{chTasks.length}</div>
-                                <div style={{fontSize:11,color:'var(--text-muted)'}}>{chCompleted} terminées</div>
+                                <div style={{fontSize:11,color:'var(--text-muted)'}}>{chCompleted} completed</div>
                             </div>
                         );
                     })}
@@ -2835,36 +2854,36 @@ const FilterSidebar=({show,onClose,filters,setFilters,categories,allCountries})=
     return(
         <div className={`filter-sidebar ${show?'open':''}`}>
             <div className="sidebar-header">
-                <span className="sidebar-title">Filtres</span>
+                <span className="sidebar-title">Filters</span>
                 <button className="sidebar-close" onClick={onClose}><Icon.Close/></button>
             </div>
             <div className="filter-section">
-                <div className="filter-section-title">Recherche</div>
-                <input type="text" placeholder="Rechercher..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className="v11-input"/>
+                <div className="filter-section-title">Search</div>
+                <input type="text" placeholder="Search..." value={filters.search} onChange={e=>setFilters({...filters,search:e.target.value})} className="v11-input"/>
             </div>
             <div className="filter-section">
-                <div className="filter-section-title">Statut</div>
+                <div className="filter-section-title">Status</div>
                 <div className="filter-options">{CONFIG.STATUSES.map(s=>(<button key={s.id} onClick={()=>{const n=filters.status.includes(s.id)?filters.status.filter(x=>x!==s.id):[...filters.status,s.id];setFilters({...filters,status:n});}} className={`filter-option ${filters.status.includes(s.id)?'selected':''}`} style={{display:'flex',alignItems:'center',gap:4}}><StatusIcon statusId={s.id} size={11}/> {s.name}</button>))}</div>
             </div>
             <div className="filter-section">
-                <div className="filter-section-title">Catégorie</div>
+                <div className="filter-section-title">Category</div>
                 <div className="filter-options">{categories.map(c=>(<button key={c.id} onClick={()=>{const n=filters.category.includes(c.id)?filters.category.filter(x=>x!==c.id):[...filters.category,c.id];setFilters({...filters,category:n});}} className={`filter-option ${filters.category.includes(c.id)?'selected':''}`}>{c.name}</button>))}</div>
             </div>
             <div className="filter-section">
-                <div className="filter-section-title">Priorité</div>
+                <div className="filter-section-title">Priority</div>
                 <div className="filter-options">{CONFIG.PRIORITIES.map(p=>(<button key={p.id} onClick={()=>{const n=filters.priority.includes(p.id)?filters.priority.filter(x=>x!==p.id):[...filters.priority,p.id];setFilters({...filters,priority:n});}} className={`filter-option ${filters.priority.includes(p.id)?'selected':''}`} style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:8,height:8,borderRadius:'50%',background:p.color,flexShrink:0}}/> {p.name}</button>))}</div>
             </div>
             <div className="filter-section">
-                <div className="filter-section-title">Canal</div>
+                <div className="filter-section-title">Channel</div>
                 <div className="filter-options">{CONFIG.CHANNELS.map(ch=>(<button key={ch.id} onClick={()=>{const n=(filters.channel||[]).includes(ch.id)?(filters.channel||[]).filter(x=>x!==ch.id):[...(filters.channel||[]),ch.id];setFilters({...filters,channel:n});}} className={`filter-option ${(filters.channel||[]).includes(ch.id)?'selected':''}`}>{ch.name}</button>))}</div>
             </div>
             <div className="filter-section">
-                <div className="filter-section-title">Pays</div>
+                <div className="filter-section-title">Country</div>
                 <div className="filter-options">{allCountries.map(co=>(<button key={co.id} onClick={()=>{const n=(filters.country||[]).includes(co.id)?(filters.country||[]).filter(x=>x!==co.id):[...(filters.country||[]),co.id];setFilters({...filters,country:n});}} className={`filter-option ${(filters.country||[]).includes(co.id)?'selected':''}`}>{co.flag} {co.name}</button>))}</div>
             </div>
             <div className="sidebar-footer">
-                <button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})} className="v11-btn-secondary" style={{flex:1}}>Réinitialiser</button>
-                <button onClick={onClose} className="v11-btn-primary" style={{flex:1}}>Appliquer</button>
+                <button onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})} className="v11-btn-secondary" style={{flex:1}}>Reset</button>
+                <button onClick={onClose} className="v11-btn-primary" style={{flex:1}}>Apply</button>
             </div>
         </div>
     );
@@ -2938,56 +2957,30 @@ const App=()=>{
             region:region||'Custom'
         };
         setCustomCountries(prev=>[...prev,newCountry]);
-        showNotification(`✅ Pays "${name}" ajouté`);
+        showNotification(`✅ Country "${name}" added`);
         return newCountry.id;
     };
 
     // ╔════════════════════════════════════════════════════════════════════════════╗
-    // ║  ✅ CONFIGURATION VERCEL - TOKEN SÉCURISÉ CÔTÉ SERVEUR                   ║
+    // ║  🗄️ STORAGE: Supabase (primary) / GitHub API (fallback)                  ║
     // ╚════════════════════════════════════════════════════════════════════════════╝
-    //
-    // Le token GitHub est maintenant stocké de manière sécurisée dans Vercel
-    // en tant que variable d'environnement. Plus besoin de le mettre ici !
-    //
-    // Configuration du repository GitHub
+    const useSupabase=isSupabaseConfigured&&supabaseClient;
+
+    // GitHub fallback configuration (kept for backward compatibility)
     const GITHUB_CONFIG={
         owner:'migso-pcubed-mkt-com',
         repo:'Marketing-Dashboard',
         branch:'main',
         path:'data.json'
     };
-
-    // URL de l'API Vercel (sera automatiquement détectée)
-    // En production: https://votre-app.vercel.app/api/github
-    // En développement local: http://localhost:3000/api/github
     const API_BASE_URL=window.location.hostname==='localhost'
         ?'http://localhost:3000'
         :window.location.origin;
-
-    // UTF-8 safe Base64 encoding/decoding
     const base64EncodeUnicode=(str)=>{
         return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,(match,p1)=>String.fromCharCode('0x'+p1)));
     };
     const base64DecodeUnicode=(str)=>{
         return decodeURIComponent(atob(str).split('').map(c=>'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-    };
-
-    // CRITICAL HELPER: Fetch GitHub API with consistent cache busting
-    const fetchGitHubAPI=(url,options={})=>{
-        const timestamp=Date.now();
-        const random=Math.random().toString(36).substring(7);
-        const cacheBustedUrl=`${url}${url.includes('?')?'&':'?'}_=${timestamp}&r=${random}`;
-
-        return fetch(cacheBustedUrl,{
-            ...options,
-            headers:{
-                ...options.headers,
-                'Cache-Control':'no-store, no-cache, must-revalidate, proxy-revalidate',
-                'Pragma':'no-cache',
-                'Expires':'0'
-            },
-            cache:'no-store'
-        });
     };
 
     useEffect(()=>{document.body.className='light';},[]);
@@ -3014,160 +3007,137 @@ const App=()=>{
         return()=>document.removeEventListener('keydown',handleKeyPress);
     },[selectedTask,selectedAction,showCategoriesModal,showNewActionModal,showNewTaskModal]);
 
-    // Load data from Vercel API (which proxies to GitHub)
-    useEffect(()=>{
-        console.log('🚀 Chargement des données via Vercel API...');
-        setGithubToken('vercel-api'); // Marqueur pour indiquer qu'on utilise l'API
+    // ╔════════════════════════════════════════════════════════════════════════════╗
+    // ║  🗄️ SUPABASE DATA OPERATIONS                                             ║
+    // ╚════════════════════════════════════════════════════════════════════════════╝
 
-        // CRITICAL FIX: Set dataLoaded to true after a small delay to ensure React is mounted
-        // This prevents the app from being stuck on loading screen if API fails
-        const mountTimer = setTimeout(() => {
-            console.log('✅ App mounted, activating interface');
-            setDataLoaded(true);
-        }, 100);
-
-        // Try to load data with timeout fallback
-        const timeoutId = setTimeout(() => {
-            console.warn('⏱️ Chargement timeout, utilisation des données par défaut');
-            loadFromLocalStorage();
-        }, 5000);
-
-        loadDataFromGitHub().then(() => {
-            clearTimeout(timeoutId);
-        }).catch((err) => {
-            console.error('Erreur lors du chargement:', err);
-            clearTimeout(timeoutId);
-        });
-
-        return () => {
-            clearTimeout(mountTimer);
-            clearTimeout(timeoutId);
-        };
-    },[]);
-
-
-
-    // CRITICAL FIX: Persist SHA to localStorage whenever it changes
-    useEffect(()=>{
-        if(fileSha){
-            localStorage.setItem('github_file_sha',fileSha);
-            console.log('📌 SHA persisté:',fileSha.substring(0,8)+'...');
-        }else{
-            localStorage.removeItem('github_file_sha');
-        }
-    },[fileSha]);
-
-    // CRITICAL FIX: Auto-save with proper closure handling
-    // Watches categories, actions, tasks and auto-saves when they change
-    useEffect(()=>{
-        // Skip auto-save on initial mount (dataLoaded false)
-        if(!dataLoaded)return;
-
-        console.log('🔄 Données modifiées, auto-save dans 2s...');
-        setSavingStatus('saving');
-
-        // Debounce: clear previous timeout
-        if(autoSaveTimeoutRef.current){
-            clearTimeout(autoSaveTimeoutRef.current);
-        }
-
-        // Set new timeout with current values
-        autoSaveTimeoutRef.current=setTimeout(async()=>{
-            console.log('💾 Auto-save déclenchée...');
-            if(githubToken){
-                const success=await saveToGitHub();
-                setSavingStatus(success?'saved':'error');
-                if(!success){
-                    saveToLocalStorage(); // Backup if GitHub fails
+    const loadFromSupabase=async()=>{
+        try{
+            console.log('📥 Loading from Supabase...');
+            const{data,error}=await supabaseClient.from('app_data').select('*').eq('id','default').single();
+            if(error){
+                if(error.code==='PGRST116'){
+                    // No data yet - first time, insert default data
+                    console.log('📝 No data in Supabase, inserting defaults...');
+                    const defaultData={id:'default',categories:CONFIG.CATEGORIES,actions:ACTIONS,tasks:TASKS,updated_at:new Date().toISOString()};
+                    const{error:insertError}=await supabaseClient.from('app_data').insert(defaultData);
+                    if(insertError)throw insertError;
+                    showNotification('✅ Default data initialized in Supabase');
+                    return;
                 }
-            }else{
+                throw error;
+            }
+            if(data){
+                if(data.categories)setCategories(data.categories);
+                if(data.actions)setActions(data.actions);
+                if(data.tasks)setTasks(data.tasks);
                 saveToLocalStorage();
-                setSavingStatus('saved');
+                console.log('✅ Supabase loaded. Categories:',data.categories?.length,'Actions:',data.actions?.length,'Tasks:',data.tasks?.length);
+                showNotification('✅ Data loaded from Supabase');
             }
-            setTimeout(()=>setSavingStatus(null),2000);
-        },2000);
+        }catch(e){
+            console.error('Error loading from Supabase:',e);
+            showNotification('⚠️ Supabase load error, trying fallback...');
+            throw e;
+        }
+    };
 
-        // Cleanup on unmount
-        return()=>{
-            if(autoSaveTimeoutRef.current){
-                clearTimeout(autoSaveTimeoutRef.current);
-            }
-        };
-    },[categories,actions,tasks,dataLoaded,githubToken]); // Re-run when data changes
+    const saveToSupabase=async()=>{
+        if(!supabaseClient)return false;
+        setSyncing(true);
+        try{
+            const{error}=await supabaseClient.from('app_data').upsert({
+                id:'default',
+                categories,
+                actions,
+                tasks,
+                updated_at:new Date().toISOString()
+            });
+            if(error)throw error;
+            console.log('✅ Supabase save successful');
+            saveToLocalStorage();
+            return true;
+        }catch(e){
+            console.error('Error saving to Supabase:',e);
+            showNotification(`❌ Save error: ${e.message}`);
+            return false;
+        }finally{
+            setSyncing(false);
+        }
+    };
 
+    // GitHub fallback load (used when Supabase is not configured)
     const loadDataFromGitHub=async()=>{
         try{
             console.log('📥 Loading from GitHub via Vercel API...');
             const url=`${API_BASE_URL}/api/github`;
-
-            const response=await fetch(url,{
-                method:'GET',
-                headers:{
-                    'Accept':'application/json',
-                    'Cache-Control':'no-cache'
-                }
-            });
-
+            const response=await fetch(url,{method:'GET',headers:{'Accept':'application/json','Cache-Control':'no-cache'}});
             if(response.ok){
                 const data=await response.json();
-                console.log('📥 Loaded from GitHub. SHA:',data.sha,'Size:',data.size);
                 const decodedContent=base64DecodeUnicode(data.content.replace(/\n/g,'').replace(/\s/g,''));
                 const content=JSON.parse(decodedContent);
-
-                // Validate loaded data structure
                 const isValidCategories=Array.isArray(content.categories)&&content.categories.every(c=>c.id&&c.name);
                 const isValidActions=Array.isArray(content.actions)&&content.actions.every(a=>a.id&&a.name);
                 const isValidTasks=Array.isArray(content.tasks)&&content.tasks.every(t=>t.id&&t.title);
-
                 if(!isValidCategories||!isValidActions||!isValidTasks){
-                    console.error('⚠️ Invalid data structure from GitHub',{
-                        categories:isValidCategories,
-                        actions:isValidActions,
-                        tasks:isValidTasks
-                    });
-                    showNotification('⚠️ Données GitHub invalides, backup local chargé');
-                    loadFromLocalStorage();
-                    setDataLoaded(true);
-                    return;
+                    showNotification('⚠️ Invalid GitHub data, local backup loaded');
+                    loadFromLocalStorage();setDataLoaded(true);return;
                 }
-
-                // Update state with loaded data
                 setCategories(content.categories||CONFIG.CATEGORIES);
                 setActions(content.actions||ACTIONS);
                 setTasks(content.tasks||TASKS);
                 setFileSha(data.sha);
-
-                // Save to localStorage as backup
                 saveToLocalStorage();
-
-                console.log('✅ GitHub loaded successfully. Categories:',content.categories?.length,'Actions:',content.actions?.length,'Tasks:',content.tasks?.length);
-                showNotification('✅ Données chargées depuis GitHub');
+                showNotification('✅ Data loaded from GitHub');
             }else if(response.status===404){
-                console.warn('⚠️ File not found on GitHub, will create on first save');
-                showNotification('⚠️ Fichier data.json non trouvé - création au premier save');
-                loadFromLocalStorage();
-                setFileSha(''); // Clear SHA for new file
-            }else if(response.status===500){
-                const errorData=await response.json();
-                console.error('❌ ERREUR 500: Problème serveur Vercel:',errorData);
-                if(errorData.message&&errorData.message.includes('GITHUB_TOKEN')){
-                    alert('❌ CONFIGURATION REQUISE\n\nLe token GitHub n\'est pas configuré dans Vercel.\n\nVeuillez:\n1. Aller sur votre dashboard Vercel\n2. Projet → Settings → Environment Variables\n3. Ajouter: GITHUB_TOKEN = votre_token_github\n4. Redéployer l\'application\n\nEn attendant, les données locales sont utilisées.');
-                }else{
-                    showNotification(`❌ Erreur serveur: ${errorData.error}`);
-                }
-                loadFromLocalStorage();
+                loadFromLocalStorage();setFileSha('');
             }else{
-                const errorText=await response.text();
-                console.error('API error:',response.status,errorText);
-                showNotification(`❌ Erreur API: ${response.status}`);
+                const errorData=await response.json().catch(()=>({}));
+                if(response.status===500&&errorData.message?.includes('GITHUB_TOKEN')){
+                    alert('❌ CONFIGURATION REQUIRED\n\nGitHub token not configured in Vercel.\nPlease add GITHUB_TOKEN in Vercel Environment Variables.');
+                }
+                showNotification(`❌ API Error: ${response.status}`);
                 loadFromLocalStorage();
             }
         }catch(e){
-            console.error('Erreur chargement GitHub:',e);
-            showNotification('⚠️ Erreur chargement GitHub, backup local chargé');
+            console.error('Error loading from GitHub:',e);
+            showNotification('⚠️ GitHub load error, local backup loaded');
             loadFromLocalStorage();
         }
-        // Note: dataLoaded is now set to true immediately in useEffect, not here
+    };
+
+    // GitHub fallback save
+    const saveToGitHub=async()=>{
+        if(!githubToken){showNotification('⚠️ API connection missing');return false;}
+        setSyncing(true);
+        try{
+            const jsonString=JSON.stringify({categories,actions,tasks},null,2);
+            const content=base64EncodeUnicode(jsonString);
+            const body={message:`Update data from Marketing Tracker - ${new Date().toISOString()}`,content,sha:fileSha||undefined};
+            const url=`${API_BASE_URL}/api/github`;
+            const response=await fetch(url,{method:'PUT',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)});
+            if(response.ok){
+                const data=await response.json();
+                setFileSha(data.content.sha);
+                saveToLocalStorage();
+                return true;
+            }else{
+                const errorText=await response.text();
+                let errorDetails;try{errorDetails=JSON.parse(errorText);}catch(e){errorDetails={message:errorText};}
+                if(response.status===409||errorDetails.details?.message?.includes('does not match')){
+                    if(confirm('File modified elsewhere. Overwrite?\n\nYES = Overwrite\nNO = Cancel')){
+                        await loadDataFromGitHub();showNotification('⚠️ Data reloaded. Save again.');
+                    }
+                    return false;
+                }
+                showNotification(`❌ Error ${response.status}: ${errorDetails.error||errorDetails.message||''}`);
+                return false;
+            }
+        }catch(e){
+            console.error('Error saving to GitHub:',e);
+            showNotification(`❌ Error: ${e.message}`);
+            return false;
+        }finally{setSyncing(false);}
     };
 
     const loadFromLocalStorage=()=>{
@@ -3178,100 +3148,9 @@ const App=()=>{
                 setCategories(data.categories||CONFIG.CATEGORIES);
                 setActions(data.actions||ACTIONS);
                 setTasks(data.tasks||TASKS);
-                showNotification('📦 Backup local chargé');
+                showNotification('📦 Local backup loaded');
             }
-        }catch(e){
-            console.error('LocalStorage load error:',e);
-        }
-    };
-
-    const saveToGitHub=async()=>{
-        if(!githubToken){showNotification('⚠️ Connexion API manquante');return;}
-        setSyncing(true);
-        try{
-            const jsonString=JSON.stringify({categories,actions,tasks},null,2);
-            const content=base64EncodeUnicode(jsonString);
-
-            const body={
-                message:`Update data from Marketing Tracker V2.2 - ${new Date().toISOString()}`,
-                content:content,
-                sha:fileSha||undefined // Include SHA if we have it
-            };
-
-            console.log('💾 Saving to GitHub via Vercel API...',{
-                hasSha:!!fileSha,
-                sha:fileSha?fileSha.substring(0,8)+'...':'none',
-                contentLength:content.length,
-                jsonLength:jsonString.length
-            });
-
-            const url=`${API_BASE_URL}/api/github`;
-            const response=await fetch(url,{
-                method:'PUT',
-                headers:{
-                    'Content-Type':'application/json',
-                    'Accept':'application/json'
-                },
-                body:JSON.stringify(body)
-            });
-
-            if(response.ok){
-                const data=await response.json();
-                setFileSha(data.content.sha);
-                console.log('✅ GitHub save successful. New SHA:',data.content.sha.substring(0,8));
-                showNotification('✅ Sauvegarde GitHub réussie');
-                // Force localStorage update
-                saveToLocalStorage();
-                return true;
-            }else{
-                const errorText=await response.text();
-                let errorDetails;
-                try{
-                    errorDetails=JSON.parse(errorText);
-                }catch(e){
-                    errorDetails={message:errorText};
-                }
-
-                // Handle server errors (500)
-                if(response.status===500){
-                    console.error('❌ ERREUR 500: Problème serveur Vercel:',errorDetails);
-                    if(errorDetails.message&&errorDetails.message.includes('GITHUB_TOKEN')){
-                        alert('❌ CONFIGURATION REQUISE\n\nLe token GitHub n\'est pas configuré dans Vercel.\n\nVeuillez:\n1. Aller sur votre dashboard Vercel\n2. Projet → Settings → Environment Variables\n3. Ajouter: GITHUB_TOKEN = votre_token_github\n4. Redéployer l\'application\n\nSauvegarde locale effectuée en backup.');
-                    }
-                    showNotification('❌ Erreur serveur - Voir console');
-                    return false;
-                }
-
-                // Handle SHA conflict (409)
-                if(response.status===409||errorDetails.details?.message?.includes('does not match')){
-                    console.warn('⚠️ SHA conflict detected');
-                    if(confirm('Le fichier a été modifié ailleurs. Voulez-vous écraser avec vos modifications locales ?\n\nOUI = Écraser les modifications distantes\nNON = Annuler et recharger la page')){
-                        // Reload data to get latest SHA, then retry
-                        await loadDataFromGitHub();
-                        // User will need to save again manually
-                        showNotification('⚠️ Données rechargées. Sauvegardez à nouveau.');
-                        return false;
-                    }else{
-                        showNotification('⚠️ Sauvegarde annulée - rechargez la page');
-                        return false;
-                    }
-                }
-
-                console.error('API save error:',{
-                    status:response.status,
-                    statusText:response.statusText,
-                    error:errorDetails
-                });
-                showNotification(`❌ Erreur ${response.status}: ${errorDetails.error||errorDetails.message||response.statusText}`);
-                return false;
-            }
-        }catch(e){
-            console.error('Erreur sauvegarde GitHub:',e);
-            showNotification(`❌ Erreur: ${e.message}`);
-            return false;
-        }finally{
-            setSyncing(false);
-        }
+        }catch(e){console.error('LocalStorage load error:',e);}
     };
 
     const autoSaveTimeoutRef=useRef(null);
@@ -3280,63 +3159,122 @@ const App=()=>{
         try{
             const data={categories,actions,tasks,timestamp:Date.now()};
             localStorage.setItem('marketing_tracker_backup',JSON.stringify(data));
-        }catch(e){
-            console.error('LocalStorage save error:',e);
-        }
+        }catch(e){console.error('LocalStorage save error:',e);}
+    };
+
+    // Unified save function (Supabase or GitHub)
+    const saveData=async()=>{
+        if(useSupabase){return await saveToSupabase();}
+        else if(githubToken){return await saveToGitHub();}
+        else{saveToLocalStorage();return true;}
     };
 
     // ╔════════════════════════════════════════════════════════════════════════════╗
-    // ║  🔄 AUTO-SYNC POLLING - Synchronisation multi-devices automatique         ║
+    // ║  🚀 DATA LOADING ON MOUNT                                                ║
     // ╚════════════════════════════════════════════════════════════════════════════╝
-    const checkForUpdates=async()=>{
-        // Ne pas checker si une modale est ouverte (pour ne pas perdre les modifications en cours)
-        if(selectedTask||selectedAction){
-            console.log('⏸️ Polling paused: modal open');
-            return;
-        }
-
-        // Ne pas checker si on est en train de sauvegarder
-        if(syncing||savingStatus==='saving'){
-            console.log('⏸️ Polling paused: saving in progress');
-            return;
-        }
-
-        try{
-            const url=`${API_BASE_URL}/api/github`;
-            const response=await fetch(url,{
-                method:'GET',
-                headers:{
-                    'Accept':'application/json',
-                    'Cache-Control':'no-cache'
-                }
-            });
-
-            if(response.ok){
-                const data=await response.json();
-
-                // Si le SHA a changé, recharger les données
-                if(data.sha&&fileSha&&data.sha!==fileSha){
-                    console.log('🔄 Modifications détectées sur GitHub, synchronisation...');
-                    showNotification('🔄 Synchronisation avec l\'équipe...');
-                    await loadDataFromGitHub();
-                    showNotification('✅ Synchronisé avec l\'équipe');
-                }
-            }
-        }catch(e){
-            console.log('⚠️ Polling error (silencieux):',e.message);
-            // On ne montre pas d'erreur à l'utilisateur pour ne pas le déranger
-        }
-    };
-
-    // Polling pour auto-sync multi-devices toutes les 15 secondes
     useEffect(()=>{
-        if(!githubToken||!dataLoaded)return;
+        console.log('🚀 Loading data...',useSupabase?'(Supabase)':'(GitHub fallback)');
+        setGithubToken(useSupabase?'supabase':'vercel-api');
 
-        console.log('🔄 Auto-sync polling activé (15s)');
-        const interval=setInterval(checkForUpdates,15000); // 15 secondes
+        const mountTimer=setTimeout(()=>{
+            console.log('✅ App mounted, activating interface');
+            setDataLoaded(true);
+        },100);
 
-        return()=>clearInterval(interval);
-    },[githubToken,dataLoaded,selectedTask,selectedAction,syncing,savingStatus,fileSha]);
+        const timeoutId=setTimeout(()=>{
+            console.warn('⏱️ Loading timeout, using default data');
+            loadFromLocalStorage();
+        },5000);
+
+        const loadData=async()=>{
+            try{
+                if(useSupabase){
+                    await loadFromSupabase();
+                }else{
+                    await loadDataFromGitHub();
+                }
+                clearTimeout(timeoutId);
+            }catch(err){
+                console.error('Error loading data:',err);
+                clearTimeout(timeoutId);
+                loadFromLocalStorage();
+            }
+        };
+        loadData();
+
+        return()=>{clearTimeout(mountTimer);clearTimeout(timeoutId);};
+    },[]);
+
+    // Persist SHA to localStorage (GitHub fallback)
+    useEffect(()=>{
+        if(fileSha){localStorage.setItem('github_file_sha',fileSha);}
+        else{localStorage.removeItem('github_file_sha');}
+    },[fileSha]);
+
+    // Auto-save with debounce (2s for GitHub, 1s for Supabase)
+    useEffect(()=>{
+        if(!dataLoaded)return;
+        console.log('🔄 Data modified, auto-save...');
+        setSavingStatus('saving');
+        if(autoSaveTimeoutRef.current){clearTimeout(autoSaveTimeoutRef.current);}
+        const delay=useSupabase?1000:2000;
+        autoSaveTimeoutRef.current=setTimeout(async()=>{
+            console.log('💾 Auto-save triggered...');
+            const success=await saveData();
+            setSavingStatus(success?'saved':'error');
+            if(!success)saveToLocalStorage();
+            setTimeout(()=>setSavingStatus(null),2000);
+        },delay);
+        return()=>{if(autoSaveTimeoutRef.current)clearTimeout(autoSaveTimeoutRef.current);};
+    },[categories,actions,tasks,dataLoaded,githubToken]);
+
+    // ╔════════════════════════════════════════════════════════════════════════════╗
+    // ║  🔄 REALTIME SYNC (Supabase) / POLLING (GitHub fallback)                  ║
+    // ╚════════════════════════════════════════════════════════════════════════════╝
+    useEffect(()=>{
+        if(!dataLoaded)return;
+
+        // SUPABASE REALTIME: Subscribe to changes
+        if(useSupabase){
+            console.log('🔄 Supabase Realtime subscription enabled');
+            const channel=supabaseClient.channel('app_data_changes')
+                .on('postgres_changes',{event:'UPDATE',schema:'public',table:'app_data',filter:'id=eq.default'},(payload)=>{
+                    // Don't sync if a modal is open or currently saving
+                    if(selectedTask||selectedAction||syncing||savingStatus==='saving')return;
+                    console.log('🔄 Realtime update received from Supabase');
+                    const d=payload.new;
+                    if(d.categories)setCategories(d.categories);
+                    if(d.actions)setActions(d.actions);
+                    if(d.tasks)setTasks(d.tasks);
+                    saveToLocalStorage();
+                    showNotification('✅ Synced with team');
+                })
+                .subscribe();
+            return()=>{supabaseClient.removeChannel(channel);};
+        }
+
+        // GITHUB FALLBACK: Polling every 15 seconds
+        if(githubToken){
+            console.log('🔄 GitHub polling enabled (15s)');
+            const checkForUpdates=async()=>{
+                if(selectedTask||selectedAction||syncing||savingStatus==='saving')return;
+                try{
+                    const url=`${API_BASE_URL}/api/github`;
+                    const response=await fetch(url,{method:'GET',headers:{'Accept':'application/json','Cache-Control':'no-cache'}});
+                    if(response.ok){
+                        const data=await response.json();
+                        if(data.sha&&fileSha&&data.sha!==fileSha){
+                            showNotification('🔄 Syncing with team...');
+                            await loadDataFromGitHub();
+                            showNotification('✅ Synced with team');
+                        }
+                    }
+                }catch(e){console.log('⚠️ Polling error (silent):',e.message);}
+            };
+            const interval=setInterval(checkForUpdates,15000);
+            return()=>clearInterval(interval);
+        }
+    },[dataLoaded,githubToken,selectedTask,selectedAction,syncing,savingStatus,fileSha]);
 
     // Auto-initialize order and createdAt properties for tasks that don't have them
     useEffect(()=>{
@@ -3366,7 +3304,7 @@ const App=()=>{
         }
     },[dataLoaded,actions.length]);
 
-    const handleSync=()=>saveToGitHub();
+    const handleSync=()=>saveData();
 
     const handleUpdateTask=(taskId,updates)=>{
         setTasks(prev=>prev.map(t=>{
@@ -3381,13 +3319,13 @@ const App=()=>{
             }
             return newTask;
         }));
-        showNotification('✅ Tâche mise à jour');
+        showNotification('✅ Task updated');
         // Auto-save via useEffect
     };
 
     const handleUpdateAction=(actionId,updates)=>{
         setActions(prev=>prev.map(a=>a.id===actionId?{...a,...updates}:a));
-        showNotification('✅ Action mise à jour');
+        showNotification('✅ Action updated');
         // Auto-save via useEffect
     };
 
@@ -3395,14 +3333,14 @@ const App=()=>{
         const action=actions.find(a=>a.id===actionId);
         const affectedTasks=tasks.filter(t=>t.actionId===actionId).length;
         const confirmMessage=affectedTasks>0
-            ?`Voulez-vous vraiment supprimer l'action "${action?.name}" ?\n\nCela supprimera également ${affectedTasks} tâche(s) associée(s).`
-            :`Voulez-vous vraiment supprimer l'action "${action?.name}" ?`;
+            ?`Are you sure you want to delete the action "${action?.name}" ?\n\nThis will also delete ${affectedTasks} associated task(s).`
+            :`Are you sure you want to delete the action "${action?.name}" ?`;
 
         if(!confirm(confirmMessage))return;
 
         setActions(prev=>prev.filter(a=>a.id!==actionId));
         setTasks(prev=>prev.filter(t=>t.actionId!==actionId));
-        showNotification('🗑️ Action supprimée');
+        showNotification('🗑️ Action deleted');
         // Auto-save via useEffect
     };
 
@@ -3419,10 +3357,10 @@ const App=()=>{
         }
         const maxOrder=Math.max(...tasks.map(t=>t.order||0),-1)+1;
         const now=new Date().toISOString();
-        const newTask={id:`t${Date.now()}`,actionId,month,startDate,title:'Nouvelle tâche',description:'',status:'todo',priority:'medium',dueDate,budget:0,channels:action?.tags||[],checklist:[],comments:[],attachments:[],order:maxOrder,createdAt:now};
+        const newTask={id:`t${Date.now()}`,actionId,month,startDate,title:'New task',description:'',status:'todo',priority:'medium',dueDate,budget:0,channels:action?.tags||[],checklist:[],comments:[],attachments:[],order:maxOrder,createdAt:now};
         setTasks(prev=>[...prev,newTask]);
         setSelectedTask(newTask);
-        showNotification('✅ Tâche créée');
+        showNotification('✅ Task created');
         // Auto-save via useEffect
     };
 
@@ -3430,7 +3368,7 @@ const App=()=>{
         const task=tasks.find(t=>t.id===taskId);
         if(!task)return;
 
-        // Find all tasks in the same column (month/status based on view)
+        // Endd all tasks in the same column (month/status based on view)
         const sameTasks=tasks.filter(t=>{
             if(task.month!==undefined)return t.month===task.month; // Month view
             return t.status===task.status; // Action view
@@ -3452,7 +3390,7 @@ const App=()=>{
             return t;
         }));
 
-        showNotification(direction==='up'?'⬆️ Tâche déplacée vers le haut':'⬇️ Tâche déplacée vers le bas');
+        showNotification(direction==='up'?'⬆️ Task moved up':'⬇️ Task moved down');
     };
 
     const handleReorderTask=(draggedId,targetId,position)=>{
@@ -3486,7 +3424,7 @@ const App=()=>{
             }
         }
 
-        // Find all tasks in the TARGET column (with updated dragged task if column changed)
+        // Endd all tasks in the TARGET column (with updated dragged task if column changed)
         const targetColumnTasks=tasks.filter(t=>{
             if(t.id===draggedId)return true; // Include dragged task
             if(targetTask.month!==undefined)return t.month===targetTask.month;
@@ -3512,14 +3450,14 @@ const App=()=>{
             return updated||t;
         }));
 
-        showNotification(isDifferentColumn?'✅ Tâche déplacée vers nouvelle colonne':'✅ Tâche réordonnée');
+        showNotification(isDifferentColumn?'✅ Task moved to new column':'✅ Task reordered');
     };
 
     const handleMoveAction=(actionId,direction)=>{
         const action=actions.find(a=>a.id===actionId);
         if(!action)return;
 
-        // Find all actions in the same category
+        // Endd all actions in the same category
         const sameActions=actions.filter(a=>a.categoryId===action.categoryId).sort((a,b)=>(a.order||0)-(b.order||0));
 
         const currentIndex=sameActions.findIndex(a=>a.id===actionId);
@@ -3538,7 +3476,7 @@ const App=()=>{
             return a;
         }));
 
-        showNotification(direction==='up'?'⬆️ Action déplacée vers le haut':'⬇️ Action déplacée vers le bas');
+        showNotification(direction==='up'?'⬆️ Action moved up':'⬇️ Action moved down');
     };
 
     const handleReorderAction=(draggedId,targetId,position)=>{
@@ -3570,7 +3508,7 @@ const App=()=>{
                     return updated||a;
                 }));
 
-                showNotification('✅ Action déplacée vers nouvelle catégorie');
+                showNotification('✅ Action moved to new category');
             }
         }else{
             // Intra-category move: reorder within same category
@@ -3595,13 +3533,13 @@ const App=()=>{
                 return updated||a;
             }));
 
-            showNotification('✅ Action réordonnée');
+            showNotification('✅ Action reordered');
         }
     };
 
     const handleDeleteTask=(taskId)=>{
         setTasks(prev=>prev.filter(t=>t.id!==taskId));
-        showNotification('🗑️ Tâche supprimée');
+        showNotification('🗑️ Task deleted');
         // Auto-save via useEffect
     };
 
@@ -3609,13 +3547,13 @@ const App=()=>{
 
     const handleUpdateCategory=(catId,updates)=>{
         setCategories(prev=>prev.map(c=>c.id===catId?{...c,...updates}:c));
-        showNotification('✅ Catégorie mise à jour');
+        showNotification('✅ Category updated');
         // Auto-save via useEffect
     };
 
     const handleAddCategory=(newCat)=>{
         setCategories(prev=>[...prev,newCat]);
-        showNotification('✅ Catégorie créée');
+        showNotification('✅ Category created');
         // Auto-save via useEffect
     };
 
@@ -3623,26 +3561,26 @@ const App=()=>{
         const category=categories.find(c=>c.id===catId);
         const affectedActions=actions.filter(a=>a.categoryId===catId).length;
         const confirmMessage=affectedActions>0
-            ?`Voulez-vous vraiment supprimer la catégorie "${category?.name}" ?\n\nCela supprimera également ${affectedActions} action(s) associée(s).`
-            :`Voulez-vous vraiment supprimer la catégorie "${category?.name}" ?`;
+            ?`Are you sure you want to delete the category "${category?.name}" ?\n\nThis will also delete ${affectedActions} associated action(s).`
+            :`Are you sure you want to delete the category "${category?.name}" ?`;
 
         if(!confirm(confirmMessage))return;
 
         setCategories(prev=>prev.filter(c=>c.id!==catId));
         setActions(prev=>prev.filter(a=>a.categoryId!==catId));
-        showNotification('🗑️ Catégorie supprimée');
+        showNotification('🗑️ Category deleted');
         // Auto-save via useEffect
     };
 
     const handleReorderCategories=(reorderedCategories)=>{
         setCategories(reorderedCategories);
-        showNotification('✅ Ordre des catégories mis à jour');
+        showNotification('✅ Category order updated');
         // Auto-save via useEffect
     };
 
     const handleAddAction=(newAction)=>{
         setActions(prev=>[...prev,newAction]);
-        showNotification('✅ Action créée');
+        showNotification('✅ Action created');
         // Auto-save via useEffect
     };
 
@@ -3650,7 +3588,7 @@ const App=()=>{
         const maxOrder=Math.max(...tasks.map(t=>t.order||0),-1)+1;
         const now=new Date().toISOString();
         setTasks(prev=>[...prev,{...newTask,order:maxOrder,createdAt:newTask.createdAt||now}]);
-        showNotification('✅ Tâche créée');
+        showNotification('✅ Task created');
         // Auto-save via useEffect
     };
 
@@ -3665,11 +3603,11 @@ const App=()=>{
         a.download=`marketing-tracker-${new Date().toISOString().split('T')[0]}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        showNotification('📥 Export JSON téléchargé');
+        showNotification('📥 JSON export downloaded');
     };
 
     const exportToCSV=()=>{
-        const headers=['ID','Titre','Action','Catégorie','Statut','Priorité','Date début','Date fin','Budget','Channels','Description'];
+        const headers=['ID','Title','Action','Category','Status','Priority','Start date','End date','Budget','Channels','Description'];
         const rows=tasks.map(t=>{
             const action=actions.find(a=>a.id===t.actionId);
             const category=categories.find(c=>c.id===action?.categoryId);
@@ -3695,14 +3633,14 @@ const App=()=>{
         a.download=`marketing-tracker-${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         URL.revokeObjectURL(url);
-        showNotification('📊 Export CSV téléchargé');
+        showNotification('📊 CSV export downloaded');
     };
 
     const totalBudget=tasks.reduce((s,t)=>s+(t.budget||0),0);
     const completedCount=tasks.filter(t=>t.status==='completed').length;
     const activeFilterCount=[filters.status,filters.category,filters.priority,filters.channel,filters.country].reduce((c,arr)=>c+(Array.isArray(arr)?arr.length:0),0)+(filters.search?1:0);
 
-    if(!dataLoaded)return(<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Chargement des données...</p></div></div>);
+    if(!dataLoaded)return(<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Loading data...</p></div></div>);
 
     return(
         <AppContext.Provider value={{}}>
@@ -3711,11 +3649,11 @@ const App=()=>{
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
                     <div className="toolbar">
                         <button className={`filter-btn ${showFilterSidebar?'active':''}`} onClick={()=>setShowFilterSidebar(!showFilterSidebar)}>
-                            <Icon.Filter/>Filtres
+                            <Icon.Filter/>Filters
                             {activeFilterCount>0&&<span className="filter-count">{activeFilterCount}</span>}
                         </button>
                         <div className="stats-pills">
-                            <span className="stat-pill"><strong>{tasks.length}</strong> tâches</span>
+                            <span className="stat-pill"><strong>{tasks.length}</strong> tasks</span>
                             <span className="stat-pill"><strong>{(totalBudget/1000).toFixed(0)}k€</strong> budget</span>
                         </div>
                         <div className="toolbar-spacer"/>
@@ -3728,38 +3666,38 @@ const App=()=>{
                         </div>
                         <div className="new-btn-container" ref={createDropdownRef}>
                             <button className={`v11-btn-primary ${showCreateDropdown?'open':''}`} onClick={()=>{setShowExportDropdown(false);setShowCreateDropdown(!showCreateDropdown);}}>
-                                <Icon.Plus size={13}/>Créer
+                                <Icon.Plus size={13}/>Create
                                 <svg className="chevron" width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
                             </button>
                             {showCreateDropdown&&<div className="dropdown-menu open">
                                 <button className="dropdown-item default" onClick={()=>{setShowCreateDropdown(false);handleCreateNewTask();}}>
                                     <div className="dropdown-item-icon task"><Icon.Check/></div>
-                                    <div className="dropdown-item-content"><div className="dropdown-item-title">Nouvelle tâche</div><div className="dropdown-item-desc">Ajouter une tâche à une action</div></div>
+                                    <div className="dropdown-item-content"><div className="dropdown-item-title">New task</div><div className="dropdown-item-desc">Add a task to an action</div></div>
                                     <span className="dropdown-item-shortcut">N</span>
                                 </button>
                                 <button className="dropdown-item" onClick={()=>{setShowCreateDropdown(false);setShowNewActionModal(true);}}>
                                     <div className="dropdown-item-icon action"><Icon.List/></div>
-                                    <div className="dropdown-item-content"><div className="dropdown-item-title">Nouvelle action</div><div className="dropdown-item-desc">Créer un groupe de tâches</div></div>
+                                    <div className="dropdown-item-content"><div className="dropdown-item-title">New action</div><div className="dropdown-item-desc">Create a group of tasks</div></div>
                                     <span className="dropdown-item-shortcut">⇧N</span>
                                 </button>
                                 <div className="dropdown-divider"/>
                                 <button className="dropdown-item" onClick={()=>{setShowCreateDropdown(false);setShowCategoriesModal(true);}}>
                                     <div className="dropdown-item-icon category"><Icon.Folder/></div>
-                                    <div className="dropdown-item-content"><div className="dropdown-item-title">Gérer les catégories</div><div className="dropdown-item-desc">Créer ou réorganiser les groupes</div></div>
+                                    <div className="dropdown-item-content"><div className="dropdown-item-title">Manage categories</div><div className="dropdown-item-desc">Create or reorganize groups</div></div>
                                 </button>
                             </div>}
                         </div>
                     </div>
                     {activeFilterCount>0&&(
                         <div className="active-filters">
-                            <span className="active-filters-label">Filtres:</span>
+                            <span className="active-filters-label">Filters:</span>
                             {filters.search&&<div className="filter-chip">"{filters.search}"<button onClick={()=>setFilters({...filters,search:''})}>✕</button></div>}
                             {filters.status.map(s=>{const st=CONFIG.STATUSES.find(x=>x.id===s);return <div key={s} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><StatusIcon statusId={s} size={10}/> {st?.name}<button onClick={()=>setFilters({...filters,status:filters.status.filter(x=>x!==s)})}>✕</button></div>;})}
                             {filters.category.map(c=>{const cat=categories.find(x=>x.id===c);return <div key={c} className="filter-chip">{cat?.name}<button onClick={()=>setFilters({...filters,category:filters.category.filter(x=>x!==c)})}>✕</button></div>;})}
                             {filters.priority.map(p=>{const pr=CONFIG.PRIORITIES.find(x=>x.id===p);return <div key={p} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:pr?.color,flexShrink:0}}/> {pr?.name}<button onClick={()=>setFilters({...filters,priority:filters.priority.filter(x=>x!==p)})}>✕</button></div>;})}
                             {(filters.channel||[]).map(c=>{const ch=CONFIG.CHANNELS.find(x=>x.id===c);return <div key={c} className="filter-chip">{ch?.name}<button onClick={()=>setFilters({...filters,channel:filters.channel.filter(x=>x!==c)})}>✕</button></div>;})}
                             {(filters.country||[]).map(c=>{const co=allCountries.find(x=>x.id===c);return <div key={c} className="filter-chip">{co?.flag} {co?.name}<button onClick={()=>setFilters({...filters,country:filters.country.filter(x=>x!==c)})}>✕</button></div>;})}
-                            <span className="clear-filters" onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})}>Tout effacer</span>
+                            <span className="clear-filters" onClick={()=>setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})}>Clear all</span>
                         </div>
                     )}
                     {currentView==='kanban'&&<KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear}/>}
@@ -3768,7 +3706,7 @@ const App=()=>{
                 </main>
                 {selectedTask&&<TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a=>a.id===selectedTask.actionId)} actions={actions} onClose={()=>setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction?()=>{setSelectedTask(null);setSelectedAction(actions.find(a=>a.id===selectedTask.actionId));}:null} allCountries={allCountries} onAddCustomCountry={addCustomCountry}/>}
                 {selectedAction&&!selectedTask&&<ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={()=>setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t=>{setSelectedTask(t);}} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
-                {/* GitHubSettingsModal supprimé - Token intégré directement dans GITHUB_CONFIG */}
+                {/* GitHubSettingsModal removed - Token integrated directly in GITHUB_CONFIG */}
                 {showCategoriesModal&&<CategoriesManagementModal categories={categories} onClose={()=>setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories} />}
                 {showNewActionModal&&<NewActionModal categories={categories} onClose={()=>setShowNewActionModal(false)} onAdd={handleAddAction}/>}
                 {showNewTaskModal&&<NewTaskModal actions={actions} categories={categories} onClose={()=>setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={()=>{setShowNewTaskModal(false);setShowNewActionModal(true);}}/>}
@@ -3780,31 +3718,31 @@ const App=()=>{
 };
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
-console.log('✅ Application React chargée avec succès');
+console.log('✅ React application loaded successfully');
 </script>
 <script>
-// Fallback: si après 3 secondes le message de chargement est toujours là, afficher une erreur
+// Fallback: if after 3 seconds the loading message is still there, show an error
 setTimeout(() => {
     const root = document.getElementById('root');
-    if (root && root.innerHTML.includes('Chargement de l\'application...')) {
+    if (root && root.innerHTML.includes('Loading application...')) {
         root.innerHTML = `
             <div class="min-h-screen flex items-center justify-center" style="background:var(--bg-page)">
                 <div class="text-center max-w-md p-6" style="color:var(--text-primary)">
                     <div class="text-6xl mb-4">⚠️</div>
-                    <h1 class="text-2xl font-bold mb-4">Erreur de chargement</h1>
-                    <p class="mb-6" style="color:var(--text-muted)">L'application n'a pas pu se charger correctement.</p>
+                    <h1 class="text-2xl font-bold mb-4">Loading Error</h1>
+                    <p class="mb-6" style="color:var(--text-muted)">The application could not load correctly.</p>
                     <div class="p-4 rounded-lg text-left text-sm mb-4" style="background:var(--bg-secondary)">
-                        <p class="mb-2">Causes possibles:</p>
+                        <p class="mb-2">Possible causes:</p>
                         <ul class="list-disc list-inside space-y-1" style="color:var(--text-muted)">
-                            <li>Les CDN (React, Babel) ne sont pas accessibles</li>
-                            <li>Une erreur JavaScript bloque l'exécution</li>
-                            <li>Le navigateur bloque le chargement</li>
+                            <li>CDNs (React, Babel) are not accessible</li>
+                            <li>A JavaScript error is blocking execution</li>
+                            <li>The browser is blocking loading</li>
                         </ul>
                     </div>
                     <button onclick="location.reload()" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold">
-                        🔄 Recharger la page
+                        🔄 Reload page
                     </button>
-                    <p class="text-xs mt-4" style="color:var(--text-muted)">Ouvrez la console (F12) pour plus d'informations</p>
+                    <p class="text-xs mt-4" style="color:var(--text-muted)">Open the console (F12) for more information</p>
                 </div>
             </div>
         `;
