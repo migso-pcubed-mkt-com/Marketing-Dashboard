@@ -1182,6 +1182,26 @@
       "attachments": [],
       "order": 44,
       "createdAt": "2026-02-25T11:27:35.960Z"
+    },
+    {
+      "id": "t1772018870637",
+      "actionId": "a4",
+      "month": 6,
+      "startDate": "2026-07-01",
+      "title": "New task",
+      "description": "",
+      "status": "todo",
+      "priority": "medium",
+      "dueDate": "2026-08-01",
+      "budget": 0,
+      "channels": [
+        "lads"
+      ],
+      "checklist": [],
+      "comments": [],
+      "attachments": [],
+      "order": 45,
+      "createdAt": "2026-02-25T11:27:50.637Z"
     }
   ]
 }
