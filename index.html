@@ -52,7 +52,7 @@
         .resize-handle-left{left:0}
         .resize-handle-right{right:0}
         .drag-ghost{position:fixed;pointer-events:none;z-index:10000;opacity:0.85;box-shadow:0 4px 12px rgba(0,0,0,0.3);border-radius:5px;padding:0 8px;color:white;font-size:10px;font-weight:500;height:26px;display:flex;align-items:center}
-        .drag-preview-line{position:absolute;height:26px;opacity:0.55;top:8px;border-radius:5px;z-index:15;pointer-events:none;transition:left 0.08s ease-out,width 0.08s ease-out}
+        .drag-preview-line{position:absolute;height:26px;opacity:0.55;top:8px;border-radius:5px;z-index:15;pointer-events:none;transition:left 0.08s ease-out,width 0.08s ease-out,top 0.1s ease-out}
         @keyframes pulse-glow{0%,100%{opacity:0.9;box-shadow:0 0 12px rgba(99,102,241,0.6)}50%{opacity:1;box-shadow:0 0 20px rgba(99,102,241,0.8)}}
         .action-row-drag-over{background:rgba(99,102,241,0.04)!important;position:relative}
         .drop-zone-indicator{position:absolute;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--accent),var(--success));border-radius:2px;box-shadow:0 0 12px rgba(99,102,241,0.7),0 0 24px rgba(99,102,241,0.3);z-index:25;pointer-events:none;animation:pulse-drop 0.8s ease-in-out infinite}
@@ -2101,8 +2101,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             for(let i=0;i<lanes.length;i++){
                 let canFit=true;
                 for(const existingTask of lanes[i]){
-                    // Add small gap (2px) to prevent visual overlap
-                    if(taskStart<existingTask.end+2&&taskEnd>existingTask.start-2){
+                    // Add gap (4px each side) to prevent visual overlap with rounded corners
+                    if(taskStart<existingTask.end+4&&taskEnd>existingTask.start-4){
                         canFit=false;
                         break;
                     }
@@ -2697,7 +2697,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     const isDragOverAction=dragOverAction?.actionId===action.id;
                                     const dragOverActionClass=isDragOverAction?(dragOverAction.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
                                     const{swimLanes,maxLanes}=calculateSwimLanes(actionTasks);
-                                    const rowHeight=Math.max(48,maxLanes*34+16);
+                                    const dragPreviewInRow=dragPreview&&dragPreview.actionId===action.id;
+                                    const rowHeight=Math.max(48,maxLanes*34+16,dragPreviewInRow?(dragPreview.top||8)+26+16:0);
                                     return(
                                     <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex group relative ${dragOverActionClass}`} style={{borderBottom:'1px solid var(--border-light)'}}>
                                         <div className="w-[250px] flex-shrink-0 relative sticky left-0 z-30 timeline-action-sidebar" style={{background:'var(--bg-primary)',borderRight:'1px solid var(--border)',cursor:onReorderAction?'grab':'pointer'}} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}}>
@@ -2705,7 +2706,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                             <div className="timeline-action-count">{actionTasks.length} tasks</div>
                                             {onReorderAction&&<div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-50 transition-opacity text-xs" style={{color:'var(--text-muted)'}} title="Drag to reorder">⋮⋮</div>}
                                         </div>
-                                        <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:`${rowHeight}px`,zIndex:20,overflow:'hidden'}} onMouseDown={(e)=>handleCreateTaskStart(e,action)} onDragOver={(e)=>{handleActionRowDragOver(e,action);}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleActionRowDrop(e,action);}}}>
+                                        <div className={`flex-1 relative ${dragOverActionRow===action.id?'action-row-drag-over':''}`} style={{height:`${rowHeight}px`,zIndex:20,overflow:'hidden',transition:'height 0.15s ease-out'}} onMouseDown={(e)=>handleCreateTaskStart(e,action)} onDragOver={(e)=>{handleActionRowDragOver(e,action);}} onDragLeave={(e)=>handleActionRowDragLeave(e,action)} onDrop={(e)=>{const taskId=e.dataTransfer.getData('taskId');if(taskId){e.stopPropagation();handleActionRowDrop(e,action);}}}>
                                             <div className="absolute inset-0 flex pointer-events-none">
                                                 {headers.map((_,i)=>(
                                                     <div key={i} className={`border-l border-[var(--border)]`} style={{width:colWidth}}/>
