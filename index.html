@@ -3154,6 +3154,7 @@ const App=()=>{
     };
 
     const autoSaveTimeoutRef=useRef(null);
+    const isReceivingRealtimeRef=useRef(false);
 
     const saveToLocalStorage=()=>{
         try{
@@ -3213,7 +3214,7 @@ const App=()=>{
 
     // Auto-save with debounce (2s for GitHub, 1s for Supabase)
     useEffect(()=>{
-        if(!dataLoaded)return;
+        if(!dataLoaded||isReceivingRealtimeRef.current)return;
         console.log('🔄 Data modified, auto-save...');
         setSavingStatus('saving');
         if(autoSaveTimeoutRef.current){clearTimeout(autoSaveTimeoutRef.current);}
@@ -3242,12 +3243,14 @@ const App=()=>{
                     // Don't sync if a modal is open or currently saving
                     if(selectedTask||selectedAction||syncing||savingStatus==='saving')return;
                     console.log('🔄 Realtime update received from Supabase');
+                    isReceivingRealtimeRef.current=true;
                     const d=payload.new;
                     if(d.categories)setCategories(d.categories);
                     if(d.actions)setActions(d.actions);
                     if(d.tasks)setTasks(d.tasks);
                     saveToLocalStorage();
                     showNotification('✅ Synced with team');
+                    setTimeout(()=>{isReceivingRealtimeRef.current=false;},2000);
                 })
                 .subscribe();
             return()=>{supabaseClient.removeChannel(channel);};
