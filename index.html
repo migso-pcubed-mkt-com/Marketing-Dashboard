@@ -2490,21 +2490,15 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const previewLeft=dateToPixel(snapDate);
                 const previewWidth=Math.max(dateToPixel(dayAfterEnd)-previewLeft,20);
 
-                // Calculate swim lane — find free lane among RENDERED task positions (not recalculated)
+                // Simulate the exact lane calculation that will happen after drop
                 const actionTasksAll=filteredTasks.filter(t=>t.actionId===targetAction.id);
-                const renderedLanes=calculateSwimLanes(actionTasksAll);
-                let previewLane=0;
-                for(let lane=0;lane<20;lane++){
-                    let canFit=true;
-                    for(const t of actionTasksAll){
-                        if(t.id===task.id)continue;
-                        if((renderedLanes.swimLanes[t.id]||0)!==lane)continue;
-                        const tPos=getTaskPosition(t);
-                        if(!tPos)continue;
-                        if(previewLeft<tPos.left+tPos.width&&previewLeft+previewWidth>tPos.left){canFit=false;break;}
-                    }
-                    if(canFit){previewLane=lane;break;}
+                const fmtD=(d)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+                const simulatedTasks=actionTasksAll.map(t=>t.id===task.id?{...t,startDate:fmtD(snapDate),dueDate:fmtD(endDate)}:t);
+                if(!simulatedTasks.find(t=>t.id===task.id)){
+                    simulatedTasks.push({...task,startDate:fmtD(snapDate),dueDate:fmtD(endDate),actionId:targetAction.id});
                 }
+                const simulatedLanes=calculateSwimLanes(simulatedTasks);
+                const previewLane=simulatedLanes.swimLanes[task.id]||0;
                 const previewTop=8+previewLane*34;
 
                 // Get task bar color for preview
