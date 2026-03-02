@@ -290,8 +290,8 @@ const{useState,useEffect,useRef,createContext,useContext,useCallback,useMemo}=Re
 // ║  🗄️ SUPABASE CONFIGURATION                                               ║
 // ╚════════════════════════════════════════════════════════════════════════════╝
 // Replace these values with your Supabase project credentials
-const SUPABASE_URL='https://YOUR_PROJECT_ID.supabase.co';
-const SUPABASE_ANON_KEY='YOUR_ANON_KEY';
+const SUPABASE_URL='https://egdeyycjyjccajvshwez.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnZGV5eWNqeWpjY2FqdnNod2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDQxMzEsImV4cCI6MjA4ODAyMDEzMX0.VNiTMu1tfzAQVyROumB14AKcnk6GKSUnPM2y6_SsMjI';
 
 // Initialize Supabase client (null if not configured)
 let supabaseClient=null;
@@ -757,7 +757,7 @@ const Header=({currentView,setCurrentView,onSync,syncing,githubConnected,savingS
     return(
         <header className="v11-header" style={{background:'var(--bg-primary)',borderBottom:'1px solid var(--border)'}}>
             <div className="v11-header-inner" style={{maxWidth:1600,margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'space-between',height:'100%',gap:16,padding:'0 24px'}}>
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2.5" style={{flex:1}}>
                     <div className="v11-logo">M</div>
                     <div><span className="font-semibold text-sm" style={{color:'var(--text-primary)'}}>Marketing Tracker</span><span className="block text-xs" style={{color:'var(--text-muted)',fontFamily:'var(--font-mono)'}}>MIGSO-PCUBED - V3.0</span></div>
                 </div>
@@ -766,7 +766,7 @@ const Header=({currentView,setCurrentView,onSync,syncing,githubConnected,savingS
                         <button key={id} onClick={()=>setCurrentView(id)} className={`v11-view-tab ${currentView===id?'active':''}`}><I size={14}/><span>{label}</span></button>
                     ))}
                 </nav>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5" style={{flex:1,justifyContent:'flex-end'}}>
                     {savingStatus&&<span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{background:savingStatus==='error'?'var(--error-light)':'var(--accent-light)',color:savingStatus==='error'?'var(--error)':'var(--accent)'}}>{savingStatus==='saving'?'Saving...':savingStatus==='error'?'Error':'Saved'}</span>}
                     <button onClick={onSync} disabled={syncing} className={`v11-icon-btn ${syncing?'animate-spin':''}`} style={{position:'relative'}} title="Sync data">
                         <Icon.Refresh/>
@@ -3154,6 +3154,7 @@ const App=()=>{
     };
 
     const autoSaveTimeoutRef=useRef(null);
+    const isReceivingRealtimeRef=useRef(false);
 
     const saveToLocalStorage=()=>{
         try{
@@ -3213,7 +3214,7 @@ const App=()=>{
 
     // Auto-save with debounce (2s for GitHub, 1s for Supabase)
     useEffect(()=>{
-        if(!dataLoaded)return;
+        if(!dataLoaded||isReceivingRealtimeRef.current)return;
         console.log('🔄 Data modified, auto-save...');
         setSavingStatus('saving');
         if(autoSaveTimeoutRef.current){clearTimeout(autoSaveTimeoutRef.current);}
@@ -3242,12 +3243,14 @@ const App=()=>{
                     // Don't sync if a modal is open or currently saving
                     if(selectedTask||selectedAction||syncing||savingStatus==='saving')return;
                     console.log('🔄 Realtime update received from Supabase');
+                    isReceivingRealtimeRef.current=true;
                     const d=payload.new;
                     if(d.categories)setCategories(d.categories);
                     if(d.actions)setActions(d.actions);
                     if(d.tasks)setTasks(d.tasks);
                     saveToLocalStorage();
                     showNotification('✅ Synced with team');
+                    setTimeout(()=>{isReceivingRealtimeRef.current=false;},2000);
                 })
                 .subscribe();
             return()=>{supabaseClient.removeChannel(channel);};
