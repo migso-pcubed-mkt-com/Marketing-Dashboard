@@ -2734,11 +2734,26 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                             {dragPreview&&dragPreview.actionId===action.id&&(
                                                 <div className="drag-preview-line" style={{left:dragPreview.left,width:dragPreview.width,top:dragPreview.top||8,background:dragPreview.color||'var(--accent)'}}/>
                                             )}
-                                            {creatingTask&&creatingTask.actionId===action.id&&(
-                                                <div className="absolute rounded-lg border-2 border-dashed border-secondary bg-secondary/20 flex items-center justify-center text-secondary text-xs font-medium pointer-events-none" style={{left:Math.min(creatingTask.startX,creatingTask.currentX),width:Math.abs(creatingTask.currentX-creatingTask.startX)||colWidth,top:8,height:26}}>
+                                            {creatingTask&&creatingTask.actionId===action.id&&(()=>{
+                                                const previewLeft=Math.min(creatingTask.startX,creatingTask.currentX);
+                                                const previewWidth=Math.abs(creatingTask.currentX-creatingTask.startX)||colWidth;
+                                                const previewRight=previewLeft+previewWidth;
+                                                // Find first swim lane that doesn't overlap with existing tasks
+                                                const occupiedLanes=new Set();
+                                                actionTasks.forEach(t=>{
+                                                    const p=getTaskPosition(t);
+                                                    if(!p)return;
+                                                    if(previewLeft<p.left+p.width&&previewRight>p.left){
+                                                        occupiedLanes.add(swimLanes[t.id]||0);
+                                                    }
+                                                });
+                                                let freeLane=0;
+                                                while(occupiedLanes.has(freeLane))freeLane++;
+                                                return(
+                                                <div className="absolute rounded-lg border-2 border-dashed border-secondary bg-secondary/20 flex items-center justify-center text-secondary text-xs font-medium pointer-events-none" style={{left:previewLeft,width:previewWidth,top:8+freeLane*34,height:26}}>
                                                     <span>New task</span>
-                                                </div>
-                                            )}
+                                                </div>);
+                                            })()}
                                             {actionTasks.sort((a,b)=>(a.order||0)-(b.order||0)).map(task=>{
                                                 const pos=getTaskPosition(task);
                                                 if(!pos)return null;
