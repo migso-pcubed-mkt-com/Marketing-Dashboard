@@ -37,6 +37,7 @@
         .drop-indicator-after{border-bottom:4px solid var(--accent)!important;box-shadow:0 2px 8px rgba(99,102,241,0.4)!important}
         .timeline-bar{position:absolute;cursor:grab;transition:opacity .2s,transform .1s;user-select:none;pointer-events:auto;padding:0 8px}
         .timeline-bar.dragging{opacity:0.15!important;cursor:grabbing!important;z-index:1!important;transform:none!important;box-shadow:none!important}
+        body.task-dragging .timeline-bar:not(.dragging){pointer-events:none!important}
         .timeline-bar:hover{cursor:grab;box-shadow:0 4px 12px rgba(0,0,0,0.2)}
         .timeline-bar:active{cursor:grabbing}
         .timeline-bar:hover .resize-handle{pointer-events:auto;opacity:1}
@@ -1841,10 +1842,12 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         setDragging({taskId:task.id,task:task,startX:e.clientX,startY:e.clientY,originalLeft:pos?.left||0,grabOffset:grabOffset||0});
         if(isUserInteractingRef)isUserInteractingRef.current=true;
         e.currentTarget.classList.add('dragging');
+        document.body.classList.add('task-dragging');
     };
 
     const handleTaskDragEnd=(e)=>{
         e.currentTarget.classList.remove('dragging');
+        document.body.classList.remove('task-dragging');
         if(isUserInteractingRef)isUserInteractingRef.current=false;
         setDragging(null);
         setDragOverTask(null);
@@ -2490,15 +2493,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const previewLeft=dateToPixel(snapDate);
                 const previewWidth=Math.max(dateToPixel(dayAfterEnd)-previewLeft,20);
 
-                // Simulate the exact lane calculation that will happen after drop
-                const actionTasksAll=filteredTasks.filter(t=>t.actionId===targetAction.id);
-                const fmtD=(d)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-                const simulatedTasks=actionTasksAll.map(t=>t.id===task.id?{...t,startDate:fmtD(snapDate),dueDate:fmtD(endDate)}:t);
-                if(!simulatedTasks.find(t=>t.id===task.id)){
-                    simulatedTasks.push({...task,startDate:fmtD(snapDate),dueDate:fmtD(endDate),actionId:targetAction.id});
-                }
-                const simulatedLanes=calculateSwimLanes(simulatedTasks);
-                const previewLane=simulatedLanes.swimLanes[task.id]||0;
+                // Use mouse Y position to determine preview lane directly
+                // This gives the user direct, intuitive control instead of unpredictable algorithm jumps
+                const mouseY=e.clientY-rect.top;
+                const previewLane=Math.max(0,Math.floor((mouseY-8)/34));
                 const previewTop=8+previewLane*34;
 
                 // Get task bar color for preview
