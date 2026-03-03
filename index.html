@@ -2089,14 +2089,17 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     };
 
     // Calculate swim lanes for overlapping tasks (optimized for compactness)
-    const calculateSwimLanes=(tasks)=>{
+    // resizingInfo: optional {taskId, originalStart, originalEnd} — freezes resizing task in its original lane
+    const calculateSwimLanes=(tasks,resizingInfo)=>{
         const swimLanes={};
         const lanes=[];
 
-        // Sort tasks by start date
+        // Sort tasks by start date (primary), order as tiebreaker for same-day tasks
         const sortedTasks=[...tasks].sort((a,b)=>{
             if(!a.startDate||!b.startDate)return 0;
-            return new Date(a.startDate)-new Date(b.startDate);
+            const dateDiff=new Date(a.startDate)-new Date(b.startDate);
+            if(dateDiff!==0)return dateDiff;
+            return(a.order||0)-(b.order||0);
         });
 
         sortedTasks.forEach(task=>{
@@ -2105,7 +2108,11 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 return;
             }
 
-            const pos=getTaskPosition(task);
+            // For resizing task, use original (pre-resize) dates for lane calculation
+            // so the task doesn't jump swim lanes during resize — only recalculates on mouseup
+            const pos=(resizingInfo&&task.id===resizingInfo.taskId)
+                ?getTaskPosition({...task,startDate:resizingInfo.originalStart,dueDate:resizingInfo.originalEnd})
+                :getTaskPosition(task);
             if(!pos){
                 swimLanes[task.id]=0;
                 return;
@@ -2502,10 +2509,12 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const previewLeft=dateToPixel(snapDate);
                 const previewWidth=Math.max(dateToPixel(dayAfterEnd)-previewLeft,20);
 
-                // Use mouse Y position to determine preview lane directly
-                // This gives the user direct, intuitive control instead of unpredictable algorithm jumps
+                // Use mouse Y position to determine preview lane, capped to existing lanes
+                // This prevents rows from expanding during drag
+                const targetTasks=tasks.filter(t=>t.actionId===targetAction.id);
+                const{maxLanes:actionMaxLanes}=calculateSwimLanes(targetTasks,resizing);
                 const mouseY=e.clientY-rect.top;
-                const previewLane=Math.max(0,Math.floor((mouseY-8)/34));
+                const previewLane=Math.min(Math.max(0,Math.floor((mouseY-8)/34)),Math.max(actionMaxLanes-1,0));
                 const previewTop=8+previewLane*34;
 
                 // Get task bar color for preview
@@ -2703,9 +2712,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                 {catActions.sort((a,b)=>(a.action.order||0)-(b.action.order||0)).map(({action,tasks:actionTasks})=>{
                                     const isDragOverAction=dragOverAction?.actionId===action.id;
                                     const dragOverActionClass=isDragOverAction?(dragOverAction.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
-                                    const{swimLanes,maxLanes}=calculateSwimLanes(actionTasks);
-                                    const dragPreviewInRow=dragPreview&&dragPreview.actionId===action.id;
-                                    const rowHeight=Math.max(48,maxLanes*34+16,dragPreviewInRow?(dragPreview.top||8)+26+16:0);
+                                    const{swimLanes,maxLanes}=calculateSwimLanes(actionTasks,resizing);
+                                    const rowHeight=Math.max(48,maxLanes*34+16);
                                     return(
                                     <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex group relative ${dragOverActionClass}`} style={{borderBottom:'1px solid var(--border-light)'}}>
                                         <div className="w-[250px] flex-shrink-0 relative sticky left-0 z-30 timeline-action-sidebar" style={{background:'var(--bg-primary)',borderRight:'1px solid var(--border)',cursor:onReorderAction?'grab':'pointer'}} draggable={!!onReorderAction} onDragStart={(e)=>{if(onReorderAction){e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('actionId',action.id);e.dataTransfer.setData('text/plain','action:'+action.id);e.currentTarget.classList.add('dragging');}}} onDragEnd={(e)=>{e.currentTarget.classList.remove('dragging');setDragOverAction(null);}} onClick={(e)=>{if(!e.defaultPrevented&&onOpenAction){onOpenAction(action);}}}>
