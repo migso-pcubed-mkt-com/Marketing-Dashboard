@@ -2095,9 +2095,13 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const lanes=[];
 
         // Sort tasks by start date (primary), order as tiebreaker for same-day tasks
+        // For the resizing task, use original dates for sorting too — otherwise the changed
+        // startDate shifts sort order which cascades into different lane assignments
         const sortedTasks=[...tasks].sort((a,b)=>{
-            if(!a.startDate||!b.startDate)return 0;
-            const dateDiff=new Date(a.startDate)-new Date(b.startDate);
+            const aStart=(resizingInfo&&a.id===resizingInfo.taskId)?resizingInfo.originalStart:a.startDate;
+            const bStart=(resizingInfo&&b.id===resizingInfo.taskId)?resizingInfo.originalStart:b.startDate;
+            if(!aStart||!bStart)return 0;
+            const dateDiff=new Date(aStart)-new Date(bStart);
             if(dateDiff!==0)return dateDiff;
             return(a.order||0)-(b.order||0);
         });
