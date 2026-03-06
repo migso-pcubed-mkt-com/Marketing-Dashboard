@@ -201,14 +201,10 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 }else if(viewMode==='country'){
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
-                                        const task=tasks.find(t=>t.id===taskId);
-                                        if(task){
-                                            const currentCountries=task.countries||[];
-                                            if(col.key==='_unassigned'){
-                                                onUpdateTask(taskId,{countries:[]});
-                                            }else if(!currentCountries.includes(col.key)){
-                                                onUpdateTask(taskId,{countries:[...currentCountries,col.key]});
-                                            }
+                                        if(col.key==='_unassigned'){
+                                            onUpdateTask(taskId,{countries:[]});
+                                        }else{
+                                            onUpdateTask(taskId,{countries:[col.key]});
                                         }
                                     }
                                 }
