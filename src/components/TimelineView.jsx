@@ -26,6 +26,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const weekBase=new Date(selectedYear,0,1-(jan1Dow===0?6:jan1Dow-1));
     const now=new Date();const currentWeek=Math.floor(Math.round((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()))/86400000)/7);
 
+    const colWidth=zoom==='quarter'?280:zoom==='week'?40:zoom==='day'?60:100;
+
     // Calculate the date at the center of the current viewport
     const getCenterDate=useCallback(()=>{
         if(!timelineRef.current)return null;
@@ -127,8 +129,6 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const handleMouseDown=(e)=>{if(!spacePressed)return;setIsPanning(true);setStartX(e.pageX-timelineRef.current.offsetLeft);setScrollLeft(timelineRef.current.scrollLeft);};
     const handleMouseMove=(e)=>{if(!isPanning)return;e.preventDefault();const x=e.pageX-timelineRef.current.offsetLeft;timelineRef.current.scrollLeft=scrollLeft-(x-startX)*2;};
     const handleMouseUp=()=>setIsPanning(false);
-
-    const colWidth=zoom==='quarter'?280:zoom==='week'?40:zoom==='day'?60:100;
 
     const getWeekNumber=(date)=>{
         const diff=date-weekBase;
