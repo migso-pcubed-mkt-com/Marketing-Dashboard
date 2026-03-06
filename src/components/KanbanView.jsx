@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import CONFIG from '../config.js';
+import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
 import TaskCard from './TaskCard.jsx';
@@ -96,6 +96,33 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                 return CONFIG.STATUSES.map(s=>({key:s.id,name:s.name,color:s.color,icon:s.icon,items:sortItems(filteredTasks.filter(t=>t.status===s.id))}));
             }
         }
+        if(viewMode==='country'){
+            // Build columns for each country that has at least one task, plus an "Unassigned" column
+            const countryTaskMap={};
+            const unassigned=[];
+            filteredTasks.forEach(t=>{
+                const taskCountries=t.countries||[];
+                if(taskCountries.length===0){
+                    unassigned.push(t);
+                }else{
+                    taskCountries.forEach(cId=>{
+                        if(!countryTaskMap[cId])countryTaskMap[cId]=[];
+                        countryTaskMap[cId].push(t);
+                    });
+                }
+            });
+            const cols=allCountries.filter(c=>countryTaskMap[c.id]).map(c=>({
+                key:c.id,
+                name:c.name,
+                countryFlag:c.flag,
+                countryColor:c.color,
+                items:sortItems(countryTaskMap[c.id])
+            }));
+            if(unassigned.length>0){
+                cols.push({key:'_unassigned',name:'Unassigned',countryFlag:'—',countryColor:'#a1a1aa',items:sortItems(unassigned)});
+            }
+            return cols;
+        }
         return[];
     };
 
@@ -105,13 +132,13 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             <div className="kanban-toolbar">
                 <div className="kanban-toolbar-left">
                     <div className="view-btn-group">
-                        {[{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'category',label:'By Category'},{id:'action',label:'By Action'}].map(v=>(
+                        {[{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'category',label:'By Category'},{id:'action',label:'By Action'},{id:'country',label:'By Country'}].map(v=>(
                             <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
                         ))}
                     </div>
                 </div>
                 <div className="kanban-toolbar-right">
-                    {viewMode!=='category'&&<><span className="toolbar-label">Tri:</span>
+                    {viewMode!=='category'&&<><span className="toolbar-label">Sort:</span>
                     <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="toolbar-select">
                         <option value="order">Manual</option>
                         <option value="name">Name A→Z</option>
@@ -132,7 +159,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                         <div
                             key={col.key}
                             data-drop-month={viewMode==='month'?col.key:null}
-                            onDragOver={(e)=>{e.preventDefault();if(viewMode==='month'||viewMode==='quarter'||viewMode==='category'||viewMode==='action')e.currentTarget.classList.add('drag-over');}}
+                            onDragOver={(e)=>{e.preventDefault();if(viewMode==='month'||viewMode==='quarter'||viewMode==='category'||viewMode==='action'||viewMode==='country')e.currentTarget.classList.add('drag-over');}}
                             onDragLeave={(e)=>e.currentTarget.classList.remove('drag-over')}
                             onDrop={(e)=>{
                                 e.preventDefault();
@@ -171,20 +198,34 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     if(taskId){
                                         onUpdateTask(taskId,{status:col.key});
                                     }
+                                }else if(viewMode==='country'){
+                                    const taskId=e.dataTransfer.getData('taskId');
+                                    if(taskId){
+                                        const task=tasks.find(t=>t.id===taskId);
+                                        if(task){
+                                            const currentCountries=task.countries||[];
+                                            if(col.key==='_unassigned'){
+                                                onUpdateTask(taskId,{countries:[]});
+                                            }else if(!currentCountries.includes(col.key)){
+                                                onUpdateTask(taskId,{countries:[...currentCountries,col.key]});
+                                            }
+                                        }
+                                    }
                                 }
                             }}
                             className="kanban-column" >
                             <div className="column-header">
                                 <div className="column-title">
-                                    {col.color&&<StatusIcon statusId={col.key} size={12}/>}
+                                    {col.color&&!col.countryColor&&<StatusIcon statusId={col.key} size={12}/>}
                                     {col.gradient&&<div style={{background:categories.find(c=>c.id===col.key)?.color||'var(--accent)',width:4,height:20,borderRadius:2,flexShrink:0}}/>}
+                                    {col.countryColor&&<span style={{background:col.countryColor,color:'white',fontSize:9,fontWeight:700,padding:'2px 5px',borderRadius:4,letterSpacing:0.3,lineHeight:1}}>{col.countryFlag}</span>}
                                     <span className="column-name">{col.name}</span>
                                     <span className="column-count">{col.items.length}</span>
                                 </div>
                                 <button className="column-menu" onClick={(e)=>e.stopPropagation()}>⋮</button>
                             </div>
                             <div className="kanban-cards">
-                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'} categories={categories} allCountries={allCountries}/>)}
+                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries}/>)}
                                 {col.items.length===0&&<div className="column-empty">No tasks</div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
@@ -202,6 +243,10 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         setTimeout(()=>onOpenAction(newAction),100);
                                     }else if(viewMode==='action'){
                                         const newTask={id:`t${Date.now()}`,title:'New task',actionId:selectedAction||actions[0]?.id||'',month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],dueDate:new Date().toISOString().split('T')[0],status:col.key,priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions.find(a=>a.id===(selectedAction||actions[0]?.id))?.tags||[]};
+                                        onAddTask(newTask);
+                                        setTimeout(()=>onOpenTask(newTask),100);
+                                    }else if(viewMode==='country'){
+                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:actions[0]?.id||'',month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],dueDate:new Date().toISOString().split('T')[0],status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[],countries:col.key==='_unassigned'?[]:[col.key]};
                                         onAddTask(newTask);
                                         setTimeout(()=>onOpenTask(newTask),100);
                                     }

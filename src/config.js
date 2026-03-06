@@ -46,8 +46,9 @@ export const CONFIG = {
         { id: 'mexico', name: 'Mexico', region: 'America', color: '#10b981', flag: '🇲🇽' },
         { id: 'usa', name: 'United States', region: 'America', color: '#3b82f6', flag: '🇺🇸' },
         { id: 'india', name: 'India', region: 'Asia', color: '#f97316', flag: '🇮🇳' },
-        { id: 'southeast-asia', name: 'Southeast Asia', region: 'Asia', color: '#8b5cf6', flag: '🌏' },
-        { id: 'australia', name: 'Australia', region: 'Oceania', color: '#10b981', flag: '🇦🇺' }
+        { id: 'southeast-asia', name: 'South East Asia', region: 'Asia', color: '#8b5cf6', flag: 'SEA' },
+        { id: 'australia', name: 'Australia', region: 'Oceania', color: '#10b981', flag: '🇦🇺' },
+        { id: 'global', name: 'Global', region: 'World', color: '#6366f1', flag: 'GL' }
     ],
     PRIORITIES: [
         { id: 'high', name: 'High', color: '#ef4444', icon: '⬤' },

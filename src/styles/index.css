@@ -1,8 +1,8 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root{--primary:#6366f1;--secondary:#6366f1;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--bg-page:#fafafa;--bg-primary:#ffffff;--bg-secondary:#f4f4f5;--bg-tertiary:#e8eaed;--text-primary:#18181b;--text-secondary:#52525b;--text-muted:#a1a1aa;--accent:#6366f1;--accent-light:#eef2ff;--accent-hover:#4f46e5;--success:#22c55e;--success-light:#dcfce7;--warning:#f59e0b;--warning-light:#fef3c7;--error:#ef4444;--error-light:#fee2e2;--border:#e4e4e7;--border-light:#f0f0f1;--border-strong:#d4d4d8;--shadow-sm:0 1px 2px rgba(0,0,0,0.04);--shadow-md:0 4px 12px rgba(0,0,0,0.06);--shadow-lg:0 12px 40px rgba(0,0,0,0.1);--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--transition:0.2s cubic-bezier(0.4,0,0.2,1);--font-sans:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;--font-mono:'JetBrains Mono',monospace;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--header-height:56px;--sidebar-width:220px;--kanban-column-width:280px}
 *{margin:0;padding:0;box-sizing:border-box}

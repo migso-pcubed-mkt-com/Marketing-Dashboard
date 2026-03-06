@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import CONFIG from '../config.js';
+import { CONFIG } from '../config.js';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';

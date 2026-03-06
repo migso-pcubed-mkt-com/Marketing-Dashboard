@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import CONFIG from '../config.js';
+import { CONFIG } from '../config.js';
 import { Icon, StatusIcon, PriorityIcon } from './Icons.jsx';
 
 const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef})=>{
