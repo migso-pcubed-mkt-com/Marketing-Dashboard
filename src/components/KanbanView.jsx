@@ -97,7 +97,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             }
         }
         if(viewMode==='country'){
-            // Build columns for each country that has at least one task, plus an "Unassigned" column
+            // Build columns for ALL countries + Unassigned
             const countryTaskMap={};
             const unassigned=[];
             filteredTasks.forEach(t=>{
@@ -111,16 +111,14 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     });
                 }
             });
-            const cols=allCountries.filter(c=>countryTaskMap[c.id]).map(c=>({
+            const cols=allCountries.map(c=>({
                 key:c.id,
                 name:c.name,
                 countryFlag:c.flag,
                 countryColor:c.color,
-                items:sortItems(countryTaskMap[c.id])
+                items:sortItems(countryTaskMap[c.id]||[])
             }));
-            if(unassigned.length>0){
-                cols.push({key:'_unassigned',name:'Unassigned',countryFlag:'—',countryColor:'#a1a1aa',items:sortItems(unassigned)});
-            }
+            cols.push({key:'_unassigned',name:'Unassigned',countryFlag:'—',countryColor:'#a1a1aa',items:sortItems(unassigned)});
             return cols;
         }
         return[];
@@ -221,7 +219,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 <button className="column-menu" onClick={(e)=>e.stopPropagation()}>⋮</button>
                             </div>
                             <div className="kanban-cards">
-                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?onReorderTask:null} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries}/>)}
+                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?(viewMode==='country'?(draggedId,targetId,position)=>{
+                                    // In country view: also assign the target column's country to the dragged task
+                                    const targetCountry=col.key==='_unassigned'?[]:[ col.key];
+                                    onUpdateTask(draggedId,{countries:targetCountry});
+                                    onReorderTask(draggedId,targetId,position);
+                                }:onReorderTask):null} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries}/>)}
                                 {col.items.length===0&&<div className="column-empty">No tasks</div>}
                                 <button onClick={()=>{
                                     if(viewMode==='month'){
