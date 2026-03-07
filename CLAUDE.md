@@ -70,12 +70,15 @@ Marketing-Dashboard/
 │   │   ├── NewTaskModal.jsx        # Create task modal
 │   │   ├── NewActionModal.jsx      # Create action modal
 │   │   ├── CategoriesManagementModal.jsx
+│   │   ├── BoardSelector.jsx       # Board switcher dropdown in header
+│   │   ├── BoardSettingsModal.jsx  # Board rename/delete/duplicate modal
 │   │   ├── Icons.jsx               # SVG icon library
 │   │   ├── IconSelect.jsx          # Icon picker
 │   │   ├── ChannelTags.jsx         # Channel tag badges
 │   │   └── CountryTags.jsx         # Country tag badges
 │   └── lib/
-│       └── storage.js              # Supabase + GitHub + localStorage (load/save)
+│       ├── storage.js              # Supabase + GitHub + localStorage (load/save)
+│       └── migration.js            # v1→v2 data migration (flat → multi-board)
 ├── data.json                       # Persisted app data (GitHub backend)
 ├── design-system-v11.css           # Legacy CSS (reference only)
 ├── marketing-tracker-v11.html      # Legacy monolith (backup)
@@ -86,7 +89,28 @@ Marketing-Dashboard/
 
 ### Data Model
 
-Three entity types stored as JSON arrays:
+**Multi-board v2 format** (since Phase 1):
+```json
+{
+  "version": 2,
+  "currentBoardId": "board-default",
+  "boards": [
+    {
+      "id": "board-default",
+      "name": "Marketing Plan",
+      "createdAt": "...",
+      "updatedAt": "...",
+      "categories": [...],
+      "actions": [...],
+      "tasks": [...]
+    }
+  ]
+}
+```
+
+Each board contains its own categories, actions, tasks. Migration from v1 (flat) to v2 is automatic via `src/lib/migration.js`.
+
+Three entity types per board:
 - **Categories** — top-level grouping (e.g., "Brand Awareness", "Consideration", "Conversion")
 - **Actions** — belong to a category, represent a marketing initiative
 - **Tasks** — belong to an action, the actual work items with dates, status, owner
@@ -98,12 +122,16 @@ Config constants in `src/config.js`:
 
 ### Storage Backend (triple fallback)
 
+All backends store the full v2 multi-board envelope.
+
 1. **Primary: Supabase** — Real-time sync via Supabase Realtime
-   - Table: `app_data` (id TEXT PK, categories JSONB, actions JSONB, tasks JSONB, updated_at TIMESTAMPTZ)
-   - Schema defined in `supabase-setup.sql`
+   - Table: `app_data` (id TEXT PK, `board_data` JSONB for v2, plus legacy `categories`/`actions`/`tasks` columns)
+   - On load: reads `board_data` if present, otherwise reads legacy columns + auto-migrates
+   - On save: writes to `board_data` + legacy columns (backward compat)
    - Realtime subscription for live cross-device sync
    - RLS enabled with permissive anonymous policy (single-user mode)
    - Auto-save debounce: 1s
+   - **Required SQL migration**: `ALTER TABLE app_data ADD COLUMN IF NOT EXISTS board_data JSONB;`
 
 2. **Secondary: GitHub API** via Vercel serverless function
    - `api/github.js` — proxy that keeps GITHUB_TOKEN server-side
@@ -114,7 +142,16 @@ Config constants in `src/config.js`:
 
 ### State Management
 
-All state lives in `App.jsx` via `useState` hooks. Props drilled to child components. `AppContext` exists (`src/context.js` with `useApp()` hook) but is not yet used for main state — currently empty value `{}`.
+Central state in `App.jsx`:
+- **`boardData`** — full v2 envelope (all boards)
+- **`currentBoardId`** — active board ID
+- `categories`, `actions`, `tasks` — derived from active board via `useMemo`
+- `setCategories`, `setActions`, `setTasks` — wrapper `useCallback` functions that update the active board inside `boardData`
+- Single `boardDataRef` replaces old `categoriesRef`/`actionsRef`/`tasksRef`
+
+**AppContext** (`useApp()`) now provides: `boards`, `currentBoardId`, `currentBoard`, `onSwitchBoard`, `onCreateBoard`, `onRenameBoard`, `onDeleteBoard`, `onDuplicateBoard`
+
+Props still drilled for view-specific data (categories, actions, tasks, handlers).
 
 ## Development Conventions
 
@@ -205,7 +242,7 @@ Complex system with multiple solved issues:
 ## Roadmap
 
 1. ~~**Vite migration**~~ — ✅ DONE (Phase 0). Monolith `index.html` → Vite + modular React
-2. **Multi-board** — 🔜 NEXT (Phase 1). Add board selector, multiple independent dashboards. Plan written.
+2. ~~**Multi-board**~~ — ✅ DONE (Phase 1). Board selector, create/switch/rename/duplicate/delete boards.
 3. **Trello integration** — Phase 2. Import Trello cards + bidirectional sync via `api/trello.js`
 4. **Multi-user auth** — Phase 3. Auth via Trello OAuth + RLS per user
 5. **File attachments** — `attachments: []` field exists on tasks, but no upload UI yet
@@ -250,3 +287,5 @@ Complex system with multiple solved issues:
 | 2026-03 | Kanban "By Country" view | 5th view mode, all 16 countries as columns |
 | 2026-03 | South East Asia + Global | Fixed SEA country tag, added Global/World country |
 | 2026-03 | Named exports in config.js | `import { CONFIG } from` — no default export |
+| 2026-03 | Multi-board (Phase 1) | v2 data format with boards array, BoardSelector, BoardSettingsModal |
+| 2026-03 | board_data Supabase column | New JSONB column for v2 format, legacy columns kept for backward compat |
