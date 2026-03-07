@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { CONFIG, DEFAULT_ACTIONS, DEFAULT_TASKS, GITHUB_CONFIG } from './config.js';
 import { AppContext } from './context.js';
+import { migrateToV2 } from './lib/migration.js';
 import {
     supabaseClient, isSupabaseConfigured, useSupabase,
     loadFromSupabase, saveToSupabase,
@@ -24,9 +25,11 @@ import NewTaskModal from './components/NewTaskModal.jsx';
 const App = () => {
     const darkMode = false;
     const [currentView, setCurrentView] = useState('kanban');
-    const [categories, setCategories] = useState(CONFIG.CATEGORIES);
-    const [actions, setActions] = useState(DEFAULT_ACTIONS);
-    const [tasks, setTasks] = useState(DEFAULT_TASKS);
+
+    // --- Multi-board state ---
+    const [boardData, setBoardData] = useState(null);
+    const [currentBoardId, setCurrentBoardId] = useState('board-default');
+
     const [filters, setFilters] = useState({search:'',status:[],category:[],priority:[],channel:[],country:[]});
     const [syncing, setSyncing] = useState(false);
     const [savingStatus, setSavingStatus] = useState(null);
@@ -53,13 +56,142 @@ const App = () => {
     const isSavingRef = useRef(false);
     const createDropdownRef = useRef(null);
     const exportDropdownRef = useRef(null);
-    const categoriesRef = useRef(categories);
-    const actionsRef = useRef(actions);
-    const tasksRef = useRef(tasks);
+    const boardDataRef = useRef(boardData);
     const fileShaRef = useRef(fileSha);
     const isUserInteractingRef = useRef(false);
     const justSavedTimestampRef = useRef(0);
 
+    // --- Derive active board data ---
+    const currentBoard = useMemo(() => {
+        if (!boardData?.boards) return null;
+        return boardData.boards.find(b => b.id === currentBoardId) || boardData.boards[0];
+    }, [boardData, currentBoardId]);
+
+    const categories = currentBoard?.categories || CONFIG.CATEGORIES;
+    const actions = currentBoard?.actions || DEFAULT_ACTIONS;
+    const tasks = currentBoard?.tasks || DEFAULT_TASKS;
+    const boards = boardData?.boards || [];
+
+    // --- Board-aware setters (wrapper functions) ---
+    const updateCurrentBoard = useCallback((updater) => {
+        setBoardData(prev => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                boards: prev.boards.map(b =>
+                    b.id === currentBoardId
+                        ? { ...updater(b), updatedAt: new Date().toISOString() }
+                        : b
+                )
+            };
+        });
+    }, [currentBoardId]);
+
+    const setCategories = useCallback((v) => {
+        updateCurrentBoard(b => ({
+            ...b,
+            categories: typeof v === 'function' ? v(b.categories) : v
+        }));
+    }, [updateCurrentBoard]);
+
+    const setActions = useCallback((v) => {
+        updateCurrentBoard(b => ({
+            ...b,
+            actions: typeof v === 'function' ? v(b.actions) : v
+        }));
+    }, [updateCurrentBoard]);
+
+    const setTasks = useCallback((v) => {
+        updateCurrentBoard(b => ({
+            ...b,
+            tasks: typeof v === 'function' ? v(b.tasks) : v
+        }));
+    }, [updateCurrentBoard]);
+
+    // --- Board management functions ---
+    const handleCreateBoard = useCallback((name) => {
+        const newBoard = {
+            id: `board-${Date.now()}`,
+            name: name || 'New Board',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            categories: [...CONFIG.CATEGORIES],
+            actions: [],
+            tasks: []
+        };
+        setBoardData(prev => ({
+            ...prev,
+            currentBoardId: newBoard.id,
+            boards: [...prev.boards, newBoard]
+        }));
+        setCurrentBoardId(newBoard.id);
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]});
+        showNotification('✅ Board created');
+    }, []);
+
+    const handleSwitchBoard = useCallback((boardId) => {
+        setCurrentBoardId(boardId);
+        setBoardData(prev => ({ ...prev, currentBoardId: boardId }));
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]});
+        setSelectedTask(null);
+        setSelectedAction(null);
+    }, []);
+
+    const handleRenameBoard = useCallback((boardId, newName) => {
+        setBoardData(prev => ({
+            ...prev,
+            boards: prev.boards.map(b => b.id === boardId ? { ...b, name: newName, updatedAt: new Date().toISOString() } : b)
+        }));
+        showNotification('✅ Board renamed');
+    }, []);
+
+    const handleDeleteBoard = useCallback((boardId) => {
+        setBoardData(prev => {
+            if (prev.boards.length <= 1) return prev;
+            const remaining = prev.boards.filter(b => b.id !== boardId);
+            const newCurrentId = boardId === currentBoardId ? remaining[0].id : currentBoardId;
+            if (boardId === currentBoardId) {
+                setCurrentBoardId(newCurrentId);
+                setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]});
+            }
+            return { ...prev, currentBoardId: newCurrentId, boards: remaining };
+        });
+        showNotification('🗑️ Board deleted');
+    }, [currentBoardId]);
+
+    const handleDuplicateBoard = useCallback((boardId) => {
+        setBoardData(prev => {
+            const source = prev.boards.find(b => b.id === boardId);
+            if (!source) return prev;
+            const cloned = JSON.parse(JSON.stringify(source));
+            const newId = `board-${Date.now()}`;
+            // Regenerate IDs to avoid cross-board conflicts
+            const actionIdMap = {};
+            cloned.actions = cloned.actions.map(a => {
+                const newAId = `a${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                actionIdMap[a.id] = newAId;
+                return { ...a, id: newAId };
+            });
+            cloned.tasks = cloned.tasks.map(t => ({
+                ...t,
+                id: `t${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                actionId: actionIdMap[t.actionId] || t.actionId
+            }));
+            const newBoard = {
+                ...cloned,
+                id: newId,
+                name: `${source.name} (copy)`,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            setCurrentBoardId(newId);
+            setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]});
+            return { ...prev, currentBoardId: newId, boards: [...prev.boards, newBoard] };
+        });
+        showNotification('✅ Board duplicated');
+    }, []);
+
+    // --- Dropdowns ---
     useEffect(() => {
         if (!showCreateDropdown && !showExportDropdown) return;
         const handler = (e) => {
@@ -97,16 +229,16 @@ const App = () => {
     const isReceivingRealtimeRef = useRef(false);
 
     const saveToLocalStorage = () => {
-        saveToLocalStorageFn(categoriesRef, actionsRef, tasksRef);
+        saveToLocalStorageFn(boardDataRef);
     };
 
     const saveData = async () => {
         if (useSupabase) {
-            const result = await saveToSupabase(categoriesRef, actionsRef, tasksRef, setSyncing, showNotification);
+            const result = await saveToSupabase(boardDataRef, setSyncing, showNotification);
             if (result) saveToLocalStorage();
             return result;
         } else if (githubToken) {
-            const result = await saveToGitHub(categoriesRef, actionsRef, tasksRef, fileShaRef, setFileSha, setSyncing, showNotification);
+            const result = await saveToGitHub(boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification);
             if (result) saveToLocalStorage();
             return result;
         } else {
@@ -151,23 +283,37 @@ const App = () => {
 
         const timeoutId = setTimeout(() => {
             console.warn('⏱️ Loading timeout, using default data');
-            loadFromLocalStorageFn(setCategories, setActions, setTasks, showNotification);
+            const fallbackData = loadFromLocalStorageFn(showNotification);
+            if (fallbackData) {
+                setBoardData(fallbackData);
+                setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
+            }
         }, 5000);
 
         const loadData = async () => {
             try {
+                let result;
                 if (useSupabase) {
-                    await loadFromSupabase(setCategories, setActions, setTasks, showNotification);
-                    saveToLocalStorage();
+                    result = await loadFromSupabase(showNotification);
                 } else {
-                    await loadDataFromGitHub(setCategories, setActions, setTasks, setFileSha, showNotification, () => loadFromLocalStorageFn(setCategories, setActions, setTasks, showNotification));
+                    result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
+                }
+                if (result) {
+                    setBoardData(result);
+                    setCurrentBoardId(result.currentBoardId || 'board-default');
+                    // Save to localStorage as backup
+                    boardDataRef.current = result;
                     saveToLocalStorage();
                 }
                 clearTimeout(timeoutId);
             } catch (err) {
                 console.error('Error loading data:', err);
                 clearTimeout(timeoutId);
-                loadFromLocalStorageFn(setCategories, setActions, setTasks, showNotification);
+                const fallbackData = loadFromLocalStorageFn(showNotification);
+                if (fallbackData) {
+                    setBoardData(fallbackData);
+                    setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
+                }
             }
         };
         loadData();
@@ -180,14 +326,13 @@ const App = () => {
         else { localStorage.removeItem('github_file_sha'); }
     }, [fileSha]);
 
-    useEffect(() => { categoriesRef.current = categories; }, [categories]);
-    useEffect(() => { actionsRef.current = actions; }, [actions]);
-    useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+    // Keep boardDataRef in sync
+    useEffect(() => { boardDataRef.current = boardData; }, [boardData]);
     useEffect(() => { fileShaRef.current = fileSha; }, [fileSha]);
 
     // Auto-save with debounce
     useEffect(() => {
-        if (!dataLoaded || isReceivingRealtimeRef.current) return;
+        if (!dataLoaded || !boardData || isReceivingRealtimeRef.current) return;
         console.log('🔄 Data modified, auto-save...');
         setSavingStatus('saving');
         if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); }
@@ -207,7 +352,7 @@ const App = () => {
         };
         autoSaveTimeoutRef.current = setTimeout(doSave, delay);
         return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); };
-    }, [categories, actions, tasks, dataLoaded, githubToken]);
+    }, [boardData, dataLoaded, githubToken]);
 
     // Realtime sync
     useEffect(() => {
@@ -221,9 +366,13 @@ const App = () => {
                     console.log('🔄 Realtime update received from Supabase');
                     isReceivingRealtimeRef.current = true;
                     const d = payload.new;
-                    if (d.categories) setCategories(d.categories);
-                    if (d.actions) setActions(d.actions);
-                    if (d.tasks) setTasks(d.tasks);
+                    // Prefer board_data column (v2)
+                    if (d.board_data && d.board_data.version === 2) {
+                        setBoardData(d.board_data);
+                    } else if (d.categories) {
+                        // Legacy format from another client
+                        setBoardData(migrateToV2({ categories: d.categories, actions: d.actions, tasks: d.tasks }));
+                    }
                     saveToLocalStorage();
                     showNotification('✅ Synced with team');
                     setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
@@ -244,7 +393,10 @@ const App = () => {
                         const data = await response.json();
                         if (data.sha && fileShaRef.current && data.sha !== fileShaRef.current) {
                             showNotification('🔄 Syncing with team...');
-                            await loadDataFromGitHub(setCategories, setActions, setTasks, setFileSha, showNotification, () => loadFromLocalStorageFn(setCategories, setActions, setTasks, showNotification));
+                            const result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
+                            if (result) {
+                                setBoardData(result);
+                            }
                             showNotification('✅ Synced with team');
                         }
                     }
@@ -257,7 +409,7 @@ const App = () => {
 
     // Auto-initialize order and createdAt
     useEffect(() => {
-        if (!dataLoaded) return;
+        if (!dataLoaded || !currentBoard) return;
         const needsOrder = tasks.some(t => t.order === undefined);
         const needsCreatedAt = tasks.some(t => !t.createdAt);
         if (needsOrder || needsCreatedAt) {
@@ -268,16 +420,16 @@ const App = () => {
                 createdAt: t.createdAt || new Date().toISOString()
             })));
         }
-    }, [dataLoaded, tasks.length]);
+    }, [dataLoaded, currentBoard, tasks.length]);
 
     useEffect(() => {
-        if (!dataLoaded) return;
+        if (!dataLoaded || !currentBoard) return;
         const needsOrder = actions.some(a => a.order === undefined);
         if (needsOrder) {
             console.log('🔢 Initializing action order...');
             setActions(prev => prev.map((a, idx) => ({...a, order: a.order !== undefined ? a.order : idx})));
         }
-    }, [dataLoaded, actions.length]);
+    }, [dataLoaded, currentBoard, actions.length]);
 
     const handleSync = () => saveData();
 
@@ -510,7 +662,7 @@ const App = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `marketing-tracker-${new Date().toISOString().split('T')[0]}.json`;
+        a.download = `marketing-tracker-${currentBoard?.name || 'export'}-${new Date().toISOString().split('T')[0]}.json`;
         a.click();
         URL.revokeObjectURL(url);
         showNotification('📥 JSON export downloaded');
@@ -535,7 +687,7 @@ const App = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `marketing-tracker-${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = `marketing-tracker-${currentBoard?.name || 'export'}-${new Date().toISOString().split('T')[0]}.csv`;
         a.click();
         URL.revokeObjectURL(url);
         showNotification('📊 CSV export downloaded');
@@ -545,10 +697,22 @@ const App = () => {
     const completedCount = tasks.filter(t => t.status === 'completed').length;
     const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0);
 
+    // --- AppContext value ---
+    const contextValue = useMemo(() => ({
+        boards,
+        currentBoardId,
+        currentBoard,
+        onSwitchBoard: handleSwitchBoard,
+        onCreateBoard: handleCreateBoard,
+        onRenameBoard: handleRenameBoard,
+        onDeleteBoard: handleDeleteBoard,
+        onDuplicateBoard: handleDuplicateBoard
+    }), [boards, currentBoardId, currentBoard, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard]);
+
     if (!dataLoaded) return (<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Loading data...</p></div></div>);
 
     return (
-        <AppContext.Provider value={{}}>
+        <AppContext.Provider value={contextValue}>
             <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
