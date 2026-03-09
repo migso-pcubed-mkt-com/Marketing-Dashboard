@@ -101,7 +101,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     return (ai===-1?999:ai)-(bi===-1?999:bi);
                 });
             }
-            return cats.map(cat=>({key:cat.id,name:cat.name,gradient:cat.gradient,items:actions.filter(a=>a.categoryId===cat.id&&filteredTasks.some(t=>t.actionId===a.id))}));
+            return cats.map(cat=>({key:cat.id,name:cat.name,gradient:cat.gradient,items:actions.filter(a=>a.categoryId===cat.id)}));
         }
         if(viewMode==='action'){
             if(selectedAction){
@@ -332,6 +332,8 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 }):onReorderTask):null} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries}/>)}
                                 {col.items.length===0&&<div className="column-empty">No tasks</div>}
                                 <button onClick={()=>{
+                                    const today=new Date().toISOString().split('T')[0];
+                                    const oneWeekLater=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
                                     if(viewMode==='month'){
                                         const monthIdx=col.key;
                                         const year=selectedYear;
@@ -341,16 +343,27 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         const newTask={id:`t${Date.now()}`,title:'New task',actionId:actions[0]?.id||'',month:monthIdx,startDate,dueDate,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[]};
                                         onAddTask(newTask);
                                         setTimeout(()=>onOpenTask(newTask),100);
+                                    }else if(viewMode==='quarter'){
+                                        const quarterIdx=col.key;
+                                        const year=selectedYear;
+                                        const firstMonth=quarterIdx*3;
+                                        const startDate=year+'-'+String(firstMonth+1).padStart(2,'0')+'-01';
+                                        const lastMonth=quarterIdx*3+2;
+                                        const lastDay=new Date(year,lastMonth+1,0).getDate();
+                                        const dueDate=year+'-'+String(lastMonth+1).padStart(2,'0')+'-'+lastDay;
+                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:actions[0]?.id||'',month:firstMonth,startDate,dueDate,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[]};
+                                        onAddTask(newTask);
+                                        setTimeout(()=>onOpenTask(newTask),100);
                                     }else if(viewMode==='category'){
                                         const newAction={id:`a${Date.now()}`,name:'New action',categoryId:col.key,budget:0,priority:'medium',tags:[]};
                                         onAddAction(newAction);
                                         setTimeout(()=>onOpenAction(newAction),100);
                                     }else if(viewMode==='action'){
-                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:selectedAction||actions[0]?.id||'',month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],dueDate:new Date().toISOString().split('T')[0],status:col.key,priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions.find(a=>a.id===(selectedAction||actions[0]?.id))?.tags||[]};
+                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:selectedAction||actions[0]?.id||'',month:new Date().getMonth(),startDate:today,dueDate:oneWeekLater,status:col.key,priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions.find(a=>a.id===(selectedAction||actions[0]?.id))?.tags||[]};
                                         onAddTask(newTask);
                                         setTimeout(()=>onOpenTask(newTask),100);
                                     }else if(viewMode==='country'){
-                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:actions[0]?.id||'',month:new Date().getMonth(),startDate:new Date().toISOString().split('T')[0],dueDate:new Date().toISOString().split('T')[0],status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[],countries:col.key==='_unassigned'?[]:[col.key]};
+                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:actions[0]?.id||'',month:new Date().getMonth(),startDate:today,dueDate:oneWeekLater,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[],countries:col.key==='_unassigned'?[]:[col.key]};
                                         onAddTask(newTask);
                                         setTimeout(()=>onOpenTask(newTask),100);
                                     }

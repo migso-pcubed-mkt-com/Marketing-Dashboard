@@ -272,10 +272,10 @@ body.resizing *{cursor:col-resize!important}
 .calendar-today-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
 .calendar-toolbar-right{display:flex;justify-content:flex-end}
 /* Month grid */
-.calendar-grid{background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.calendar-grid{background:var(--bg-primary);overflow:hidden}
 .calendar-header-row{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border);background:var(--bg-secondary)}
 .calendar-header-cell{padding:8px;text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px}
-.calendar-week-row{display:grid;grid-template-columns:repeat(7,1fr)}
+.calendar-week-row{display:grid;grid-template-columns:repeat(7,1fr);position:relative}
 .calendar-day-cell{min-height:120px;border-right:1px solid var(--border-light);border-bottom:1px solid var(--border-light);padding:4px;transition:background 0.15s;position:relative}
 .calendar-day-cell:nth-child(7){border-right:none}
 .calendar-day-cell.other-month{background:var(--bg-secondary);opacity:0.5}
@@ -295,7 +295,7 @@ body.resizing *{cursor:col-resize!important}
 .calendar-more{font-size:10px;color:var(--text-muted);padding:1px 6px;cursor:pointer;font-weight:500}
 .calendar-more:hover{color:var(--accent)}
 /* Week view */
-.calendar-week-view{background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.calendar-week-view{background:var(--bg-primary);overflow:hidden}
 .calendar-week-header{display:grid;grid-template-columns:60px repeat(7,1fr);border-bottom:1px solid var(--border);background:var(--bg-secondary)}
 .calendar-week-day-header{padding:8px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px}
 .calendar-week-day-header.today{background:var(--accent-light)}
@@ -307,6 +307,7 @@ body.resizing *{cursor:col-resize!important}
 .calendar-week-allday-cell{padding:4px;border-right:1px solid var(--border-light);display:flex;flex-direction:column;gap:2px;overflow-y:auto;max-height:200px}
 .calendar-week-allday-cell:last-child{border-right:none}
 .calendar-week-body{max-height:calc(100vh - 380px);overflow-y:auto}
+.calendar-week-body-cols{display:grid;grid-template-columns:60px repeat(7,1fr);min-height:400px;max-height:calc(100vh - 280px);overflow-y:auto}
 .calendar-week-hour-row{display:grid;grid-template-columns:60px repeat(7,1fr);min-height:48px;border-bottom:1px solid var(--border-light)}
 .calendar-week-hour-cell{border-right:1px solid var(--border-light);transition:background 0.15s}
 .calendar-week-hour-cell:last-child{border-right:none}

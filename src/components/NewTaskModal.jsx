@@ -3,16 +3,27 @@ import { CONFIG } from '../config.js';
 import { Icon, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 
-const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction}) => {
+const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAddCategory}) => {
     const [form, setForm] = useState({title:'',actionId:actions[0]?.id||'',startDate:new Date().toISOString().split('T')[0],dueDate:'',priority:'medium',status:'todo',description:'',budget:0});
     const [showInlineCreate, setShowInlineCreate] = useState(false);
     const [newActionName, setNewActionName] = useState('');
     const [newActionCategoryId, setNewActionCategoryId] = useState(categories[0]?.id || '');
+    const [showInlineCreateCategory, setShowInlineCreateCategory] = useState(false);
+    const [newCategoryName, setNewCategoryName] = useState('');
     const newActionInputRef = useRef(null);
 
     useEffect(() => {
         if (showInlineCreate && newActionInputRef.current) newActionInputRef.current.focus();
     }, [showInlineCreate]);
+
+    const handleInlineCreateCategory = () => {
+        if (!newCategoryName.trim() || !onAddCategory) return;
+        const nc = {id:`cat${Date.now()}`, name:newCategoryName.trim(), color:'#6366f1', gradient:'from-indigo-500 to-purple-500'};
+        onAddCategory(nc);
+        setNewActionCategoryId(nc.id);
+        setNewCategoryName('');
+        setShowInlineCreateCategory(false);
+    };
 
     const handleInlineCreateAction = () => {
         const name = newActionName.trim();
@@ -25,8 +36,6 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction}) => 
             priority: 'medium',
             tags: []
         };
-        // We need to call onCreateAction which should add the action and return it
-        // But the current API just navigates to NewActionModal. Let's handle it inline.
         if (typeof onCreateAction === 'function') {
             onCreateAction(newAction);
         }
@@ -34,6 +43,7 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction}) => 
         setNewActionName('');
         setNewActionCategoryId(categories[0]?.id || '');
         setShowInlineCreate(false);
+        setShowInlineCreateCategory(false);
     };
 
     const handleAdd = () => {
@@ -78,12 +88,27 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction}) => 
                                         className="v11-input"
                                         style={{marginBottom:8}}
                                     />
-                                    <select value={newActionCategoryId} onChange={e => setNewActionCategoryId(e.target.value)} className="v11-input" style={{marginBottom:8}}>
-                                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
+                                    {!showInlineCreateCategory ? (
+                                        <>
+                                            <select value={newActionCategoryId} onChange={e => setNewActionCategoryId(e.target.value)} className="v11-input" style={{marginBottom:4}}>
+                                                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                            </select>
+                                            {onAddCategory && <button onClick={() => setShowInlineCreateCategory(true)} style={{marginBottom:8,fontSize:10,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:3}}>
+                                                <Icon.Plus size={9}/> New category
+                                            </button>}
+                                        </>
+                                    ) : (
+                                        <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:8,background:'var(--bg-primary)',marginBottom:8}}>
+                                            <input type="text" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleInlineCreateCategory(); if (e.key === 'Escape') setShowInlineCreateCategory(false); }} placeholder="Category name..." className="v11-input" style={{marginBottom:6,fontSize:12}} autoFocus/>
+                                            <div style={{display:'flex',gap:4}}>
+                                                <button onClick={handleInlineCreateCategory} style={{padding:'3px 8px',fontSize:10,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Add</button>
+                                                <button onClick={() => {setShowInlineCreateCategory(false);setNewCategoryName('');}} style={{padding:'3px 8px',fontSize:10,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="flex gap-2">
                                         <button onClick={handleInlineCreateAction} className="px-3 py-1.5 text-xs text-white rounded-md font-medium" style={{background:'var(--accent)'}}>Create</button>
-                                        <button onClick={() => { setShowInlineCreate(false); setNewActionName(''); }} className="px-3 py-1.5 text-xs rounded-md" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>Cancel</button>
+                                        <button onClick={() => { setShowInlineCreate(false); setNewActionName(''); setShowInlineCreateCategory(false); }} className="px-3 py-1.5 text-xs rounded-md" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>Cancel</button>
                                     </div>
                                 </div>
                             )}
