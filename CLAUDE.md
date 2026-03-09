@@ -1,7 +1,7 @@
 # CLAUDE.md - Marketing Dashboard
 
 > Memory file for Claude Code. Read automatically at the start of each session.
-> Last updated: 2026-03-07
+> Last updated: 2026-03-09
 
 ## Maintenance Rule
 
@@ -9,7 +9,7 @@
 
 ## Project Overview
 
-Marketing Project Tracker for MIGSO-PCUBED marketing team. A single-page React application that manages marketing **Categories**, **Actions**, and **Tasks** with multiple views (Kanban, Timeline, Dashboard/KPIs).
+Marketing Project Tracker for MIGSO-PCUBED marketing team. A single-page React application that manages marketing **Categories**, **Actions**, and **Tasks** with multiple views (Kanban, Timeline, Calendar, Dashboard/KPIs).
 
 - **Owner**: migso-pcubed-mkt-com (GitHub org — previously FbnCrr, migrated)
 - **Repo**: Marketing-Dashboard
@@ -58,9 +58,10 @@ Marketing-Dashboard/
 │   ├── styles/
 │   │   └── index.css               # Tailwind directives + custom CSS
 │   ├── components/
-│   │   ├── Header.jsx              # Navigation tabs (kanban/timeline/dashboard)
-│   │   ├── KanbanView.jsx          # Kanban with 5 view modes
+│   │   ├── Header.jsx              # Navigation tabs (kanban/timeline/calendar/kpis)
+│   │   ├── KanbanView.jsx          # Kanban with 5 view modes + draggable columns
 │   │   ├── TimelineView.jsx        # Gantt timeline (~1317 lines)
+│   │   ├── CalendarView.jsx        # Calendar view (month/week modes)
 │   │   ├── DashboardView.jsx       # KPIs and charts
 │   │   ├── FilterSidebar.jsx       # Filter panel
 │   │   ├── TaskCard.jsx            # Task card component
@@ -117,7 +118,7 @@ Three entity types per board:
 
 Config constants in `src/config.js`:
 - CONFIG.CATEGORIES: 3 | CONFIG.STATUSES: 6 | CONFIG.CHANNELS: 13
-- CONFIG.COUNTRIES: 16 (including South East Asia and Global)
+- CONFIG.COUNTRIES: 16 (Global/World first, then Europe, America, Asia, Oceania)
 - CONFIG.PRIORITIES: 3 (low, medium, high)
 
 ### Storage Backend (triple fallback)
@@ -178,12 +179,23 @@ Props still drilled for view-specific data (categories, actions, tasks, handlers
 - **Kanban view** — Cards with 5 grouping modes: month, quarter, category, action, **country**
   - Country mode shows ALL 16 countries as columns + "Unassigned" column
   - Drag between country columns replaces the country (not adds)
+  - **Draggable columns** in category and country views — reorder persisted to localStorage
 - **Timeline view** — Gantt-like horizontal bars with drag/resize
   - Swim lanes with collision detection
   - Drag-and-drop with ghost preview
   - Resize handles on both ends
   - **Year navigation** — `timelineYear` state shared in App, nav buttons to switch years
   - Touch + mouse support (mobile/tablet compatible)
+- **Calendar view** — Month and week display modes (ClickUp-inspired)
+  - Both views use same bar layout system: `computeWeekBars()` computes row positions for overlapping tasks
+  - **Month view**: compact bars (20px height) — title + status icon + priority dot
+  - **Week view**: detailed bars (56px height) — title + action name + date range + status + priority
+  - All bars use category color as background (translucent gradient) — consistent across single-day and multi-day tasks
+  - Drag-and-drop to reschedule tasks (preserves duration)
+  - Navigation: prev/next month/week, "Today" button
+  - "+N more" in month view expands the week row to show all tasks (click again to collapse)
+  - Task creation via hover "+" button (bottom-left of each day cell), not click-on-day
+  - Keyboard shortcut: `3` key
 - **Dashboard view** — KPIs and charts (replaced Table view)
 
 ## Known Patterns & Pitfalls
@@ -232,6 +244,27 @@ Complex system with multiple solved issues:
 - Reorder between cards in country view uses local reorder logic in KanbanView (not App.jsx's `handleReorderTask`)
 - `handleReorderTask` in App.jsx groups by month/status — doesn't support country grouping
 - Country drag replaces the task's country array (not appends)
+
+### Kanban Draggable Columns
+- Category and country views support column drag-and-drop reordering
+- Column order persisted to localStorage (`kanban_category_order`, `kanban_country_order`)
+- Card drag vs column drag: `onDragStart` in `.kanban-cards` calls `e.stopPropagation()` to prevent column drag when dragging cards
+- `_unassigned` column (country view) is not draggable
+
+### Header — Board Name Display
+- Header shows current board name directly (ClickUp-style) instead of "Marketing Tracker / MIGSO-PCUBED"
+- BoardSelector button includes M logo + board name + chevron dropdown
+- Dropdown shows all boards with task count and settings gear
+
+### NewTaskModal — Inline Action Creation
+- "Create a new action" link below action dropdown opens inline form
+- Inline form: action name + category select → creates action immediately
+- `onCreateAction` callback accepts either a new action object (inline) or no args (opens NewActionModal)
+
+### NewActionModal — Inline Category Creation
+- "Create a new category" link below category dropdown opens inline form
+- Inline form: category name → creates category immediately and auto-selects it
+- `onAddCategory` prop passed from App.jsx (uses `handleAddCategory`)
 
 ### localStorage as Backup Only
 - `localStorage` is a **backup only**, not a primary storage layer
@@ -289,3 +322,13 @@ Complex system with multiple solved issues:
 | 2026-03 | Named exports in config.js | `import { CONFIG } from` — no default export |
 | 2026-03 | Multi-board (Phase 1) | v2 data format with boards array, BoardSelector, BoardSettingsModal |
 | 2026-03 | board_data Supabase column | New JSONB column for v2 format, legacy columns kept for backward compat |
+| 2026-03 | Header shows board name | ClickUp-style: board name + dropdown replaces "Marketing Tracker" |
+| 2026-03 | Inline action creation | NewTaskModal can create actions inline without switching modals |
+| 2026-03 | Global/World country first | Moved to top of CONFIG.COUNTRIES array |
+| 2026-03 | Draggable Kanban columns | Category and country views support column reordering (localStorage) |
+| 2026-03 | Calendar view added | Month/week modes, drag-to-reschedule, ClickUp-inspired design |
+| 2026-03 | Calendar bar layout system | Shared `computeWeekBars()` for both month/week; week bars taller with detail |
+| 2026-03 | Calendar hover + button | Replaced click-on-day task creation with ClickUp-style hover add button |
+| 2026-03 | Calendar +N more expand | "+N more" expands week row instead of creating new task |
+| 2026-03 | Consistent bar colors | All calendar bars use category color gradient — no more white vs colored distinction |
+| 2026-03 | Inline category creation | NewActionModal can create categories inline (like NewTaskModal creates actions) |

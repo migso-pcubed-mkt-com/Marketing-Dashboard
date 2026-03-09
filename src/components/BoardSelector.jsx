@@ -47,23 +47,30 @@ const BoardSelector = () => {
                 style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 6,
-                    padding: '4px 10px',
+                    gap: 8,
+                    padding: '4px 8px',
                     borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border)',
-                    background: 'var(--bg-secondary)',
+                    border: 'none',
+                    background: 'transparent',
                     color: 'var(--text-primary)',
-                    fontSize: 13,
-                    fontWeight: 500,
                     cursor: 'pointer',
-                    maxWidth: 200,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+                    maxWidth: 280,
+                    transition: 'background 0.15s'
                 }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'transparent'; }}
             >
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentBoard?.name || 'Board'}</span>
-                <svg width="10" height="10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+                <div className="v11-logo" style={{ width: 28, height: 28, fontSize: 12, flexShrink: 0 }}>M</div>
+                <span style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                }}>
+                    {currentBoard?.name || 'Board'}
+                </span>
+                <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', opacity: 0.5 }}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/>
                 </svg>
             </button>
@@ -74,7 +81,7 @@ const BoardSelector = () => {
                     top: '100%',
                     left: 0,
                     marginTop: 4,
-                    minWidth: 240,
+                    minWidth: 260,
                     background: 'var(--bg-primary)',
                     border: '1px solid var(--border)',
                     borderRadius: 'var(--radius-lg)',
@@ -82,7 +89,10 @@ const BoardSelector = () => {
                     zIndex: 1000,
                     overflow: 'hidden'
                 }}>
-                    <div style={{ padding: '8px 0', maxHeight: 300, overflowY: 'auto' }}>
+                    <div style={{ padding: '6px 12px 4px', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Boards</span>
+                    </div>
+                    <div style={{ padding: '4px 0', maxHeight: 300, overflowY: 'auto' }}>
                         {boards.map(board => (
                             <div
                                 key={board.id}

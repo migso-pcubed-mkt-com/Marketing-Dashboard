@@ -33,6 +33,7 @@ export const CONFIG = {
         { id: 'other', name: 'Other', color: '#6b7280' }
     ],
     COUNTRIES: [
+        { id: 'global', name: 'Global', region: 'World', color: '#6366f1', flag: 'GL' },
         { id: 'france', name: 'France', region: 'Europe', color: '#3b82f6', flag: '🇫🇷' },
         { id: 'germany', name: 'Germany', region: 'Europe', color: '#ef4444', flag: '🇩🇪' },
         { id: 'italy', name: 'Italy', region: 'Europe', color: '#10b981', flag: '🇮🇹' },
@@ -47,8 +48,7 @@ export const CONFIG = {
         { id: 'usa', name: 'United States', region: 'America', color: '#3b82f6', flag: '🇺🇸' },
         { id: 'india', name: 'India', region: 'Asia', color: '#f97316', flag: '🇮🇳' },
         { id: 'southeast-asia', name: 'South East Asia', region: 'Asia', color: '#8b5cf6', flag: 'SEA' },
-        { id: 'australia', name: 'Australia', region: 'Oceania', color: '#10b981', flag: '🇦🇺' },
-        { id: 'global', name: 'Global', region: 'World', color: '#6366f1', flag: 'GL' }
+        { id: 'australia', name: 'Australia', region: 'Oceania', color: '#10b981', flag: '🇦🇺' }
     ],
     PRIORITIES: [
         { id: 'high', name: 'High', color: '#ef4444', icon: '⬤' },
