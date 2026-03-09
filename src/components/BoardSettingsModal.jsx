@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useApp } from '../context.js';
 import { Icon } from './Icons.jsx';
+import { TRELLO_SYNC_INTERVALS } from '../config.js';
 
 const BoardSettingsModal = ({ board, onClose }) => {
-    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards } = useApp();
+    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus } = useApp();
     const [name, setName] = useState(board.name);
     const isLastBoard = boards.length <= 1;
 
@@ -127,6 +128,98 @@ const BoardSettingsModal = ({ board, onClose }) => {
                         <span style={{ color: 'var(--text-primary)' }}>{board.tasks?.length || 0}</span>
                     </div>
                 </div>
+
+                {/* Trello Sync */}
+                {board.trelloSync?.trelloBoardId && (
+                    <div style={{
+                        background: 'var(--bg-secondary)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: 12,
+                        marginBottom: 16,
+                        fontSize: 12
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#0079BF">
+                                <rect x="1" y="1" width="22" height="22" rx="3" ry="3"/>
+                                <rect x="4" y="4" width="7" height="15" rx="1.5" ry="1.5" fill="white"/>
+                                <rect x="13" y="4" width="7" height="10" rx="1.5" ry="1.5" fill="white"/>
+                            </svg>
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Trello Sync</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'var(--text-muted)' }}>
+                            <span>Board</span>
+                            <a href={board.trelloSync.trelloBoardUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#0079BF', textDecoration: 'none' }}>
+                                {board.trelloSync.trelloBoardName}
+                            </a>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'var(--text-muted)' }}>
+                            <span>Last sync</span>
+                            <span style={{ color: 'var(--text-primary)' }}>
+                                {board.trelloSync.lastSyncAt ? new Date(board.trelloSync.lastSyncAt).toLocaleString() : 'Never'}
+                            </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, color: 'var(--text-muted)' }}>
+                            <span>Auto-sync</span>
+                            <button
+                                onClick={() => onUpdateTrelloSyncSettings({ syncEnabled: !board.trelloSync.syncEnabled })}
+                                style={{
+                                    padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: 'none',
+                                    background: board.trelloSync.syncEnabled ? '#dcfce7' : 'var(--bg-tertiary)',
+                                    color: board.trelloSync.syncEnabled ? '#16a34a' : 'var(--text-muted)',
+                                    fontSize: 11, fontWeight: 500, cursor: 'pointer'
+                                }}
+                            >
+                                {board.trelloSync.syncEnabled ? 'On' : 'Off'}
+                            </button>
+                        </div>
+                        {board.trelloSync.syncEnabled && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, color: 'var(--text-muted)' }}>
+                                <span>Interval</span>
+                                <select
+                                    value={board.trelloSync.pollIntervalMs || 120000}
+                                    onChange={e => onUpdateTrelloSyncSettings({ pollIntervalMs: Number(e.target.value) })}
+                                    style={{
+                                        padding: '2px 6px', borderRadius: 'var(--radius-sm)',
+                                        border: '1px solid var(--border)', background: 'var(--bg-primary)',
+                                        color: 'var(--text-primary)', fontSize: 11, cursor: 'pointer'
+                                    }}
+                                >
+                                    {TRELLO_SYNC_INTERVALS.map(opt => (
+                                        <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                            <button
+                                onClick={onTrelloSync}
+                                disabled={trelloSyncStatus === 'syncing'}
+                                style={{
+                                    flex: 1, padding: '6px 0', borderRadius: 'var(--radius-sm)',
+                                    border: '1px solid #0079BF', background: 'white',
+                                    color: '#0079BF', fontSize: 11, fontWeight: 500,
+                                    cursor: trelloSyncStatus === 'syncing' ? 'default' : 'pointer'
+                                }}
+                            >
+                                {trelloSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (confirm('Unlink this board from Trello? Existing data will be kept.')) {
+                                        onUpdateTrelloSyncSettings({ syncEnabled: false, trelloBoardId: null });
+                                    }
+                                }}
+                                style={{
+                                    padding: '6px 10px', borderRadius: 'var(--radius-sm)',
+                                    border: 'none', background: '#fef2f2',
+                                    color: '#dc2626', fontSize: 11, fontWeight: 500, cursor: 'pointer'
+                                }}
+                            >
+                                Unlink
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 8 }}>

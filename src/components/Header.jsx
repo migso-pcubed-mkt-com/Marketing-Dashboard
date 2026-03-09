@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Icon } from './Icons.jsx';
 import BoardSelector from './BoardSelector.jsx';
 
-const Header = ({currentView, setCurrentView, onSync, syncing, githubConnected, savingStatus}) => {
+const Header = ({currentView, setCurrentView, onSync, syncing, githubConnected, savingStatus, trelloSync, trelloSyncStatus, onTrelloSync}) => {
     const [mobileMenu, setMobileMenu] = useState(false);
     const navItems = [{id:'kanban',icon:Icon.Kanban,label:'Kanban'},{id:'timeline',icon:Icon.Timeline,label:'Timeline'},{id:'calendar',icon:Icon.Calendar,label:'Calendar'},{id:'dashboard',icon:Icon.Dashboard,label:'KPIs'}];
     return (
@@ -18,6 +18,22 @@ const Header = ({currentView, setCurrentView, onSync, syncing, githubConnected, 
                 </nav>
                 <div className="flex items-center gap-1.5" style={{flex:1,justifyContent:'flex-end'}}>
                     {savingStatus && <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{background:savingStatus==='error'?'var(--error-light)':'var(--accent-light)',color:savingStatus==='error'?'var(--error)':'var(--accent)'}}>{savingStatus==='saving'?'Saving...':savingStatus==='error'?'Error':'Saved'}</span>}
+                    {trelloSync?.syncEnabled && (
+                        <button
+                            onClick={onTrelloSync}
+                            disabled={trelloSyncStatus === 'syncing'}
+                            className="v11-icon-btn"
+                            style={{position:'relative'}}
+                            title={trelloSyncStatus === 'syncing' ? 'Syncing with Trello...' : `Trello sync (last: ${trelloSync.lastSyncAt ? new Date(trelloSync.lastSyncAt).toLocaleTimeString() : 'never'})`}
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill={trelloSyncStatus === 'error' ? '#ef4444' : '#0079BF'}>
+                                <rect x="1" y="1" width="22" height="22" rx="3" ry="3"/>
+                                <rect x="4" y="4" width="7" height="15" rx="1.5" ry="1.5" fill="white"/>
+                                <rect x="13" y="4" width="7" height="10" rx="1.5" ry="1.5" fill="white"/>
+                            </svg>
+                            <span className="absolute top-1 right-1 w-2 h-2 rounded-full" style={{background: trelloSyncStatus === 'syncing' ? '#f59e0b' : trelloSyncStatus === 'error' ? '#ef4444' : '#22c55e'}}/>
+                        </button>
+                    )}
                     <button onClick={onSync} disabled={syncing} className={`v11-icon-btn ${syncing ? 'animate-spin' : ''}`} style={{position:'relative'}} title="Sync data">
                         <Icon.Refresh/>
                         {githubConnected && <span className="absolute top-1 right-1 w-2 h-2 rounded-full" style={{background:'var(--success)'}}/>}

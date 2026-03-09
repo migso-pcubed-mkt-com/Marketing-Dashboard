@@ -10,7 +10,9 @@ import {
     saveToLocalStorage as saveToLocalStorageFn,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
+import { syncWithTrello } from './lib/trelloSync.js';
 import Header from './components/Header.jsx';
+import TrelloImportModal from './components/TrelloImportModal.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
 import KanbanView from './components/KanbanView.jsx';
 import TimelineView from './components/TimelineView.jsx';
@@ -53,6 +55,10 @@ const App = () => {
         const saved = localStorage.getItem('customCountries');
         return saved ? JSON.parse(saved) : [];
     });
+    const [showTrelloImportModal, setShowTrelloImportModal] = useState(false);
+    const [trelloSyncStatus, setTrelloSyncStatus] = useState('idle'); // idle | syncing | synced | error
+    const trelloSyncIntervalRef = useRef(null);
+
     const saveQueueRef = useRef([]);
     const isSavingRef = useRef(false);
     const createDropdownRef = useRef(null);
@@ -649,6 +655,86 @@ const App = () => {
         showNotification('✅ Action created');
     };
 
+    // --- Trello import ---
+    const handleTrelloImport = useCallback((importData, boardName) => {
+        const newBoard = {
+            id: `board-${Date.now()}`,
+            name: boardName || 'Trello Import',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            categories: importData.categories,
+            actions: importData.actions,
+            tasks: importData.tasks,
+            trelloSync: importData.trelloSync
+        };
+        setBoardData(prev => ({
+            ...prev,
+            currentBoardId: newBoard.id,
+            boards: [...prev.boards, newBoard]
+        }));
+        setCurrentBoardId(newBoard.id);
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]});
+        showNotification(`✅ Imported "${boardName}" from Trello`);
+    }, []);
+
+    // --- Trello sync ---
+    const handleTrelloSync = useCallback(async () => {
+        if (!currentBoard?.trelloSync?.trelloBoardId) return;
+        setTrelloSyncStatus('syncing');
+        try {
+            // Build mappingConfig from current board data
+            const mappingConfig = { labelMappings: {} };
+            for (const action of (currentBoard.actions || [])) {
+                if (action.trelloLabelId) {
+                    mappingConfig.labelMappings[action.trelloLabelId] = { type: 'action', categoryId: action.categoryId };
+                }
+            }
+            const { board: syncedBoard, result } = await syncWithTrello(currentBoard, mappingConfig);
+            // Update the board in boardData
+            setBoardData(prev => ({
+                ...prev,
+                boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b)
+            }));
+            setTrelloSyncStatus('synced');
+            const msg = [];
+            if (result.created) msg.push(`${result.created} new`);
+            if (result.updated) msg.push(`${result.updated} updated`);
+            if (result.pushed) msg.push(`${result.pushed} pushed`);
+            showNotification(`✅ Trello sync: ${msg.join(', ') || 'up to date'}`);
+            setTimeout(() => setTrelloSyncStatus('idle'), 3000);
+        } catch (err) {
+            console.error('Trello sync error:', err);
+            setTrelloSyncStatus('error');
+            showNotification(`❌ Trello sync failed: ${err.message}`);
+            setTimeout(() => setTrelloSyncStatus('idle'), 5000);
+        }
+    }, [currentBoard]);
+
+    // --- Trello polling lifecycle ---
+    useEffect(() => {
+        // Clear previous interval
+        if (trelloSyncIntervalRef.current) {
+            clearInterval(trelloSyncIntervalRef.current);
+            trelloSyncIntervalRef.current = null;
+        }
+        // Start polling if current board has Trello sync enabled
+        if (currentBoard?.trelloSync?.syncEnabled && currentBoard?.trelloSync?.trelloBoardId) {
+            const intervalMs = currentBoard.trelloSync.pollIntervalMs || 120000;
+            console.log(`Trello polling started (${intervalMs / 1000}s)`);
+            trelloSyncIntervalRef.current = setInterval(handleTrelloSync, intervalMs);
+        }
+        return () => {
+            if (trelloSyncIntervalRef.current) clearInterval(trelloSyncIntervalRef.current);
+        };
+    }, [currentBoard?.trelloSync?.syncEnabled, currentBoard?.trelloSync?.pollIntervalMs, currentBoard?.id, handleTrelloSync]);
+
+    const handleUpdateTrelloSyncSettings = useCallback((updates) => {
+        updateCurrentBoard(b => ({
+            ...b,
+            trelloSync: { ...b.trelloSync, ...updates }
+        }));
+    }, [updateCurrentBoard]);
+
     const handleAddNewTask = (newTask) => {
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
@@ -708,15 +794,19 @@ const App = () => {
         onCreateBoard: handleCreateBoard,
         onRenameBoard: handleRenameBoard,
         onDeleteBoard: handleDeleteBoard,
-        onDuplicateBoard: handleDuplicateBoard
-    }), [boards, currentBoardId, currentBoard, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard]);
+        onDuplicateBoard: handleDuplicateBoard,
+        onShowTrelloImport: () => setShowTrelloImportModal(true),
+        onTrelloSync: handleTrelloSync,
+        onUpdateTrelloSyncSettings: handleUpdateTrelloSyncSettings,
+        trelloSyncStatus
+    }), [boards, currentBoardId, currentBoard, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus]);
 
     if (!dataLoaded) return (<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Loading data...</p></div></div>);
 
     return (
         <AppContext.Provider value={contextValue}>
             <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
-                <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus}/>
+                <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
                     <div className="toolbar">
                         <button className={`filter-btn ${showFilterSidebar ? 'active' : ''}`} onClick={() => setShowFilterSidebar(!showFilterSidebar)}>
@@ -781,6 +871,7 @@ const App = () => {
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction} onAddCategory={handleAddCategory}/>}
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory}/>}
+                {showTrelloImportModal && <TrelloImportModal onClose={() => setShowTrelloImportModal(false)} onImport={handleTrelloImport}/>}
                 <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
             </div>

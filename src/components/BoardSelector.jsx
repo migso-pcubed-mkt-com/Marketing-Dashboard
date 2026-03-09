@@ -4,7 +4,7 @@ import { Icon } from './Icons.jsx';
 import BoardSettingsModal from './BoardSettingsModal.jsx';
 
 const BoardSelector = () => {
-    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard } = useApp();
+    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport } = useApp();
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');
@@ -208,6 +208,33 @@ const BoardSelector = () => {
                                 <Icon.Plus size={13}/> New board
                             </button>
                         )}
+                        <button
+                            onClick={() => { setIsOpen(false); onShowTrelloImport(); }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: 'var(--radius-sm)',
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#0079BF',
+                                fontSize: 13,
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                textAlign: 'left'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="#0079BF">
+                                <rect x="1" y="1" width="22" height="22" rx="3" ry="3"/>
+                                <rect x="4" y="4" width="7" height="15" rx="1.5" ry="1.5" fill="white"/>
+                                <rect x="13" y="4" width="7" height="10" rx="1.5" ry="1.5" fill="white"/>
+                            </svg>
+                            Import from Trello
+                        </button>
                     </div>
                 </div>
             )}

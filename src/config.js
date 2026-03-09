@@ -94,6 +94,28 @@ export const DEFAULT_TASKS = [
     { id: 't19', actionId: 'a12', month: 3, startDate: '2026-04-01', title: 'Salon Avril', description: 'Participation salon', status: 'todo', priority: 'medium', dueDate: '2026-04-10', checklist: [], comments: [], attachments: [], channels: ['events'] }
 ];
 
+// Trello color mapping (10 predefined Trello colors → hex + Tailwind gradient)
+export const TRELLO_COLORS = {
+    green:  { hex: '#22c55e', gradient: 'from-green-400 to-emerald-600' },
+    yellow: { hex: '#f59e0b', gradient: 'from-amber-400 to-orange-500' },
+    orange: { hex: '#f97316', gradient: 'from-orange-400 to-red-500' },
+    red:    { hex: '#ef4444', gradient: 'from-red-400 to-rose-600' },
+    purple: { hex: '#8b5cf6', gradient: 'from-violet-400 to-purple-600' },
+    blue:   { hex: '#3b82f6', gradient: 'from-blue-400 to-indigo-600' },
+    sky:    { hex: '#0ea5e9', gradient: 'from-sky-400 to-cyan-600' },
+    lime:   { hex: '#84cc16', gradient: 'from-lime-400 to-green-500' },
+    pink:   { hex: '#ec4899', gradient: 'from-pink-400 to-rose-600' },
+    black:  { hex: '#6366f1', gradient: 'from-indigo-500 to-purple-600' }
+};
+
+// Trello sync polling intervals
+export const TRELLO_SYNC_INTERVALS = [
+    { id: 60000,  label: '1 min' },
+    { id: 120000, label: '2 min' },
+    { id: 300000, label: '5 min' },
+    { id: 600000, label: '10 min' }
+];
+
 export const GITHUB_CONFIG = {
     owner: 'migso-pcubed-mkt-com',
     repo: 'Marketing-Dashboard',
