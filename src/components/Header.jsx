@@ -4,13 +4,11 @@ import BoardSelector from './BoardSelector.jsx';
 
 const Header = ({currentView, setCurrentView, onSync, syncing, githubConnected, savingStatus}) => {
     const [mobileMenu, setMobileMenu] = useState(false);
-    const navItems = [{id:'kanban',icon:Icon.Kanban,label:'Kanban'},{id:'timeline',icon:Icon.Timeline,label:'Timeline'},{id:'dashboard',icon:Icon.Dashboard,label:'KPIs'}];
+    const navItems = [{id:'kanban',icon:Icon.Kanban,label:'Kanban'},{id:'timeline',icon:Icon.Timeline,label:'Timeline'},{id:'calendar',icon:Icon.Calendar,label:'Calendar'},{id:'dashboard',icon:Icon.Dashboard,label:'KPIs'}];
     return (
         <header className="v11-header" style={{background:'var(--bg-primary)',borderBottom:'1px solid var(--border)'}}>
             <div className="v11-header-inner" style={{maxWidth:1600,margin:'0 auto',display:'flex',alignItems:'center',justifyContent:'space-between',height:'100%',gap:16,padding:'0 24px'}}>
                 <div className="flex items-center gap-2.5" style={{flex:1}}>
-                    <div className="v11-logo">M</div>
-                    <div><span className="font-semibold text-sm" style={{color:'var(--text-primary)'}}>Marketing Tracker</span><span className="block text-xs" style={{color:'var(--text-muted)',fontFamily:'var(--font-mono)'}}>MIGSO-PCUBED</span></div>
                     <BoardSelector/>
                 </div>
                 <nav className="hidden md:flex v11-view-tabs">

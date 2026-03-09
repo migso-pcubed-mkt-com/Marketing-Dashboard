@@ -15,6 +15,7 @@ import { Icon, StatusIcon } from './components/Icons.jsx';
 import KanbanView from './components/KanbanView.jsx';
 import TimelineView from './components/TimelineView.jsx';
 import DashboardView from './components/DashboardView.jsx';
+import CalendarView from './components/CalendarView.jsx';
 import FilterSidebar from './components/FilterSidebar.jsx';
 import TaskDetailModal from './components/TaskDetailModal.jsx';
 import ActionDetailModal from './components/ActionDetailModal.jsx';
@@ -265,7 +266,8 @@ const App = () => {
             if (e.key === 'n' && !e.ctrlKey && !e.metaKey) handleCreateNewTask();
             if ((e.key === '1' || e.key === '&') && !e.ctrlKey && !e.metaKey) setCurrentView('kanban');
             if ((e.key === '2' || e.key === 'é') && !e.ctrlKey && !e.metaKey) setCurrentView('timeline');
-            if ((e.key === '3' || e.key === '"') && !e.ctrlKey && !e.metaKey) setCurrentView('dashboard');
+            if ((e.key === '3' || e.key === '"') && !e.ctrlKey && !e.metaKey) setCurrentView('calendar');
+            if ((e.key === '4' || e.key === "'") && !e.ctrlKey && !e.metaKey) setCurrentView('dashboard');
         };
         document.addEventListener('keydown', handleKeyPress);
         return () => document.removeEventListener('keydown', handleKeyPress);
@@ -771,13 +773,14 @@ const App = () => {
                     )}
                     {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef}/>}
+                    {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
                 {selectedTask && <TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry}/>}
                 {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t => { setSelectedTask(t); }} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction}/>}
-                {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={() => { setShowNewTaskModal(false); setShowNewActionModal(true); }}/>}
+                {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setShowNewActionModal(true); } }}/>}
                 <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
             </div>

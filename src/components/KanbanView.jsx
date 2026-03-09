@@ -1,15 +1,28 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
 import TaskCard from './TaskCard.jsx';
 
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns})=>{
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
-    const[sortBy,setSortBy]=useState('order'); // order, name, date, deadline, priority
+    const[sortBy,setSortBy]=useState('order');
     const kanbanScrollRef=useRef(null);
+
+    // Column drag state
+    const[dragColIdx,setDragColIdx]=useState(null);
+    const[dropColIdx,setDropColIdx]=useState(null);
+
+    // Persisted column orders (category and country)
+    const[categoryOrder,setCategoryOrder]=useState(null); // null = default order
+    const[countryOrder,setCountryOrder]=useState(()=>{
+        try { const saved = localStorage.getItem('kanban_country_order'); return saved ? JSON.parse(saved) : null; } catch { return null; }
+    });
+    const[catOrder,setCatOrder]=useState(()=>{
+        try { const saved = localStorage.getItem('kanban_category_order'); return saved ? JSON.parse(saved) : null; } catch { return null; }
+    });
 
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
@@ -37,18 +50,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             onUpdateAction(actionId,{categoryId});
         }
     };
-    const handleDragOver=(e)=>{e.preventDefault();e.currentTarget.classList.add('drag-over');};
-    const handleDragLeave=(e)=>{e.currentTarget.classList.remove('drag-over');};
 
     const getColumns=()=>{
-        // Helper to sort items by different criteria (completed tasks always at bottom)
         const sortItems=(items)=>{
             const sorted=[...items];
-            // First separate completed and non-completed tasks
             const completed=sorted.filter(t=>t.status==='completed');
             const notCompleted=sorted.filter(t=>t.status!=='completed');
-
-            // Sort each group separately
             const sortGroup=(group)=>{
                 if(sortBy==='order')return group.sort((a,b)=>(a.order||0)-(b.order||0));
                 if(sortBy==='name')return group.sort((a,b)=>a.title.localeCompare(b.title));
@@ -61,17 +68,14 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                 }
                 return group;
             };
-
-            // Return non-completed tasks first, then completed tasks
             return[...sortGroup(notCompleted),...sortGroup(completed)];
         };
 
-        // Derive effective month for selected year (handles cross-year tasks)
         const getTaskMonth=(t)=>{
             if(!t.startDate)return t.month;
             const sy=new Date(t.startDate).getFullYear();
-            if(sy<selectedYear)return 0; // Task from previous year → show in January
-            if(sy>selectedYear)return 11; // Task from next year → show in December
+            if(sy<selectedYear)return 0;
+            if(sy>selectedYear)return 11;
             return new Date(t.startDate).getMonth();
         };
         if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:sortItems(filteredTasks.filter(t=>getTaskMonth(t)===idx))}));
@@ -88,7 +92,17 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                 items:sortItems(filteredTasks.filter(t=>q.months.includes(getTaskMonth(t))))
             }));
         }
-        if(viewMode==='category')return categories.map(cat=>({key:cat.id,name:cat.name,gradient:cat.gradient,items:actions.filter(a=>a.categoryId===cat.id&&filteredTasks.some(t=>t.actionId===a.id))}));
+        if(viewMode==='category'){
+            let cats = [...categories];
+            if(catOrder){
+                cats.sort((a,b)=>{
+                    const ai=catOrder.indexOf(a.id);
+                    const bi=catOrder.indexOf(b.id);
+                    return (ai===-1?999:ai)-(bi===-1?999:bi);
+                });
+            }
+            return cats.map(cat=>({key:cat.id,name:cat.name,gradient:cat.gradient,items:actions.filter(a=>a.categoryId===cat.id&&filteredTasks.some(t=>t.actionId===a.id))}));
+        }
         if(viewMode==='action'){
             if(selectedAction){
                 return CONFIG.STATUSES.map(s=>({key:s.id,name:s.name,color:s.color,icon:s.icon,items:sortItems(filteredTasks.filter(t=>t.actionId===selectedAction&&t.status===s.id))}));
@@ -97,7 +111,6 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             }
         }
         if(viewMode==='country'){
-            // Build columns for ALL countries + Unassigned
             const countryTaskMap={};
             const unassigned=[];
             filteredTasks.forEach(t=>{
@@ -111,7 +124,15 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     });
                 }
             });
-            const cols=allCountries.map(c=>({
+            let countries = [...allCountries];
+            if(countryOrder){
+                countries.sort((a,b)=>{
+                    const ai=countryOrder.indexOf(a.id);
+                    const bi=countryOrder.indexOf(b.id);
+                    return (ai===-1?999:ai)-(bi===-1?999:bi);
+                });
+            }
+            const cols=countries.map(c=>({
                 key:c.id,
                 name:c.name,
                 countryFlag:c.flag,
@@ -123,6 +144,54 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         }
         return[];
     };
+
+    const canDragColumns = viewMode === 'category' || viewMode === 'country';
+
+    const handleColumnDragStart = (e, idx) => {
+        if (!canDragColumns) return;
+        setDragColIdx(idx);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('columnDrag', 'true');
+        e.currentTarget.style.opacity = '0.5';
+    };
+
+    const handleColumnDragEnd = (e) => {
+        e.currentTarget.style.opacity = '1';
+        setDragColIdx(null);
+        setDropColIdx(null);
+    };
+
+    const handleColumnDragOver = (e, idx) => {
+        if (dragColIdx === null) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDropColIdx(idx);
+    };
+
+    const handleColumnDrop = (e, idx, columns) => {
+        if (dragColIdx === null || dragColIdx === idx) {
+            setDragColIdx(null);
+            setDropColIdx(null);
+            return;
+        }
+        e.preventDefault();
+        const reordered = [...columns];
+        const [moved] = reordered.splice(dragColIdx, 1);
+        reordered.splice(idx, 0, moved);
+        const newOrder = reordered.map(c => c.key);
+
+        if (viewMode === 'category') {
+            setCatOrder(newOrder);
+            try { localStorage.setItem('kanban_category_order', JSON.stringify(newOrder)); } catch {}
+        } else if (viewMode === 'country') {
+            setCountryOrder(newOrder);
+            try { localStorage.setItem('kanban_country_order', JSON.stringify(newOrder)); } catch {}
+        }
+        setDragColIdx(null);
+        setDropColIdx(null);
+    };
+
+    const columns = getColumns();
 
     return(
         <div className="animate-slide-in">
@@ -153,19 +222,42 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                 </div>
             </div>
             <div className="kanban-board">
-                    {getColumns().map(col=>(
+                    {columns.map((col, colIdx)=>(
                         <div
                             key={col.key}
+                            draggable={canDragColumns && col.key !== '_unassigned'}
+                            onDragStart={canDragColumns ? (e) => {
+                                // Only handle column drag if started from header area
+                                if (e.target.closest('.kanban-cards')) return;
+                                handleColumnDragStart(e, colIdx);
+                            } : undefined}
+                            onDragEnd={canDragColumns ? handleColumnDragEnd : undefined}
                             data-drop-month={viewMode==='month'?col.key:null}
-                            onDragOver={(e)=>{e.preventDefault();if(viewMode==='month'||viewMode==='quarter'||viewMode==='category'||viewMode==='action'||viewMode==='country')e.currentTarget.classList.add('drag-over');}}
-                            onDragLeave={(e)=>e.currentTarget.classList.remove('drag-over')}
+                            onDragOver={(e)=>{
+                                // Column reorder drag
+                                if(dragColIdx !== null && canDragColumns) {
+                                    handleColumnDragOver(e, colIdx);
+                                    return;
+                                }
+                                e.preventDefault();
+                                if(viewMode==='month'||viewMode==='quarter'||viewMode==='category'||viewMode==='action'||viewMode==='country')e.currentTarget.classList.add('drag-over');
+                            }}
+                            onDragLeave={(e)=>{
+                                e.currentTarget.classList.remove('drag-over');
+                                if (dropColIdx === colIdx) setDropColIdx(null);
+                            }}
                             onDrop={(e)=>{
+                                // Column reorder drop
+                                if(dragColIdx !== null && canDragColumns && e.dataTransfer.getData('columnDrag')) {
+                                    handleColumnDrop(e, colIdx, columns);
+                                    return;
+                                }
+
                                 e.preventDefault();
                                 e.currentTarget.classList.remove('drag-over');
                                 if(viewMode==='month'){
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
-                                        const task=filteredTasks.find(t=>t.id===taskId);
                                         const monthIdx=col.key;
                                         const year=selectedYear;
                                         const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
@@ -176,7 +268,6 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 }else if(viewMode==='quarter'){
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
-                                        const task=filteredTasks.find(t=>t.id===taskId);
                                         const quarterIdx=col.key;
                                         const year=selectedYear;
                                         const firstMonth=quarterIdx*3;
@@ -207,9 +298,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     }
                                 }
                             }}
-                            className="kanban-column" >
+                            className={`kanban-column${dropColIdx === colIdx && dragColIdx !== null ? ' column-drop-target' : ''}`}
+                            style={canDragColumns && col.key !== '_unassigned' ? {cursor:'grab'} : undefined}
+                        >
                             <div className="column-header">
                                 <div className="column-title">
+                                    {canDragColumns && col.key !== '_unassigned' && <span style={{cursor:'grab',opacity:0.4,fontSize:10,marginRight:2}}>⋮⋮</span>}
                                     {col.color&&!col.countryColor&&<StatusIcon statusId={col.key} size={12}/>}
                                     {col.gradient&&<div style={{background:categories.find(c=>c.id===col.key)?.color||'var(--accent)',width:4,height:20,borderRadius:2,flexShrink:0}}/>}
                                     {col.countryColor&&<span style={{background:col.countryColor,color:'white',fontSize:9,fontWeight:700,padding:'2px 5px',borderRadius:4,letterSpacing:0.3,lineHeight:1}}>{col.countryFlag}</span>}
@@ -218,17 +312,17 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 </div>
                                 <button className="column-menu" onClick={(e)=>e.stopPropagation()}>⋮</button>
                             </div>
-                            <div className="kanban-cards">
+                            <div className="kanban-cards" onDragStart={(e) => {
+                                // Prevent column drag when dragging cards
+                                e.stopPropagation();
+                            }}>
                                 {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?(viewMode==='country'?((draggedId,targetId,position)=>{
-                                    // In country view: assign the target column's country + reorder within column
                                     const targetCountry=col.key==='_unassigned'?[]:[col.key];
                                     onUpdateTask(draggedId,{countries:targetCountry});
-                                    // Reorder within column items
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
                                     const dragIdx=colItems.findIndex(t=>t.id===draggedId);
                                     const targetIdx=colItems.findIndex(t=>t.id===targetId);
                                     if(targetIdx===-1)return;
-                                    // If dragged task is not in this column yet, insert it
                                     const reordered=dragIdx>=0?[...colItems]:[...colItems];
                                     if(dragIdx>=0)reordered.splice(dragIdx,1);
                                     const insertAt=position==='before'?targetIdx:(dragIdx>=0&&dragIdx<targetIdx?targetIdx:targetIdx+1);
