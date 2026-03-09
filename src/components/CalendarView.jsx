@@ -195,7 +195,8 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
         return { bars, rowCount: rows.length };
     };
 
-    const renderBar = (task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight, topOffset, keyPrefix = '') => {
+    // Compact bar for month view (single line)
+    const renderMonthBar = (task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight, topOffset, keyPrefix = '') => {
         const action = actions.find(a => a.id === task.actionId);
         const cat = categories.find(c => c.id === action?.categoryId);
         const barColor = cat?.color || 'var(--accent)';
@@ -219,10 +220,8 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                 style={{
                     position: 'absolute',
                     left, width, top, height: 20, zIndex: 10,
-                    background: isMultiDay
-                        ? `linear-gradient(90deg, ${barColor}22, ${barColor}33)`
-                        : (task.status === 'completed' ? 'var(--success-light)' : 'var(--bg-primary)'),
-                    border: isMultiDay ? `1px solid ${barColor}44` : `1px solid var(--border-light)`,
+                    background: `linear-gradient(90deg, ${barColor}18, ${barColor}28)`,
+                    border: `1px solid ${barColor}44`,
                     borderLeftWidth: continuesLeft ? 1 : 3,
                     borderLeftColor: continuesLeft ? `${barColor}44` : barColor,
                     borderRadius: `${continuesLeft ? 0 : 4}px ${continuesRight ? 0 : 4}px ${continuesRight ? 0 : 4}px ${continuesLeft ? 0 : 4}px`,
@@ -237,7 +236,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                 <StatusIcon statusId={task.status} size={7}/>
                 <span style={{
                     overflow: 'hidden', textOverflow: 'ellipsis', flex: 1,
-                    color: isMultiDay ? barColor : 'var(--text-primary)',
+                    color: barColor,
                     textDecoration: task.status === 'completed' ? 'line-through' : 'none'
                 }}>
                     {task.title}
@@ -311,7 +310,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                 );
                             })}
                             {visibleBars.map(({ task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight }) =>
-                                renderBar(task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight, 28, 'm' + wi)
+                                renderMonthBar(task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight, 28, 'm' + wi)
                             )}
                         </div>
                     );
@@ -320,11 +319,13 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
         );
     };
 
-    // Week view - same bar system as month
+    // Week view - taller bars with action name + date details
+    const WEEK_BAR_HEIGHT = 56;
+    const WEEK_BAR_GAP = 4;
     const renderWeekView = () => {
         const days = getWeekDays();
         const { bars, rowCount } = computeWeekBars(days);
-        const barAreaHeight = rowCount * 28;
+        const barAreaHeight = rowCount * (WEEK_BAR_HEIGHT + WEEK_BAR_GAP);
 
         return (
             <div className="calendar-week-view">
@@ -341,8 +342,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                         );
                     })}
                 </div>
-                {/* Bar area - same layout as month view but with 7 equal columns + time gutter */}
-                <div style={{ position: 'relative', minHeight: Math.max(barAreaHeight + 20, 300) }}>
+                <div style={{ position: 'relative', minHeight: Math.max(barAreaHeight + 40, 300) }}>
                     {/* Grid lines */}
                     <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', position: 'absolute', inset: 0 }}>
                         <div style={{ borderRight: '1px solid var(--border-light)' }}/>
@@ -361,7 +361,6 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                     onDragLeave={(e) => { e.currentTarget.style.background = isToday ? 'rgba(99,102,241,0.03)' : ''; }}
                                     onDrop={(e) => { e.currentTarget.style.background = isToday ? 'rgba(99,102,241,0.03)' : ''; handleDrop(e, date); }}
                                 >
-                                    {/* Hover + button at bottom */}
                                     {onAddTask && (
                                         <button
                                             className="calendar-add-btn"
@@ -374,16 +373,15 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                             );
                         })}
                     </div>
-                    {/* Bars rendered absolutely, offset by gutter width */}
+                    {/* Detailed bars */}
                     {bars.map(({ task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight }) => {
                         const action = actions.find(a => a.id === task.actionId);
                         const cat = categories.find(c => c.id === action?.categoryId);
                         const barColor = cat?.color || 'var(--accent)';
-                        // Account for the 60px gutter
                         const colWidth = `calc((100% - 60px) / 7)`;
                         const left = `calc(60px + ${colWidth} * ${startCol} + 4px)`;
                         const width = `calc(${colWidth} * ${span} - 8px)`;
-                        const top = 8 + rowIdx * 28;
+                        const top = 8 + rowIdx * (WEEK_BAR_HEIGHT + WEEK_BAR_GAP);
 
                         return (
                             <div
@@ -400,31 +398,39 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                 className="calendar-bar"
                                 style={{
                                     position: 'absolute',
-                                    left, width, top, height: 24, zIndex: 10,
-                                    background: isMultiDay
-                                        ? `linear-gradient(90deg, ${barColor}22, ${barColor}33)`
-                                        : (task.status === 'completed' ? 'var(--success-light)' : 'var(--bg-primary)'),
-                                    border: isMultiDay ? `1px solid ${barColor}44` : `1px solid var(--border-light)`,
+                                    left, width, top, height: WEEK_BAR_HEIGHT, zIndex: 10,
+                                    background: `linear-gradient(90deg, ${barColor}18, ${barColor}28)`,
+                                    border: `1px solid ${barColor}44`,
                                     borderLeftWidth: continuesLeft ? 1 : 3,
                                     borderLeftColor: continuesLeft ? `${barColor}44` : barColor,
-                                    borderRadius: `${continuesLeft ? 0 : 4}px ${continuesRight ? 0 : 4}px ${continuesRight ? 0 : 4}px ${continuesLeft ? 0 : 4}px`,
+                                    borderRadius: `${continuesLeft ? 0 : 6}px ${continuesRight ? 0 : 6}px ${continuesRight ? 0 : 6}px ${continuesLeft ? 0 : 6}px`,
                                     cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', gap: 4,
-                                    padding: '0 8px', overflow: 'hidden', whiteSpace: 'nowrap',
-                                    fontSize: 12, fontWeight: 500,
+                                    display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                                    padding: '4px 8px', overflow: 'hidden',
                                     opacity: task.status === 'completed' ? 0.6 : 1,
                                 }}
                                 title={`${task.title}\n${action?.name || ''}`}
                             >
-                                <StatusIcon statusId={task.status} size={8}/>
-                                <span style={{
-                                    overflow: 'hidden', textOverflow: 'ellipsis', flex: 1,
-                                    color: isMultiDay ? barColor : 'var(--text-primary)',
-                                    textDecoration: task.status === 'completed' ? 'line-through' : 'none'
-                                }}>
-                                    {task.title}
-                                </span>
-                                <div style={{ width: 6, height: 6, borderRadius: '50%', background: getPriorityColor(task.priority), flexShrink: 0 }}/>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                                    <StatusIcon statusId={task.status} size={9}/>
+                                    <span style={{
+                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+                                        fontSize: 12, fontWeight: 600,
+                                        color: 'var(--text-primary)',
+                                        textDecoration: task.status === 'completed' ? 'line-through' : 'none'
+                                    }}>
+                                        {task.title}
+                                    </span>
+                                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: getPriorityColor(task.priority), flexShrink: 0 }}/>
+                                </div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {action?.name || ''}
+                                </div>
+                                {task.startDate && task.dueDate && task.startDate !== task.dueDate && (
+                                    <div style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginTop: 1 }}>
+                                        {task.startDate.slice(5).replace('-', '/')} → {task.dueDate.slice(5).replace('-', '/')}
+                                    </div>
+                                )}
                             </div>
                         );
                     })}

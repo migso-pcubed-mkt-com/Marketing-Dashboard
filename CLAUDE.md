@@ -187,10 +187,14 @@ Props still drilled for view-specific data (categories, actions, tasks, handlers
   - **Year navigation** — `timelineYear` state shared in App, nav buttons to switch years
   - Touch + mouse support (mobile/tablet compatible)
 - **Calendar view** — Month and week display modes (ClickUp-inspired)
-  - Tasks shown as colored pills with status, priority, and category color
+  - Both views use same bar layout system: `computeWeekBars()` computes row positions for overlapping tasks
+  - **Month view**: compact bars (20px height) — title + status icon + priority dot
+  - **Week view**: detailed bars (56px height) — title + action name + date range + status + priority
+  - All bars use category color as background (translucent gradient) — consistent across single-day and multi-day tasks
   - Drag-and-drop to reschedule tasks (preserves duration)
   - Navigation: prev/next month/week, "Today" button
-  - Week view has all-day section + hourly grid (8h-19h)
+  - "+N more" in month view expands the week row to show all tasks (click again to collapse)
+  - Task creation via hover "+" button (bottom-left of each day cell), not click-on-day
   - Keyboard shortcut: `3` key
 - **Dashboard view** — KPIs and charts (replaced Table view)
 
@@ -257,6 +261,11 @@ Complex system with multiple solved issues:
 - Inline form: action name + category select → creates action immediately
 - `onCreateAction` callback accepts either a new action object (inline) or no args (opens NewActionModal)
 
+### NewActionModal — Inline Category Creation
+- "Create a new category" link below category dropdown opens inline form
+- Inline form: category name → creates category immediately and auto-selects it
+- `onAddCategory` prop passed from App.jsx (uses `handleAddCategory`)
+
 ### localStorage as Backup Only
 - `localStorage` is a **backup only**, not a primary storage layer
 - Load order: Supabase → GitHub → localStorage
@@ -318,3 +327,8 @@ Complex system with multiple solved issues:
 | 2026-03 | Global/World country first | Moved to top of CONFIG.COUNTRIES array |
 | 2026-03 | Draggable Kanban columns | Category and country views support column reordering (localStorage) |
 | 2026-03 | Calendar view added | Month/week modes, drag-to-reschedule, ClickUp-inspired design |
+| 2026-03 | Calendar bar layout system | Shared `computeWeekBars()` for both month/week; week bars taller with detail |
+| 2026-03 | Calendar hover + button | Replaced click-on-day task creation with ClickUp-style hover add button |
+| 2026-03 | Calendar +N more expand | "+N more" expands week row instead of creating new task |
+| 2026-03 | Consistent bar colors | All calendar bars use category color gradient — no more white vs colored distinction |
+| 2026-03 | Inline category creation | NewActionModal can create categories inline (like NewTaskModal creates actions) |
