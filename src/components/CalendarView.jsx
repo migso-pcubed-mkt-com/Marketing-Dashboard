@@ -22,7 +22,6 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
 
-    // Navigation
     const goNext = () => {
         if (mode === 'month') {
             setCurrentDate(new Date(year, month + 1, 1));
@@ -43,7 +42,6 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
     };
     const goToday = () => setCurrentDate(new Date());
 
-    // Get tasks for a specific date
     const getTasksForDate = (date) => {
         const dateStr = formatDate(date);
         return filteredTasks.filter(t => {
@@ -61,37 +59,31 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
         return `${y}-${m}-${day}`;
     };
 
-    // Month view: calendar grid
     const getMonthDays = () => {
         const firstDay = new Date(year, month, 1);
-        let startDow = firstDay.getDay(); // 0=Sun
-        startDow = startDow === 0 ? 6 : startDow - 1; // Convert to Mon=0
+        let startDow = firstDay.getDay();
+        startDow = startDow === 0 ? 6 : startDow - 1;
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const daysInPrevMonth = new Date(year, month, 0).getDate();
         const days = [];
-
-        // Previous month padding
         for (let i = startDow - 1; i >= 0; i--) {
             const d = new Date(year, month - 1, daysInPrevMonth - i);
             days.push({ date: d, isCurrentMonth: false });
         }
-        // Current month
         for (let i = 1; i <= daysInMonth; i++) {
             days.push({ date: new Date(year, month, i), isCurrentMonth: true });
         }
-        // Next month padding
-        const remaining = 42 - days.length; // 6 rows
+        const remaining = 42 - days.length;
         for (let i = 1; i <= remaining; i++) {
             days.push({ date: new Date(year, month + 1, i), isCurrentMonth: false });
         }
         return days;
     };
 
-    // Week view: 7 days starting from Monday of current week
     const getWeekDays = () => {
         const d = new Date(currentDate);
         let dow = d.getDay();
-        dow = dow === 0 ? 6 : dow - 1; // Mon=0
+        dow = dow === 0 ? 6 : dow - 1;
         const monday = new Date(d);
         monday.setDate(d.getDate() - dow);
         const days = [];
@@ -117,7 +109,6 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
         return `${start.getDate()} ${CONFIG.MONTHS_FULL[start.getMonth()].slice(0, 3)} - ${end.getDate()} ${CONFIG.MONTHS_FULL[end.getMonth()].slice(0, 3)} ${end.getFullYear()}`;
     };
 
-    // Handle drag & drop to reschedule tasks
     const handleDrop = (e, date) => {
         e.preventDefault();
         e.currentTarget.classList.remove('calendar-day-dragover');
@@ -126,7 +117,6 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
         const dateStr = formatDate(date);
-        // Keep same duration if task has both dates
         if (task.startDate && task.dueDate) {
             const start = new Date(task.startDate);
             const end = new Date(task.dueDate);
@@ -148,12 +138,10 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
         return p?.color || '#a1a1aa';
     };
 
-    const getStatusInfo = (statusId) => CONFIG.STATUSES.find(s => s.id === statusId);
-
-    const renderTaskPill = (task) => {
+    const renderTaskPill = (task, options = {}) => {
         const action = actions.find(a => a.id === task.actionId);
         const cat = categories.find(c => c.id === action?.categoryId);
-        const status = getStatusInfo(task.status);
+        const status = CONFIG.STATUSES.find(s => s.id === task.status);
         return (
             <div
                 key={task.id}
@@ -169,7 +157,8 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
                 style={{
                     borderLeft: `3px solid ${cat?.color || 'var(--accent)'}`,
                     background: task.status === 'completed' ? 'var(--success-light)' : 'var(--bg-primary)',
-                    opacity: task.status === 'completed' ? 0.7 : 1
+                    opacity: task.status === 'completed' ? 0.7 : 1,
+                    ...(options.style || {})
                 }}
                 title={`${task.title}\n${action?.name || ''}\nStatus: ${status?.name || task.status}`}
             >
@@ -218,7 +207,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
                                         </span>
                                     </div>
                                     <div className="calendar-day-tasks">
-                                        {dayTasks.slice(0, MAX_VISIBLE).map(renderTaskPill)}
+                                        {dayTasks.slice(0, MAX_VISIBLE).map(t => renderTaskPill(t))}
                                         {dayTasks.length > MAX_VISIBLE && (
                                             <div className="calendar-more">+{dayTasks.length - MAX_VISIBLE} more</div>
                                         )}
@@ -234,9 +223,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
 
     const renderWeekView = () => {
         const days = getWeekDays();
-        // Generate hours 0-23
-        const hours = Array.from({ length: 24 }, (_, i) => i);
-        // For simplicity, show tasks as all-day bars (since marketing tasks are date-based, not hourly)
+        const hours = Array.from({ length: 12 }, (_, i) => i + 8); // 8h-19h
         return (
             <div className="calendar-week-view">
                 <div className="calendar-week-header">
@@ -252,42 +239,40 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
                         );
                     })}
                 </div>
-                {/* All-day section for tasks */}
-                <div className="calendar-week-allday">
-                    <div className="calendar-week-time-col" style={{ fontSize: 10, color: 'var(--text-muted)' }}>All day</div>
-                    {days.map(({ date }) => {
-                        const dateStr = formatDate(date);
-                        const dayTasks = getTasksForDate(date);
-                        return (
-                            <div
-                                key={dateStr}
-                                className="calendar-week-allday-cell"
-                                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('calendar-day-dragover'); }}
-                                onDragLeave={(e) => e.currentTarget.classList.remove('calendar-day-dragover')}
-                                onDrop={(e) => handleDrop(e, date)}
-                            >
-                                {dayTasks.map(renderTaskPill)}
-                            </div>
-                        );
-                    })}
-                </div>
-                {/* Hour grid */}
+                {/* Hour grid with tasks placed inside day columns */}
                 <div className="calendar-week-body">
-                    {hours.filter(h => h >= 8 && h <= 19).map(h => (
+                    {hours.map(h => (
                         <div key={h} className="calendar-week-hour-row">
                             <div className="calendar-week-time-col">
                                 <span className="calendar-hour-label">{String(h).padStart(2, '0')}:00</span>
                             </div>
-                            {days.map(({ date }) => {
+                            {days.map(({ date }, dayIdx) => {
                                 const dateStr = formatDate(date);
+                                // Show tasks in the first hour slot of each day (8:00)
+                                const dayTasks = h === 8 ? getTasksForDate(date) : [];
                                 return (
                                     <div
                                         key={`${dateStr}-${h}`}
                                         className="calendar-week-hour-cell"
+                                        style={{ position: 'relative' }}
                                         onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('calendar-day-dragover'); }}
                                         onDragLeave={(e) => e.currentTarget.classList.remove('calendar-day-dragover')}
                                         onDrop={(e) => handleDrop(e, date)}
-                                    />
+                                    >
+                                        {dayTasks.map((task, ti) => renderTaskPill(task, {
+                                            style: {
+                                                position: 'absolute',
+                                                top: ti * 26,
+                                                left: 2,
+                                                right: 2,
+                                                zIndex: 5,
+                                                height: Math.min(Math.max(1, (hours.length - 1)) * 48 - ti * 26, 48 * (hours.length) - 4),
+                                                minHeight: 24,
+                                                maxHeight: 24,
+                                                overflow: 'hidden'
+                                            }
+                                        }))}
+                                    </div>
                                 );
                             })}
                         </div>
@@ -299,24 +284,22 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, fi
 
     return (
         <div className="animate-slide-in">
-            <div className="calendar-toolbar">
-                <div className="calendar-toolbar-left">
+            <div className="kanban-toolbar">
+                <div className="kanban-toolbar-left">
                     <div className="view-btn-group">
                         <button className={`view-btn ${mode === 'month' ? 'active' : ''}`} onClick={() => setMode('month')}>Month</button>
                         <button className={`view-btn ${mode === 'week' ? 'active' : ''}`} onClick={() => setMode('week')}>Week</button>
                     </div>
                 </div>
-                <div className="calendar-toolbar-center">
-                    <button className="calendar-nav-btn" onClick={goPrev}>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"/></svg>
-                    </button>
-                    <h2 className="calendar-title">{mode === 'month' ? monthLabel : getWeekLabel()}</h2>
-                    <button className="calendar-nav-btn" onClick={goNext}>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
-                    </button>
-                </div>
-                <div className="calendar-toolbar-right">
-                    <button className="calendar-today-btn" onClick={goToday}>Today</button>
+                <div className="kanban-toolbar-right">
+                    <span className="toolbar-label" style={{ fontWeight: 600, fontSize: 14, minWidth: 180, textAlign: 'center' }}>
+                        {mode === 'month' ? monthLabel : getWeekLabel()}
+                    </span>
+                    <div className="timeline-nav">
+                        <button className="timeline-nav-btn" onClick={goPrev}>◀</button>
+                        <button className="calendar-today-btn" onClick={goToday}>Today</button>
+                        <button className="timeline-nav-btn" onClick={goNext}>▶</button>
+                    </div>
                 </div>
             </div>
             {mode === 'month' ? renderMonthView() : renderWeekView()}
