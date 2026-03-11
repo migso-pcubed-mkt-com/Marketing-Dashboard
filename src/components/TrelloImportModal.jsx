@@ -44,12 +44,13 @@ const TrelloImportModal = ({ onClose, onImport }) => {
             const mappings = {};
             for (const label of data.labels) {
                 const channelMatch = matchLabelToChannel(label);
+                const labelColor = TRELLO_COLORS[label.color]?.hex || '#6b7280';
                 if (channelMatch) {
-                    mappings[label.id] = { type: 'channel', channelId: channelMatch };
+                    mappings[label.id] = { type: 'channel', channelId: channelMatch, labelName: label.name || '', labelColor };
                 } else if (label.name) {
-                    mappings[label.id] = { type: 'action', categoryId: null }; // Will pick first category
+                    mappings[label.id] = { type: 'action', categoryId: null, labelName: label.name || '', labelColor }; // Will pick first category
                 } else {
-                    mappings[label.id] = { type: 'ignore' };
+                    mappings[label.id] = { type: 'ignore', labelName: label.name || '', labelColor };
                 }
             }
             setLabelMappings(mappings);
@@ -79,11 +80,16 @@ const TrelloImportModal = ({ onClose, onImport }) => {
         }
     };
 
-    const updateLabelMapping = (labelId, field, value) => {
-        setLabelMappings(prev => ({
-            ...prev,
-            [labelId]: { ...prev[labelId], [field]: value }
-        }));
+    const updateLabelMapping = (labelId, field, value, label) => {
+        setLabelMappings(prev => {
+            const updated = { ...prev[labelId], [field]: value };
+            // Store label name/color for "other" type
+            if (label) {
+                updated.labelName = label.name || '';
+                updated.labelColor = TRELLO_COLORS[label.color]?.hex || '#6b7280';
+            }
+            return { ...prev, [labelId]: updated };
+        });
     };
 
     // Style constants
@@ -243,7 +249,7 @@ const TrelloImportModal = ({ onClose, onImport }) => {
                                                 {/* Mapping type selector */}
                                                 <select
                                                     value={mapping.type}
-                                                    onChange={e => updateLabelMapping(label.id, 'type', e.target.value)}
+                                                    onChange={e => updateLabelMapping(label.id, 'type', e.target.value, label)}
                                                     style={{
                                                         padding: '4px 8px', borderRadius: 'var(--radius-sm)',
                                                         border: '1px solid var(--border)', background: 'var(--bg-primary)',
@@ -252,6 +258,7 @@ const TrelloImportModal = ({ onClose, onImport }) => {
                                                 >
                                                     <option value="action">Action</option>
                                                     <option value="channel">Channel</option>
+                                                    <option value="other">Other Label</option>
                                                     <option value="ignore">Ignore</option>
                                                 </select>
 
@@ -259,7 +266,7 @@ const TrelloImportModal = ({ onClose, onImport }) => {
                                                 {mapping.type === 'channel' && (
                                                     <select
                                                         value={mapping.channelId || ''}
-                                                        onChange={e => updateLabelMapping(label.id, 'channelId', e.target.value)}
+                                                        onChange={e => updateLabelMapping(label.id, 'channelId', e.target.value, label)}
                                                         style={{
                                                             padding: '4px 8px', borderRadius: 'var(--radius-sm)',
                                                             border: '1px solid var(--border)', background: 'var(--bg-primary)',
@@ -277,6 +284,13 @@ const TrelloImportModal = ({ onClose, onImport }) => {
                                                 {mapping.type === 'action' && (
                                                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                                                         Auto-assigned to category
+                                                    </span>
+                                                )}
+
+                                                {/* Info for other label type */}
+                                                {mapping.type === 'other' && (
+                                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                                        Kept as tag on tasks
                                                     </span>
                                                 )}
                                             </div>

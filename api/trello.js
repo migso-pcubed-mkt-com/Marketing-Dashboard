@@ -50,12 +50,13 @@ export default async function handler(req, res) {
             if (!boardId) return res.status(400).json({ error: 'boardId required' });
             console.log(`Fetching Trello board ${boardId}...`);
 
-            // Fetch board, lists, labels, cards (with checklists) in parallel
-            const [boardRes, listsRes, labelsRes, cardsRes] = await Promise.all([
+            // Fetch board, lists, labels, cards (with checklists + attachments), members in parallel
+            const [boardRes, listsRes, labelsRes, cardsRes, membersRes] = await Promise.all([
                 fetch(`${TRELLO_BASE}/boards/${boardId}?${authParams}&fields=name,desc,dateLastActivity,url`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/lists?${authParams}&fields=name,pos,closed&filter=open`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/labels?${authParams}&fields=name,color`),
-                fetch(`${TRELLO_BASE}/boards/${boardId}/cards?${authParams}&fields=name,desc,due,dueComplete,dateLastActivity,idList,idLabels,pos,closed&filter=open&checklists=all`)
+                fetch(`${TRELLO_BASE}/boards/${boardId}/cards?${authParams}&fields=name,desc,due,dueComplete,dateLastActivity,idList,idLabels,idMembers,pos,closed&filter=open&checklists=all&attachments=true&attachment_fields=name,url,mimeType,date`),
+                fetch(`${TRELLO_BASE}/boards/${boardId}/members?${authParams}&fields=fullName,username,avatarUrl`)
             ]);
 
             if (!boardRes.ok || !listsRes.ok || !labelsRes.ok || !cardsRes.ok) {
@@ -70,22 +71,52 @@ export default async function handler(req, res) {
             const [board, lists, labels, cards] = await Promise.all([
                 boardRes.json(), listsRes.json(), labelsRes.json(), cardsRes.json()
             ]);
+            const members = membersRes.ok ? await membersRes.json() : [];
 
-            console.log(`Board "${board.name}": ${lists.length} lists, ${labels.length} labels, ${cards.length} cards`);
-            return res.status(200).json({ board, lists, labels, cards });
+            // Fetch comments for each card (Trello API requires per-card fetch for actions)
+            // Batch in groups of 10 to respect rate limits
+            const cardComments = {};
+            const batchSize = 10;
+            for (let i = 0; i < cards.length; i += batchSize) {
+                const batch = cards.slice(i, i + batchSize);
+                const commentResults = await Promise.all(
+                    batch.map(card =>
+                        fetch(`${TRELLO_BASE}/cards/${card.id}/actions?${authParams}&filter=commentCard&fields=data,date,memberCreator`)
+                            .then(r => r.ok ? r.json() : [])
+                            .catch(() => [])
+                    )
+                );
+                batch.forEach((card, idx) => {
+                    cardComments[card.id] = commentResults[idx];
+                });
+            }
+
+            // Attach comments to cards
+            for (const card of cards) {
+                card.comments = cardComments[card.id] || [];
+            }
+
+            console.log(`Board "${board.name}": ${lists.length} lists, ${labels.length} labels, ${cards.length} cards, ${members.length} members`);
+            return res.status(200).json({ board, lists, labels, cards, members });
         }
 
         // PUT /api/trello?action=updateCard — Update a card
         if (req.method === 'PUT' && action === 'updateCard') {
             const { cardId: cid, updates } = req.body;
             if (!cid || !updates) return res.status(400).json({ error: 'cardId and updates required' });
-            console.log(`Updating Trello card ${cid}...`);
+            console.log(`Updating Trello card ${cid}...`, updates);
 
-            const params = new URLSearchParams({ ...updates });
+            // Convert all values to strings for URLSearchParams
+            const cleanUpdates = {};
+            for (const [k, v] of Object.entries(updates)) {
+                if (v != null) cleanUpdates[k] = String(v);
+            }
+            const params = new URLSearchParams(cleanUpdates);
             const url = `${TRELLO_BASE}/cards/${cid}?${authParams}&${params.toString()}`;
             const response = await fetch(url, { method: 'PUT' });
             if (!response.ok) {
                 const err = await response.text();
+                console.error(`Trello update error for card ${cid}:`, response.status, err);
                 return res.status(response.status).json({ error: 'Trello update error', details: err });
             }
             const card = await response.json();

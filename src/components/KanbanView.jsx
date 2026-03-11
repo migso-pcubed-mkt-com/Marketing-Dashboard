@@ -101,7 +101,18 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     return (ai===-1?999:ai)-(bi===-1?999:bi);
                 });
             }
-            return cats.map(cat=>({key:cat.id,name:cat.name,gradient:cat.gradient,items:actions.filter(a=>a.categoryId===cat.id)}));
+            // Check if all actions in each category are "isDefault" (Trello-imported without label mapping)
+            // If so, show tasks directly under category instead of action cards
+            return cats.map(cat=>{
+                const catActions = actions.filter(a=>a.categoryId===cat.id);
+                const allDefault = catActions.length > 0 && catActions.every(a=>a.isDefault);
+                if(allDefault){
+                    // Show tasks directly under category
+                    const catTaskIds = new Set(catActions.map(a=>a.id));
+                    return {key:cat.id,name:cat.name,gradient:cat.gradient,items:sortItems(filteredTasks.filter(t=>catTaskIds.has(t.actionId))),directTasks:true};
+                }
+                return {key:cat.id,name:cat.name,gradient:cat.gradient,items:catActions};
+            });
         }
         if(viewMode==='action'){
             if(selectedAction){
@@ -316,7 +327,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 // Prevent column drag when dragging cards
                                 e.stopPropagation();
                             }}>
-                                {viewMode==='category'?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?(viewMode==='country'?((draggedId,targetId,position)=>{
+                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?(viewMode==='country'?((draggedId,targetId,position)=>{
                                     const targetCountry=col.key==='_unassigned'?[]:[col.key];
                                     onUpdateTask(draggedId,{countries:targetCountry});
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));

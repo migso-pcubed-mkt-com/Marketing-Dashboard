@@ -123,11 +123,39 @@ const BoardSettingsModal = ({ board, onClose }) => {
                         <span>Actions</span>
                         <span style={{ color: 'var(--text-primary)' }}>{board.actions?.length || 0}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                         <span>Tasks</span>
                         <span style={{ color: 'var(--text-primary)' }}>{board.tasks?.length || 0}</span>
                     </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Members</span>
+                        <span style={{ color: 'var(--text-primary)' }}>{board.members?.length || 0}</span>
+                    </div>
                 </div>
+
+                {/* Members */}
+                {(board.members || []).length > 0 && (
+                    <div style={{
+                        background: 'var(--bg-secondary)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: 12,
+                        marginBottom: 16,
+                        fontSize: 12
+                    }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Members</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {board.members.map(m => (
+                                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    {m.avatarUrl
+                                        ? <img src={m.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }}/>
+                                        : <span style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--accent)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600 }}>{(m.fullName || m.username || '?')[0].toUpperCase()}</span>
+                                    }
+                                    <span style={{ color: 'var(--text-primary)' }}>{m.fullName || m.username}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Trello Sync */}
                 {board.trelloSync?.trelloBoardId && (

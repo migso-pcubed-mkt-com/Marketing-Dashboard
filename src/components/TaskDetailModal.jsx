@@ -6,7 +6,7 @@ import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
 
-const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory})=>{
+const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory,members=[]})=>{
     const[form,setForm]=useState({...task});
     const[previewAttachment,setPreviewAttachment]=useState(null);
     const[descriptionDraft,setDescriptionDraft]=useState(task.description||''); // Draft pour description
@@ -101,6 +101,46 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     </div>
                     <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
                     <div className="mb-4"><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry}/></div>
+                    {members.length > 0 && (
+                        <div className="mb-4">
+                            <label className="v11-label">👥 Assignees</label>
+                            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                                {members.map(m => {
+                                    const isAssigned = (form.assignees || []).includes(m.id);
+                                    return (
+                                        <button key={m.id} onClick={() => {
+                                            const assignees = form.assignees || [];
+                                            setForm({...form, assignees: isAssigned ? assignees.filter(id=>id!==m.id) : [...assignees, m.id]});
+                                        }} style={{
+                                            display:'flex',alignItems:'center',gap:6,padding:'4px 10px',
+                                            borderRadius:'var(--radius-sm)',border:isAssigned?'2px solid var(--accent)':'1px solid var(--border)',
+                                            background:isAssigned?'var(--accent-light)':'var(--bg-secondary)',
+                                            cursor:'pointer',fontSize:12,color:'var(--text-primary)'
+                                        }}>
+                                            {m.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:20,height:20,borderRadius:'50%'}}/> : <span style={{width:20,height:20,borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:600}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
+                                            <span>{m.fullName || m.username}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                    {(form.otherLabels || []).length > 0 && (
+                        <div className="mb-4">
+                            <label className="v11-label">🏷️ Other Labels</label>
+                            <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                                {form.otherLabels.map(label => (
+                                    <span key={label.id} style={{
+                                        padding:'2px 8px',borderRadius:4,
+                                        background:label.color+'20',color:label.color,
+                                        fontSize:11,fontWeight:500
+                                    }}>
+                                        {label.name || 'Label'}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className="v11-input" style={{resize:'none'}}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Save</button>}</div>
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm" style={{color:'var(--text-muted)'}}>{checklistPct}%</span>}</div>
@@ -116,20 +156,23 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     <div className="mb-6">
                         <label className="block text-sm font-medium mb-2">📎 Attachments ({(form.attachments||[]).length})</label>
                         {(form.attachments||[]).length>0&&<div className="space-y-2 mb-3">
-                            {(form.attachments||[]).map(att=>(
-                                <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg" style={{background:'var(--bg-secondary)',cursor:'pointer'}} onClick={()=>setPreviewAttachment(att)}>
-                                    {att.type?.startsWith('image/')?
-                                        <img src={att.data} alt={att.name} style={{width:40,height:40,objectFit:'cover',borderRadius:'var(--radius-sm)',flexShrink:0}}/>:
+                            {(form.attachments||[]).map(att=>{
+                                const isImage = (att.type||att.mimeType||'').startsWith('image/');
+                                const src = att.data || att.url;
+                                return (
+                                <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg" style={{background:'var(--bg-secondary)',cursor:'pointer'}} onClick={()=>att.url ? window.open(att.url,'_blank') : setPreviewAttachment(att)}>
+                                    {isImage && src ?
+                                        <img src={src} alt={att.name} style={{width:40,height:40,objectFit:'cover',borderRadius:'var(--radius-sm)',flexShrink:0}}/>:
                                         <div style={{width:40,height:40,borderRadius:'var(--radius-sm)',background:'var(--accent-light)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:16}}>📄</div>
                                     }
                                     <div style={{flex:1,minWidth:0}}>
                                         <div style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{att.name}</div>
-                                        <div style={{fontSize:11,color:'var(--text-muted)'}}>{att.size?`${(att.size/1024).toFixed(1)} KB`:''} • {att.date?new Date(att.date).toLocaleDateString('en-US'):''}</div>
+                                        <div style={{fontSize:11,color:'var(--text-muted)'}}>{att.size?`${(att.size/1024).toFixed(1)} KB`:''}{att.date?` • ${new Date(att.date).toLocaleDateString('en-US')}`:''}</div>
                                     </div>
-                                    {att.data&&<a href={att.data} download={att.name} onClick={e=>e.stopPropagation()} style={{color:'var(--accent)',fontSize:12,fontWeight:500,flexShrink:0,cursor:'pointer'}} title="Download">↓</a>}
+                                    {(att.data||att.url)&&<a href={att.data||att.url} download={att.data?att.name:undefined} target={att.url?'_blank':undefined} rel={att.url?'noopener noreferrer':undefined} onClick={e=>e.stopPropagation()} style={{color:'var(--accent)',fontSize:12,fontWeight:500,flexShrink:0,cursor:'pointer'}} title={att.url?'Open':'Download'}>{att.url?'↗':'↓'}</a>}
                                     <button onClick={(e)=>{e.stopPropagation();setForm({...form,attachments:(form.attachments||[]).filter(a=>a.id!==att.id)});}} style={{color:'var(--text-muted)',cursor:'pointer',flexShrink:0,background:'none',border:'none',fontSize:14}} title="Delete">✕</button>
                                 </div>
-                            ))}
+                            );})}
                         </div>}
                         <div
                             onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor='var(--accent)';e.currentTarget.style.background='var(--accent-light)';}}

@@ -1,7 +1,10 @@
 import { useState, useRef } from 'react';
 import { CONFIG } from '../config.js';
+import { useApp } from '../context.js';
 
 const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=false, onTouchDrag, categories, allCountries}) => {
+    const { currentBoard } = useApp();
+    const boardMembers = currentBoard?.members || [];
     const [touching, setTouching] = useState(false);
     const [dragOverPosition, setDragOverPosition] = useState(null);
     const cardRef = useRef(null);
@@ -90,9 +93,21 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
             {(task.channels || action?.tags || []).length > 0 && <div className="card-tags">
                 {(task.channels || action?.tags || []).slice(0, 2).map(chId => { const ch = CONFIG.CHANNELS.find(c => c.id === chId); return ch ? <span key={chId} className={`card-tag ${chId}`}>{ch.name}</span> : null; })}
             </div>}
-            {(task.dueDate || task.budget > 0) && <div className="card-footer">
-                <span className={`card-date ${task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed' ? 'overdue' : ''}`}>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US', {day:'numeric',month:'short'}) : ''}</span>
-                {task.budget > 0 && <span className="card-budget">{task.budget.toLocaleString()}€</span>}
+            {(task.dueDate || task.budget > 0 || (task.assignees||[]).length > 0) && <div className="card-footer" style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <div style={{display:'flex',alignItems:'center',gap:4}}>
+                    <span className={`card-date ${task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed' ? 'overdue' : ''}`}>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US', {day:'numeric',month:'short'}) : ''}</span>
+                    {task.budget > 0 && <span className="card-budget">{task.budget.toLocaleString()}€</span>}
+                </div>
+                {(task.assignees||[]).length > 0 && <div style={{display:'flex',marginLeft:'auto'}}>
+                    {task.assignees.slice(0,3).map((mId,idx) => {
+                        const m = boardMembers.find(mb => mb.id === mId);
+                        if (!m) return null;
+                        return m.avatarUrl
+                            ? <img key={mId} src={m.avatarUrl} alt={m.fullName||''} title={m.fullName||m.username} style={{width:22,height:22,borderRadius:'50%',border:'2px solid var(--bg-primary)',marginLeft:idx>0?-6:0}}/>
+                            : <span key={mId} title={m.fullName||m.username} style={{width:22,height:22,borderRadius:'50%',background:'var(--accent)',color:'white',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,border:'2px solid var(--bg-primary)',marginLeft:idx>0?-6:0}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>;
+                    })}
+                    {task.assignees.length > 3 && <span style={{fontSize:10,color:'var(--text-muted)',marginLeft:4}}>+{task.assignees.length-3}</span>}
+                </div>}
             </div>}
         </div>
     );

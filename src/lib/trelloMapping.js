@@ -88,10 +88,53 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
         }
     }
 
+    // Map Trello attachments
+    const attachments = [];
+    if (card.attachments) {
+        for (const att of card.attachments) {
+            attachments.push({
+                id: genId('att'),
+                name: att.name,
+                url: att.url,
+                mimeType: att.mimeType || '',
+                date: att.date,
+                trelloAttachmentId: att.id
+            });
+        }
+    }
+
+    // Map Trello comments
+    const comments = [];
+    if (card.comments) {
+        for (const comment of card.comments) {
+            comments.push({
+                id: genId('cm'),
+                author: comment.memberCreator?.fullName || comment.memberCreator?.username || 'Unknown',
+                text: comment.data?.text || '',
+                date: comment.date,
+                trelloCommentId: comment.id
+            });
+        }
+    }
+
+    // Map Trello members → assignees
+    const assignees = card.idMembers || [];
+
     // Determine status
     let status = 'todo';
     if (card.dueComplete) {
         status = 'completed';
+    }
+
+    // Map unmapped labels as otherLabels
+    const otherLabels = [];
+    if (card.idLabels && mappingConfig?.labelMappings) {
+        for (const labelId of card.idLabels) {
+            const mapping = mappingConfig.labelMappings[labelId];
+            if (mapping?.type === 'other') {
+                otherLabels.push({ id: labelId, name: mapping.labelName || '', color: mapping.labelColor || '' });
+            }
+        }
     }
 
     return {
@@ -106,10 +149,12 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
         priority: 'medium',
         budget: 0,
         checklist,
-        comments: [],
-        attachments: [],
+        comments,
+        attachments,
         channels,
         countries: [],
+        assignees,
+        otherLabels,
         order: card.pos || 0,
         createdAt: new Date().toISOString(),
         trelloCardId: card.id,
@@ -118,9 +163,9 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
 };
 
 // --- Build full import data from Trello board ---
-// mappingConfig = { labelMappings: { [trelloLabelId]: { type: 'action'|'channel'|'ignore', categoryId?, channelId? } } }
+// mappingConfig = { labelMappings: { [trelloLabelId]: { type: 'action'|'channel'|'other'|'ignore', categoryId?, channelId? } } }
 export const buildImportData = (trelloData, mappingConfig) => {
-    const { board, lists, labels, cards } = trelloData;
+    const { board, lists, labels, cards, members: trelloMembers } = trelloData;
 
     // 1. Map lists → categories
     const categories = lists
@@ -143,7 +188,7 @@ export const buildImportData = (trelloData, mappingConfig) => {
         labelToAction[label.id] = action.id;
     }
 
-    // 3. Create a default "Uncategorized" action per category for cards without action-mapped labels
+    // 3. Create a default "General" action per category for cards without action-mapped labels
     const defaultActions = {};
     for (const cat of categories) {
         const defaultAction = {
@@ -152,7 +197,8 @@ export const buildImportData = (trelloData, mappingConfig) => {
             categoryId: cat.id,
             budget: 0,
             priority: 'medium',
-            tags: []
+            tags: [],
+            isDefault: true // Flag: auto-generated, tasks show directly under category
         };
         actions.push(defaultAction);
         defaultActions[cat.id] = defaultAction.id;
@@ -180,36 +226,111 @@ export const buildImportData = (trelloData, mappingConfig) => {
         return mapTrelloCardToTask(card, actionId, categoryId, mappingConfig);
     });
 
+    // Map members
+    const members = (trelloMembers || []).map(m => ({
+        id: m.id,
+        fullName: m.fullName,
+        username: m.username,
+        avatarUrl: m.avatarUrl ? `${m.avatarUrl}/50.png` : null
+    }));
+
     return {
         categories,
         actions,
         tasks,
+        members,
         trelloSync: {
             trelloBoardId: board.id,
             trelloBoardName: board.name,
             trelloBoardUrl: board.url,
             lastSyncAt: new Date().toISOString(),
             syncEnabled: true,
-            pollIntervalMs: 120000
+            pollIntervalMs: 120000,
+            labelMappings: mappingConfig.labelMappings // Persist for future syncs
         }
     };
 };
 
 // --- Dashboard Task → Trello Card update ---
-export const mapTaskToTrelloCardUpdate = (task) => {
+export const mapTaskToTrelloCardUpdate = (task, listId) => {
     const updates = { name: task.title };
-    if (task.description) updates.desc = task.description;
+    if (task.description != null) updates.desc = task.description;
     if (task.dueDate) updates.due = task.dueDate;
-    updates.dueComplete = task.status === 'completed';
+    updates.dueComplete = (task.status === 'completed').toString();
+    if (listId) updates.idList = listId;
     return updates;
 };
 
 // --- Merge Trello card changes into existing task ---
-export const mergeCardIntoTask = (existingTask, card, mappingConfig) => ({
-    ...existingTask,
-    title: card.name,
-    description: card.desc || existingTask.description,
-    dueDate: card.due ? card.due.split('T')[0] : existingTask.dueDate,
-    status: card.dueComplete ? 'completed' : existingTask.status,
-    trelloLastModified: card.dateLastActivity
-});
+export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
+    // Merge checklists from Trello
+    const checklist = [];
+    if (card.checklists) {
+        for (const cl of card.checklists) {
+            for (const item of cl.checkItems || []) {
+                checklist.push({
+                    id: genId('cl'),
+                    text: item.name,
+                    done: item.state === 'complete'
+                });
+            }
+        }
+    }
+
+    // Merge attachments from Trello
+    const attachments = [];
+    if (card.attachments) {
+        for (const att of card.attachments) {
+            attachments.push({
+                id: genId('att'),
+                name: att.name,
+                url: att.url,
+                mimeType: att.mimeType || '',
+                date: att.date,
+                trelloAttachmentId: att.id
+            });
+        }
+    }
+
+    // Merge comments from Trello
+    const comments = [];
+    if (card.comments) {
+        for (const comment of card.comments) {
+            comments.push({
+                id: genId('cm'),
+                author: comment.memberCreator?.fullName || comment.memberCreator?.username || 'Unknown',
+                text: comment.data?.text || '',
+                date: comment.date,
+                trelloCommentId: comment.id
+            });
+        }
+    }
+
+    // Merge assignees
+    const assignees = card.idMembers || existingTask.assignees || [];
+
+    // Merge otherLabels
+    const otherLabels = [];
+    if (card.idLabels && mappingConfig?.labelMappings) {
+        for (const labelId of card.idLabels) {
+            const mapping = mappingConfig.labelMappings[labelId];
+            if (mapping?.type === 'other') {
+                otherLabels.push({ id: labelId, name: mapping.labelName || '', color: mapping.labelColor || '' });
+            }
+        }
+    }
+
+    return {
+        ...existingTask,
+        title: card.name,
+        description: card.desc || existingTask.description,
+        dueDate: card.due ? card.due.split('T')[0] : existingTask.dueDate,
+        status: card.dueComplete ? 'completed' : existingTask.status,
+        checklist: checklist.length ? checklist : existingTask.checklist,
+        attachments: attachments.length ? attachments : existingTask.attachments,
+        comments: comments.length ? comments : existingTask.comments,
+        assignees,
+        otherLabels: otherLabels.length ? otherLabels : (existingTask.otherLabels || []),
+        trelloLastModified: card.dateLastActivity
+    };
+};

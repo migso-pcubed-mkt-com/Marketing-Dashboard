@@ -444,7 +444,7 @@ const App = () => {
     const handleUpdateTask = (taskId, updates) => {
         setTasks(prev => prev.map(t => {
             if (t.id !== taskId) return t;
-            const newTask = {...t, ...updates};
+            const newTask = {...t, ...updates, updatedAt: new Date().toISOString()};
             if (updates.startDate) {
                 const d = new Date(updates.startDate);
                 newTask.month = d.getMonth();
@@ -665,6 +665,7 @@ const App = () => {
             categories: importData.categories,
             actions: importData.actions,
             tasks: importData.tasks,
+            members: importData.members || [],
             trelloSync: importData.trelloSync
         };
         setBoardData(prev => ({
@@ -687,6 +688,27 @@ const App = () => {
             for (const action of (currentBoard.actions || [])) {
                 if (action.trelloLabelId) {
                     mappingConfig.labelMappings[action.trelloLabelId] = { type: 'action', categoryId: action.categoryId };
+                }
+            }
+            // Reconstruct channel and other label mappings from existing tasks
+            for (const task of (currentBoard.tasks || [])) {
+                if (task.channels) {
+                    // Channel mappings already handled by task data
+                }
+                if (task.otherLabels) {
+                    for (const ol of task.otherLabels) {
+                        if (ol.id && !mappingConfig.labelMappings[ol.id]) {
+                            mappingConfig.labelMappings[ol.id] = { type: 'other', labelName: ol.name, labelColor: ol.color };
+                        }
+                    }
+                }
+            }
+            // Store label mapping config on board for persistence
+            if (currentBoard.trelloSync?.labelMappings) {
+                for (const [labelId, mapping] of Object.entries(currentBoard.trelloSync.labelMappings)) {
+                    if (!mappingConfig.labelMappings[labelId]) {
+                        mappingConfig.labelMappings[labelId] = mapping;
+                    }
                 }
             }
             const { board: syncedBoard, result } = await syncWithTrello(currentBoard, mappingConfig);
@@ -866,7 +888,7 @@ const App = () => {
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={tasks}/>}
                 </main>
-                {selectedTask && <TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory}/>}
+                {selectedTask && <TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={currentBoard?.members || []}/>}
                 {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t => { setSelectedTask(t); }} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction} onAddCategory={handleAddCategory}/>}

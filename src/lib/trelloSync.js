@@ -15,7 +15,7 @@ export const syncWithTrello = async (board, mappingConfig) => {
 
     // 1. Fetch current Trello state
     const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId);
-    const { cards, lists } = trelloData;
+    const { cards, lists, members: trelloMembers } = trelloData;
 
     // Build lookup maps
     const trelloCardMap = new Map(cards.map(c => [c.id, c]));
@@ -57,22 +57,48 @@ export const syncWithTrello = async (board, mappingConfig) => {
 
         // Compare timestamps — last write wins
         const trelloTime = new Date(card.dateLastActivity).getTime();
-        const localTime = new Date(task.trelloLastModified || 0).getTime();
+        const lastSyncTime = new Date(task.trelloLastModified || 0).getTime();
+        const localUpdateTime = new Date(task.updatedAt || 0).getTime();
 
-        if (trelloTime > localTime) {
-            // Trello is newer → update local task
+        // Task was locally modified after last sync?
+        const locallyModified = localUpdateTime > lastSyncTime;
+        // Trello was modified since last sync?
+        const trelloModified = trelloTime > lastSyncTime;
+
+        if (trelloModified && !locallyModified) {
+            // Only Trello changed → update local task
             updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig);
             result.updated++;
-        } else if (localTime > trelloTime) {
-            // Dashboard is newer → push to Trello
+        } else if (locallyModified && !trelloModified) {
+            // Only dashboard changed → push to Trello
             try {
-                const updates = mapTaskToTrelloCardUpdate(task);
+                const action = board.actions.find(a => a.id === task.actionId);
+                const listId = action ? catToListId[action.categoryId] : null;
+                const updates = mapTaskToTrelloCardUpdate(task, listId);
                 await updateTrelloCard(task.trelloCardId, updates);
-                updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString() };
+                updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
                 result.pushed++;
             } catch (err) {
                 console.error(`Failed to push task "${task.title}" to Trello:`, err);
                 result.errors++;
+            }
+        } else if (trelloModified && locallyModified) {
+            // Both changed — last write wins based on absolute timestamp
+            if (localUpdateTime >= trelloTime) {
+                try {
+                    const action = board.actions.find(a => a.id === task.actionId);
+                    const listId = action ? catToListId[action.categoryId] : null;
+                    const updates = mapTaskToTrelloCardUpdate(task, listId);
+                    await updateTrelloCard(task.trelloCardId, updates);
+                    updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
+                    result.pushed++;
+                } catch (err) {
+                    console.error(`Failed to push task "${task.title}" to Trello:`, err);
+                    result.errors++;
+                }
+            } else {
+                updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig);
+                result.updated++;
             }
         }
     }
@@ -105,6 +131,50 @@ export const syncWithTrello = async (board, mappingConfig) => {
         const dueDate = card.due ? card.due.split('T')[0] : null;
         const startDate = dueDate || new Date().toISOString().split('T')[0];
 
+        // Map checklists
+        const checklist = [];
+        if (card.checklists) {
+            for (const cl of card.checklists) {
+                for (const item of cl.checkItems || []) {
+                    checklist.push({ id: genId('cl'), text: item.name, done: item.state === 'complete' });
+                }
+            }
+        }
+
+        // Map attachments
+        const attachments = [];
+        if (card.attachments) {
+            for (const att of card.attachments) {
+                attachments.push({ id: genId('att'), name: att.name, url: att.url, mimeType: att.mimeType || '', date: att.date, trelloAttachmentId: att.id });
+            }
+        }
+
+        // Map comments
+        const comments = [];
+        if (card.comments) {
+            for (const comment of card.comments) {
+                comments.push({ id: genId('cm'), author: comment.memberCreator?.fullName || comment.memberCreator?.username || 'Unknown', text: comment.data?.text || '', date: comment.date, trelloCommentId: comment.id });
+            }
+        }
+
+        // Map channels from labels
+        const channels = [];
+        if (card.idLabels && mappingConfig?.labelMappings) {
+            for (const labelId of card.idLabels) {
+                const mapping = mappingConfig.labelMappings[labelId];
+                if (mapping?.type === 'channel') channels.push(mapping.channelId);
+            }
+        }
+
+        // Map other labels
+        const otherLabels = [];
+        if (card.idLabels && mappingConfig?.labelMappings) {
+            for (const labelId of card.idLabels) {
+                const mapping = mappingConfig.labelMappings[labelId];
+                if (mapping?.type === 'other') otherLabels.push({ id: labelId, name: mapping.labelName || '', color: mapping.labelColor || '' });
+            }
+        }
+
         const newTask = {
             id: genId('task'),
             actionId,
@@ -116,11 +186,13 @@ export const syncWithTrello = async (board, mappingConfig) => {
             status: card.dueComplete ? 'completed' : 'todo',
             priority: 'medium',
             budget: 0,
-            checklist: [],
-            comments: [],
-            attachments: [],
-            channels: [],
+            checklist,
+            comments,
+            attachments,
+            channels,
             countries: [],
+            assignees: card.idMembers || [],
+            otherLabels,
             order: card.pos || 0,
             createdAt: new Date().toISOString(),
             trelloCardId: card.id,
@@ -144,8 +216,8 @@ export const syncWithTrello = async (board, mappingConfig) => {
         try {
             const cardData = { name: task.title, desc: task.description || '' };
             if (task.dueDate) cardData.due = task.dueDate;
-            // Include label IDs if the action has a Trello label
-            if (action.trelloLabelId) cardData.idLabels = action.trelloLabelId;
+            // Include label IDs if the action has a Trello label (comma-separated string)
+            if (action.trelloLabelId) cardData.idLabels = [action.trelloLabelId].join(',');
 
             const created = await createTrelloCard(listId, cardData);
             updatedTasks[i] = {
@@ -160,10 +232,19 @@ export const syncWithTrello = async (board, mappingConfig) => {
         }
     }
 
-    // 5. Build updated board
+    // 5. Update members from Trello
+    const members = (trelloMembers || []).map(m => ({
+        id: m.id,
+        fullName: m.fullName,
+        username: m.username,
+        avatarUrl: m.avatarUrl ? `${m.avatarUrl}/50.png` : null
+    }));
+
+    // 6. Build updated board
     const syncedBoard = {
         ...board,
         tasks: [...updatedTasks, ...newTasks],
+        members: members.length ? members : (board.members || []),
         trelloSync: {
             ...board.trelloSync,
             lastSyncAt: new Date().toISOString()
