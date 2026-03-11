@@ -7,14 +7,45 @@ export default async function handler(req, res) {
     // CORS configuration
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Trello-Token');
 
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
 
     const TRELLO_API_KEY = process.env.TRELLO_API_KEY;
-    const TRELLO_TOKEN = process.env.TRELLO_TOKEN;
+    const TRELLO_TOKEN_ENV = process.env.TRELLO_TOKEN;
+
+    // Use per-user token from header if present, otherwise fall back to env var
+    const userToken = req.headers['x-trello-token'];
+    const TRELLO_TOKEN = userToken || TRELLO_TOKEN_ENV;
+
+    const { action, boardId, cardId, listId } = req.method === 'GET' || req.method === 'DELETE'
+        ? req.query
+        : { ...req.query, ...req.body };
+
+    // GET /api/trello?action=config — Return app key (public) for OAuth
+    if (req.method === 'GET' && action === 'config') {
+        if (!TRELLO_API_KEY) {
+            return res.status(500).json({ error: 'Trello API key not configured' });
+        }
+        return res.status(200).json({ appKey: TRELLO_API_KEY });
+    }
+
+    // GET /api/trello?action=me — Return current member profile (requires token)
+    if (req.method === 'GET' && action === 'me') {
+        if (!TRELLO_API_KEY || !TRELLO_TOKEN) {
+            return res.status(401).json({ error: 'Token required' });
+        }
+        const authParams = `key=${TRELLO_API_KEY}&token=${TRELLO_TOKEN}`;
+        const url = `${TRELLO_BASE}/members/me?${authParams}&fields=id,fullName,username,avatarUrl`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            return res.status(response.status).json({ error: 'Invalid token' });
+        }
+        const member = await response.json();
+        return res.status(200).json(member);
+    }
 
     if (!TRELLO_API_KEY || !TRELLO_TOKEN) {
         console.error('Trello credentials not configured');
@@ -25,9 +56,6 @@ export default async function handler(req, res) {
     }
 
     const authParams = `key=${TRELLO_API_KEY}&token=${TRELLO_TOKEN}`;
-    const { action, boardId, cardId, listId } = req.method === 'GET' || req.method === 'DELETE'
-        ? req.query
-        : { ...req.query, ...req.body };
 
     try {
         // GET /api/trello?action=boards — List user's boards

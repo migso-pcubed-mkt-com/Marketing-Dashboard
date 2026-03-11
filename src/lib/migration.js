@@ -1,6 +1,26 @@
 import { CONFIG, DEFAULT_ACTIONS, DEFAULT_TASKS } from '../config.js';
 
 /**
+ * Normalize task checklists from old flat format to new named format.
+ * Old: task.checklist = [{id, text, done}]
+ * New: task.checklists = [{id, name, items: [{id, text, done}]}]
+ * Idempotent — if task already has checklists array, returns as-is.
+ */
+export function normalizeTaskChecklists(task) {
+    if (task.checklists && Array.isArray(task.checklists)) {
+        return task.checklists;
+    }
+    if (task.checklist && Array.isArray(task.checklist) && task.checklist.length > 0) {
+        return [{
+            id: `cl-migrated-${Date.now()}`,
+            name: 'Checklist',
+            items: task.checklist
+        }];
+    }
+    return [];
+}
+
+/**
  * Migrate data from v1 (flat) to v2 (multi-board) format.
  * Idempotent — calling on already-migrated data is a no-op.
  *

@@ -287,6 +287,10 @@ Complex system with multiple solved issues:
 - Polling lifecycle managed in App.jsx via `trelloSyncIntervalRef` — starts/stops when board changes or sync settings change
 - `trelloSyncStatus` state: 'idle' | 'syncing' | 'synced' | 'error'
 - Trello API rate limit: 100 requests per 10 seconds per token — polling intervals respect this
+- **Named checklists**: `task.checklists` = `[{id, name, items: [{id, text, done}]}]` — old `task.checklist` auto-migrated via `normalizeTaskChecklists()`
+- **Per-user token**: `X-Trello-Token` header; server uses it over env `TRELLO_TOKEN` when present
+- **OAuth**: popup flow with `trello-callback.html` → `postMessage` → validate via `/api/trello?action=me`
+- **Label remap**: `TrelloImportModal` supports `mappingOnly` prop to skip board selection and show mapping step directly
 
 ### localStorage as Backup Only
 - `localStorage` is a **backup only**, not a primary storage layer
@@ -358,3 +362,9 @@ Complex system with multiple solved issues:
 | 2026-03 | Trello List → Category mapping | Lists map to Categories (not statuses), configurable label mapping |
 | 2026-03 | Trello sync polling | Auto-polling every 1-10min, last write wins, manual sync button |
 | 2026-03 | Trello sync metadata | trelloCardId/trelloLastModified on tasks, trelloListId on categories, trelloLabelId on actions |
+| 2026-03 | Named checklists | task.checklists replaces task.checklist — named groups with per-checklist progress |
+| 2026-03 | Markdown description | SimpleMarkdown renderer (React elements, no innerHTML), toggle edit/view mode, auto-resize textarea |
+| 2026-03 | otherLabel + member filters | New filter dimensions in FilterSidebar, filter chips, member KPIs in DashboardView |
+| 2026-03 | Label remap after import | TrelloImportModal mappingOnly mode, "Re-configure Labels" button in BoardSettingsModal |
+| 2026-03 | Trello OAuth login | Per-user token via X-Trello-Token header, popup OAuth flow, avatar in Header |
+| 2026-03 | Assignees → Members | UI label renamed, data field stays `assignees` for backward compat |

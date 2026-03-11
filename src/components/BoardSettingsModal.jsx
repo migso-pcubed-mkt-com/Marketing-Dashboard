@@ -3,7 +3,7 @@ import { useApp } from '../context.js';
 import { Icon } from './Icons.jsx';
 import { TRELLO_SYNC_INTERVALS } from '../config.js';
 
-const BoardSettingsModal = ({ board, onClose }) => {
+const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
     const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus } = useApp();
     const [name, setName] = useState(board.name);
     const isLastBoard = boards.length <= 1;
@@ -246,6 +246,19 @@ const BoardSettingsModal = ({ board, onClose }) => {
                                 Unlink
                             </button>
                         </div>
+                        {board.trelloSync?.labelMappings && (
+                            <button
+                                onClick={() => { if (onOpenRemapLabels) onOpenRemapLabels(); }}
+                                style={{
+                                    width: '100%', padding: '6px 0', marginTop: 6,
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: '1px solid var(--border)', background: 'var(--bg-primary)',
+                                    color: 'var(--text-primary)', fontSize: 11, fontWeight: 500, cursor: 'pointer'
+                                }}
+                            >
+                                Re-configure Labels
+                            </button>
+                        )}
                     </div>
                 )}
 

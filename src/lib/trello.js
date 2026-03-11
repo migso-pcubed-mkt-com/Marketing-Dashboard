@@ -4,11 +4,18 @@ const API_BASE_URL = typeof window !== 'undefined'
     ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
     : '';
 
+// Module-level per-user Trello token (set via setTrelloUserToken)
+let _userTrelloToken = null;
+
+export const setTrelloUserToken = (token) => { _userTrelloToken = token; };
+export const getTrelloUserToken = () => _userTrelloToken;
+
 const trelloFetch = async (url, options = {}) => {
-    const response = await fetch(url, {
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        ...options
-    });
+    const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    if (_userTrelloToken) {
+        headers['X-Trello-Token'] = _userTrelloToken;
+    }
+    const response = await fetch(url, { headers, ...options });
     if (!response.ok) {
         const error = await response.json().catch(() => ({ error: response.statusText }));
         throw new Error(error.error || error.message || `Trello API error: ${response.status}`);
@@ -73,4 +80,16 @@ export const checkTrelloConnection = async () => {
     } catch {
         return { connected: false, boardCount: 0 };
     }
+};
+
+// Get Trello app key (for OAuth)
+export const fetchTrelloConfig = () =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=config`);
+
+// Get current member profile (requires token)
+export const fetchTrelloMe = (token) => {
+    const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    if (token) headers['X-Trello-Token'] = token;
+    return fetch(`${API_BASE_URL}/api/trello?action=me`, { headers })
+        .then(r => { if (!r.ok) throw new Error('Invalid token'); return r.json(); });
 };

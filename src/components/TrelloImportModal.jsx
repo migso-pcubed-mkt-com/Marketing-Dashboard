@@ -4,7 +4,11 @@ import { CONFIG, TRELLO_COLORS } from '../config.js';
 import { fetchTrelloBoards, fetchTrelloBoardFull, checkTrelloConnection } from '../lib/trello.js';
 import { buildImportData, matchLabelToChannel } from '../lib/trelloMapping.js';
 
-const TrelloImportModal = ({ onClose, onImport }) => {
+// mappingOnly mode: skip board selection, load linked board directly, show mapping step
+// existingMappings: pre-populate label mappings from board.trelloSync.labelMappings
+// trelloBoardId: the linked Trello board ID (required for mappingOnly)
+// onSaveMappings: callback when saving re-configured mappings (mappingOnly mode)
+const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMappings = null, trelloBoardId = null, onSaveMappings = null }) => {
     const [step, setStep] = useState('loading'); // loading | boards | mapping | preview | importing | error
     const [error, setError] = useState(null);
     const [boards, setBoards] = useState([]);
@@ -13,7 +17,7 @@ const TrelloImportModal = ({ onClose, onImport }) => {
     const [labelMappings, setLabelMappings] = useState({});
     const [importPreview, setImportPreview] = useState(null);
 
-    // Step 1: Check connection and load boards
+    // Step 1: Check connection and load boards (or load linked board in mappingOnly mode)
     useEffect(() => {
         (async () => {
             try {
@@ -23,15 +27,38 @@ const TrelloImportModal = ({ onClose, onImport }) => {
                     setStep('error');
                     return;
                 }
-                const boards = await fetchTrelloBoards();
-                setBoards(boards);
-                setStep('boards');
+                if (mappingOnly && trelloBoardId) {
+                    // Load linked board directly
+                    const data = await fetchTrelloBoardFull(trelloBoardId);
+                    setTrelloData(data);
+                    // Pre-populate with existing mappings, adding any new labels
+                    const mappings = { ...(existingMappings || {}) };
+                    for (const label of data.labels) {
+                        if (!mappings[label.id]) {
+                            const channelMatch = matchLabelToChannel(label);
+                            const labelColor = TRELLO_COLORS[label.color]?.hex || '#6b7280';
+                            if (channelMatch) {
+                                mappings[label.id] = { type: 'channel', channelId: channelMatch, labelName: label.name || '', labelColor };
+                            } else if (label.name) {
+                                mappings[label.id] = { type: 'action', categoryId: null, labelName: label.name || '', labelColor };
+                            } else {
+                                mappings[label.id] = { type: 'ignore', labelName: label.name || '', labelColor };
+                            }
+                        }
+                    }
+                    setLabelMappings(mappings);
+                    setStep('mapping');
+                } else {
+                    const boards = await fetchTrelloBoards();
+                    setBoards(boards);
+                    setStep('boards');
+                }
             } catch (err) {
                 setError(err.message);
                 setStep('error');
             }
         })();
-    }, []);
+    }, [mappingOnly, trelloBoardId, existingMappings]);
 
     // Step 2: Load full board data when selected
     const handleSelectBoard = async (boardId) => {
@@ -126,10 +153,10 @@ const TrelloImportModal = ({ onClose, onImport }) => {
     const stepTitle = {
         loading: 'Connecting to Trello...',
         boards: 'Select a Trello Board',
-        mapping: 'Configure Label Mapping',
+        mapping: mappingOnly ? 'Re-configure Label Mapping' : 'Configure Label Mapping',
         preview: 'Import Preview',
         importing: 'Importing...',
-        error: 'Trello Import'
+        error: mappingOnly ? 'Label Mapping' : 'Trello Import'
     }[step];
 
     return (
@@ -390,7 +417,7 @@ const TrelloImportModal = ({ onClose, onImport }) => {
                 {/* Footer */}
                 {(step === 'mapping' || step === 'preview') && (
                     <div style={footerStyle}>
-                        <button
+                        {!mappingOnly && <button
                             onClick={() => {
                                 if (step === 'mapping') { setStep('boards'); setTrelloData(null); }
                                 if (step === 'preview') setStep('mapping');
@@ -398,16 +425,25 @@ const TrelloImportModal = ({ onClose, onImport }) => {
                             style={btnSecondary}
                         >
                             Back
-                        </button>
-                        {step === 'mapping' && (
+                        </button>}
+                        {mappingOnly && step === 'mapping' && (
+                            <>
+                                <button onClick={onClose} style={btnSecondary}>Cancel</button>
+                                <button onClick={() => { if (onSaveMappings) onSaveMappings(labelMappings); onClose(); }} style={btnPrimary}>
+                                    Save Mappings
+                                </button>
+                            </>
+                        )}
+                        {!mappingOnly && step === 'mapping' && (
                             <button onClick={handleBuildPreview} style={btnPrimary}>
                                 Preview Import
                             </button>
                         )}
                         {step === 'preview' && (
-                            <button onClick={handleImport} style={btnPrimary}>
-                                Import Board
-                            </button>
+                            <>
+                                <button onClick={() => setStep('mapping')} style={btnSecondary}>Back</button>
+                                <button onClick={handleImport} style={btnPrimary}>Import Board</button>
+                            </>
                         )}
                     </div>
                 )}

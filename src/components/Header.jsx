@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import { useApp } from '../context.js';
 import { Icon } from './Icons.jsx';
 import BoardSelector from './BoardSelector.jsx';
 
 const Header = ({currentView, setCurrentView, onSync, syncing, githubConnected, savingStatus, trelloSync, trelloSyncStatus, onTrelloSync}) => {
+    const { trelloUser, onTrelloLogin, onTrelloLogout } = useApp();
     const [mobileMenu, setMobileMenu] = useState(false);
+    const [showUserMenu, setShowUserMenu] = useState(false);
     const navItems = [{id:'kanban',icon:Icon.Kanban,label:'Kanban'},{id:'timeline',icon:Icon.Timeline,label:'Timeline'},{id:'calendar',icon:Icon.Calendar,label:'Calendar'},{id:'dashboard',icon:Icon.Dashboard,label:'KPIs'}];
     return (
         <header className="v11-header" style={{background:'var(--bg-primary)',borderBottom:'1px solid var(--border)'}}>
@@ -18,6 +21,32 @@ const Header = ({currentView, setCurrentView, onSync, syncing, githubConnected, 
                 </nav>
                 <div className="flex items-center gap-1.5" style={{flex:1,justifyContent:'flex-end'}}>
                     {savingStatus && <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{background:savingStatus==='error'?'var(--error-light)':'var(--accent-light)',color:savingStatus==='error'?'var(--error)':'var(--accent)'}}>{savingStatus==='saving'?'Saving...':savingStatus==='error'?'Error':'Saved'}</span>}
+                    {trelloUser ? (
+                        <div style={{position:'relative'}}>
+                            <button onClick={() => setShowUserMenu(!showUserMenu)} className="flex items-center gap-1.5" style={{background:'none',border:'none',cursor:'pointer',padding:'4px 8px',borderRadius:'var(--radius-sm)'}}>
+                                {trelloUser.avatarUrl ? <img src={trelloUser.avatarUrl} alt="" style={{width:24,height:24,borderRadius:'50%'}}/> : <span style={{width:24,height:24,borderRadius:'50%',background:'#0079BF',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600}}>{(trelloUser.fullName||trelloUser.username||'?')[0].toUpperCase()}</span>}
+                                <span className="hidden sm:inline text-xs" style={{color:'var(--text-primary)',fontWeight:500}}>{trelloUser.fullName || trelloUser.username}</span>
+                            </button>
+                            {showUserMenu && (
+                                <>
+                                    <div style={{position:'fixed',inset:0,zIndex:98}} onClick={() => setShowUserMenu(false)}/>
+                                    <div style={{position:'absolute',top:'100%',right:0,marginTop:4,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:99,minWidth:160,padding:4}}>
+                                        <div style={{padding:'8px 12px',fontSize:11,color:'var(--text-muted)',borderBottom:'1px solid var(--border)'}}>
+                                            @{trelloUser.username}
+                                        </div>
+                                        <button onClick={() => { onTrelloLogout(); setShowUserMenu(false); }} style={{width:'100%',padding:'8px 12px',fontSize:12,color:'#dc2626',background:'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)'}}>
+                                            Disconnect Trello
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    ) : (
+                        <button onClick={onTrelloLogin} style={{padding:'4px 10px',borderRadius:'var(--radius-sm)',border:'none',background:'#0079BF',color:'white',fontSize:11,fontWeight:500,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><rect x="1" y="1" width="22" height="22" rx="3" ry="3"/><rect x="4" y="4" width="7" height="15" rx="1.5" ry="1.5" fill="#0079BF"/><rect x="13" y="4" width="7" height="10" rx="1.5" ry="1.5" fill="#0079BF"/></svg>
+                            Connect
+                        </button>
+                    )}
                     {trelloSync?.syncEnabled && (
                         <button
                             onClick={onTrelloSync}

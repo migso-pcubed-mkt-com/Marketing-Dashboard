@@ -4,7 +4,7 @@ import { Icon } from './Icons.jsx';
 import BoardSettingsModal from './BoardSettingsModal.jsx';
 
 const BoardSelector = () => {
-    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport } = useApp();
+    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels } = useApp();
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');
@@ -241,6 +241,7 @@ const BoardSelector = () => {
                 <BoardSettingsModal
                     board={settingsBoard}
                     onClose={() => setSettingsBoard(null)}
+                    onOpenRemapLabels={() => { setSettingsBoard(null); onOpenRemapLabels(); }}
                 />
             )}
         </div>

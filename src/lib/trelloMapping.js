@@ -83,17 +83,20 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
         }
     }
 
-    // Map Trello checklists
-    const checklist = [];
+    // Map Trello checklists (named, preserving checklist structure)
+    const checklists = [];
     if (card.checklists) {
         for (const cl of card.checklists) {
-            for (const item of cl.checkItems || []) {
-                checklist.push({
-                    id: genId('cl'),
+            checklists.push({
+                id: genId('cl'),
+                name: cl.name || 'Checklist',
+                trelloChecklistId: cl.id,
+                items: (cl.checkItems || []).map(item => ({
+                    id: genId('cli'),
                     text: item.name,
                     done: item.state === 'complete'
-                });
-            }
+                }))
+            });
         }
     }
 
@@ -168,7 +171,7 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
         status,
         priority: 'medium',
         budget: 0,
-        checklist,
+        checklists,
         comments,
         attachments,
         channels,
@@ -283,17 +286,20 @@ export const mapTaskToTrelloCardUpdate = (task, listId) => {
 
 // --- Merge Trello card changes into existing task ---
 export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
-    // Merge checklists from Trello
-    const checklist = [];
+    // Merge checklists from Trello (named, preserving checklist structure)
+    const checklists = [];
     if (card.checklists) {
         for (const cl of card.checklists) {
-            for (const item of cl.checkItems || []) {
-                checklist.push({
-                    id: genId('cl'),
+            checklists.push({
+                id: genId('cl'),
+                name: cl.name || 'Checklist',
+                trelloChecklistId: cl.id,
+                items: (cl.checkItems || []).map(item => ({
+                    id: genId('cli'),
                     text: item.name,
                     done: item.state === 'complete'
-                });
-            }
+                }))
+            });
         }
     }
 
@@ -357,7 +363,7 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
         description: card.desc || existingTask.description,
         dueDate: card.due ? card.due.split('T')[0] : existingTask.dueDate,
         status: card.dueComplete ? 'completed' : existingTask.status,
-        checklist: checklist.length ? checklist : existingTask.checklist,
+        checklists: checklists.length ? checklists : (existingTask.checklists || existingTask.checklist ? [{ id: genId('cl'), name: 'Checklist', items: existingTask.checklist || [] }] : []),
         attachments: attachments.length ? attachments : existingTask.attachments,
         comments: comments.length ? comments : existingTask.comments,
         assignees,

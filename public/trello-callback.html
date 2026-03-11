@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Trello Authorization</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #334155; }
+        .msg { text-align: center; padding: 40px; }
+        .msg h2 { margin: 0 0 8px; font-size: 18px; }
+        .msg p { margin: 0; font-size: 14px; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="msg">
+        <h2>Authorization complete</h2>
+        <p>This window will close automatically...</p>
+    </div>
+    <script>
+        (function() {
+            // Extract token from URL fragment: #token=...
+            var hash = window.location.hash;
+            var token = '';
+            if (hash && hash.indexOf('#token=') === 0) {
+                token = hash.substring(7);
+            }
+            if (token && window.opener) {
+                window.opener.postMessage({ trelloToken: token }, window.location.origin);
+                setTimeout(function() { window.close(); }, 500);
+            } else {
+                document.querySelector('.msg p').textContent = token ? 'Could not communicate with the parent window.' : 'No token received. Please try again.';
+            }
+        })();
+    </script>
+</body>
+</html>

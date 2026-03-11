@@ -1,18 +1,73 @@
 import React from 'react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { CONFIG } from '../config.js';
+import { normalizeTaskChecklists } from '../lib/migration.js';
+import { useApp } from '../context.js';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
 
+// Simple Markdown renderer — builds React elements (no dangerouslySetInnerHTML)
+const SimpleMarkdown = ({ text }) => {
+    if (!text) return null;
+    const lines = text.split('\n');
+    const elements = [];
+    let key = 0;
+
+    const renderInline = (line) => {
+        const parts = [];
+        let remaining = line;
+        let k = 0;
+        // Process inline patterns: **bold**, *italic*, `code`, [link](url)
+        const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((.+?)\))/;
+        while (remaining) {
+            const match = remaining.match(inlineRegex);
+            if (!match) { parts.push(remaining); break; }
+            if (match.index > 0) parts.push(remaining.slice(0, match.index));
+            if (match[2]) parts.push(React.createElement('strong', { key: k++ }, match[2]));
+            else if (match[3]) parts.push(React.createElement('em', { key: k++ }, match[3]));
+            else if (match[4]) parts.push(React.createElement('code', { key: k++, style: { background: 'var(--bg-secondary)', padding: '1px 4px', borderRadius: 3, fontSize: '0.9em' } }, match[4]));
+            else if (match[5] && match[6]) parts.push(React.createElement('a', { key: k++, href: match[6], target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--accent)', textDecoration: 'underline' } }, match[5]));
+            remaining = remaining.slice(match.index + match[0].length);
+        }
+        return parts;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.match(/^---+$/)) {
+            elements.push(React.createElement('hr', { key: key++, style: { border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0' } }));
+        } else if (line.match(/^- /)) {
+            elements.push(React.createElement('div', { key: key++, style: { display: 'flex', gap: 6, marginLeft: 4 } },
+                React.createElement('span', null, '\u2022'),
+                React.createElement('span', null, ...renderInline(line.slice(2)))
+            ));
+        } else if (line.trim() === '') {
+            elements.push(React.createElement('div', { key: key++, style: { height: 8 } }));
+        } else {
+            elements.push(React.createElement('div', { key: key++ }, ...renderInline(line)));
+        }
+    }
+    return React.createElement('div', { style: { fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' } }, ...elements);
+};
+
 const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory,members=[]})=>{
-    const[form,setForm]=useState({...task});
+    const { trelloUser } = useApp();
+    const[form,setForm]=useState(()=>{
+        const normalized={...task,checklists:normalizeTaskChecklists(task)};
+        delete normalized.checklist; // Remove old format
+        return normalized;
+    });
     const[previewAttachment,setPreviewAttachment]=useState(null);
-    const[descriptionDraft,setDescriptionDraft]=useState(task.description||''); // Draft pour description
-    const[descriptionSaved,setDescriptionSaved]=useState(true); // Track if saved
+    const[descriptionDraft,setDescriptionDraft]=useState(task.description||'');
+    const[descriptionSaved,setDescriptionSaved]=useState(true);
+    const[descriptionEditing,setDescriptionEditing]=useState(false);
+    const descTextareaRef=useRef(null);
     const[newComment,setNewComment]=useState('');
-    const[newChecklistItem,setNewChecklistItem]=useState('');
+    const[newChecklistItems,setNewChecklistItems]=useState({}); // Per-checklist new item text
+    const[newChecklistName,setNewChecklistName]=useState('');
+    const[showAddChecklist,setShowAddChecklist]=useState(false);
     const[showInlineCreateAction,setShowInlineCreateAction]=useState(false);
     const[newActionName,setNewActionName]=useState('');
     const[newActionCategoryId,setNewActionCategoryId]=useState(categories?.[0]?.id||'');
@@ -25,6 +80,15 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     useEffect(()=>{
         if(showInlineCreateAction&&newActionInputRef.current)newActionInputRef.current.focus();
     },[showInlineCreateAction]);
+
+    // Auto-resize description textarea
+    const autoResizeDesc=useCallback(()=>{
+        const el=descTextareaRef.current;
+        if(!el)return;
+        el.style.height='auto';
+        el.style.height=Math.min(Math.max(el.scrollHeight,80),400)+'px';
+    },[]);
+    useEffect(()=>{if(descriptionEditing)autoResizeDesc();},[descriptionEditing,autoResizeDesc]);
 
     const handleInlineCreateAction=()=>{
         const name=newActionName.trim();
@@ -39,15 +103,18 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
 
     const handleClose=()=>{onUpdate(task.id,form);onClose();}; // Auto-save on close (Trello-style)
     const saveDescription=()=>{setForm({...form,description:descriptionDraft});setDescriptionSaved(true);};
-    const addComment=()=>{if(!newComment.trim())return;setForm({...form,comments:[...(form.comments||[]),{id:`cm${Date.now()}`,author:'Vous',text:newComment,date:new Date().toISOString()}]});setNewComment('');};
-    const addChecklistItem=()=>{if(!newChecklistItem.trim())return;setForm({...form,checklist:[...(form.checklist||[]),{id:`cl${Date.now()}`,text:newChecklistItem,done:false}]});setNewChecklistItem('');};
-    const toggleChecklistItem=(id)=>setForm({...form,checklist:form.checklist.map(i=>i.id===id?{...i,done:!i.done}:i)});
-    const removeChecklistItem=(id)=>setForm({...form,checklist:form.checklist.filter(i=>i.id!==id)});
+    const addComment=()=>{if(!newComment.trim())return;const author=trelloUser?.fullName||'Guest';setForm({...form,comments:[...(form.comments||[]),{id:`cm${Date.now()}`,author,text:newComment,date:new Date().toISOString()}]});setNewComment('');};
+    const addChecklistItem=(checklistId)=>{const text=(newChecklistItems[checklistId]||'').trim();if(!text)return;setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:[...cl.items,{id:`cli${Date.now()}`,text,done:false}]}:cl)});setNewChecklistItems({...newChecklistItems,[checklistId]:''});};
+    const toggleChecklistItem=(checklistId,itemId)=>setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,done:!i.done}:i)}:cl)});
+    const removeChecklistItem=(checklistId,itemId)=>setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.filter(i=>i.id!==itemId)}:cl)});
+    const addNewChecklist=()=>{const name=newChecklistName.trim();if(!name)return;setForm({...form,checklists:[...(form.checklists||[]),{id:`cl${Date.now()}`,name,items:[]}]});setNewChecklistName('');setShowAddChecklist(false);};
+    const removeChecklist=(checklistId)=>setForm({...form,checklists:(form.checklists||[]).filter(cl=>cl.id!==checklistId)});
     const addChannel=(id)=>setForm({...form,channels:[...(form.channels||[]),id]});
     const removeChannel=(id)=>setForm({...form,channels:(form.channels||[]).filter(c=>c!==id)});
     const addCountry=(id)=>setForm({...form,countries:[...(form.countries||[]),id]});
     const removeCountry=(id)=>setForm({...form,countries:(form.countries||[]).filter(c=>c!==id)});
-    const checklistPct=form.checklist?.length>0?Math.round((form.checklist.filter(c=>c.done).length/form.checklist.length)*100):0;
+    const allChecklistItems=(form.checklists||[]).flatMap(cl=>cl.items||[]);
+    const checklistPct=allChecklistItems.length>0?Math.round((allChecklistItems.filter(c=>c.done).length/allChecklistItems.length)*100):0;
 
     // Handle Delete key to delete task
     useEffect(()=>{
@@ -103,7 +170,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     <div className="mb-4"><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry}/></div>
                     {members.length > 0 && (
                         <div className="mb-4">
-                            <label className="v11-label">👥 Assignees</label>
+                            <label className="v11-label">👥 Members</label>
                             <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                                 {members.map(m => {
                                     const isAssigned = (form.assignees || []).includes(m.id);
@@ -141,12 +208,49 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             </div>
                         </div>
                     )}
-                    <div className="mb-6"><label className="block text-sm font-medium mb-2">📝 Description</label><textarea value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);}} placeholder="Description..." rows={3} className="v11-input" style={{resize:'none'}}/>{!descriptionSaved&&<button onClick={saveDescription} className="mt-2 px-4 py-2 bg-secondary text-white rounded-lg text-sm">Save</button>}</div>
                     <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2"><label className="text-sm font-medium">✅ Checklist</label>{form.checklist?.length>0&&<span className="text-sm" style={{color:'var(--text-muted)'}}>{checklistPct}%</span>}</div>
-                        {form.checklist?.length>0&&<div className="v11-progress-bar" style={{height:8,marginBottom:12}}><div className={`v11-progress-fill ${checklistPct>=70?'high':checklistPct>=40?'medium':'low'}`} style={{width:`${checklistPct}%`}}/></div>}
-                        <div className="space-y-2 mb-3">{form.checklist?.map(item=>(<div key={item.id} className="flex items-center space-x-3 p-2 rounded-lg" style={{background:'var(--bg-secondary)'}}><button onClick={()=>toggleChecklistItem(item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':''}`} style={!item.done?{borderColor:'var(--border-strong)'}:{}}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through':''}`} style={item.done?{color:'var(--text-muted)'}:{}}>{item.text}</span><button onClick={()=>removeChecklistItem(item.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)'}}><Icon.Trash/></button></div>))}</div>
-                        <div className="flex space-x-2"><input type="text" value={newChecklistItem} onChange={e=>setNewChecklistItem(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addChecklistItem()} placeholder="Add..." className="v11-input" style={{flex:1}}/><button onClick={addChecklistItem} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium">📝 Description</label>
+                            {descriptionDraft&&!descriptionEditing&&<button onClick={()=>setDescriptionEditing(true)} className="text-xs" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer'}}>Edit</button>}
+                        </div>
+                        {descriptionEditing||!descriptionDraft?(
+                            <div>
+                                <textarea ref={descTextareaRef} value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);autoResizeDesc();}} onFocus={()=>setDescriptionEditing(true)} placeholder="Add a description... (Markdown supported)" className="v11-input" style={{resize:'none',minHeight:80,maxHeight:400,width:'100%'}}/>
+                                {descriptionEditing&&<div className="flex gap-2 mt-2">
+                                    <button onClick={()=>{saveDescription();setDescriptionEditing(false);}} className="px-4 py-1.5 bg-secondary text-white rounded-lg text-sm">Save</button>
+                                    <button onClick={()=>{setDescriptionDraft(form.description||'');setDescriptionEditing(false);setDescriptionSaved(true);}} className="px-4 py-1.5 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button>
+                                </div>}
+                            </div>
+                        ):(
+                            <div onClick={()=>setDescriptionEditing(true)} style={{cursor:'pointer',padding:8,borderRadius:'var(--radius-md)',border:'1px solid transparent',transition:'border-color 0.2s'}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--border)'} onMouseLeave={e=>e.currentTarget.style.borderColor='transparent'}>
+                                <SimpleMarkdown text={descriptionDraft}/>
+                            </div>
+                        )}
+                    </div>
+                    <div className="mb-6">
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm font-medium">✅ Checklists</label>
+                            <div className="flex items-center gap-3">
+                                {allChecklistItems.length>0&&<span className="text-sm" style={{color:'var(--text-muted)'}}>{checklistPct}%</span>}
+                                <button onClick={()=>setShowAddChecklist(true)} className="text-xs flex items-center gap-1" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}><Icon.Plus size={10}/> Add checklist</button>
+                            </div>
+                        </div>
+                        {allChecklistItems.length>0&&<div className="v11-progress-bar" style={{height:8,marginBottom:12}}><div className={`v11-progress-fill ${checklistPct>=70?'high':checklistPct>=40?'medium':'low'}`} style={{width:`${checklistPct}%`}}/></div>}
+                        {showAddChecklist&&<div className="flex space-x-2 mb-3"><input type="text" value={newChecklistName} onChange={e=>setNewChecklistName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addNewChecklist();if(e.key==='Escape'){setShowAddChecklist(false);setNewChecklistName('');}}} placeholder="Checklist name..." className="v11-input" style={{flex:1}} autoFocus/><button onClick={addNewChecklist} className="px-3 py-2 bg-secondary text-white rounded-lg text-sm">Add</button><button onClick={()=>{setShowAddChecklist(false);setNewChecklistName('');}} className="px-2 py-2 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button></div>}
+                        {(form.checklists||[]).map(cl=>{const clPct=cl.items.length>0?Math.round((cl.items.filter(i=>i.done).length/cl.items.length)*100):0;return(
+                            <div key={cl.id} className="mb-4">
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="text-sm font-medium" style={{color:'var(--text-secondary)'}}>{cl.name}</span>
+                                    <div className="flex items-center gap-2">
+                                        {cl.items.length>0&&<span className="text-xs" style={{color:'var(--text-muted)'}}>{clPct}%</span>}
+                                        <button onClick={()=>removeChecklist(cl.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',fontSize:11}} title="Remove checklist"><Icon.Trash size={12}/></button>
+                                    </div>
+                                </div>
+                                {cl.items.length>0&&<div className="v11-progress-bar" style={{height:4,marginBottom:8}}><div className={`v11-progress-fill ${clPct>=70?'high':clPct>=40?'medium':'low'}`} style={{width:`${clPct}%`}}/></div>}
+                                <div className="space-y-2 mb-2">{cl.items.map(item=>(<div key={item.id} className="flex items-center space-x-3 p-2 rounded-lg" style={{background:'var(--bg-secondary)'}}><button onClick={()=>toggleChecklistItem(cl.id,item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':''}`} style={!item.done?{borderColor:'var(--border-strong)'}:{}}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through':''}`} style={item.done?{color:'var(--text-muted)'}:{}}>{item.text}</span><button onClick={()=>removeChecklistItem(cl.id,item.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)'}}><Icon.Trash/></button></div>))}</div>
+                                <div className="flex space-x-2"><input type="text" value={newChecklistItems[cl.id]||''} onChange={e=>setNewChecklistItems({...newChecklistItems,[cl.id]:e.target.value})} onKeyPress={e=>e.key==='Enter'&&addChecklistItem(cl.id)} placeholder="Add item..." className="v11-input" style={{flex:1}}/><button onClick={()=>addChecklistItem(cl.id)} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>
+                            </div>
+                        );})}
                     </div>
                     <div className="mb-6">
                         <label className="block text-sm font-medium mb-2">💬 Comments ({form.comments?.length||0})</label>

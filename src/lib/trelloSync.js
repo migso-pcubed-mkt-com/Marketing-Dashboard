@@ -20,22 +20,26 @@ const pushTaskExtrasToTrello = async (task, card) => {
         }
     }
 
-    // Push checklist if task has items not yet on Trello
-    const trelloCheckItemNames = new Set();
+    // Push checklists — support both old flat format and new named format
+    const taskChecklists = task.checklists || (task.checklist ? [{ name: 'Checklist', items: task.checklist }] : []);
+    // Build set of existing Trello check item names per checklist
+    const trelloChecklistMap = new Map();
     if (card.checklists) {
         for (const cl of card.checklists) {
-            for (const item of cl.checkItems || []) {
-                trelloCheckItemNames.add(item.name);
-            }
+            const itemNames = new Set((cl.checkItems || []).map(item => item.name));
+            trelloChecklistMap.set(cl.name, itemNames);
         }
     }
-    const newChecklistItems = (task.checklist || []).filter(item => !trelloCheckItemNames.has(item.text));
-    if (newChecklistItems.length > 0) {
-        try {
-            await addTrelloChecklist(task.trelloCardId, 'Checklist', newChecklistItems);
-            pushed.checklists = newChecklistItems.length;
-        } catch (e) {
-            console.error('Failed to push checklist:', e);
+    for (const cl of taskChecklists) {
+        const existingItems = trelloChecklistMap.get(cl.name) || new Set();
+        const newItems = (cl.items || []).filter(item => !existingItems.has(item.text));
+        if (newItems.length > 0) {
+            try {
+                await addTrelloChecklist(task.trelloCardId, cl.name || 'Checklist', newItems);
+                pushed.checklists += newItems.length;
+            } catch (e) {
+                console.error('Failed to push checklist:', e);
+            }
         }
     }
 
@@ -196,13 +200,20 @@ export const syncWithTrello = async (board, mappingConfig) => {
             startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
         }
 
-        // Map checklists
-        const checklist = [];
+        // Map checklists (named, preserving structure)
+        const checklists = [];
         if (card.checklists) {
             for (const cl of card.checklists) {
-                for (const item of cl.checkItems || []) {
-                    checklist.push({ id: genId('cl'), text: item.name, done: item.state === 'complete' });
-                }
+                checklists.push({
+                    id: genId('cl'),
+                    name: cl.name || 'Checklist',
+                    trelloChecklistId: cl.id,
+                    items: (cl.checkItems || []).map(item => ({
+                        id: genId('cli'),
+                        text: item.name,
+                        done: item.state === 'complete'
+                    }))
+                });
             }
         }
 
@@ -260,7 +271,7 @@ export const syncWithTrello = async (board, mappingConfig) => {
             status: card.dueComplete ? 'completed' : 'todo',
             priority: 'medium',
             budget: 0,
-            checklist,
+            checklists,
             comments,
             attachments,
             channels,

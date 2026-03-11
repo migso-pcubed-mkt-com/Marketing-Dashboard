@@ -1,7 +1,7 @@
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 
-const DashboardView = ({categories, actions, tasks}) => {
+const DashboardView = ({categories, actions, tasks, members = []}) => {
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const totalBudget = tasks.reduce((s, t) => s + (t.budget || 0), 0);
@@ -10,6 +10,14 @@ const DashboardView = ({categories, actions, tasks}) => {
     const currentMonth = new Date().getMonth();
     const currentTasks = tasks.filter(t => t.month === currentMonth);
     const overdueTasks = tasks.filter(t => t.status !== 'completed' && (t.month < currentMonth || (t.dueDate && new Date(t.dueDate) < new Date())));
+
+    // Members stats
+    const memberStats = members.map(m => {
+        const memberTasks = tasks.filter(t => (t.assignees || []).includes(m.id));
+        const completed = memberTasks.filter(t => t.status === 'completed').length;
+        const overdue = memberTasks.filter(t => t.status !== 'completed' && t.dueDate && new Date(t.dueDate) < new Date()).length;
+        return { ...m, taskCount: memberTasks.length, completed, overdue, pct: memberTasks.length > 0 ? Math.round((completed / memberTasks.length) * 100) : 0 };
+    }).filter(m => m.taskCount > 0).sort((a, b) => b.taskCount - a.taskCount);
 
     const KPICard = ({title, value, subtitle, icon: I, color}) => (
         <div className="v11-card" style={{padding:'20px 24px',cursor:'default'}}>
@@ -66,6 +74,28 @@ const DashboardView = ({categories, actions, tasks}) => {
                     </div>
                 </div>
             </div>
+            {memberStats.length > 0 && (
+                <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
+                    <h3 className="font-semibold mb-4">👥 By Member</h3>
+                    <div className="space-y-3">
+                        {memberStats.map(m => (
+                            <div key={m.id} className="flex items-center gap-3">
+                                <div style={{flexShrink:0}}>
+                                    {m.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:28,height:28,borderRadius:'50%'}}/> : <span style={{width:28,height:28,borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
+                                </div>
+                                <div style={{width:100,flexShrink:0}}>
+                                    <div style={{fontSize:13,fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.fullName || m.username}</div>
+                                    <div style={{fontSize:11,color:'var(--text-muted)'}}>{m.completed}/{m.taskCount} done{m.overdue > 0 ? ` • ${m.overdue} overdue` : ''}</div>
+                                </div>
+                                <div className="flex-1 h-4 rounded-full" style={{background:'var(--bg-secondary)'}}>
+                                    <div className="h-full rounded-full" style={{width:`${m.pct}%`,background:'var(--accent)',transition:'width 0.3s'}}/>
+                                </div>
+                                <span className="text-sm font-medium" style={{width:36,textAlign:'right'}}>{m.pct}%</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
             <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
                 <h3 className="font-semibold mb-4">📢 By Channel</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
