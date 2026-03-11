@@ -258,6 +258,7 @@ const TrelloImportModal = ({ onClose, onImport }) => {
                                                 >
                                                     <option value="action">Action</option>
                                                     <option value="channel">Channel</option>
+                                                    <option value="country">Country</option>
                                                     <option value="other">Other Label</option>
                                                     <option value="ignore">Ignore</option>
                                                 </select>
@@ -280,10 +281,35 @@ const TrelloImportModal = ({ onClose, onImport }) => {
                                                     </select>
                                                 )}
 
+                                                {/* Country selector (if type=country) */}
+                                                {mapping.type === 'country' && (
+                                                    <select
+                                                        value={mapping.countryId || ''}
+                                                        onChange={e => updateLabelMapping(label.id, 'countryId', e.target.value, label)}
+                                                        style={{
+                                                            padding: '4px 8px', borderRadius: 'var(--radius-sm)',
+                                                            border: '1px solid var(--border)', background: 'var(--bg-primary)',
+                                                            color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer', flex: 1
+                                                        }}
+                                                    >
+                                                        <option value="">Select country...</option>
+                                                        {CONFIG.COUNTRIES.map(c => (
+                                                            <option key={c.id} value={c.id}>{c.flag} {c.name}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
+
                                                 {/* Info for action type */}
                                                 {mapping.type === 'action' && (
                                                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                                                         Auto-assigned to category
+                                                    </span>
+                                                )}
+
+                                                {/* Info for country type */}
+                                                {mapping.type === 'country' && !mapping.countryId && (
+                                                    <span style={{ fontSize: 11, color: '#f59e0b' }}>
+                                                        Select a country
                                                     </span>
                                                 )}
 

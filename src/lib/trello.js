@@ -38,6 +38,27 @@ export const createTrelloCard = (listId, data) =>
         body: JSON.stringify({ listId, ...data })
     });
 
+// Add a comment to a Trello card
+export const addTrelloComment = (cardId, text) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=addComment`, {
+        method: 'POST',
+        body: JSON.stringify({ cardId, text })
+    });
+
+// Add a checklist to a Trello card
+export const addTrelloChecklist = (cardId, name, items) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=addChecklist`, {
+        method: 'POST',
+        body: JSON.stringify({ cardId, name, items })
+    });
+
+// Add a URL attachment to a Trello card
+export const addTrelloAttachment = (cardId, url, name) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=addAttachment`, {
+        method: 'POST',
+        body: JSON.stringify({ cardId, url, name })
+    });
+
 // Delete a Trello card
 export const deleteTrelloCard = (cardId) =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=deleteCard&cardId=${encodeURIComponent(cardId)}`, {

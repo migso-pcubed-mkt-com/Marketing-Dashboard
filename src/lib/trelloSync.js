@@ -1,7 +1,59 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
-import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard } from './trello.js';
+import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloAttachment } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask } from './trelloMapping.js';
+
+// Push comments, checklists, attachments that don't already exist on Trello
+const pushTaskExtrasToTrello = async (task, card) => {
+    const pushed = { comments: 0, checklists: 0, attachments: 0 };
+
+    // Push new comments (those without trelloCommentId)
+    const existingCommentIds = new Set((card.comments || []).map(c => c.id));
+    for (const comment of (task.comments || [])) {
+        if (!comment.trelloCommentId && comment.text) {
+            try {
+                await addTrelloComment(task.trelloCardId, comment.text);
+                pushed.comments++;
+            } catch (e) {
+                console.error('Failed to push comment:', e);
+            }
+        }
+    }
+
+    // Push checklist if task has items not yet on Trello
+    const trelloCheckItemNames = new Set();
+    if (card.checklists) {
+        for (const cl of card.checklists) {
+            for (const item of cl.checkItems || []) {
+                trelloCheckItemNames.add(item.name);
+            }
+        }
+    }
+    const newChecklistItems = (task.checklist || []).filter(item => !trelloCheckItemNames.has(item.text));
+    if (newChecklistItems.length > 0) {
+        try {
+            await addTrelloChecklist(task.trelloCardId, 'Checklist', newChecklistItems);
+            pushed.checklists = newChecklistItems.length;
+        } catch (e) {
+            console.error('Failed to push checklist:', e);
+        }
+    }
+
+    // Push URL attachments not yet on Trello
+    const trelloAttUrls = new Set((card.attachments || []).map(a => a.url));
+    for (const att of (task.attachments || [])) {
+        if (att.url && !att.trelloAttachmentId && !trelloAttUrls.has(att.url)) {
+            try {
+                await addTrelloAttachment(task.trelloCardId, att.url, att.name);
+                pushed.attachments++;
+            } catch (e) {
+                console.error('Failed to push attachment:', e);
+            }
+        }
+    }
+
+    return pushed;
+};
 
 // Sync a dashboard board with its linked Trello board
 // Returns { created, updated, pushed, errors } counts
@@ -76,6 +128,8 @@ export const syncWithTrello = async (board, mappingConfig) => {
                 const listId = action ? catToListId[action.categoryId] : null;
                 const updates = mapTaskToTrelloCardUpdate(task, listId);
                 await updateTrelloCard(task.trelloCardId, updates);
+                // Also push comments, checklists, attachments
+                await pushTaskExtrasToTrello(task, card);
                 updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
                 result.pushed++;
             } catch (err) {
@@ -90,6 +144,7 @@ export const syncWithTrello = async (board, mappingConfig) => {
                     const listId = action ? catToListId[action.categoryId] : null;
                     const updates = mapTaskToTrelloCardUpdate(task, listId);
                     await updateTrelloCard(task.trelloCardId, updates);
+                    await pushTaskExtrasToTrello(task, card);
                     updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
                     result.pushed++;
                 } catch (err) {
@@ -129,7 +184,17 @@ export const syncWithTrello = async (board, mappingConfig) => {
 
         const genId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const dueDate = card.due ? card.due.split('T')[0] : null;
-        const startDate = dueDate || new Date().toISOString().split('T')[0];
+        // Default start date: 1st of the due date's month (or current month if no due date)
+        let startDate;
+        if (card.start) {
+            startDate = card.start.split('T')[0];
+        } else if (dueDate) {
+            const d = new Date(dueDate);
+            startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        } else {
+            const now = new Date();
+            startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        }
 
         // Map checklists
         const checklist = [];
@@ -175,6 +240,15 @@ export const syncWithTrello = async (board, mappingConfig) => {
             }
         }
 
+        // Map countries from labels
+        const countries = [];
+        if (card.idLabels && mappingConfig?.labelMappings) {
+            for (const labelId of card.idLabels) {
+                const mapping = mappingConfig.labelMappings[labelId];
+                if (mapping?.type === 'country' && mapping.countryId) countries.push(mapping.countryId);
+            }
+        }
+
         const newTask = {
             id: genId('task'),
             actionId,
@@ -190,7 +264,7 @@ export const syncWithTrello = async (board, mappingConfig) => {
             comments,
             attachments,
             channels,
-            countries: [],
+            countries,
             assignees: card.idMembers || [],
             otherLabels,
             order: card.pos || 0,

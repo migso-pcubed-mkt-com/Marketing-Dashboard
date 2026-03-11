@@ -148,6 +148,70 @@ export default async function handler(req, res) {
             return res.status(201).json(card);
         }
 
+        // POST /api/trello?action=addComment — Add a comment to a card
+        if (req.method === 'POST' && action === 'addComment') {
+            const { cardId: cid, text } = req.body;
+            if (!cid || !text) return res.status(400).json({ error: 'cardId and text required' });
+            console.log(`Adding comment to card ${cid}...`);
+
+            const response = await fetch(`${TRELLO_BASE}/cards/${cid}/actions/comments?${authParams}&text=${encodeURIComponent(text)}`, {
+                method: 'POST'
+            });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello comment error', details: err });
+            }
+            const comment = await response.json();
+            return res.status(201).json(comment);
+        }
+
+        // POST /api/trello?action=addChecklist — Add a checklist to a card
+        if (req.method === 'POST' && action === 'addChecklist') {
+            const { cardId: cid, name: checklistName, items } = req.body;
+            if (!cid) return res.status(400).json({ error: 'cardId required' });
+            console.log(`Adding checklist to card ${cid}...`);
+
+            // Create checklist
+            const clRes = await fetch(`${TRELLO_BASE}/cards/${cid}/checklists?${authParams}&name=${encodeURIComponent(checklistName || 'Checklist')}`, {
+                method: 'POST'
+            });
+            if (!clRes.ok) {
+                const err = await clRes.text();
+                return res.status(clRes.status).json({ error: 'Trello checklist error', details: err });
+            }
+            const checklist = await clRes.json();
+
+            // Add items to checklist
+            if (items && Array.isArray(items)) {
+                for (const item of items) {
+                    const checked = item.done ? 'complete' : 'incomplete';
+                    await fetch(`${TRELLO_BASE}/checklists/${checklist.id}/checkItems?${authParams}&name=${encodeURIComponent(item.text)}&checked=${checked}`, {
+                        method: 'POST'
+                    }).catch(e => console.error('Failed to add checklist item:', e));
+                }
+            }
+            return res.status(201).json(checklist);
+        }
+
+        // POST /api/trello?action=addAttachment — Add a URL attachment to a card
+        if (req.method === 'POST' && action === 'addAttachment') {
+            const { cardId: cid, url: attUrl, name: attName } = req.body;
+            if (!cid || !attUrl) return res.status(400).json({ error: 'cardId and url required' });
+            console.log(`Adding attachment to card ${cid}...`);
+
+            const params = new URLSearchParams({ url: attUrl });
+            if (attName) params.append('name', attName);
+            const response = await fetch(`${TRELLO_BASE}/cards/${cid}/attachments?${authParams}&${params.toString()}`, {
+                method: 'POST'
+            });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello attachment error', details: err });
+            }
+            const attachment = await response.json();
+            return res.status(201).json(attachment);
+        }
+
         // DELETE /api/trello?action=deleteCard&cardId=XXX
         if (req.method === 'DELETE' && action === 'deleteCard') {
             if (!cardId) return res.status(400).json({ error: 'cardId required' });

@@ -54,7 +54,7 @@ const BoardSelector = () => {
                     background: 'transparent',
                     color: 'var(--text-primary)',
                     cursor: 'pointer',
-                    maxWidth: 280,
+                    maxWidth: 480,
                     transition: 'background 0.15s'
                 }}
                 onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
@@ -64,8 +64,6 @@ const BoardSelector = () => {
                 <span style={{
                     fontSize: 15,
                     fontWeight: 600,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
                 }}>
                     {currentBoard?.name || 'Board'}

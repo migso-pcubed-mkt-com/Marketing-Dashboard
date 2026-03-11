@@ -60,7 +60,16 @@ export const matchLabelToChannel = (label) => {
 export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) => {
     const now = new Date();
     const dueDate = card.due ? card.due.split('T')[0] : null;
-    const startDate = dueDate || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    // Default start date: 1st of the due date's month (or current month if no due date)
+    let startDate;
+    if (card.start) {
+        startDate = card.start.split('T')[0];
+    } else if (dueDate) {
+        const d = new Date(dueDate);
+        startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    } else {
+        startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    }
     const month = dueDate ? new Date(dueDate).getMonth() : now.getMonth();
 
     // Map card labels to channels based on mappingConfig
@@ -117,6 +126,17 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
         }
     }
 
+    // Map labels to countries
+    const countries = [];
+    if (card.idLabels && mappingConfig?.labelMappings) {
+        for (const labelId of card.idLabels) {
+            const mapping = mappingConfig.labelMappings[labelId];
+            if (mapping?.type === 'country' && mapping.countryId) {
+                countries.push(mapping.countryId);
+            }
+        }
+    }
+
     // Map Trello members → assignees
     const assignees = card.idMembers || [];
 
@@ -152,7 +172,7 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
         comments,
         attachments,
         channels,
-        countries: [],
+        countries,
         assignees,
         otherLabels,
         order: card.pos || 0,
@@ -320,6 +340,17 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
         }
     }
 
+    // Merge countries from labels
+    const countries = [];
+    if (card.idLabels && mappingConfig?.labelMappings) {
+        for (const labelId of card.idLabels) {
+            const mapping = mappingConfig.labelMappings[labelId];
+            if (mapping?.type === 'country' && mapping.countryId) {
+                countries.push(mapping.countryId);
+            }
+        }
+    }
+
     return {
         ...existingTask,
         title: card.name,
@@ -330,6 +361,7 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
         attachments: attachments.length ? attachments : existingTask.attachments,
         comments: comments.length ? comments : existingTask.comments,
         assignees,
+        countries: countries.length ? countries : existingTask.countries,
         otherLabels: otherLabels.length ? otherLabels : (existingTask.otherLabels || []),
         trelloLastModified: card.dateLastActivity
     };
