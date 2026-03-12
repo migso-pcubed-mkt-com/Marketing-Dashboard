@@ -12,8 +12,7 @@ export const startTrelloLogin = async () => {
     const { appKey } = await fetchTrelloConfig();
     if (!appKey) throw new Error('Trello API key not configured on server');
 
-    const returnUrl = `${window.location.origin}/trello-callback.html`;
-    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=fragment&return_url=${encodeURIComponent(returnUrl)}`;
+    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=postMessage`;
 
     return new Promise((resolve, reject) => {
         const popup = window.open(authUrl, 'trello_auth', 'width=600,height=700,left=200,top=100');
@@ -23,13 +22,14 @@ export const startTrelloLogin = async () => {
         }
 
         const handleMessage = async (event) => {
-            if (event.origin !== window.location.origin) return;
-            if (!event.data?.trelloToken) return;
+            // Trello postMessage sends the token as a plain string
+            const token = (typeof event.data === 'string' && event.data.length > 20)
+                ? event.data
+                : event.data?.trelloToken || null;
+            if (!token) return;
 
             window.removeEventListener('message', handleMessage);
             clearInterval(pollTimer);
-
-            const token = event.data.trelloToken;
             try {
                 const user = await fetchTrelloMe(token);
                 localStorage.setItem(STORAGE_KEY, token);
