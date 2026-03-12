@@ -10,7 +10,10 @@ import {
     saveToLocalStorage as saveToLocalStorageFn,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
+import { syncWithTrello } from './lib/trelloSync.js';
+import { startTrelloLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
+import TrelloImportModal from './components/TrelloImportModal.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
 import KanbanView from './components/KanbanView.jsx';
 import TimelineView from './components/TimelineView.jsx';
@@ -31,7 +34,7 @@ const App = () => {
     const [boardData, setBoardData] = useState(null);
     const [currentBoardId, setCurrentBoardId] = useState('board-default');
 
-    const [filters, setFilters] = useState({search:'',status:[],category:[],priority:[],channel:[],country:[]});
+    const [filters, setFilters] = useState({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
     const [syncing, setSyncing] = useState(false);
     const [savingStatus, setSavingStatus] = useState(null);
     const [selectedTask, setSelectedTask] = useState(null);
@@ -53,6 +56,12 @@ const App = () => {
         const saved = localStorage.getItem('customCountries');
         return saved ? JSON.parse(saved) : [];
     });
+    const [showTrelloImportModal, setShowTrelloImportModal] = useState(false);
+    const [showTrelloRemapModal, setShowTrelloRemapModal] = useState(false);
+    const [trelloSyncStatus, setTrelloSyncStatus] = useState('idle'); // idle | syncing | synced | error
+    const [trelloUser, setTrelloUser] = useState(null); // null = guest, or { id, fullName, username, avatarUrl, token }
+    const trelloSyncIntervalRef = useRef(null);
+
     const saveQueueRef = useRef([]);
     const isSavingRef = useRef(false);
     const createDropdownRef = useRef(null);
@@ -126,14 +135,14 @@ const App = () => {
             boards: [...prev.boards, newBoard]
         }));
         setCurrentBoardId(newBoard.id);
-        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]});
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
         showNotification('✅ Board created');
     }, []);
 
     const handleSwitchBoard = useCallback((boardId) => {
         setCurrentBoardId(boardId);
         setBoardData(prev => ({ ...prev, currentBoardId: boardId }));
-        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]});
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
         setSelectedTask(null);
         setSelectedAction(null);
     }, []);
@@ -153,7 +162,7 @@ const App = () => {
             const newCurrentId = boardId === currentBoardId ? remaining[0].id : currentBoardId;
             if (boardId === currentBoardId) {
                 setCurrentBoardId(newCurrentId);
-                setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]});
+                setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
             }
             return { ...prev, currentBoardId: newCurrentId, boards: remaining };
         });
@@ -186,7 +195,7 @@ const App = () => {
                 updatedAt: new Date().toISOString()
             };
             setCurrentBoardId(newId);
-            setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]});
+            setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
             return { ...prev, currentBoardId: newId, boards: [...prev.boards, newBoard] };
         });
         showNotification('✅ Board duplicated');
@@ -323,6 +332,25 @@ const App = () => {
         return () => { clearTimeout(mountTimer); clearTimeout(timeoutId); };
     }, []);
 
+    // Restore Trello user from localStorage on mount
+    useEffect(() => {
+        restoreTrelloUser().then(user => { if (user) setTrelloUser(user); }).catch(() => {});
+    }, []);
+
+    const handleTrelloLogin = useCallback(async () => {
+        try {
+            const result = await startTrelloLogin();
+            if (result) setTrelloUser({ ...result.user, token: result.token });
+        } catch (err) {
+            showNotification('Trello login failed: ' + err.message);
+        }
+    }, []);
+
+    const handleTrelloLogout = useCallback(() => {
+        trelloLogout();
+        setTrelloUser(null);
+    }, []);
+
     useEffect(() => {
         if (fileSha) { localStorage.setItem('github_file_sha', fileSha); }
         else { localStorage.removeItem('github_file_sha'); }
@@ -438,7 +466,7 @@ const App = () => {
     const handleUpdateTask = (taskId, updates) => {
         setTasks(prev => prev.map(t => {
             if (t.id !== taskId) return t;
-            const newTask = {...t, ...updates};
+            const newTask = {...t, ...updates, updatedAt: new Date().toISOString()};
             if (updates.startDate) {
                 const d = new Date(updates.startDate);
                 newTask.month = d.getMonth();
@@ -649,6 +677,108 @@ const App = () => {
         showNotification('✅ Action created');
     };
 
+    // --- Trello import ---
+    const handleTrelloImport = useCallback((importData, boardName) => {
+        const newBoard = {
+            id: `board-${Date.now()}`,
+            name: boardName || 'Trello Import',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            categories: importData.categories,
+            actions: importData.actions,
+            tasks: importData.tasks,
+            members: importData.members || [],
+            trelloSync: importData.trelloSync
+        };
+        setBoardData(prev => ({
+            ...prev,
+            currentBoardId: newBoard.id,
+            boards: [...prev.boards, newBoard]
+        }));
+        setCurrentBoardId(newBoard.id);
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
+        showNotification(`✅ Imported "${boardName}" from Trello`);
+    }, []);
+
+    // --- Trello sync ---
+    const handleTrelloSync = useCallback(async () => {
+        if (!currentBoard?.trelloSync?.trelloBoardId) return;
+        setTrelloSyncStatus('syncing');
+        try {
+            // Build mappingConfig from current board data
+            const mappingConfig = { labelMappings: {} };
+            for (const action of (currentBoard.actions || [])) {
+                if (action.trelloLabelId) {
+                    mappingConfig.labelMappings[action.trelloLabelId] = { type: 'action', categoryId: action.categoryId };
+                }
+            }
+            // Reconstruct channel and other label mappings from existing tasks
+            for (const task of (currentBoard.tasks || [])) {
+                if (task.channels) {
+                    // Channel mappings already handled by task data
+                }
+                if (task.otherLabels) {
+                    for (const ol of task.otherLabels) {
+                        if (ol.id && !mappingConfig.labelMappings[ol.id]) {
+                            mappingConfig.labelMappings[ol.id] = { type: 'other', labelName: ol.name, labelColor: ol.color };
+                        }
+                    }
+                }
+            }
+            // Store label mapping config on board for persistence
+            if (currentBoard.trelloSync?.labelMappings) {
+                for (const [labelId, mapping] of Object.entries(currentBoard.trelloSync.labelMappings)) {
+                    if (!mappingConfig.labelMappings[labelId]) {
+                        mappingConfig.labelMappings[labelId] = mapping;
+                    }
+                }
+            }
+            const { board: syncedBoard, result } = await syncWithTrello(currentBoard, mappingConfig);
+            // Update the board in boardData
+            setBoardData(prev => ({
+                ...prev,
+                boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b)
+            }));
+            setTrelloSyncStatus('synced');
+            const msg = [];
+            if (result.created) msg.push(`${result.created} new`);
+            if (result.updated) msg.push(`${result.updated} updated`);
+            if (result.pushed) msg.push(`${result.pushed} pushed`);
+            showNotification(`✅ Trello sync: ${msg.join(', ') || 'up to date'}`);
+            setTimeout(() => setTrelloSyncStatus('idle'), 3000);
+        } catch (err) {
+            console.error('Trello sync error:', err);
+            setTrelloSyncStatus('error');
+            showNotification(`❌ Trello sync failed: ${err.message}`);
+            setTimeout(() => setTrelloSyncStatus('idle'), 5000);
+        }
+    }, [currentBoard]);
+
+    // --- Trello polling lifecycle ---
+    useEffect(() => {
+        // Clear previous interval
+        if (trelloSyncIntervalRef.current) {
+            clearInterval(trelloSyncIntervalRef.current);
+            trelloSyncIntervalRef.current = null;
+        }
+        // Start polling if current board has Trello sync enabled
+        if (currentBoard?.trelloSync?.syncEnabled && currentBoard?.trelloSync?.trelloBoardId) {
+            const intervalMs = currentBoard.trelloSync.pollIntervalMs || 120000;
+            console.log(`Trello polling started (${intervalMs / 1000}s)`);
+            trelloSyncIntervalRef.current = setInterval(handleTrelloSync, intervalMs);
+        }
+        return () => {
+            if (trelloSyncIntervalRef.current) clearInterval(trelloSyncIntervalRef.current);
+        };
+    }, [currentBoard?.trelloSync?.syncEnabled, currentBoard?.trelloSync?.pollIntervalMs, currentBoard?.id, handleTrelloSync]);
+
+    const handleUpdateTrelloSyncSettings = useCallback((updates) => {
+        updateCurrentBoard(b => ({
+            ...b,
+            trelloSync: { ...b.trelloSync, ...updates }
+        }));
+    }, [updateCurrentBoard]);
+
     const handleAddNewTask = (newTask) => {
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
@@ -697,7 +827,7 @@ const App = () => {
 
     const totalBudget = tasks.reduce((s, t) => s + (t.budget || 0), 0);
     const completedCount = tasks.filter(t => t.status === 'completed').length;
-    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0);
+    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0);
 
     // --- AppContext value ---
     const contextValue = useMemo(() => ({
@@ -708,15 +838,23 @@ const App = () => {
         onCreateBoard: handleCreateBoard,
         onRenameBoard: handleRenameBoard,
         onDeleteBoard: handleDeleteBoard,
-        onDuplicateBoard: handleDuplicateBoard
-    }), [boards, currentBoardId, currentBoard, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard]);
+        onDuplicateBoard: handleDuplicateBoard,
+        onShowTrelloImport: () => setShowTrelloImportModal(true),
+        onOpenRemapLabels: () => setShowTrelloRemapModal(true),
+        onTrelloSync: handleTrelloSync,
+        onUpdateTrelloSyncSettings: handleUpdateTrelloSyncSettings,
+        trelloSyncStatus,
+        trelloUser,
+        onTrelloLogin: handleTrelloLogin,
+        onTrelloLogout: handleTrelloLogout
+    }), [boards, currentBoardId, currentBoard, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
 
     if (!dataLoaded) return (<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Loading data...</p></div></div>);
 
     return (
         <AppContext.Provider value={contextValue}>
             <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
-                <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus}/>
+                <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
                     <div className="toolbar">
                         <button className={`filter-btn ${showFilterSidebar ? 'active' : ''}`} onClick={() => setShowFilterSidebar(!showFilterSidebar)}>
@@ -768,20 +906,24 @@ const App = () => {
                             {filters.priority.map(p => { const pr = CONFIG.PRIORITIES.find(x => x.id === p); return <div key={p} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:pr?.color,flexShrink:0}}/> {pr?.name}<button onClick={() => setFilters({...filters, priority: filters.priority.filter(x => x !== p)})}>✕</button></div>; })}
                             {(filters.channel || []).map(c => { const ch = CONFIG.CHANNELS.find(x => x.id === c); return <div key={c} className="filter-chip">{ch?.name}<button onClick={() => setFilters({...filters, channel: filters.channel.filter(x => x !== c)})}>✕</button></div>; })}
                             {(filters.country || []).map(c => { const co = allCountries.find(x => x.id === c); return <div key={c} className="filter-chip">{co?.flag} {co?.name}<button onClick={() => setFilters({...filters, country: filters.country.filter(x => x !== c)})}>✕</button></div>; })}
-                            <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[]})}>Clear all</span>
+                            {(filters.otherLabel || []).map(labelId => { const label = tasks.flatMap(t => t.otherLabels || []).find(l => l.id === labelId); return <div key={labelId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:label?.color||'#888',flexShrink:0}}/> {label?.name||'Label'}<button onClick={() => setFilters({...filters, otherLabel: filters.otherLabel.filter(x => x !== labelId)})}>✕</button></div>; })}
+                            {(filters.member || []).map(memberId => { const m = (currentBoard?.members || []).find(x => x.id === memberId); return <div key={memberId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}>{m?.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:14,height:14,borderRadius:'50%'}}/> : null} {m?.fullName||m?.username||'Member'}<button onClick={() => setFilters({...filters, member: filters.member.filter(x => x !== memberId)})}>✕</button></div>; })}
+                            <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
                         </div>
                     )}
                     {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear}/>}
-                    {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={tasks}/>}
+                    {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={tasks} members={currentBoard?.members || []}/>}
                 </main>
-                {selectedTask && <TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory}/>}
+                {selectedTask && <TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={currentBoard?.members || []}/>}
                 {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t => { setSelectedTask(t); }} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction} onAddCategory={handleAddCategory}/>}
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory}/>}
-                <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries}/>
+                {showTrelloImportModal && <TrelloImportModal onClose={() => setShowTrelloImportModal(false)} onImport={handleTrelloImport}/>}
+                {showTrelloRemapModal && currentBoard?.trelloSync?.trelloBoardId && <TrelloImportModal mappingOnly trelloBoardId={currentBoard.trelloSync.trelloBoardId} existingMappings={currentBoard.trelloSync.labelMappings} onClose={() => setShowTrelloRemapModal(false)} onSaveMappings={(mappings) => handleUpdateTrelloSyncSettings({ labelMappings: mappings })}/>}
+                <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={currentBoard?.members || []}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
             </div>
         </AppContext.Provider>

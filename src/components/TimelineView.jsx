@@ -794,6 +794,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             const taskCountries=t.countries||[];
             if(!filters.country.some(c=>taskCountries.includes(c)))return false;
         }
+        if(filters?.otherLabel&&filters.otherLabel.length>0&&!(t.otherLabels||[]).some(l=>filters.otherLabel.includes(l.id)))return false;
+        if(filters?.member&&filters.member.length>0&&!(t.assignees||[]).some(m=>filters.member.includes(m)))return false;
         return true;
     });
 

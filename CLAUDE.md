@@ -49,7 +49,8 @@ Marketing-Dashboard/
 ├── postcss.config.js               # PostCSS (tailwind + autoprefixer)
 ├── vercel.json                     # Vercel: buildCommand + outputDirectory + functions
 ├── api/
-│   └── github.js                   # Serverless function (GitHub API proxy)
+│   ├── github.js                   # Serverless function (GitHub API proxy)
+│   └── trello.js                   # Serverless function (Trello API proxy)
 ├── src/
 │   ├── main.jsx                    # React entry point (createRoot)
 │   ├── App.jsx                     # Central state management (~624 lines)
@@ -76,10 +77,14 @@ Marketing-Dashboard/
 │   │   ├── Icons.jsx               # SVG icon library
 │   │   ├── IconSelect.jsx          # Icon picker
 │   │   ├── ChannelTags.jsx         # Channel tag badges
-│   │   └── CountryTags.jsx         # Country tag badges
+│   │   ├── CountryTags.jsx         # Country tag badges
+│   │   └── TrelloImportModal.jsx   # Trello board import (multi-step wizard)
 │   └── lib/
 │       ├── storage.js              # Supabase + GitHub + localStorage (load/save)
-│       └── migration.js            # v1→v2 data migration (flat → multi-board)
+│       ├── migration.js            # v1→v2 data migration (flat → multi-board)
+│       ├── trello.js               # Trello API client (calls /api/trello proxy)
+│       ├── trelloMapping.js        # Trello ↔ Dashboard entity mapping/conversion
+│       └── trelloSync.js           # Bidirectional sync (last write wins)
 ├── data.json                       # Persisted app data (GitHub backend)
 ├── design-system-v11.css           # Legacy CSS (reference only)
 ├── marketing-tracker-v11.html      # Legacy monolith (backup)
@@ -134,12 +139,18 @@ All backends store the full v2 multi-board envelope.
    - Auto-save debounce: 1s
    - **Required SQL migration**: `ALTER TABLE app_data ADD COLUMN IF NOT EXISTS board_data JSONB;`
 
-2. **Secondary: GitHub API** via Vercel serverless function
+2. **Trello Sync**: Bidirectional sync via `api/trello.js` serverless proxy
+   - Env vars: `TRELLO_API_KEY` + `TRELLO_TOKEN` (server-side only)
+   - Endpoints: boards, board detail, createCard, updateCard, deleteCard
+   - Sync: polling every 1-10 min (configurable), "last write wins" based on `dateLastActivity`
+   - Metadata: `trelloSync` on board, `trelloCardId`/`trelloLastModified` on tasks, `trelloListId` on categories, `trelloLabelId` on actions
+
+3. **Secondary: GitHub API** via Vercel serverless function
    - `api/github.js` — proxy that keeps GITHUB_TOKEN server-side
    - Reads/writes `data.json` on the `main` branch via GitHub Contents API
    - Auto-save debounce: 2s
 
-3. **Fallback: localStorage** — key `marketing_tracker_backup`
+4. **Fallback: localStorage** — key `marketing_tracker_backup`
 
 ### State Management
 
@@ -266,6 +277,21 @@ Complex system with multiple solved issues:
 - Inline form: category name → creates category immediately and auto-selects it
 - `onAddCategory` prop passed from App.jsx (uses `handleAddCategory`)
 
+### Trello Sync
+- `api/trello.js` keeps `TRELLO_API_KEY` and `TRELLO_TOKEN` server-side (same pattern as `api/github.js`)
+- Import wizard: TrelloImportModal.jsx — boards → label mapping → preview → import
+- Label mapping is configurable at import: each label can be mapped to Action, Channel, or Ignore
+- Sync uses "last write wins" based on `card.dateLastActivity` vs `task.trelloLastModified`
+- New cards on Trello → create tasks locally; new tasks locally → create cards on Trello
+- Deleted cards on Trello → task status set to "paused" (no auto-delete)
+- Polling lifecycle managed in App.jsx via `trelloSyncIntervalRef` — starts/stops when board changes or sync settings change
+- `trelloSyncStatus` state: 'idle' | 'syncing' | 'synced' | 'error'
+- Trello API rate limit: 100 requests per 10 seconds per token — polling intervals respect this
+- **Named checklists**: `task.checklists` = `[{id, name, items: [{id, text, done}]}]` — old `task.checklist` auto-migrated via `normalizeTaskChecklists()`
+- **Per-user token**: `X-Trello-Token` header; server uses it over env `TRELLO_TOKEN` when present
+- **OAuth**: popup flow with `trello-callback.html` → `postMessage` → validate via `/api/trello?action=me`
+- **Label remap**: `TrelloImportModal` supports `mappingOnly` prop to skip board selection and show mapping step directly
+
 ### localStorage as Backup Only
 - `localStorage` is a **backup only**, not a primary storage layer
 - Load order: Supabase → GitHub → localStorage
@@ -276,7 +302,7 @@ Complex system with multiple solved issues:
 
 1. ~~**Vite migration**~~ — ✅ DONE (Phase 0). Monolith `index.html` → Vite + modular React
 2. ~~**Multi-board**~~ — ✅ DONE (Phase 1). Board selector, create/switch/rename/duplicate/delete boards.
-3. **Trello integration** — Phase 2. Import Trello cards + bidirectional sync via `api/trello.js`
+3. ~~**Trello integration**~~ — ✅ DONE (Phase 2). Import Trello boards, configurable label mapping (Action/Channel/Ignore), bidirectional sync with auto-polling
 4. **Multi-user auth** — Phase 3. Auth via Trello OAuth + RLS per user
 5. **File attachments** — `attachments: []` field exists on tasks, but no upload UI yet
 
@@ -332,3 +358,13 @@ Complex system with multiple solved issues:
 | 2026-03 | Calendar +N more expand | "+N more" expands week row instead of creating new task |
 | 2026-03 | Consistent bar colors | All calendar bars use category color gradient — no more white vs colored distinction |
 | 2026-03 | Inline category creation | NewActionModal can create categories inline (like NewTaskModal creates actions) |
+| 2026-03 | Trello integration (Phase 2) | api/trello.js serverless proxy, import wizard, bidirectional sync |
+| 2026-03 | Trello List → Category mapping | Lists map to Categories (not statuses), configurable label mapping |
+| 2026-03 | Trello sync polling | Auto-polling every 1-10min, last write wins, manual sync button |
+| 2026-03 | Trello sync metadata | trelloCardId/trelloLastModified on tasks, trelloListId on categories, trelloLabelId on actions |
+| 2026-03 | Named checklists | task.checklists replaces task.checklist — named groups with per-checklist progress |
+| 2026-03 | Markdown description | SimpleMarkdown renderer (React elements, no innerHTML), toggle edit/view mode, auto-resize textarea |
+| 2026-03 | otherLabel + member filters | New filter dimensions in FilterSidebar, filter chips, member KPIs in DashboardView |
+| 2026-03 | Label remap after import | TrelloImportModal mappingOnly mode, "Re-configure Labels" button in BoardSettingsModal |
+| 2026-03 | Trello OAuth login | Per-user token via X-Trello-Token header, popup OAuth flow, avatar in Header |
+| 2026-03 | Assignees → Members | UI label renamed, data field stays `assignees` for backward compat |
