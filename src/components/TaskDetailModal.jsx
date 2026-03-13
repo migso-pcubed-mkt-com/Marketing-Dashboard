@@ -8,40 +8,84 @@ import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
 
-// Markdown formatting toolbar
-const MarkdownToolbar = ({ textareaRef, value, onChange }) => {
-    const wrapSelection = (prefix, suffix = prefix) => {
-        const ta = textareaRef.current;
-        if (!ta) return;
-        const start = ta.selectionStart;
-        const end = ta.selectionEnd;
-        const selected = value.substring(start, end);
-        const before = value.substring(0, start);
-        const after = value.substring(end);
-        const newText = `${before}${prefix}${selected || 'text'}${suffix}${after}`;
-        onChange(newText);
-        setTimeout(() => {
-            ta.focus();
-            if (selected) {
-                ta.selectionStart = start + prefix.length;
-                ta.selectionEnd = end + prefix.length;
-            } else {
-                ta.selectionStart = start + prefix.length;
-                ta.selectionEnd = start + prefix.length + 4; // select "text"
-            }
-        }, 0);
-    };
+// Convert markdown to HTML for contentEditable
+const markdownToHtml = (md) => {
+    if (!md) return '';
+    let html = md;
+    // Code blocks (must be before inline processing)
+    html = html.replace(/```([^`]*?)```/gs, (_, code) => `<pre style="background:var(--bg-secondary);padding:8px;border-radius:4px;font-family:monospace;font-size:12px;overflow-x:auto"><code>${code.trim().replace(/</g,'&lt;')}</code></pre>`);
+    // Process line by line for block elements
+    const lines = html.split('\n');
+    const result = [];
+    let inList = false, listType = '';
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i];
+        // Headings
+        if (/^### (.+)/.test(line)) { if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; } result.push(`<h3>${line.slice(4)}</h3>`); continue; }
+        if (/^## (.+)/.test(line)) { if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; } result.push(`<h2>${line.slice(3)}</h2>`); continue; }
+        if (/^# (.+)/.test(line)) { if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; } result.push(`<h1>${line.slice(2)}</h1>`); continue; }
+        // HR
+        if (/^---+$/.test(line.trim())) { if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; } result.push('<hr/>'); continue; }
+        // Blockquote
+        if (/^> (.+)/.test(line)) { if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; } result.push(`<blockquote style="border-left:3px solid var(--border);padding-left:10px;color:var(--text-muted);margin:4px 0">${line.slice(2)}</blockquote>`); continue; }
+        // Unordered list
+        if (/^[-*] (.+)/.test(line)) { if (!inList || listType !== 'ul') { if (inList) result.push('</ol>'); result.push('<ul>'); inList = true; listType = 'ul'; } result.push(`<li>${line.replace(/^[-*] /, '')}</li>`); continue; }
+        // Ordered list
+        if (/^\d+\. (.+)/.test(line)) { if (!inList || listType !== 'ol') { if (inList) result.push('</ul>'); result.push('<ol>'); inList = true; listType = 'ol'; } result.push(`<li>${line.replace(/^\d+\. /, '')}</li>`); continue; }
+        // Close list if needed
+        if (inList) { result.push(listType === 'ul' ? '</ul>' : '</ol>'); inList = false; }
+        // Empty line = paragraph break
+        if (!line.trim()) { result.push('<br/>'); continue; }
+        result.push(`<div>${line}</div>`);
+    }
+    if (inList) result.push(listType === 'ul' ? '</ul>' : '</ol>');
+    html = result.join('');
+    // Inline formatting
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    html = html.replace(/~~(.+?)~~/g, '<s>$1</s>');
+    html = html.replace(/`([^`]+?)`/g, '<code style="background:var(--bg-secondary);padding:1px 4px;border-radius:3px;font-size:0.9em">$1</code>');
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--accent)">$1</a>');
+    return html;
+};
 
-    const insertAtCursor = (text) => {
-        const ta = textareaRef.current;
-        if (!ta) return;
-        const start = ta.selectionStart;
-        const before = value.substring(0, start);
-        const after = value.substring(start);
-        const needsNewline = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
-        const newText = `${before}${needsNewline}${text}${after}`;
-        onChange(newText);
-        setTimeout(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = start + needsNewline.length + text.length; }, 0);
+// Convert HTML from contentEditable back to markdown
+const htmlToMarkdown = (html) => {
+    if (!html) return '';
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const walk = (node) => {
+        if (node.nodeType === 3) return node.textContent;
+        if (node.nodeType !== 1) return '';
+        const tag = node.tagName.toLowerCase();
+        const children = Array.from(node.childNodes).map(walk).join('');
+        switch (tag) {
+            case 'strong': case 'b': return `**${children}**`;
+            case 'em': case 'i': return `*${children}*`;
+            case 's': case 'del': case 'strike': return `~~${children}~~`;
+            case 'code': return node.parentElement?.tagName === 'PRE' ? children : `\`${children}\``;
+            case 'pre': return `\`\`\`\n${children}\n\`\`\`\n`;
+            case 'h1': return `# ${children}\n`;
+            case 'h2': return `## ${children}\n`;
+            case 'h3': return `### ${children}\n`;
+            case 'blockquote': return `> ${children}\n`;
+            case 'li': return node.parentElement?.tagName === 'OL' ? `1. ${children}\n` : `- ${children}\n`;
+            case 'ul': case 'ol': return children;
+            case 'hr': return '---\n';
+            case 'a': return `[${children}](${node.getAttribute('href') || ''})`;
+            case 'br': return '\n';
+            case 'div': case 'p': return children + '\n';
+            default: return children;
+        }
+    };
+    return Array.from(div.childNodes).map(walk).join('').replace(/\n{3,}/g, '\n\n').trim();
+};
+
+// WYSIWYG toolbar for contentEditable
+const WysiwygToolbar = ({ editableRef }) => {
+    const exec = (cmd, value = null) => {
+        editableRef.current?.focus();
+        document.execCommand(cmd, false, value);
     };
 
     const btnStyle = { background: 'none', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 7px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', lineHeight: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 28 };
@@ -49,32 +93,29 @@ const MarkdownToolbar = ({ textareaRef, value, onChange }) => {
 
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 0 6px', flexWrap: 'wrap' }}>
-            <select onChange={e => { if (e.target.value) { insertAtCursor(e.target.value); e.target.value = ''; } }} style={{ ...btnStyle, padding: '3px 4px', minWidth: 36, fontSize: 11 }} title="Heading">
+            <select onChange={e => { if (e.target.value) { exec('formatBlock', e.target.value); e.target.selectedIndex = 0; } }} style={{ ...btnStyle, padding: '3px 4px', minWidth: 36, fontSize: 11 }} title="Heading">
                 <option value="">Tt</option>
-                <option value="# ">H1</option>
-                <option value="## ">H2</option>
-                <option value="### ">H3</option>
+                <option value="h1">H1</option>
+                <option value="h2">H2</option>
+                <option value="h3">H3</option>
+                <option value="div">Normal</option>
             </select>
-            <button onClick={() => wrapSelection('**')} style={btnStyle} title="Bold"><strong>B</strong></button>
-            <button onClick={() => wrapSelection('*')} style={btnStyle} title="Italic"><em>I</em></button>
-            <button onClick={() => wrapSelection('~~')} style={btnStyle} title="Strikethrough"><span style={{ textDecoration: 'line-through' }}>S</span></button>
+            <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('bold')} style={btnStyle} title="Bold"><strong>B</strong></button>
+            <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('italic')} style={btnStyle} title="Italic"><em>I</em></button>
+            <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('strikeThrough')} style={btnStyle} title="Strikethrough"><span style={{ textDecoration: 'line-through' }}>S</span></button>
             <div style={sep} />
-            <button onClick={() => insertAtCursor('- ')} style={btnStyle} title="Bullet list">
+            <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('insertUnorderedList')} style={btnStyle} title="Bullet list">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor"/><circle cx="4" cy="12" r="1.5" fill="currentColor"/><circle cx="4" cy="18" r="1.5" fill="currentColor"/></svg>
             </button>
-            <button onClick={() => insertAtCursor('1. ')} style={btnStyle} title="Numbered list">
+            <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('insertOrderedList')} style={btnStyle} title="Numbered list">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><text x="2" y="8" fill="currentColor" stroke="none" fontSize="8" fontWeight="700">1</text><text x="2" y="14" fill="currentColor" stroke="none" fontSize="8" fontWeight="700">2</text><text x="2" y="20" fill="currentColor" stroke="none" fontSize="8" fontWeight="700">3</text></svg>
             </button>
             <div style={sep} />
-            <button onClick={() => wrapSelection('`')} style={{ ...btnStyle, fontFamily: 'monospace', fontSize: 11 }} title="Inline code">{'{}'}</button>
-            <button onClick={() => insertAtCursor('```\n\n```')} style={btnStyle} title="Code block">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-            </button>
-            <button onClick={() => wrapSelection('[', '](url)')} style={btnStyle} title="Link">
+            <button onMouseDown={e=>e.preventDefault()} onClick={() => { const url = prompt('URL:'); if (url) exec('createLink', url); }} style={btnStyle} title="Link">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             </button>
-            <button onClick={() => insertAtCursor('> ')} style={btnStyle} title="Quote">"</button>
-            <button onClick={() => insertAtCursor('---')} style={btnStyle} title="Horizontal rule">—</button>
+            <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('formatBlock', 'blockquote')} style={btnStyle} title="Quote">"</button>
+            <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('insertHorizontalRule')} style={btnStyle} title="Horizontal rule">—</button>
         </div>
     );
 };
@@ -193,7 +234,7 @@ const SimpleMarkdown = ({ text }) => {
     return React.createElement('div', { style: { fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' } }, ...elements);
 };
 
-const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory,members=[]})=>{
+const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory,members=[],isReadOnly=false,availableOtherLabels=[]})=>{
     const { trelloUser } = useApp();
     const[form,setForm]=useState(()=>{
         const normalized={...task,checklists:normalizeTaskChecklists(task)};
@@ -205,11 +246,13 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[descriptionSaved,setDescriptionSaved]=useState(true);
     const[descriptionEditing,setDescriptionEditing]=useState(false);
     const descTextareaRef=useRef(null);
+    const descEditableRef=useRef(null);
     const[newComment,setNewComment]=useState('');
     const[newChecklistItems,setNewChecklistItems]=useState({}); // Per-checklist new item text
     const[newChecklistName,setNewChecklistName]=useState('');
     const[showAddChecklist,setShowAddChecklist]=useState(false);
     const[showAddOtherLabel,setShowAddOtherLabel]=useState(false);
+    const[showCreateOtherLabel,setShowCreateOtherLabel]=useState(false);
     const[newOtherLabelName,setNewOtherLabelName]=useState('');
     const[newOtherLabelColor,setNewOtherLabelColor]=useState('#6366f1');
     const[showMemberPicker,setShowMemberPicker]=useState(false);
@@ -226,14 +269,15 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         if(showInlineCreateAction&&newActionInputRef.current)newActionInputRef.current.focus();
     },[showInlineCreateAction]);
 
-    // Auto-resize description textarea
-    const autoResizeDesc=useCallback(()=>{
-        const el=descTextareaRef.current;
-        if(!el)return;
-        el.style.height='auto';
-        el.style.height=Math.min(Math.max(el.scrollHeight,80),400)+'px';
-    },[]);
-    useEffect(()=>{if(descriptionEditing)autoResizeDesc();},[descriptionEditing,autoResizeDesc]);
+    // Initialize contentEditable when editing starts
+    useEffect(()=>{
+        if(descriptionEditing&&descEditableRef.current){
+            const html=markdownToHtml(descriptionDraft);
+            if(descEditableRef.current.innerHTML!==html){
+                descEditableRef.current.innerHTML=html;
+            }
+        }
+    },[descriptionEditing]);
 
     const handleInlineCreateAction=()=>{
         const name=newActionName.trim();
@@ -246,7 +290,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         setShowInlineCreateAction(false);
     };
 
-    const handleClose=()=>{onUpdate(task.id,form);onClose();}; // Auto-save on close (Trello-style)
+    const handleClose=()=>{if(!isReadOnly)onUpdate(task.id,form);onClose();}; // Auto-save on close (Trello-style), skip in read-only
     const saveDescription=()=>{setForm({...form,description:descriptionDraft});setDescriptionSaved(true);};
     const addComment=()=>{if(!newComment.trim())return;const author=trelloUser?.fullName||'Guest';setForm({...form,comments:[...(form.comments||[]),{id:`cm${Date.now()}`,author,text:newComment,date:new Date().toISOString()}]});setNewComment('');};
     const addChecklistItem=(checklistId)=>{const text=(newChecklistItems[checklistId]||'').trim();if(!text)return;setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:[...cl.items,{id:`cli${Date.now()}`,text,done:false}]}:cl)});setNewChecklistItems({...newChecklistItems,[checklistId]:''});};
@@ -292,9 +336,9 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                 <div className="p-6">
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex items-start gap-3 flex-1">
-                            <button onClick={()=>setForm({...form,status:form.status==='completed'?'todo':'completed'})} className="mt-2 flex-shrink-0" style={{width:22,height:22,borderRadius:6,border:form.status==='completed'?'none':'2px solid var(--border-strong)',background:form.status==='completed'?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',transition:'all 0.2s'}} title={form.status==='completed'?'Mark as not completed':'Mark as completed'}>{form.status==='completed'&&<svg width="12" height="12" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}</button>
+                            <button onClick={()=>!isReadOnly&&setForm({...form,status:form.status==='completed'?'todo':'completed'})} className="mt-2 flex-shrink-0" style={{width:22,height:22,borderRadius:6,border:form.status==='completed'?'none':'2px solid var(--border-strong)',background:form.status==='completed'?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:isReadOnly?'default':'pointer',transition:'all 0.2s',opacity:isReadOnly?0.7:1}} title={form.status==='completed'?'Mark as not completed':'Mark as completed'}>{form.status==='completed'&&<svg width="12" height="12" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}</button>
                             <div className="flex-1">
-                                <input type="text" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} className="v11-input" style={{fontSize:'1.25rem',fontWeight:700,textDecoration:form.status==='completed'?'line-through':'none'}}/>
+                                <input type="text" value={form.title} onChange={e=>!isReadOnly&&setForm({...form,title:e.target.value})} className="v11-input" style={{fontSize:'1.25rem',fontWeight:700,textDecoration:form.status==='completed'?'line-through':'none'}} readOnly={isReadOnly}/>
                                 <div className="flex items-center gap-2 mt-1">
                                     <p className="text-sm" style={{color:'var(--text-muted)'}}>📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
                                     {onBackToAction&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Back to action</button>}
@@ -311,8 +355,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         <div><label className="v11-label">End</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
                         <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}}/></div>
                     </div>
-                    <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
-                    <div className="mb-4"><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry}/></div>
+                    <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel} editable={!isReadOnly}/></div>
+                    <div className="mb-4"><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry} editable={!isReadOnly}/></div>
                     {members.length > 0 && (
                         <div className="mb-4">
                             <label className="v11-label">👥 Members</label>
@@ -361,42 +405,66 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                     fontSize:11,fontWeight:500,display:'inline-flex',alignItems:'center',gap:4
                                 }}>
                                     {label.name || 'Label'}
-                                    <button onClick={()=>setForm({...form,otherLabels:(form.otherLabels||[]).filter(l=>l.id!==label.id)})} style={{background:'none',border:'none',cursor:'pointer',color:'inherit',fontSize:10,padding:0,lineHeight:1}}>&times;</button>
+                                    {!isReadOnly && <button onClick={()=>setForm({...form,otherLabels:(form.otherLabels||[]).filter(l=>l.id!==label.id)})} style={{background:'none',border:'none',cursor:'pointer',color:'inherit',fontSize:10,padding:0,lineHeight:1}}>&times;</button>}
                                 </span>
                             ))}
-                            {!showAddOtherLabel ? (
-                                <button onClick={()=>setShowAddOtherLabel(true)} style={{padding:'2px 8px',borderRadius:4,border:'1px dashed var(--border)',background:'none',cursor:'pointer',fontSize:11,color:'var(--text-muted)'}}>+ Label</button>
-                            ) : (
-                                <span style={{display:'inline-flex',gap:4,alignItems:'center'}}>
-                                    <input type="text" value={newOtherLabelName} onChange={e=>setNewOtherLabelName(e.target.value)} placeholder="Label name" autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newOtherLabelName.trim()){const id='ol-'+Date.now();setForm({...form,otherLabels:[...(form.otherLabels||[]),{id,name:newOtherLabelName.trim(),color:newOtherLabelColor}]});setNewOtherLabelName('');setShowAddOtherLabel(false);}if(e.key==='Escape'){setShowAddOtherLabel(false);setNewOtherLabelName('');}}} style={{width:100,padding:'2px 6px',borderRadius:4,border:'1px solid var(--border)',fontSize:11}}/>
-                                    <input type="color" value={newOtherLabelColor} onChange={e=>setNewOtherLabelColor(e.target.value)} style={{width:24,height:24,border:'none',padding:0,cursor:'pointer',borderRadius:4}}/>
-                                    <button onClick={()=>{if(newOtherLabelName.trim()){const id='ol-'+Date.now();setForm({...form,otherLabels:[...(form.otherLabels||[]),{id,name:newOtherLabelName.trim(),color:newOtherLabelColor}]});setNewOtherLabelName('');setShowAddOtherLabel(false);}}} style={{padding:'2px 6px',borderRadius:4,background:'var(--accent)',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Add</button>
-                                </span>
-                            )}
+                            {!isReadOnly && <div style={{position:'relative'}}>
+                                <button onClick={()=>setShowAddOtherLabel(!showAddOtherLabel)} style={{padding:'2px 8px',borderRadius:4,border:'1px dashed var(--border)',background:'none',cursor:'pointer',fontSize:11,color:'var(--text-muted)'}}>+ Label</button>
+                                {showAddOtherLabel && (
+                                    <>
+                                        <div style={{position:'fixed',inset:0,zIndex:98}} onClick={()=>{setShowAddOtherLabel(false);setShowCreateOtherLabel(false);}}/>
+                                        <div style={{position:'absolute',top:'100%',left:0,marginTop:4,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:99,minWidth:180,padding:4,maxHeight:220,overflowY:'auto'}}>
+                                            {availableOtherLabels.filter(l=>!(form.otherLabels||[]).some(fl=>fl.id===l.id)).map(label => (
+                                                <button key={label.id} onClick={()=>{setForm({...form,otherLabels:[...(form.otherLabels||[]),label]});setShowAddOtherLabel(false);}} style={{width:'100%',padding:'6px 10px',fontSize:12,color:'var(--text-primary)',background:'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',gap:8}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg-secondary)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                                                    <div style={{width:10,height:10,borderRadius:3,background:label.color||'#64748b',flexShrink:0}}/>
+                                                    <span>{label.name||'Label'}</span>
+                                                </button>
+                                            ))}
+                                            {availableOtherLabels.filter(l=>!(form.otherLabels||[]).some(fl=>fl.id===l.id)).length===0 && !showCreateOtherLabel && (
+                                                <div style={{padding:'6px 10px',fontSize:12,color:'var(--text-muted)',textAlign:'center'}}>No labels available</div>
+                                            )}
+                                            <div style={{borderTop:'1px solid var(--border)',marginTop:4,paddingTop:4}}>
+                                                {!showCreateOtherLabel ? (
+                                                    <button onClick={()=>setShowCreateOtherLabel(true)} style={{width:'100%',padding:'6px 10px',fontSize:12,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg-secondary)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                                                        <Icon.Plus size={10}/> Create new label
+                                                    </button>
+                                                ) : (
+                                                    <div style={{padding:'6px 8px'}}>
+                                                        <div style={{display:'flex',gap:4,alignItems:'center',marginBottom:6}}>
+                                                            <input type="text" value={newOtherLabelName} onChange={e=>setNewOtherLabelName(e.target.value)} placeholder="Label name" autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newOtherLabelName.trim()){const nl={id:'ol-'+Date.now(),name:newOtherLabelName.trim(),color:newOtherLabelColor};setForm({...form,otherLabels:[...(form.otherLabels||[]),nl]});setNewOtherLabelName('');setShowAddOtherLabel(false);setShowCreateOtherLabel(false);}if(e.key==='Escape'){setShowCreateOtherLabel(false);setNewOtherLabelName('');}}} style={{flex:1,padding:'4px 6px',borderRadius:4,border:'1px solid var(--border)',fontSize:11}}/>
+                                                            <input type="color" value={newOtherLabelColor} onChange={e=>setNewOtherLabelColor(e.target.value)} style={{width:24,height:24,border:'none',padding:0,cursor:'pointer',borderRadius:4}}/>
+                                                        </div>
+                                                        <div style={{display:'flex',gap:4}}>
+                                                            <button onClick={()=>{if(newOtherLabelName.trim()){const nl={id:'ol-'+Date.now(),name:newOtherLabelName.trim(),color:newOtherLabelColor};setForm({...form,otherLabels:[...(form.otherLabels||[]),nl]});setNewOtherLabelName('');setShowAddOtherLabel(false);setShowCreateOtherLabel(false);}}} style={{padding:'3px 8px',borderRadius:4,background:'var(--accent)',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Create</button>
+                                                            <button onClick={()=>{setShowCreateOtherLabel(false);setNewOtherLabelName('');}} style={{padding:'3px 8px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11}}>Cancel</button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>}
                         </div>
                     </div>
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2">
                             <label className="block text-sm font-medium">📝 Description</label>
-                            {descriptionDraft&&!descriptionEditing&&<button onClick={()=>setDescriptionEditing(true)} className="text-xs" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer'}}>Edit</button>}
+                            {descriptionDraft&&!descriptionEditing&&!isReadOnly&&<button onClick={()=>{setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML=markdownToHtml(descriptionDraft);descEditableRef.current.focus();}},0);}} className="text-xs" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer'}}>Edit</button>}
                         </div>
-                        {descriptionEditing||!descriptionDraft?(
+                        {descriptionEditing?(
                             <div>
-                                {descriptionEditing && <MarkdownToolbar textareaRef={descTextareaRef} value={descriptionDraft} onChange={v => { setDescriptionDraft(v); setDescriptionSaved(false); setTimeout(autoResizeDesc, 0); }} />}
-                                <textarea ref={descTextareaRef} value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);autoResizeDesc();}} onFocus={()=>setDescriptionEditing(true)} placeholder="Add a description... (Markdown supported)" className="v11-input" style={{resize:'none',minHeight:80,maxHeight:400,width:'100%'}}/>
-                                {descriptionEditing && descriptionDraft && (
-                                    <div style={{marginTop:8,padding:'10px 12px',borderRadius:'var(--radius-md)',background:'var(--bg-secondary)',border:'1px solid var(--border)',maxHeight:200,overflowY:'auto'}}>
-                                        <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>Preview</div>
-                                        <SimpleMarkdown text={descriptionDraft}/>
-                                    </div>
-                                )}
-                                {descriptionEditing&&<div className="flex gap-2 mt-2">
-                                    <button onClick={()=>{saveDescription();setDescriptionEditing(false);}} className="px-4 py-1.5 bg-secondary text-white rounded-lg text-sm">Save</button>
-                                    <button onClick={()=>{setDescriptionDraft(form.description||'');setDescriptionEditing(false);setDescriptionSaved(true);}} className="px-4 py-1.5 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button>
-                                </div>}
+                                <WysiwygToolbar editableRef={descEditableRef}/>
+                                <div ref={descEditableRef} contentEditable suppressContentEditableWarning onInput={()=>setDescriptionSaved(false)} onFocus={()=>setDescriptionEditing(true)} className="v11-input" style={{minHeight:80,maxHeight:400,overflowY:'auto',width:'100%',lineHeight:1.6,outline:'none',whiteSpace:'pre-wrap',wordBreak:'break-word'}}/>
+                                <div className="flex gap-2 mt-2">
+                                    <button onClick={()=>{const md=htmlToMarkdown(descEditableRef.current?.innerHTML||'');setDescriptionDraft(md);setForm(f=>({...f,description:md}));setDescriptionSaved(true);setDescriptionEditing(false);}} className="px-4 py-1.5 bg-secondary text-white rounded-lg text-sm">Save</button>
+                                    <button onClick={()=>{setDescriptionEditing(false);setDescriptionSaved(true);}} className="px-4 py-1.5 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button>
+                                </div>
                             </div>
+                        ):!descriptionDraft&&!isReadOnly?(
+                            <div onClick={()=>{setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML='';descEditableRef.current.focus();}},0);}} className="v11-input" style={{cursor:'text',minHeight:40,color:'var(--text-muted)',padding:8}}>Add a description...</div>
                         ):(
-                            <div onClick={()=>setDescriptionEditing(true)} style={{cursor:'pointer',padding:8,borderRadius:'var(--radius-md)',border:'1px solid transparent',transition:'border-color 0.2s'}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--border)'} onMouseLeave={e=>e.currentTarget.style.borderColor='transparent'}>
+                            <div onClick={()=>{if(isReadOnly)return;setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML=markdownToHtml(descriptionDraft);descEditableRef.current.focus();}},0);}} style={{cursor:isReadOnly?'default':'pointer',padding:8,borderRadius:'var(--radius-md)',border:'1px solid transparent',transition:'border-color 0.2s'}} onMouseEnter={e=>{if(!isReadOnly)e.currentTarget.style.borderColor='var(--border)';}} onMouseLeave={e=>e.currentTarget.style.borderColor='transparent'}>
                                 <SimpleMarkdown text={descriptionDraft}/>
                             </div>
                         )}
@@ -489,7 +557,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         </div>
                     </div>
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
-                        <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Delete</span></button>
+                        {!isReadOnly && <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Delete</span></button>}
+                        {isReadOnly && <span style={{fontSize:11,color:'var(--text-muted)',fontStyle:'italic'}}>Read-only (guest mode)</span>}
                         <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Close</button>
                     </div>
                 </div>

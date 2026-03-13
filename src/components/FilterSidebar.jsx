@@ -1,8 +1,17 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 
-const FilterSidebar = ({show, onClose, filters, setFilters, categories, allCountries, tasks = [], members = []}) => {
+const FilterSidebar = ({show, onClose, filters, setFilters, categories, allCountries, tasks = [], members = [], searchInputRef: externalRef}) => {
+    const internalRef = useRef(null);
+    const inputRef = externalRef || internalRef;
+
+    // Auto-focus search input when sidebar opens
+    useEffect(() => {
+        if (show && inputRef.current) {
+            setTimeout(() => inputRef.current?.focus(), 50);
+        }
+    }, [show]);
     // Collect unique otherLabels from all tasks
     const uniqueOtherLabels = useMemo(() => {
         const labelMap = new Map();
@@ -22,7 +31,7 @@ const FilterSidebar = ({show, onClose, filters, setFilters, categories, allCount
             </div>
             <div className="filter-section">
                 <div className="filter-section-title">Search</div>
-                <input type="text" placeholder="Search..." value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} className="v11-input"/>
+                <input ref={inputRef} type="text" placeholder="Search..." value={filters.search} onChange={e => setFilters({...filters, search: e.target.value})} className="v11-input"/>
             </div>
             <div className="filter-section">
                 <div className="filter-section-title">Status</div>
