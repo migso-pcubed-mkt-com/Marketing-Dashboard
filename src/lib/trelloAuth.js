@@ -21,11 +21,10 @@ export const startTrelloLogin = async () => {
     const { appKey } = await fetchTrelloConfig();
     if (!appKey) throw new Error('Trello API key not configured on server');
 
-    // Use postMessage with return_url (origin only) — matches the official Trello client.js pattern.
-    // The origin must be whitelisted in Trello Power-Up settings for postMessage to work.
-    // If not whitelisted, Trello shows the token on screen and the user can paste it manually.
-    const returnUrl = window.location.origin;
-    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=postMessage&return_url=${encodeURIComponent(returnUrl)}`;
+    // No return_url — avoids "Invalid return_url" error when origin isn't whitelisted in Trello Power-Up.
+    // Without return_url, Trello shows the token on screen after authorization.
+    // We listen for postMessage (works sometimes) and fall back to manual paste.
+    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=postMessage`;
 
     return new Promise((resolve, reject) => {
         const popup = window.open(authUrl, 'trello_auth', 'width=600,height=700,left=200,top=100');
