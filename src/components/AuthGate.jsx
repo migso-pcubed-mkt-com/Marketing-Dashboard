@@ -119,23 +119,27 @@ const AuthGate = ({ onTrelloLogin, onValidateToken, onGuestLogin }) => {
                 ) : (
                     <>
                         <div style={{
-                            background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8,
+                            background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: 8,
                             padding: '12px 16px', marginBottom: 20, textAlign: 'left'
                         }}>
-                            <p style={{ fontSize: 13, color: '#0369a1', margin: 0, fontWeight: 600 }}>
-                                Almost there!
+                            <p style={{ fontSize: 13, color: '#92400e', margin: 0, fontWeight: 600 }}>
+                                Domain not registered
                             </p>
-                            <p style={{ fontSize: 12, color: '#0c4a6e', margin: '6px 0 0', lineHeight: 1.5 }}>
-                                Trello displayed a verification code. Copy it from the Trello window and paste it below.
+                            <p style={{ fontSize: 12, color: '#78350f', margin: '6px 0 0', lineHeight: 1.5 }}>
+                                Automatic login requires your domain to be registered in Trello.
+                                Go to <strong>Trello Power-Up settings</strong> &rarr; <strong>API Key</strong> &rarr; <strong>Allowed Origins</strong> and add your production URL.
                             </p>
                         </div>
 
+                        <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 12px', textAlign: 'left' }}>
+                            Or paste a full Trello API token (64 characters) below:
+                        </p>
                         <form onSubmit={handleTokenSubmit}>
                             <input
                                 type="text"
                                 value={manualToken}
                                 onChange={e => { setManualToken(e.target.value); setError(''); }}
-                                placeholder="Paste your Trello token here..."
+                                placeholder="Paste full API token (64 chars)..."
                                 autoFocus
                                 style={{
                                     width: '100%', padding: '10px 14px', borderRadius: 8,
