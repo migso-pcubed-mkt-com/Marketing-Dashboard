@@ -209,6 +209,9 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[newChecklistItems,setNewChecklistItems]=useState({}); // Per-checklist new item text
     const[newChecklistName,setNewChecklistName]=useState('');
     const[showAddChecklist,setShowAddChecklist]=useState(false);
+    const[showAddOtherLabel,setShowAddOtherLabel]=useState(false);
+    const[newOtherLabelName,setNewOtherLabelName]=useState('');
+    const[newOtherLabelColor,setNewOtherLabelColor]=useState('#6366f1');
     const[showMemberPicker,setShowMemberPicker]=useState(false);
     const[showInlineCreateAction,setShowInlineCreateAction]=useState(false);
     const[newActionName,setNewActionName]=useState('');
@@ -348,22 +351,30 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             </div>
                         </div>
                     )}
-                    {(form.otherLabels || []).length > 0 && (
-                        <div className="mb-4">
-                            <label className="v11-label">🏷️ Other Labels</label>
-                            <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
-                                {form.otherLabels.map(label => (
-                                    <span key={label.id} style={{
-                                        padding:'2px 8px',borderRadius:4,
-                                        background:label.color+'20',color:label.color,
-                                        fontSize:11,fontWeight:500
-                                    }}>
-                                        {label.name || 'Label'}
-                                    </span>
-                                ))}
-                            </div>
+                    <div className="mb-4">
+                        <label className="v11-label">🏷️ Other Labels</label>
+                        <div style={{display:'flex',flexWrap:'wrap',gap:4,alignItems:'center'}}>
+                            {(form.otherLabels || []).map(label => (
+                                <span key={label.id} style={{
+                                    padding:'2px 8px',borderRadius:4,
+                                    background:(label.color||'#64748b')+'20',color:label.color||'#64748b',
+                                    fontSize:11,fontWeight:500,display:'inline-flex',alignItems:'center',gap:4
+                                }}>
+                                    {label.name || 'Label'}
+                                    <button onClick={()=>setForm({...form,otherLabels:(form.otherLabels||[]).filter(l=>l.id!==label.id)})} style={{background:'none',border:'none',cursor:'pointer',color:'inherit',fontSize:10,padding:0,lineHeight:1}}>&times;</button>
+                                </span>
+                            ))}
+                            {!showAddOtherLabel ? (
+                                <button onClick={()=>setShowAddOtherLabel(true)} style={{padding:'2px 8px',borderRadius:4,border:'1px dashed var(--border)',background:'none',cursor:'pointer',fontSize:11,color:'var(--text-muted)'}}>+ Label</button>
+                            ) : (
+                                <span style={{display:'inline-flex',gap:4,alignItems:'center'}}>
+                                    <input type="text" value={newOtherLabelName} onChange={e=>setNewOtherLabelName(e.target.value)} placeholder="Label name" autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newOtherLabelName.trim()){const id='ol-'+Date.now();setForm({...form,otherLabels:[...(form.otherLabels||[]),{id,name:newOtherLabelName.trim(),color:newOtherLabelColor}]});setNewOtherLabelName('');setShowAddOtherLabel(false);}if(e.key==='Escape'){setShowAddOtherLabel(false);setNewOtherLabelName('');}}} style={{width:100,padding:'2px 6px',borderRadius:4,border:'1px solid var(--border)',fontSize:11}}/>
+                                    <input type="color" value={newOtherLabelColor} onChange={e=>setNewOtherLabelColor(e.target.value)} style={{width:24,height:24,border:'none',padding:0,cursor:'pointer',borderRadius:4}}/>
+                                    <button onClick={()=>{if(newOtherLabelName.trim()){const id='ol-'+Date.now();setForm({...form,otherLabels:[...(form.otherLabels||[]),{id,name:newOtherLabelName.trim(),color:newOtherLabelColor}]});setNewOtherLabelName('');setShowAddOtherLabel(false);}}} style={{padding:'2px 6px',borderRadius:4,background:'var(--accent)',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Add</button>
+                                </span>
+                            )}
                         </div>
-                    )}
+                    </div>
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2">
                             <label className="block text-sm font-medium">📝 Description</label>
@@ -373,6 +384,12 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             <div>
                                 {descriptionEditing && <MarkdownToolbar textareaRef={descTextareaRef} value={descriptionDraft} onChange={v => { setDescriptionDraft(v); setDescriptionSaved(false); setTimeout(autoResizeDesc, 0); }} />}
                                 <textarea ref={descTextareaRef} value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);autoResizeDesc();}} onFocus={()=>setDescriptionEditing(true)} placeholder="Add a description... (Markdown supported)" className="v11-input" style={{resize:'none',minHeight:80,maxHeight:400,width:'100%'}}/>
+                                {descriptionEditing && descriptionDraft && (
+                                    <div style={{marginTop:8,padding:'10px 12px',borderRadius:'var(--radius-md)',background:'var(--bg-secondary)',border:'1px solid var(--border)',maxHeight:200,overflowY:'auto'}}>
+                                        <div style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.5px'}}>Preview</div>
+                                        <SimpleMarkdown text={descriptionDraft}/>
+                                    </div>
+                                )}
                                 {descriptionEditing&&<div className="flex gap-2 mt-2">
                                     <button onClick={()=>{saveDescription();setDescriptionEditing(false);}} className="px-4 py-1.5 bg-secondary text-white rounded-lg text-sm">Save</button>
                                     <button onClick={()=>{setDescriptionDraft(form.description||'');setDescriptionEditing(false);setDescriptionSaved(true);}} className="px-4 py-1.5 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button>
@@ -411,7 +428,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     </div>
                     <div className="mb-6">
                         <label className="block text-sm font-medium mb-2">💬 Comments ({form.comments?.length||0})</label>
-                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{form.comments?.map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-secondary)'}}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleDateString('en-US')}</span></div><p className="text-sm" style={{color:'var(--text-secondary)'}}>{c.text}</p></div>))}</div>
+                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{[...(form.comments||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-secondary)'}}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><p className="text-sm" style={{color:'var(--text-secondary)'}}>{c.text}</p></div>))}</div>
                         <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Write..." className="v11-input" style={{flex:1}}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Send</button></div>
                     </div>
                     <div className="mb-6">

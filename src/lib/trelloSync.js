@@ -1,7 +1,7 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
 import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, addTrelloAttachment, uploadTrelloAttachment } from './trello.js';
-import { mapTaskToTrelloCardUpdate, mergeCardIntoTask } from './trelloMapping.js';
+import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, trelloColorToHex } from './trelloMapping.js';
 
 // Push comments, checklists, attachments that don't already exist on Trello.
 // Returns { pushed, updatedTask } — updatedTask has captured Trello IDs on newly pushed items.
@@ -101,7 +101,7 @@ const pushTaskExtrasToTrello = async (task, card) => {
 
 // Sync a dashboard board with its linked Trello board
 // Returns { created, updated, pushed, errors } counts
-export const syncWithTrello = async (board, mappingConfig) => {
+export const syncWithTrello = async (board, mappingConfig, { readOnly = false } = {}) => {
     const { trelloSync } = board;
     if (!trelloSync?.trelloBoardId) {
         throw new Error('Board is not linked to Trello');
@@ -166,23 +166,25 @@ export const syncWithTrello = async (board, mappingConfig) => {
             updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig);
             result.updated++;
         } else if (locallyModified && !trelloModified) {
-            // Only dashboard changed → push to Trello
-            try {
-                const action = board.actions.find(a => a.id === task.actionId);
-                const listId = action ? catToListId[action.categoryId] : null;
-                const updates = mapTaskToTrelloCardUpdate(task, listId);
-                await updateTrelloCard(task.trelloCardId, updates);
-                // Also push comments, checklists, attachments — capture Trello IDs
-                const { taskModified } = await pushTaskExtrasToTrello(task, card);
-                updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
-                result.pushed++;
-            } catch (err) {
-                console.error(`Failed to push task "${task.title}" to Trello:`, err);
-                result.errors++;
+            // Only dashboard changed → push to Trello (skip if readOnly / guest mode)
+            if (!readOnly) {
+                try {
+                    const action = board.actions.find(a => a.id === task.actionId);
+                    const listId = action ? catToListId[action.categoryId] : null;
+                    const updates = mapTaskToTrelloCardUpdate(task, listId);
+                    await updateTrelloCard(task.trelloCardId, updates);
+                    // Also push comments, checklists, attachments — capture Trello IDs
+                    const { taskModified } = await pushTaskExtrasToTrello(task, card);
+                    updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
+                    result.pushed++;
+                } catch (err) {
+                    console.error(`Failed to push task "${task.title}" to Trello:`, err);
+                    result.errors++;
+                }
             }
         } else if (trelloModified && locallyModified) {
             // Both changed — last write wins based on absolute timestamp
-            if (localUpdateTime >= trelloTime) {
+            if (localUpdateTime >= trelloTime && !readOnly) {
                 try {
                     const action = board.actions.find(a => a.id === task.actionId);
                     const listId = action ? catToListId[action.categoryId] : null;
@@ -287,7 +289,10 @@ export const syncWithTrello = async (board, mappingConfig) => {
         if (card.idLabels && mappingConfig?.labelMappings) {
             for (const labelId of card.idLabels) {
                 const mapping = mappingConfig.labelMappings[labelId];
-                if (mapping?.type === 'other') otherLabels.push({ id: labelId, name: mapping.labelName || '', color: mapping.labelColor || '' });
+                if (mapping?.type === 'other') {
+                    const labelHex = mapping.labelColor?.startsWith('#') ? mapping.labelColor : (trelloColorToHex(mapping.labelColor) || '#64748b');
+                    otherLabels.push({ id: labelId, name: mapping.labelName || '', color: labelHex });
+                }
             }
         }
 
@@ -327,8 +332,10 @@ export const syncWithTrello = async (board, mappingConfig) => {
         result.created++;
     }
 
-    // 4. Push new dashboard tasks (no trelloCardId) to Trello
-    for (let i = 0; i < updatedTasks.length; i++) {
+    // 4. Push new dashboard tasks (no trelloCardId) to Trello — skip in readOnly/guest mode
+    if (readOnly) {
+        // In guest/readOnly mode, don't push anything to Trello
+    } else for (let i = 0; i < updatedTasks.length; i++) {
         const task = updatedTasks[i];
         if (task.trelloCardId) continue; // Already linked
 

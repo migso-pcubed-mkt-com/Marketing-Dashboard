@@ -330,7 +330,7 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
     const existingAttUrls = new Set();
     for (const att of (existingTask.attachments || [])) {
         if (att.trelloAttachmentId) existingAttMap.set(att.trelloAttachmentId, att);
-        if (att.url) existingAttUrls.set(att.url);
+        if (att.url) existingAttUrls.add(att.url);
     }
     const localOnlyAtts = (existingTask.attachments || []).filter(att => !att.trelloAttachmentId);
     const mergedAttachments = [];

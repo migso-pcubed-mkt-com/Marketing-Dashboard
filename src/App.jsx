@@ -764,7 +764,9 @@ const App = () => {
                     }
                 }
             }
-            const { board: syncedBoard, result } = await syncWithTrello(currentBoard, mappingConfig);
+            // In guest mode (no Trello user), sync is read-only — pull from Trello but never push
+            const isGuest = !trelloUser;
+            const { board: syncedBoard, result } = await syncWithTrello(currentBoard, mappingConfig, { readOnly: isGuest });
             // Update the board in boardData
             setBoardData(prev => ({
                 ...prev,
