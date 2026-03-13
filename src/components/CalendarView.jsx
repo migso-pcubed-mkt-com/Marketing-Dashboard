@@ -4,7 +4,7 @@ import { Icon, StatusIcon } from './Icons.jsx';
 
 const DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
-const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, onAddTask, filters, selectedYear, onYearChange }) => {
+const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, onAddTask, filters, selectedYear, onYearChange, isReadOnly }) => {
     const [mode, setMode] = useState('month');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [expandedDay, setExpandedDay] = useState(null); // dateStr of day showing all tasks
@@ -91,6 +91,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
     };
 
     const handleDrop = (e, date) => {
+        if (isReadOnly) return;
         e.preventDefault();
         e.currentTarget.classList.remove('calendar-day-dragover');
         const taskId = e.dataTransfer.getData('taskId');
@@ -111,7 +112,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
     };
 
     const handleCreateTask = (date) => {
-        if (!onAddTask) return;
+        if (!onAddTask || isReadOnly) return;
         const dateStr = formatDate(date);
         const oneWeekLater = new Date(date);
         oneWeekLater.setDate(oneWeekLater.getDate() + 7);
@@ -209,8 +210,9 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
         return (
             <div
                 key={task.id + '-' + keyPrefix}
-                draggable
+                draggable={!isReadOnly}
                 onDragStart={(e) => {
+                    if (isReadOnly) { e.preventDefault(); return; }
                     e.stopPropagation();
                     e.dataTransfer.setData('taskId', task.id);
                     e.dataTransfer.effectAllowed = 'move';
@@ -288,7 +290,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                             <span className={isToday ? 'calendar-today-badge' : ''}>
                                                 {date.getDate()}
                                             </span>
-                                            {onAddTask && (
+                                            {onAddTask && !isReadOnly && (
                                                 <button
                                                     className="calendar-add-btn"
                                                     onClick={(e) => { e.stopPropagation(); handleCreateTask(date); }}
@@ -388,8 +390,9 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                         return (
                             <div
                                 key={task.id + '-w'}
-                                draggable
+                                draggable={!isReadOnly}
                                 onDragStart={(e) => {
+                                    if (isReadOnly) { e.preventDefault(); return; }
                                     e.stopPropagation();
                                     e.dataTransfer.setData('taskId', task.id);
                                     e.dataTransfer.effectAllowed = 'move';

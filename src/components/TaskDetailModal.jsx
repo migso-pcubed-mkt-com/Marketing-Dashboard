@@ -84,7 +84,13 @@ const htmlToMarkdown = (html) => {
 // WYSIWYG toolbar for contentEditable
 const WysiwygToolbar = ({ editableRef }) => {
     const exec = (cmd, value = null) => {
+        const sel = window.getSelection();
+        const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
         editableRef.current?.focus();
+        if (range) {
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
         document.execCommand(cmd, false, value);
     };
 
@@ -95,10 +101,10 @@ const WysiwygToolbar = ({ editableRef }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 0 6px', flexWrap: 'wrap' }}>
             <select onChange={e => { if (e.target.value) { exec('formatBlock', e.target.value); e.target.selectedIndex = 0; } }} style={{ ...btnStyle, padding: '3px 4px', minWidth: 36, fontSize: 11 }} title="Heading">
                 <option value="">Tt</option>
-                <option value="h1">H1</option>
-                <option value="h2">H2</option>
-                <option value="h3">H3</option>
-                <option value="div">Normal</option>
+                <option value="<h1>">H1</option>
+                <option value="<h2>">H2</option>
+                <option value="<h3>">H3</option>
+                <option value="<div>">Normal</option>
             </select>
             <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('bold')} style={btnStyle} title="Bold"><strong>B</strong></button>
             <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('italic')} style={btnStyle} title="Italic"><em>I</em></button>
@@ -114,7 +120,7 @@ const WysiwygToolbar = ({ editableRef }) => {
             <button onMouseDown={e=>e.preventDefault()} onClick={() => { const url = prompt('URL:'); if (url) exec('createLink', url); }} style={btnStyle} title="Link">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
             </button>
-            <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('formatBlock', 'blockquote')} style={btnStyle} title="Quote">"</button>
+            <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('formatBlock', '<blockquote>')} style={btnStyle} title="Quote">"</button>
             <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('insertHorizontalRule')} style={btnStyle} title="Horizontal rule">—</button>
         </div>
     );
@@ -348,12 +354,12 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         <button onClick={handleClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-6">
-                        {actions&&<div className="w-full"><label className="v11-label">📋 Action</label>{!showInlineCreateAction?(<><select value={form.actionId} onChange={e=>{const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className="v11-select" style={{width:'100%'}}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>{onCreateAction&&<button onClick={()=>setShowInlineCreateAction(true)} style={{marginTop:4,fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:4}}><Icon.Plus size={10}/> Create a new action</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',padding:12,background:'var(--bg-secondary)'}}><div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>New action</div><input ref={newActionInputRef} type="text" value={newActionName} onChange={e=>setNewActionName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleInlineCreateAction();if(e.key==='Escape')setShowInlineCreateAction(false);}} placeholder="Action name..." className="v11-input" style={{marginBottom:8}}/>{!showInlineCreateCategory?(<><select value={newActionCategoryId} onChange={e=>setNewActionCategoryId(e.target.value)} className="v11-input" style={{marginBottom:4}}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>{onAddCategory&&<button onClick={()=>setShowInlineCreateCategory(true)} style={{marginBottom:8,fontSize:10,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:3}}><Icon.Plus size={9}/> New category</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:8,background:'var(--bg-primary)',marginBottom:8}}><input type="text" value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&newCategoryName.trim()){const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}if(e.key==='Escape')setShowInlineCreateCategory(false);}} placeholder="Category name..." className="v11-input" style={{marginBottom:6,fontSize:12}} autoFocus/><div style={{display:'flex',gap:4}}><button onClick={()=>{if(!newCategoryName.trim())return;const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}} style={{padding:'3px 8px',fontSize:10,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Add</button><button onClick={()=>{setShowInlineCreateCategory(false);setNewCategoryName('');}} style={{padding:'3px 8px',fontSize:10,background:'var(--bg-secondary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}<div style={{display:'flex',gap:6}}><button onClick={handleInlineCreateAction} style={{padding:'5px 10px',fontSize:11,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Create</button><button onClick={()=>{setShowInlineCreateAction(false);setNewActionName('');setShowInlineCreateCategory(false);}} style={{padding:'5px 10px',fontSize:11,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}</div>}
-                        <div><label className="v11-label">Status</label><IconSelect value={form.status} options={CONFIG.STATUSES} onChange={v=>setForm({...form,status:v})} renderOption={o=><StatusOption status={o}/>}/></div>
-                        <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
-                        <div><label className="v11-label">Start</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input"/></div>
-                        <div><label className="v11-label">End</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input"/></div>
-                        <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}}/></div>
+                        {actions&&<div className="w-full"><label className="v11-label">📋 Action</label>{!showInlineCreateAction?(<><select value={form.actionId} onChange={e=>{if(isReadOnly)return;const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className="v11-select" style={{width:'100%'}} disabled={isReadOnly}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>{onCreateAction&&<button onClick={()=>setShowInlineCreateAction(true)} style={{marginTop:4,fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:4}}><Icon.Plus size={10}/> Create a new action</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',padding:12,background:'var(--bg-secondary)'}}><div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>New action</div><input ref={newActionInputRef} type="text" value={newActionName} onChange={e=>setNewActionName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleInlineCreateAction();if(e.key==='Escape')setShowInlineCreateAction(false);}} placeholder="Action name..." className="v11-input" style={{marginBottom:8}}/>{!showInlineCreateCategory?(<><select value={newActionCategoryId} onChange={e=>setNewActionCategoryId(e.target.value)} className="v11-input" style={{marginBottom:4}}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>{onAddCategory&&<button onClick={()=>setShowInlineCreateCategory(true)} style={{marginBottom:8,fontSize:10,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:3}}><Icon.Plus size={9}/> New category</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:8,background:'var(--bg-primary)',marginBottom:8}}><input type="text" value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&newCategoryName.trim()){const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}if(e.key==='Escape')setShowInlineCreateCategory(false);}} placeholder="Category name..." className="v11-input" style={{marginBottom:6,fontSize:12}} autoFocus/><div style={{display:'flex',gap:4}}><button onClick={()=>{if(!newCategoryName.trim())return;const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}} style={{padding:'3px 8px',fontSize:10,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Add</button><button onClick={()=>{setShowInlineCreateCategory(false);setNewCategoryName('');}} style={{padding:'3px 8px',fontSize:10,background:'var(--bg-secondary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}<div style={{display:'flex',gap:6}}><button onClick={handleInlineCreateAction} style={{padding:'5px 10px',fontSize:11,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Create</button><button onClick={()=>{setShowInlineCreateAction(false);setNewActionName('');setShowInlineCreateCategory(false);}} style={{padding:'5px 10px',fontSize:11,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}</div>}
+                        <div><label className="v11-label">Status</label><IconSelect value={form.status} options={CONFIG.STATUSES} onChange={v=>setForm({...form,status:v})} renderOption={o=><StatusOption status={o}/>} disabled={isReadOnly}/></div>
+                        <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>} disabled={isReadOnly}/></div>
+                        <div><label className="v11-label">Start</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input" readOnly={isReadOnly}/></div>
+                        <div><label className="v11-label">End</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input" readOnly={isReadOnly}/></div>
+                        <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}} readOnly={isReadOnly}/></div>
                     </div>
                     <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel} editable={!isReadOnly}/></div>
                     <div className="mb-4"><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry} editable={!isReadOnly}/></div>
@@ -365,12 +371,12 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                     const m = members.find(m => m.id === id);
                                     if (!m) return null;
                                     return (
-                                        <button key={m.id} onClick={() => setForm({...form, assignees: (form.assignees||[]).filter(aid=>aid!==m.id)})} title={`${m.fullName||m.username} — click to remove`} style={{width:30,height:30,borderRadius:'50%',border:'2px solid var(--accent)',cursor:'pointer',padding:0,background:'none',flexShrink:0,overflow:'hidden'}}>
+                                        <button key={m.id} onClick={() => !isReadOnly && setForm({...form, assignees: (form.assignees||[]).filter(aid=>aid!==m.id)})} title={isReadOnly ? (m.fullName||m.username) : `${m.fullName||m.username} — click to remove`} style={{width:30,height:30,borderRadius:'50%',border:'2px solid var(--accent)',cursor:isReadOnly?'default':'pointer',padding:0,background:'none',flexShrink:0,overflow:'hidden'}}>
                                             {m.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}}/> : <span style={{width:'100%',height:'100%',borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
                                         </button>
                                     );
                                 })}
-                                <div style={{position:'relative'}}>
+                                {!isReadOnly && <div style={{position:'relative'}}>
                                     <button onClick={() => setShowMemberPicker(!showMemberPicker)} style={{width:30,height:30,borderRadius:'50%',border:'1px dashed var(--border-strong)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg-secondary)',flexShrink:0}} title="Add member">
                                         <Icon.Plus size={12}/>
                                     </button>
@@ -390,7 +396,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                             </div>
                                         </>
                                     )}
-                                </div>
+                                </div>}
                                 {(form.assignees||[]).length === 0 && <span style={{fontSize:12,color:'var(--text-muted)',marginLeft:4}}>No members assigned</span>}
                             </div>
                         </div>
@@ -474,7 +480,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             <label className="text-sm font-medium">✅ Checklists</label>
                             <div className="flex items-center gap-3">
                                 {allChecklistItems.length>0&&<span className="text-sm" style={{color:'var(--text-muted)'}}>{checklistPct}%</span>}
-                                <button onClick={()=>setShowAddChecklist(true)} className="text-xs flex items-center gap-1" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}><Icon.Plus size={10}/> Add checklist</button>
+                                {!isReadOnly && <button onClick={()=>setShowAddChecklist(true)} className="text-xs flex items-center gap-1" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}><Icon.Plus size={10}/> Add checklist</button>}
                             </div>
                         </div>
                         {allChecklistItems.length>0&&<div className="v11-progress-bar" style={{height:8,marginBottom:12}}><div className={`v11-progress-fill ${checklistPct>=70?'high':checklistPct>=40?'medium':'low'}`} style={{width:`${checklistPct}%`}}/></div>}
@@ -485,19 +491,19 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                     <span className="text-sm font-medium" style={{color:'var(--text-secondary)'}}>{cl.name}</span>
                                     <div className="flex items-center gap-2">
                                         {cl.items.length>0&&<span className="text-xs" style={{color:'var(--text-muted)'}}>{clPct}%</span>}
-                                        <button onClick={()=>removeChecklist(cl.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',fontSize:11}} title="Remove checklist"><Icon.Trash size={12}/></button>
+                                        {!isReadOnly && <button onClick={()=>removeChecklist(cl.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',fontSize:11}} title="Remove checklist"><Icon.Trash size={12}/></button>}
                                     </div>
                                 </div>
                                 {cl.items.length>0&&<div className="v11-progress-bar" style={{height:4,marginBottom:8}}><div className={`v11-progress-fill ${clPct>=70?'high':clPct>=40?'medium':'low'}`} style={{width:`${clPct}%`}}/></div>}
-                                <div className="space-y-2 mb-2">{cl.items.map(item=>(<div key={item.id} className="flex items-center space-x-3 p-2 rounded-lg" style={{background:'var(--bg-secondary)'}}><button onClick={()=>toggleChecklistItem(cl.id,item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':''}`} style={!item.done?{borderColor:'var(--border-strong)'}:{}}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through':''}`} style={item.done?{color:'var(--text-muted)'}:{}}>{item.text}</span><button onClick={()=>removeChecklistItem(cl.id,item.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)'}}><Icon.Trash/></button></div>))}</div>
-                                <div className="flex space-x-2"><input type="text" value={newChecklistItems[cl.id]||''} onChange={e=>setNewChecklistItems({...newChecklistItems,[cl.id]:e.target.value})} onKeyPress={e=>e.key==='Enter'&&addChecklistItem(cl.id)} placeholder="Add item..." className="v11-input" style={{flex:1}}/><button onClick={()=>addChecklistItem(cl.id)} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>
+                                <div className="space-y-2 mb-2">{cl.items.map(item=>(<div key={item.id} className="flex items-center space-x-3 p-2 rounded-lg" style={{background:'var(--bg-secondary)'}}><button onClick={()=>!isReadOnly&&toggleChecklistItem(cl.id,item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':''}`} style={!item.done?{borderColor:'var(--border-strong)'}:{cursor:isReadOnly?'default':'pointer'}}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through':''}`} style={item.done?{color:'var(--text-muted)'}:{}}>{item.text}</span>{!isReadOnly&&<button onClick={()=>removeChecklistItem(cl.id,item.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)'}}><Icon.Trash/></button>}</div>))}</div>
+                                {!isReadOnly && <div className="flex space-x-2"><input type="text" value={newChecklistItems[cl.id]||''} onChange={e=>setNewChecklistItems({...newChecklistItems,[cl.id]:e.target.value})} onKeyPress={e=>e.key==='Enter'&&addChecklistItem(cl.id)} placeholder="Add item..." className="v11-input" style={{flex:1}}/><button onClick={()=>addChecklistItem(cl.id)} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>}
                             </div>
                         );})}
                     </div>
                     <div className="mb-6">
                         <label className="block text-sm font-medium mb-2">💬 Comments ({form.comments?.length||0})</label>
                         <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{[...(form.comments||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-secondary)'}}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><p className="text-sm" style={{color:'var(--text-secondary)'}}>{c.text}</p></div>))}</div>
-                        <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Write..." className="v11-input" style={{flex:1}}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Send</button></div>
+                        {!isReadOnly && <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Write..." className="v11-input" style={{flex:1}}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Send</button></div>}
                     </div>
                     <div className="mb-6">
                         <label className="block text-sm font-medium mb-2">📎 Attachments ({(form.attachments||[]).length})</label>
@@ -516,11 +522,11 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                         <div style={{fontSize:11,color:'var(--text-muted)'}}>{att.size?`${(att.size/1024).toFixed(1)} KB`:''}{att.date?` • ${new Date(att.date).toLocaleDateString('en-US')}`:''}</div>
                                     </div>
                                     {(att.data||att.url)&&<a href={att.data||att.url} download={att.data?att.name:undefined} target={att.url?'_blank':undefined} rel={att.url?'noopener noreferrer':undefined} onClick={e=>e.stopPropagation()} style={{color:'var(--accent)',fontSize:12,fontWeight:500,flexShrink:0,cursor:'pointer'}} title={att.url?'Open':'Download'}>{att.url?'↗':'↓'}</a>}
-                                    <button onClick={(e)=>{e.stopPropagation();setForm({...form,attachments:(form.attachments||[]).filter(a=>a.id!==att.id)});}} style={{color:'var(--text-muted)',cursor:'pointer',flexShrink:0,background:'none',border:'none',fontSize:14}} title="Delete">✕</button>
+                                    {!isReadOnly && <button onClick={(e)=>{e.stopPropagation();setForm({...form,attachments:(form.attachments||[]).filter(a=>a.id!==att.id)});}} style={{color:'var(--text-muted)',cursor:'pointer',flexShrink:0,background:'none',border:'none',fontSize:14}} title="Delete">✕</button>}
                                 </div>
                             );})}
                         </div>}
-                        <div
+                        {!isReadOnly && <div
                             onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor='var(--accent)';e.currentTarget.style.background='var(--accent-light)';}}
                             onDragLeave={e=>{e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='transparent';}}
                             onDrop={e=>{
@@ -554,7 +560,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             }}/>
                             <p style={{fontSize:13,color:'var(--text-muted)'}}>Glissez des fichiers ici ou cliquez pour parcourir</p>
                             <p style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>Max 5 Mo par fichier</p>
-                        </div>
+                        </div>}
                     </div>
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
                         {!isReadOnly && <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Delete</span></button>}

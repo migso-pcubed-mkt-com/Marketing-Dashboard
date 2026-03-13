@@ -520,6 +520,14 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
                 trelloCardId: created.id,
                 trelloLastModified: created.dateLastActivity || new Date().toISOString()
             };
+            // Push checklists, comments, attachments for the newly created card
+            try {
+                const emptyCard = { id: created.id, checklists: [], comments: [], attachments: [], idLabels: [] };
+                await pushTaskExtrasToTrello(updatedTasks[i], emptyCard);
+                await pushTaskLabelsToTrello(updatedTasks[i], emptyCard, board, mappingConfig);
+            } catch (extrasErr) {
+                console.error(`Failed to push extras for new card "${task.title}":`, extrasErr);
+            }
             result.pushed++;
         } catch (err) {
             console.error(`Failed to create Trello card for "${task.title}":`, err);

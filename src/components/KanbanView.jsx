@@ -4,7 +4,7 @@ import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
 import TaskCard from './TaskCard.jsx';
 
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly})=>{
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
@@ -329,7 +329,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 // Prevent column drag when dragging cards
                                 e.stopPropagation();
                             }}>
-                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={onMoveAction} onReorderAction={onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={sortBy==='order'?onMoveTask:null} onReorderTask={sortBy==='order'?(viewMode==='country'?((draggedId,targetId,position)=>{
+                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?(viewMode==='country'?((draggedId,targetId,position)=>{
                                     const targetCountry=col.key==='_unassigned'?[]:[col.key];
                                     onUpdateTask(draggedId,{countries:targetCountry});
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
@@ -342,7 +342,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     const draggedTask=tasks.find(t=>t.id===draggedId);
                                     if(draggedTask)reordered.splice(insertAt,0,draggedTask);
                                     reordered.forEach((t,i)=>onUpdateTask(t.id,{order:i}));
-                                }):onReorderTask):null} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries}/>)}
+                                }):onReorderTask):null)} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries}/>)}
                                 {col.items.length===0&&<div className="column-empty">No tasks</div>}
                                 <button onClick={()=>{
                                     const today=new Date().toISOString().split('T')[0];
@@ -380,7 +380,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         onAddTask(newTask);
                                         setTimeout(()=>onOpenTask(newTask),100);
                                     }
-                                }} className="add-card-btn">
+                                }} className="add-card-btn" style={isReadOnly?{display:'none'}:{}}>
                                     + Add
                                 </button>
                             </div>

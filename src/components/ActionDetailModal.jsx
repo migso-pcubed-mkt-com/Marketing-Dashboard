@@ -27,14 +27,14 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
                             <span className="text-xs" style={{color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:0.5,fontWeight:600}}>📁 ACTION</span>
-                            <input type="text" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="v11-input" style={{fontSize:'1.25rem',fontWeight:700,marginTop:4}}/>
+                            <input type="text" value={form.name} onChange={e=>!isReadOnly&&setForm({...form,name:e.target.value})} className="v11-input" style={{fontSize:'1.25rem',fontWeight:700,marginTop:4}} readOnly={isReadOnly}/>
                         </div>
                         <button onClick={handleClose} className="ml-2 v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="flex flex-wrap gap-3 mb-4">
-                        <div><label className="v11-label">Category</label><select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} className="v11-select">{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                        <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>}/></div>
-                        <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:128}}/></div>
+                        <div><label className="v11-label">Category</label><select value={form.categoryId} onChange={e=>!isReadOnly&&setForm({...form,categoryId:e.target.value})} className="v11-select" disabled={isReadOnly}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                        <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>} disabled={isReadOnly}/></div>
+                        <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:128}} readOnly={isReadOnly}/></div>
                     </div>
                     <div className="rounded-xl p-4 mb-4" style={{background:'var(--bg-secondary)'}}>
                         <div className="flex justify-between mb-3">
@@ -44,11 +44,11 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         </div>
                         <div className="v11-progress-bar" style={{height:12}}><div className={`v11-progress-fill ${progressPct>=70?'high':progressPct>=40?'medium':'low'}`} style={{width:`${progressPct}%`}}/></div>
                     </div>
-                    <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.tags||[]} onAdd={addChannel} onRemove={removeChannel}/></div>
+                    <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.tags||[]} onAdd={addChannel} onRemove={removeChannel} editable={!isReadOnly}/></div>
                     <div className="mb-4">
                         <div className="flex items-center justify-between mb-3">
                             <label className="text-sm font-medium">📋 TASKS ({actionTasks.length})</label>
-                            <button onClick={()=>onAddTask(action.id)} className="px-3 py-1 bg-secondary text-white rounded-lg text-xs flex items-center space-x-1"><Icon.Plus/><span>Add</span></button>
+                            {!isReadOnly && <button onClick={()=>onAddTask(action.id)} className="px-3 py-1 bg-secondary text-white rounded-lg text-xs flex items-center space-x-1"><Icon.Plus/><span>Add</span></button>}
                         </div>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                             {actionTasks.length>0?actionTasks.map(task=>{
@@ -57,7 +57,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                     <div key={task.id} className="rounded-lg p-3" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)'}}>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center space-x-3 flex-1 min-w-0">
-                                                <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:120}}/>
+                                                <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:120}} disabled={isReadOnly}/>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-medium text-sm truncate">{task.title}</p>
                                                     <p className="text-xs" style={{color:'var(--text-muted)'}}>📅 {task.startDate?new Date(task.startDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):'?'} → {task.dueDate?new Date(task.dueDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):'?'}</p>
@@ -84,7 +84,8 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         </div>
                     )}
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
-                        <button onClick={()=>setShowConfirmDelete(true)} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Delete</span></button>
+                        {!isReadOnly && <button onClick={()=>setShowConfirmDelete(true)} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Delete</span></button>}
+                        {isReadOnly && <span style={{fontSize:11,color:'var(--text-muted)',fontStyle:'italic'}}>Read-only (guest mode)</span>}
                         <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Close</button>
                     </div>
                 </div>
