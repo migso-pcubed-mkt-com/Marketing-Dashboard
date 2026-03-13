@@ -8,6 +8,77 @@ import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
 
+// Markdown formatting toolbar
+const MarkdownToolbar = ({ textareaRef, value, onChange }) => {
+    const wrapSelection = (prefix, suffix = prefix) => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const selected = value.substring(start, end);
+        const before = value.substring(0, start);
+        const after = value.substring(end);
+        const newText = `${before}${prefix}${selected || 'text'}${suffix}${after}`;
+        onChange(newText);
+        setTimeout(() => {
+            ta.focus();
+            if (selected) {
+                ta.selectionStart = start + prefix.length;
+                ta.selectionEnd = end + prefix.length;
+            } else {
+                ta.selectionStart = start + prefix.length;
+                ta.selectionEnd = start + prefix.length + 4; // select "text"
+            }
+        }, 0);
+    };
+
+    const insertAtCursor = (text) => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        const start = ta.selectionStart;
+        const before = value.substring(0, start);
+        const after = value.substring(start);
+        const needsNewline = before.length > 0 && !before.endsWith('\n') ? '\n' : '';
+        const newText = `${before}${needsNewline}${text}${after}`;
+        onChange(newText);
+        setTimeout(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = start + needsNewline.length + text.length; }, 0);
+    };
+
+    const btnStyle = { background: 'none', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 7px', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', lineHeight: '18px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 28 };
+    const sep = { width: 1, height: 18, background: 'var(--border)', margin: '0 2px', flexShrink: 0 };
+
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 0 6px', flexWrap: 'wrap' }}>
+            <select onChange={e => { if (e.target.value) { insertAtCursor(e.target.value); e.target.value = ''; } }} style={{ ...btnStyle, padding: '3px 4px', minWidth: 36, fontSize: 11 }} title="Heading">
+                <option value="">Tt</option>
+                <option value="# ">H1</option>
+                <option value="## ">H2</option>
+                <option value="### ">H3</option>
+            </select>
+            <button onClick={() => wrapSelection('**')} style={btnStyle} title="Bold"><strong>B</strong></button>
+            <button onClick={() => wrapSelection('*')} style={btnStyle} title="Italic"><em>I</em></button>
+            <button onClick={() => wrapSelection('~~')} style={btnStyle} title="Strikethrough"><span style={{ textDecoration: 'line-through' }}>S</span></button>
+            <div style={sep} />
+            <button onClick={() => insertAtCursor('- ')} style={btnStyle} title="Bullet list">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1.5" fill="currentColor"/><circle cx="4" cy="12" r="1.5" fill="currentColor"/><circle cx="4" cy="18" r="1.5" fill="currentColor"/></svg>
+            </button>
+            <button onClick={() => insertAtCursor('1. ')} style={btnStyle} title="Numbered list">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><text x="2" y="8" fill="currentColor" stroke="none" fontSize="8" fontWeight="700">1</text><text x="2" y="14" fill="currentColor" stroke="none" fontSize="8" fontWeight="700">2</text><text x="2" y="20" fill="currentColor" stroke="none" fontSize="8" fontWeight="700">3</text></svg>
+            </button>
+            <div style={sep} />
+            <button onClick={() => wrapSelection('`')} style={{ ...btnStyle, fontFamily: 'monospace', fontSize: 11 }} title="Inline code">{'{}'}</button>
+            <button onClick={() => insertAtCursor('```\n\n```')} style={btnStyle} title="Code block">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </button>
+            <button onClick={() => wrapSelection('[', '](url)')} style={btnStyle} title="Link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </button>
+            <button onClick={() => insertAtCursor('> ')} style={btnStyle} title="Quote">"</button>
+            <button onClick={() => insertAtCursor('---')} style={btnStyle} title="Horizontal rule">—</button>
+        </div>
+    );
+};
+
 // Enhanced Markdown renderer — Trello-level quality, React elements only (no dangerouslySetInnerHTML)
 const SimpleMarkdown = ({ text }) => {
     if (!text) return null;
@@ -300,6 +371,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         </div>
                         {descriptionEditing||!descriptionDraft?(
                             <div>
+                                {descriptionEditing && <MarkdownToolbar textareaRef={descTextareaRef} value={descriptionDraft} onChange={v => { setDescriptionDraft(v); setDescriptionSaved(false); setTimeout(autoResizeDesc, 0); }} />}
                                 <textarea ref={descTextareaRef} value={descriptionDraft} onChange={e=>{setDescriptionDraft(e.target.value);setDescriptionSaved(false);autoResizeDesc();}} onFocus={()=>setDescriptionEditing(true)} placeholder="Add a description... (Markdown supported)" className="v11-input" style={{resize:'none',minHeight:80,maxHeight:400,width:'100%'}}/>
                                 {descriptionEditing&&<div className="flex gap-2 mt-2">
                                     <button onClick={()=>{saveDescription();setDescriptionEditing(false);}} className="px-4 py-1.5 bg-secondary text-white rounded-lg text-sm">Save</button>

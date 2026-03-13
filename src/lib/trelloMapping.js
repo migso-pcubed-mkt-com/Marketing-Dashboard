@@ -155,7 +155,8 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
         for (const labelId of card.idLabels) {
             const mapping = mappingConfig.labelMappings[labelId];
             if (mapping?.type === 'other') {
-                otherLabels.push({ id: labelId, name: mapping.labelName || '', color: mapping.labelColor || '' });
+                const labelHex = mapping.labelColor?.startsWith('#') ? mapping.labelColor : (trelloColorToHex(mapping.labelColor) || '#64748b');
+                otherLabels.push({ id: labelId, name: mapping.labelName || '', color: labelHex });
             }
         }
     }
@@ -385,7 +386,8 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
         for (const labelId of card.idLabels) {
             const mapping = mappingConfig.labelMappings[labelId];
             if (mapping?.type === 'other') {
-                otherLabels.push({ id: labelId, name: mapping.labelName || '', color: mapping.labelColor || '' });
+                const labelHex = mapping.labelColor?.startsWith('#') ? mapping.labelColor : (trelloColorToHex(mapping.labelColor) || '#64748b');
+                otherLabels.push({ id: labelId, name: mapping.labelName || '', color: labelHex });
             }
         }
     }

@@ -1,6 +1,6 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
-import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloAttachment } from './trello.js';
+import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, addTrelloAttachment, uploadTrelloAttachment } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask } from './trelloMapping.js';
 
 // Push comments, checklists, attachments that don't already exist on Trello.
@@ -43,11 +43,11 @@ const pushTaskExtrasToTrello = async (task, card) => {
                 cl.trelloChecklistId = existing.id;
                 taskModified = true;
             }
-            // Push only new items
+            // Push only new items to the EXISTING checklist (don't create a new one)
             const newItems = (cl.items || []).filter(item => !existing.itemNames.has(item.text));
             if (newItems.length > 0) {
                 try {
-                    await addTrelloChecklist(task.trelloCardId, cl.name || 'Checklist', newItems);
+                    await addTrelloChecklistItems(existing.id, newItems);
                     pushed.checklists += newItems.length;
                 } catch (e) {
                     console.error('Failed to push checklist items:', e);
@@ -71,20 +71,28 @@ const pushTaskExtrasToTrello = async (task, card) => {
         }
     }
 
-    // Push URL attachments not yet on Trello
+    // Push attachments not yet on Trello (URL-based or file uploads)
     const trelloAttUrls = new Set((card.attachments || []).map(a => a.url));
     for (const att of (task.attachments || [])) {
-        if (att.url && !att.trelloAttachmentId && !trelloAttUrls.has(att.url)) {
-            try {
-                const result = await addTrelloAttachment(task.trelloCardId, att.url, att.name);
-                if (result?.id) {
-                    att.trelloAttachmentId = result.id;
-                    taskModified = true;
-                }
-                pushed.attachments++;
-            } catch (e) {
-                console.error('Failed to push attachment:', e);
+        if (att.trelloAttachmentId) continue; // Already on Trello
+
+        try {
+            let result = null;
+            if (att.url && !trelloAttUrls.has(att.url)) {
+                // URL attachment — push URL directly
+                result = await addTrelloAttachment(task.trelloCardId, att.url, att.name);
+            } else if (att.data && !att.url) {
+                // Local file upload (base64) — upload file to Trello
+                result = await uploadTrelloAttachment(task.trelloCardId, att.data, att.name, att.type);
             }
+            if (result?.id) {
+                att.trelloAttachmentId = result.id;
+                if (result.url) att.url = result.url; // Store the Trello URL for future reference
+                taskModified = true;
+                pushed.attachments++;
+            }
+        } catch (e) {
+            console.error('Failed to push attachment:', att.name, e);
         }
     }
 
