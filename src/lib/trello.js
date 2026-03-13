@@ -80,6 +80,36 @@ export const uploadTrelloAttachment = (cardId, data, name, mimeType) =>
         body: JSON.stringify({ cardId, data, name, mimeType })
     });
 
+// Delete a checklist from Trello
+export const deleteTrelloChecklist = (checklistId) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=deleteChecklist&checklistId=${encodeURIComponent(checklistId)}`, { method: 'DELETE' });
+
+// Delete a checklist item from Trello
+export const deleteTrelloChecklistItem = (checklistId, itemId) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=deleteChecklistItem&checklistId=${encodeURIComponent(checklistId)}&itemId=${encodeURIComponent(itemId)}`, { method: 'DELETE' });
+
+// Delete an attachment from a Trello card
+export const deleteTrelloAttachment = (cardId, attachmentId) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=deleteAttachment&cardId=${encodeURIComponent(cardId)}&attachmentId=${encodeURIComponent(attachmentId)}`, { method: 'DELETE' });
+
+// Create a label on a Trello board
+export const createTrelloBoardLabel = (boardId, name, color) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=createBoardLabel`, {
+        method: 'POST',
+        body: JSON.stringify({ boardId, name, color })
+    });
+
+// Add a label to a Trello card
+export const addTrelloCardLabel = (cardId, labelId) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=addCardLabel`, {
+        method: 'POST',
+        body: JSON.stringify({ cardId, labelId })
+    });
+
+// Remove a label from a Trello card
+export const removeTrelloCardLabel = (cardId, labelId) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=removeCardLabel&cardId=${encodeURIComponent(cardId)}&labelId=${encodeURIComponent(labelId)}`, { method: 'DELETE' });
+
 // Delete a Trello card
 export const deleteTrelloCard = (cardId) =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=deleteCard&cardId=${encodeURIComponent(cardId)}`, {

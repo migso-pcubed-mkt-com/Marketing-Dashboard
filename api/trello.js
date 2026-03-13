@@ -316,6 +316,93 @@ export default async function handler(req, res) {
             return res.status(201).json(attachment);
         }
 
+        // POST /api/trello?action=createBoardLabel — Create a label on a board
+        if (req.method === 'POST' && action === 'createBoardLabel') {
+            const { boardId: bid, name: labelName, color: labelColor } = req.body;
+            if (!bid) return res.status(400).json({ error: 'boardId required' });
+            console.log(`Creating label "${labelName}" (${labelColor}) on board ${bid}...`);
+            const params = new URLSearchParams({ name: labelName || '' });
+            if (labelColor) params.append('color', labelColor);
+            const response = await fetch(`${TRELLO_BASE}/boards/${bid}/labels?${authParams}&${params.toString()}`, { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello create label error', details: err });
+            }
+            const label = await response.json();
+            console.log(`Created label "${label.name}" (${label.id})`);
+            return res.status(201).json(label);
+        }
+
+        // POST /api/trello?action=addCardLabel — Add a label to a card
+        if (req.method === 'POST' && action === 'addCardLabel') {
+            const { cardId: cid, labelId: lid } = req.body;
+            if (!cid || !lid) return res.status(400).json({ error: 'cardId and labelId required' });
+            console.log(`Adding label ${lid} to card ${cid}...`);
+            const response = await fetch(`${TRELLO_BASE}/cards/${cid}/idLabels?${authParams}&value=${lid}`, { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.text();
+                // 409 = already has this label, which is fine
+                if (response.status === 409) return res.status(200).json({ already: true, cardId: cid, labelId: lid });
+                return res.status(response.status).json({ error: 'Trello add label error', details: err });
+            }
+            return res.status(200).json({ added: true, cardId: cid, labelId: lid });
+        }
+
+        // DELETE /api/trello?action=removeCardLabel — Remove a label from a card
+        if (req.method === 'DELETE' && action === 'removeCardLabel') {
+            const cid = req.query.cardId || req.body?.cardId;
+            const lid = req.query.labelId || req.body?.labelId;
+            if (!cid || !lid) return res.status(400).json({ error: 'cardId and labelId required' });
+            console.log(`Removing label ${lid} from card ${cid}...`);
+            const response = await fetch(`${TRELLO_BASE}/cards/${cid}/idLabels/${lid}?${authParams}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello remove label error', details: err });
+            }
+            return res.status(200).json({ removed: true, cardId: cid, labelId: lid });
+        }
+
+        // DELETE /api/trello?action=deleteChecklist — Delete an entire checklist
+        if (req.method === 'DELETE' && action === 'deleteChecklist') {
+            const checklistId = req.query.checklistId || req.body?.checklistId;
+            if (!checklistId) return res.status(400).json({ error: 'checklistId required' });
+            console.log(`Deleting Trello checklist ${checklistId}...`);
+            const response = await fetch(`${TRELLO_BASE}/checklists/${checklistId}?${authParams}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello delete checklist error', details: err });
+            }
+            return res.status(200).json({ deleted: true, checklistId });
+        }
+
+        // DELETE /api/trello?action=deleteChecklistItem — Delete a single checklist item
+        if (req.method === 'DELETE' && action === 'deleteChecklistItem') {
+            const cklId = req.query.checklistId || req.body?.checklistId;
+            const itemId = req.query.itemId || req.body?.itemId;
+            if (!cklId || !itemId) return res.status(400).json({ error: 'checklistId and itemId required' });
+            console.log(`Deleting checklist item ${itemId} from checklist ${cklId}...`);
+            const response = await fetch(`${TRELLO_BASE}/checklists/${cklId}/checkItems/${itemId}?${authParams}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello delete checkItem error', details: err });
+            }
+            return res.status(200).json({ deleted: true, checklistId: cklId, itemId });
+        }
+
+        // DELETE /api/trello?action=deleteAttachment — Delete an attachment from a card
+        if (req.method === 'DELETE' && action === 'deleteAttachment') {
+            const cid = req.query.cardId || req.body?.cardId;
+            const attId = req.query.attachmentId || req.body?.attachmentId;
+            if (!cid || !attId) return res.status(400).json({ error: 'cardId and attachmentId required' });
+            console.log(`Deleting attachment ${attId} from card ${cid}...`);
+            const response = await fetch(`${TRELLO_BASE}/cards/${cid}/attachments/${attId}?${authParams}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello delete attachment error', details: err });
+            }
+            return res.status(200).json({ deleted: true, cardId: cid, attachmentId: attId });
+        }
+
         // DELETE /api/trello?action=deleteCard&cardId=XXX
         if (req.method === 'DELETE' && action === 'deleteCard') {
             if (!cardId) return res.status(400).json({ error: 'cardId required' });

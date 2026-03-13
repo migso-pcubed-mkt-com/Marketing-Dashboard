@@ -4,7 +4,7 @@ import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './
 import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 
-const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask,onDeleteAction})=>{
+const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask,onDeleteAction,isReadOnly=false})=>{
     const[form,setForm]=useState({...action});
     const[showConfirmDelete,setShowConfirmDelete]=useState(false);
     const actionTasks=tasks.filter(t=>t.actionId===action.id);
@@ -13,7 +13,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     const category=categories?.find(c=>c.id===form.categoryId);
     const totalBudget=actionTasks.reduce((s,t)=>s+(t.budget||0),0);
 
-    const handleClose=()=>{onUpdateAction(action.id,form);onClose();}; // Auto-save on close (Trello-style)
+    const handleClose=()=>{if(!isReadOnly)onUpdateAction(action.id,form);onClose();}; // Auto-save on close, skip in read-only
     const handleDelete=()=>{if(onDeleteAction){onDeleteAction(action.id);onClose();}};
     const handleStatusChange=(taskId,newStatus)=>{onUpdateTask(taskId,{status:newStatus});};
     const addChannel=(id)=>setForm({...form,tags:[...(form.tags||[]),id]});
