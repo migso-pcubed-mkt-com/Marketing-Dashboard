@@ -11,7 +11,7 @@ import {
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
 import { syncWithTrello } from './lib/trelloSync.js';
-import { startTrelloLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
+import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
 import TrelloImportModal from './components/TrelloImportModal.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
@@ -346,15 +346,21 @@ const App = () => {
     }, []);
 
     const handleTrelloLogin = useCallback(async () => {
-        try {
-            const result = await startTrelloLogin();
-            if (result) {
-                setTrelloUser({ ...result.user, token: result.token });
-                setAuthenticated(true);
-            }
-        } catch (err) {
-            throw err; // Re-throw for AuthGate to catch
+        const result = await startTrelloLogin();
+        if (result?.needsManualToken) {
+            return result; // Let AuthGate show paste fallback
         }
+        if (result?.token) {
+            setTrelloUser({ ...result.user, token: result.token });
+            setAuthenticated(true);
+        }
+        return result;
+    }, []);
+
+    const handleValidateToken = useCallback(async (token) => {
+        const result = await validateAndLogin(token);
+        setTrelloUser({ ...result.user, token: result.token });
+        setAuthenticated(true);
     }, []);
 
     const handleGuestLogin = useCallback(async (password) => {
@@ -874,7 +880,7 @@ const App = () => {
         onTrelloLogout: handleTrelloLogout
     }), [boards, currentBoardId, currentBoard, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
 
-    if (!authenticated) return <AuthGate onTrelloLogin={handleTrelloLogin} onGuestLogin={handleGuestLogin}/>;
+    if (!authenticated) return <AuthGate onTrelloLogin={handleTrelloLogin} onValidateToken={handleValidateToken} onGuestLogin={handleGuestLogin}/>;
 
     if (!dataLoaded) return (<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Loading data...</p></div></div>);
 
