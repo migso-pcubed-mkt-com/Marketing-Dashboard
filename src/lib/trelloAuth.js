@@ -15,16 +15,20 @@ const buildUserResult = (user, token) => ({
 
 /**
  * Start Trello OAuth login via popup.
- * Returns { token, user } on success, { needsManualToken: true } if popup closed without token, null on error.
+ * Uses callback_method=fragment with return_url for automatic flow (requires domain whitelisting).
+ * Falls back to manual token paste if the popup closes without receiving a token.
  */
 export const startTrelloLogin = async () => {
     const { appKey } = await fetchTrelloConfig();
     if (!appKey) throw new Error('Trello API key not configured on server');
 
-    // No return_url — avoids "Invalid return_url" error when origin isn't whitelisted in Trello Power-Up.
-    // Without return_url, Trello shows the token on screen after authorization.
-    // We listen for postMessage (works sometimes) and fall back to manual paste.
-    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=postMessage`;
+    // Use callback_method=fragment with return_url to our callback page.
+    // After authorization, Trello redirects the popup to /trello-callback.html#token=xxx
+    // The callback page extracts the token and sends it via same-origin postMessage.
+    // If the domain is not whitelisted in Trello API key settings, Trello shows an error
+    // and the user must close the popup → paste fallback is shown.
+    const returnUrl = `${window.location.origin}/trello-callback.html`;
+    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=fragment&return_url=${encodeURIComponent(returnUrl)}`;
 
     return new Promise((resolve, reject) => {
         const popup = window.open(authUrl, 'trello_auth', 'width=600,height=700,left=200,top=100');
@@ -35,35 +39,38 @@ export const startTrelloLogin = async () => {
 
         let resolved = false;
 
-        const handleMessage = async (event) => {
-            // Accept token as: plain hex string (Trello postMessage) or { trelloToken } (our callback page)
-            const token = (typeof event.data === 'string' && /^[0-9a-f]{32,64}$/.test(event.data))
-                ? event.data
-                : event.data?.trelloToken || null;
-            if (!token || resolved) return;
-
+        const cleanup = () => {
             resolved = true;
             window.removeEventListener('message', handleMessage);
             clearInterval(pollTimer);
+        };
+
+        const handleMessage = async (event) => {
+            if (resolved) return;
+            // Accept token from: our callback page ({ trelloToken }) or Trello postMessage (plain string)
+            const token = event.data?.trelloToken
+                || (typeof event.data === 'string' && /^[0-9a-f]{32,64}$/.test(event.data) ? event.data : null);
+            if (!token) return;
+
+            cleanup();
             try { popup.close(); } catch {}
             try {
                 const user = await fetchTrelloMe(token);
                 localStorage.setItem(STORAGE_KEY, token);
                 setTrelloUserToken(token);
                 resolve(buildUserResult(user, token));
-            } catch {
-                reject(new Error('Failed to validate Trello token'));
+            } catch (err) {
+                reject(new Error(err.message || 'Failed to validate Trello token'));
             }
         };
 
         window.addEventListener('message', handleMessage);
 
-        // Poll to detect if popup was closed without completing
+        // Poll to detect if popup was closed without completing auth
         const pollTimer = setInterval(() => {
             if (popup.closed && !resolved) {
-                clearInterval(pollTimer);
-                window.removeEventListener('message', handleMessage);
-                // Popup closed without receiving token — show manual paste fallback
+                cleanup();
+                // Popup closed without receiving token — offer manual paste
                 resolve({ needsManualToken: true });
             }
         }, 500);
@@ -72,13 +79,10 @@ export const startTrelloLogin = async () => {
 
 /**
  * Validate a manually pasted token and log in.
- * Returns { token, user } on success, throws on invalid token.
  */
 export const validateAndLogin = async (token) => {
     const trimmed = token.trim();
-    if (!/^[0-9a-f]{32,64}$/.test(trimmed)) {
-        throw new Error('Invalid token format');
-    }
+    if (!trimmed) throw new Error('Please paste your token');
     const user = await fetchTrelloMe(trimmed);
     localStorage.setItem(STORAGE_KEY, trimmed);
     setTrelloUserToken(trimmed);
@@ -87,7 +91,6 @@ export const validateAndLogin = async (token) => {
 
 /**
  * Restore Trello user from localStorage token.
- * Returns user object or null.
  */
 export const restoreTrelloUser = async () => {
     const token = localStorage.getItem(STORAGE_KEY);
