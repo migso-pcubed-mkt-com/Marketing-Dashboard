@@ -34,16 +34,26 @@ export default async function handler(req, res) {
 
     // GET /api/trello?action=me — Return current member profile (requires token)
     if (req.method === 'GET' && action === 'me') {
-        if (!TRELLO_API_KEY || !TRELLO_TOKEN) {
-            return res.status(401).json({ error: 'Token required' });
+        console.log('Trello /me: hasApiKey:', !!TRELLO_API_KEY, 'apiKeyLen:', TRELLO_API_KEY?.length, 'hasToken:', !!TRELLO_TOKEN, 'tokenLen:', TRELLO_TOKEN?.length, 'tokenSource:', userToken ? 'header' : 'env');
+        if (!TRELLO_API_KEY) {
+            return res.status(500).json({ error: 'Trello API key not configured on server', hasApiKey: false, hasToken: !!TRELLO_TOKEN });
+        }
+        if (!TRELLO_TOKEN) {
+            return res.status(401).json({ error: 'No token provided', hasApiKey: true, hasToken: false });
         }
         const authParams = `key=${TRELLO_API_KEY}&token=${TRELLO_TOKEN}`;
         const url = `${TRELLO_BASE}/members/me?${authParams}&fields=id,fullName,username,avatarUrl`;
         const response = await fetch(url);
         if (!response.ok) {
             const errBody = await response.text().catch(() => '');
-            console.error('Trello /members/me error:', response.status, errBody);
-            return res.status(response.status).json({ error: 'Invalid token', details: errBody, status: response.status });
+            console.error('Trello /members/me error:', response.status, errBody, 'tokenLen:', TRELLO_TOKEN.length);
+            return res.status(response.status).json({
+                error: 'Trello rejected the token',
+                details: errBody,
+                trelloStatus: response.status,
+                tokenLength: TRELLO_TOKEN.length,
+                hint: TRELLO_TOKEN.length < 64 ? 'Token seems too short — Trello tokens are typically 64 hex chars. The verification code shown on screen may not be the full API token.' : null
+            });
         }
         const member = await response.json();
         return res.status(200).json(member);

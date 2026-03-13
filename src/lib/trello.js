@@ -93,7 +93,14 @@ export const fetchTrelloMe = async (token) => {
     const r = await fetch(`${API_BASE_URL}/api/trello?action=me`, { headers });
     if (!r.ok) {
         const body = await r.json().catch(() => ({}));
-        throw new Error(body.details || body.error || `Trello API error ${r.status}`);
+        // Build a helpful error message from the server diagnostics
+        const parts = [body.error || `Trello API error ${r.status}`];
+        if (body.hint) parts.push(body.hint);
+        if (body.details && body.details !== body.error) parts.push(`(${body.details})`);
+        const err = new Error(parts.join(' — '));
+        err.tokenLength = body.tokenLength;
+        err.trelloStatus = body.trelloStatus;
+        throw err;
     }
     return r.json();
 };

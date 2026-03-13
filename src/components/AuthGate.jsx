@@ -41,7 +41,12 @@ const AuthGate = ({ onTrelloLogin, onValidateToken, onGuestLogin }) => {
         try {
             await onValidateToken(manualToken);
         } catch (err) {
-            setError(err.message || 'Invalid token');
+            // Show helpful error based on diagnostics
+            let msg = err.message || 'Invalid token';
+            if (manualToken.trim().length < 64 && (msg.includes('rejected') || msg.includes('unauthorized'))) {
+                msg = `Token rejected (${manualToken.trim().length} chars). Trello tokens are typically 64 characters — make sure you copied the FULL token, not just the verification code.`;
+            }
+            setError(msg);
         }
         setLoading(false);
     };

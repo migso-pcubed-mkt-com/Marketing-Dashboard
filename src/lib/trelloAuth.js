@@ -15,20 +15,23 @@ const buildUserResult = (user, token) => ({
 
 /**
  * Start Trello OAuth login via popup.
- * Uses callback_method=fragment with return_url for automatic flow (requires domain whitelisting).
- * Falls back to manual token paste if the popup closes without receiving a token.
+ * Uses callback_method=postMessage (no return_url) so the authorize page always works,
+ * even when the domain isn't whitelisted in Trello API key settings.
+ *
+ * - If Trello sends postMessage → automatic login (no paste needed)
+ * - If popup closes without token → returns { needsManualToken: true } for paste fallback
  */
 export const startTrelloLogin = async () => {
     const { appKey } = await fetchTrelloConfig();
     if (!appKey) throw new Error('Trello API key not configured on server');
 
-    // Use callback_method=fragment with return_url to our callback page.
-    // After authorization, Trello redirects the popup to /trello-callback.html#token=xxx
-    // The callback page extracts the token and sends it via same-origin postMessage.
-    // If the domain is not whitelisted in Trello API key settings, Trello shows an error
-    // and the user must close the popup → paste fallback is shown.
-    const returnUrl = `${window.location.origin}/trello-callback.html`;
-    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=fragment&return_url=${encodeURIComponent(returnUrl)}`;
+    // callback_method=postMessage without return_url:
+    // - Trello shows authorize page → user clicks Allow
+    // - Trello navigates to /1/token/approve and shows token on screen
+    // - Trello MAY send postMessage to opener (depends on origin whitelisting)
+    // - If postMessage fires → we catch it → automatic login
+    // - If not → user closes popup → paste fallback
+    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=postMessage`;
 
     return new Promise((resolve, reject) => {
         const popup = window.open(authUrl, 'trello_auth', 'width=600,height=700,left=200,top=100');
@@ -47,9 +50,21 @@ export const startTrelloLogin = async () => {
 
         const handleMessage = async (event) => {
             if (resolved) return;
-            // Accept token from: our callback page ({ trelloToken }) or Trello postMessage (plain string)
-            const token = event.data?.trelloToken
-                || (typeof event.data === 'string' && /^[0-9a-f]{32,64}$/.test(event.data) ? event.data : null);
+
+            // Extract token from various postMessage formats:
+            // 1. Plain hex string (Trello's native postMessage)
+            // 2. { trelloToken: "xxx" } (from our callback page)
+            // 3. { token: "xxx" } (alternative format)
+            // 4. String containing a hex token somewhere
+            let token = null;
+
+            if (typeof event.data === 'string') {
+                const match = event.data.match(/[0-9a-f]{32,128}/i);
+                if (match) token = match[0];
+            } else if (event.data && typeof event.data === 'object') {
+                token = event.data.trelloToken || event.data.token || null;
+            }
+
             if (!token) return;
 
             cleanup();
@@ -79,6 +94,7 @@ export const startTrelloLogin = async () => {
 
 /**
  * Validate a manually pasted token and log in.
+ * No strict format validation — let the Trello API decide if the token is valid.
  */
 export const validateAndLogin = async (token) => {
     const trimmed = token.trim();
