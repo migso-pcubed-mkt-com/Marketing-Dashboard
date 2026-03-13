@@ -41,7 +41,9 @@ export default async function handler(req, res) {
         const url = `${TRELLO_BASE}/members/me?${authParams}&fields=id,fullName,username,avatarUrl`;
         const response = await fetch(url);
         if (!response.ok) {
-            return res.status(response.status).json({ error: 'Invalid token' });
+            const errBody = await response.text().catch(() => '');
+            console.error('Trello /members/me error:', response.status, errBody);
+            return res.status(response.status).json({ error: 'Invalid token', details: errBody, status: response.status });
         }
         const member = await response.json();
         return res.status(200).json(member);

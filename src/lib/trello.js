@@ -87,9 +87,13 @@ export const fetchTrelloConfig = () =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=config`);
 
 // Get current member profile (requires token)
-export const fetchTrelloMe = (token) => {
+export const fetchTrelloMe = async (token) => {
     const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
     if (token) headers['X-Trello-Token'] = token;
-    return fetch(`${API_BASE_URL}/api/trello?action=me`, { headers })
-        .then(r => { if (!r.ok) throw new Error('Invalid token'); return r.json(); });
+    const r = await fetch(`${API_BASE_URL}/api/trello?action=me`, { headers });
+    if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.details || body.error || `Trello API error ${r.status}`);
+    }
+    return r.json();
 };
