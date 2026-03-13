@@ -15,23 +15,23 @@ const buildUserResult = (user, token) => ({
 
 /**
  * Start Trello OAuth login via popup.
- * Uses callback_method=postMessage (no return_url) so the authorize page always works,
- * even when the domain isn't whitelisted in Trello API key settings.
+ * Uses callback_method=fragment with return_url to our callback page.
+ * After authorization, Trello redirects popup to trello-callback.html#token=xxx.
+ * The callback page extracts the token and postMessages it back to us.
  *
- * - If Trello sends postMessage → automatic login (no paste needed)
- * - If popup closes without token → returns { needsManualToken: true } for paste fallback
+ * Requires the production domain to be whitelisted in Trello Power-Up settings
+ * (Clé d'API / API Key → Allowed Origins).
  */
 export const startTrelloLogin = async () => {
     const { appKey } = await fetchTrelloConfig();
     if (!appKey) throw new Error('Trello API key not configured on server');
 
-    // callback_method=postMessage without return_url:
-    // - Trello shows authorize page → user clicks Allow
-    // - Trello navigates to /1/token/approve and shows token on screen
-    // - Trello MAY send postMessage to opener (depends on origin whitelisting)
-    // - If postMessage fires → we catch it → automatic login
-    // - If not → user closes popup → paste fallback
-    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=postMessage`;
+    // callback_method=fragment + return_url:
+    // Trello redirects popup to return_url#token=REAL_64_CHAR_TOKEN
+    // Our trello-callback.html extracts it and postMessages { trelloToken } to opener
+    // Domain must be in "Allowed Origins" of the Trello API key settings
+    const returnUrl = `${window.location.origin}/trello-callback.html`;
+    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=fragment&return_url=${encodeURIComponent(returnUrl)}`;
 
     return new Promise((resolve, reject) => {
         const popup = window.open(authUrl, 'trello_auth', 'width=600,height=700,left=200,top=100');
