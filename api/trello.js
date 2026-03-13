@@ -233,6 +233,70 @@ export default async function handler(req, res) {
             return res.status(201).json(checklist);
         }
 
+        // POST /api/trello?action=addChecklistItems — Add items to an EXISTING checklist
+        if (req.method === 'POST' && action === 'addChecklistItems') {
+            const { checklistId, items } = req.body;
+            if (!checklistId) return res.status(400).json({ error: 'checklistId required' });
+            if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'items required' });
+            console.log(`Adding ${items.length} items to checklist ${checklistId}...`);
+
+            const results = [];
+            for (const item of items) {
+                const checked = item.done ? 'complete' : 'incomplete';
+                try {
+                    const itemRes = await fetch(`${TRELLO_BASE}/checklists/${checklistId}/checkItems?${authParams}&name=${encodeURIComponent(item.text)}&checked=${checked}`, {
+                        method: 'POST'
+                    });
+                    if (itemRes.ok) results.push(await itemRes.json());
+                } catch (e) {
+                    console.error('Failed to add checklist item:', e);
+                }
+            }
+            return res.status(201).json({ checklistId, itemsAdded: results.length, items: results });
+        }
+
+        // POST /api/trello?action=uploadAttachment — Upload a file (base64) to a Trello card
+        if (req.method === 'POST' && action === 'uploadAttachment') {
+            const { cardId: cid, data: base64Data, name: fileName, mimeType } = req.body;
+            if (!cid || !base64Data) return res.status(400).json({ error: 'cardId and data required' });
+            console.log(`Uploading attachment "${fileName}" to card ${cid}...`);
+
+            // Strip data URL prefix if present
+            const raw = base64Data.replace(/^data:[^;]+;base64,/, '');
+            const buffer = Buffer.from(raw, 'base64');
+
+            // Build multipart form data
+            const boundary = '----TrelloUpload' + Date.now();
+            const parts = [];
+            parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="key"\r\n\r\n${TRELLO_API_KEY}`);
+            parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="token"\r\n\r\n${TRELLO_TOKEN}`);
+            parts.push(`--${boundary}\r\nContent-Disposition: form-data; name="name"\r\n\r\n${fileName || 'attachment'}`);
+            // File part
+            const fileHeader = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName || 'attachment'}"\r\nContent-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`;
+            const fileFooter = `\r\n--${boundary}--\r\n`;
+
+            const bodyParts = Buffer.concat([
+                Buffer.from(parts.join('\r\n') + '\r\n'),
+                Buffer.from(fileHeader),
+                buffer,
+                Buffer.from(fileFooter)
+            ]);
+
+            const response = await fetch(`${TRELLO_BASE}/cards/${cid}/attachments`, {
+                method: 'POST',
+                headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+                body: bodyParts
+            });
+            if (!response.ok) {
+                const err = await response.text();
+                console.error('Trello upload error:', response.status, err);
+                return res.status(response.status).json({ error: 'Trello upload error', details: err });
+            }
+            const attachment = await response.json();
+            console.log(`Uploaded "${fileName}" → ${attachment.id}`);
+            return res.status(201).json(attachment);
+        }
+
         // POST /api/trello?action=addAttachment — Add a URL attachment to a card
         if (req.method === 'POST' && action === 'addAttachment') {
             const { cardId: cid, url: attUrl, name: attName } = req.body;

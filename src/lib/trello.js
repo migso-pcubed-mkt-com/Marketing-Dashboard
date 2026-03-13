@@ -59,11 +59,25 @@ export const addTrelloChecklist = (cardId, name, items) =>
         body: JSON.stringify({ cardId, name, items })
     });
 
+// Add items to an EXISTING Trello checklist (by checklist ID)
+export const addTrelloChecklistItems = (checklistId, items) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=addChecklistItems`, {
+        method: 'POST',
+        body: JSON.stringify({ checklistId, items })
+    });
+
 // Add a URL attachment to a Trello card
 export const addTrelloAttachment = (cardId, url, name) =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=addAttachment`, {
         method: 'POST',
         body: JSON.stringify({ cardId, url, name })
+    });
+
+// Upload a file (base64) to a Trello card
+export const uploadTrelloAttachment = (cardId, data, name, mimeType) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=uploadAttachment`, {
+        method: 'POST',
+        body: JSON.stringify({ cardId, data, name, mimeType })
     });
 
 // Delete a Trello card
