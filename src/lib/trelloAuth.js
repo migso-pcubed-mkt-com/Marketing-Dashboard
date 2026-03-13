@@ -12,7 +12,8 @@ export const startTrelloLogin = async () => {
     const { appKey } = await fetchTrelloConfig();
     if (!appKey) throw new Error('Trello API key not configured on server');
 
-    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=postMessage`;
+    const returnUrl = `${window.location.origin}/trello-callback.html`;
+    const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=fragment&return_url=${encodeURIComponent(returnUrl)}`;
 
     return new Promise((resolve, reject) => {
         const popup = window.open(authUrl, 'trello_auth', 'width=600,height=700,left=200,top=100');
