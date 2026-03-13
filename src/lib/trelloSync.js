@@ -3,16 +3,21 @@
 import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloAttachment } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask } from './trelloMapping.js';
 
-// Push comments, checklists, attachments that don't already exist on Trello
+// Push comments, checklists, attachments that don't already exist on Trello.
+// Returns { pushed, updatedTask } — updatedTask has captured Trello IDs on newly pushed items.
 const pushTaskExtrasToTrello = async (task, card) => {
     const pushed = { comments: 0, checklists: 0, attachments: 0 };
+    let taskModified = false;
 
     // Push new comments (those without trelloCommentId)
-    const existingCommentIds = new Set((card.comments || []).map(c => c.id));
     for (const comment of (task.comments || [])) {
         if (!comment.trelloCommentId && comment.text) {
             try {
-                await addTrelloComment(task.trelloCardId, comment.text);
+                const result = await addTrelloComment(task.trelloCardId, comment.text);
+                if (result?.id) {
+                    comment.trelloCommentId = result.id;
+                    taskModified = true;
+                }
                 pushed.comments++;
             } catch (e) {
                 console.error('Failed to push comment:', e);
@@ -22,23 +27,46 @@ const pushTaskExtrasToTrello = async (task, card) => {
 
     // Push checklists — support both old flat format and new named format
     const taskChecklists = task.checklists || (task.checklist ? [{ name: 'Checklist', items: task.checklist }] : []);
-    // Build set of existing Trello check item names per checklist
+    // Build map of existing Trello checklists by name, with item names
     const trelloChecklistMap = new Map();
     if (card.checklists) {
         for (const cl of card.checklists) {
             const itemNames = new Set((cl.checkItems || []).map(item => item.name));
-            trelloChecklistMap.set(cl.name, itemNames);
+            trelloChecklistMap.set(cl.name, { id: cl.id, itemNames });
         }
     }
     for (const cl of taskChecklists) {
-        const existingItems = trelloChecklistMap.get(cl.name) || new Set();
-        const newItems = (cl.items || []).filter(item => !existingItems.has(item.text));
-        if (newItems.length > 0) {
-            try {
-                await addTrelloChecklist(task.trelloCardId, cl.name || 'Checklist', newItems);
-                pushed.checklists += newItems.length;
-            } catch (e) {
-                console.error('Failed to push checklist:', e);
+        const existing = trelloChecklistMap.get(cl.name);
+        if (existing) {
+            // Checklist exists on Trello — capture its ID if we don't have it
+            if (!cl.trelloChecklistId) {
+                cl.trelloChecklistId = existing.id;
+                taskModified = true;
+            }
+            // Push only new items
+            const newItems = (cl.items || []).filter(item => !existing.itemNames.has(item.text));
+            if (newItems.length > 0) {
+                try {
+                    await addTrelloChecklist(task.trelloCardId, cl.name || 'Checklist', newItems);
+                    pushed.checklists += newItems.length;
+                } catch (e) {
+                    console.error('Failed to push checklist items:', e);
+                }
+            }
+        } else {
+            // New checklist — create on Trello
+            const items = (cl.items || []).filter(item => item.text);
+            if (items.length > 0 || cl.name) {
+                try {
+                    const result = await addTrelloChecklist(task.trelloCardId, cl.name || 'Checklist', items);
+                    if (result?.id) {
+                        cl.trelloChecklistId = result.id;
+                        taskModified = true;
+                    }
+                    pushed.checklists += items.length;
+                } catch (e) {
+                    console.error('Failed to push checklist:', e);
+                }
             }
         }
     }
@@ -48,7 +76,11 @@ const pushTaskExtrasToTrello = async (task, card) => {
     for (const att of (task.attachments || [])) {
         if (att.url && !att.trelloAttachmentId && !trelloAttUrls.has(att.url)) {
             try {
-                await addTrelloAttachment(task.trelloCardId, att.url, att.name);
+                const result = await addTrelloAttachment(task.trelloCardId, att.url, att.name);
+                if (result?.id) {
+                    att.trelloAttachmentId = result.id;
+                    taskModified = true;
+                }
                 pushed.attachments++;
             } catch (e) {
                 console.error('Failed to push attachment:', e);
@@ -56,7 +88,7 @@ const pushTaskExtrasToTrello = async (task, card) => {
         }
     }
 
-    return pushed;
+    return { pushed, taskModified };
 };
 
 // Sync a dashboard board with its linked Trello board
@@ -132,8 +164,8 @@ export const syncWithTrello = async (board, mappingConfig) => {
                 const listId = action ? catToListId[action.categoryId] : null;
                 const updates = mapTaskToTrelloCardUpdate(task, listId);
                 await updateTrelloCard(task.trelloCardId, updates);
-                // Also push comments, checklists, attachments
-                await pushTaskExtrasToTrello(task, card);
+                // Also push comments, checklists, attachments — capture Trello IDs
+                const { taskModified } = await pushTaskExtrasToTrello(task, card);
                 updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
                 result.pushed++;
             } catch (err) {
@@ -148,7 +180,7 @@ export const syncWithTrello = async (board, mappingConfig) => {
                     const listId = action ? catToListId[action.categoryId] : null;
                     const updates = mapTaskToTrelloCardUpdate(task, listId);
                     await updateTrelloCard(task.trelloCardId, updates);
-                    await pushTaskExtrasToTrello(task, card);
+                    const { taskModified } = await pushTaskExtrasToTrello(task, card);
                     updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
                     result.pushed++;
                 } catch (err) {

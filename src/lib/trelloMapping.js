@@ -281,34 +281,63 @@ export const mapTaskToTrelloCardUpdate = (task, listId) => {
     if (task.dueDate) updates.due = task.dueDate;
     updates.dueComplete = (task.status === 'completed').toString();
     if (listId) updates.idList = listId;
+    if (task.assignees?.length > 0) updates.idMembers = task.assignees.join(',');
+    else updates.idMembers = '';
     return updates;
 };
 
-// --- Merge Trello card changes into existing task ---
+// --- Merge Trello card changes into existing task (merge-by-ID, preserves local-only items) ---
 export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
-    // Merge checklists from Trello (named, preserving checklist structure)
-    const checklists = [];
+    // --- Checklists: merge by trelloChecklistId ---
+    const existingCLMap = new Map();
+    for (const cl of (existingTask.checklists || [])) {
+        if (cl.trelloChecklistId) existingCLMap.set(cl.trelloChecklistId, cl);
+    }
+    const localOnlyChecklists = (existingTask.checklists || []).filter(cl => !cl.trelloChecklistId);
+    const mergedChecklists = [];
     if (card.checklists) {
         for (const cl of card.checklists) {
-            checklists.push({
-                id: genId('cl'),
-                name: cl.name || 'Checklist',
-                trelloChecklistId: cl.id,
-                items: (cl.checkItems || []).map(item => ({
-                    id: genId('cli'),
+            const existing = existingCLMap.get(cl.id);
+            // Merge items by name within each checklist
+            const existingItemMap = new Map();
+            if (existing) {
+                for (const item of (existing.items || [])) {
+                    existingItemMap.set(item.text, item);
+                }
+            }
+            const mergedItems = (cl.checkItems || []).map(item => {
+                const existingItem = existingItemMap.get(item.name);
+                return {
+                    id: existingItem?.id || genId('cli'),
                     text: item.name,
                     done: item.state === 'complete'
-                }))
+                };
+            });
+            mergedChecklists.push({
+                id: existing?.id || genId('cl'),
+                name: cl.name || 'Checklist',
+                trelloChecklistId: cl.id,
+                items: mergedItems
             });
         }
     }
+    // Append local-only checklists
+    mergedChecklists.push(...localOnlyChecklists);
 
-    // Merge attachments from Trello
-    const attachments = [];
+    // --- Attachments: merge by trelloAttachmentId + URL ---
+    const existingAttMap = new Map();
+    const existingAttUrls = new Set();
+    for (const att of (existingTask.attachments || [])) {
+        if (att.trelloAttachmentId) existingAttMap.set(att.trelloAttachmentId, att);
+        if (att.url) existingAttUrls.set(att.url);
+    }
+    const localOnlyAtts = (existingTask.attachments || []).filter(att => !att.trelloAttachmentId);
+    const mergedAttachments = [];
     if (card.attachments) {
         for (const att of card.attachments) {
-            attachments.push({
-                id: genId('att'),
+            const existing = existingAttMap.get(att.id);
+            mergedAttachments.push({
+                id: existing?.id || genId('att'),
                 name: att.name,
                 url: att.url,
                 mimeType: att.mimeType || '',
@@ -317,13 +346,26 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
             });
         }
     }
+    // Append local-only attachments (not already present by URL)
+    const trelloAttUrls = new Set(mergedAttachments.map(a => a.url));
+    for (const att of localOnlyAtts) {
+        if (!att.url || !trelloAttUrls.has(att.url)) {
+            mergedAttachments.push(att);
+        }
+    }
 
-    // Merge comments from Trello
-    const comments = [];
+    // --- Comments: merge by trelloCommentId ---
+    const existingCmMap = new Map();
+    for (const cm of (existingTask.comments || [])) {
+        if (cm.trelloCommentId) existingCmMap.set(cm.trelloCommentId, cm);
+    }
+    const localOnlyComments = (existingTask.comments || []).filter(cm => !cm.trelloCommentId);
+    const mergedComments = [];
     if (card.comments) {
         for (const comment of card.comments) {
-            comments.push({
-                id: genId('cm'),
+            const existing = existingCmMap.get(comment.id);
+            mergedComments.push({
+                id: existing?.id || genId('cm'),
                 author: comment.memberCreator?.fullName || comment.memberCreator?.username || 'Unknown',
                 text: comment.data?.text || '',
                 date: comment.date,
@@ -331,6 +373,8 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
             });
         }
     }
+    // Append local-only comments
+    mergedComments.push(...localOnlyComments);
 
     // Merge assignees
     const assignees = card.idMembers || existingTask.assignees || [];
@@ -363,9 +407,9 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
         description: card.desc || existingTask.description,
         dueDate: card.due ? card.due.split('T')[0] : existingTask.dueDate,
         status: card.dueComplete ? 'completed' : existingTask.status,
-        checklists: checklists.length ? checklists : (existingTask.checklists || existingTask.checklist ? [{ id: genId('cl'), name: 'Checklist', items: existingTask.checklist || [] }] : []),
-        attachments: attachments.length ? attachments : existingTask.attachments,
-        comments: comments.length ? comments : existingTask.comments,
+        checklists: mergedChecklists,
+        attachments: mergedAttachments,
+        comments: mergedComments,
         assignees,
         countries: countries.length ? countries : existingTask.countries,
         otherLabels: otherLabels.length ? otherLabels : (existingTask.otherLabels || []),

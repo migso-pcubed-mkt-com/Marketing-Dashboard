@@ -11,7 +11,7 @@ import {
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
 import { syncWithTrello } from './lib/trelloSync.js';
-import { startTrelloLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
+import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
 import TrelloImportModal from './components/TrelloImportModal.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
@@ -25,6 +25,11 @@ import ActionDetailModal from './components/ActionDetailModal.jsx';
 import CategoriesManagementModal from './components/CategoriesManagementModal.jsx';
 import NewActionModal from './components/NewActionModal.jsx';
 import NewTaskModal from './components/NewTaskModal.jsx';
+import AuthGate from './components/AuthGate.jsx';
+
+const API_BASE_URL = typeof window !== 'undefined'
+    ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
+    : '';
 
 const App = () => {
     const darkMode = false;
@@ -60,6 +65,9 @@ const App = () => {
     const [showTrelloRemapModal, setShowTrelloRemapModal] = useState(false);
     const [trelloSyncStatus, setTrelloSyncStatus] = useState('idle'); // idle | syncing | synced | error
     const [trelloUser, setTrelloUser] = useState(null); // null = guest, or { id, fullName, username, avatarUrl, token }
+    const [authenticated, setAuthenticated] = useState(() => {
+        return !!(sessionStorage.getItem('guest_auth') || localStorage.getItem('trello_user_token'));
+    });
     const trelloSyncIntervalRef = useRef(null);
 
     const saveQueueRef = useRef([]);
@@ -334,16 +342,39 @@ const App = () => {
 
     // Restore Trello user from localStorage on mount
     useEffect(() => {
-        restoreTrelloUser().then(user => { if (user) setTrelloUser(user); }).catch(() => {});
+        restoreTrelloUser().then(user => { if (user) { setTrelloUser(user); setAuthenticated(true); } }).catch(() => {});
     }, []);
 
     const handleTrelloLogin = useCallback(async () => {
-        try {
-            const result = await startTrelloLogin();
-            if (result) setTrelloUser({ ...result.user, token: result.token });
-        } catch (err) {
-            showNotification('Trello login failed: ' + err.message);
+        const result = await startTrelloLogin();
+        if (result?.needsManualToken) {
+            return result; // Let AuthGate show paste fallback
         }
+        if (result?.token) {
+            setTrelloUser({ ...result.user, token: result.token });
+            setAuthenticated(true);
+        }
+        return result;
+    }, []);
+
+    const handleValidateToken = useCallback(async (token) => {
+        const result = await validateAndLogin(token);
+        setTrelloUser({ ...result.user, token: result.token });
+        setAuthenticated(true);
+    }, []);
+
+    const handleGuestLogin = useCallback(async (password) => {
+        const res = await fetch(`${API_BASE_URL}/api/auth`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'verifyGuest', password })
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || 'Invalid password');
+        }
+        sessionStorage.setItem('guest_auth', 'true');
+        setAuthenticated(true);
     }, []);
 
     const handleTrelloLogout = useCallback(() => {
@@ -848,6 +879,8 @@ const App = () => {
         onTrelloLogin: handleTrelloLogin,
         onTrelloLogout: handleTrelloLogout
     }), [boards, currentBoardId, currentBoard, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
+
+    if (!authenticated) return <AuthGate onTrelloLogin={handleTrelloLogin} onValidateToken={handleValidateToken} onGuestLogin={handleGuestLogin}/>;
 
     if (!dataLoaded) return (<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Loading data...</p></div></div>);
 

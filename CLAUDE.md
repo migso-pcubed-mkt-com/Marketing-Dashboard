@@ -289,8 +289,21 @@ Complex system with multiple solved issues:
 - Trello API rate limit: 100 requests per 10 seconds per token — polling intervals respect this
 - **Named checklists**: `task.checklists` = `[{id, name, items: [{id, text, done}]}]` — old `task.checklist` auto-migrated via `normalizeTaskChecklists()`
 - **Per-user token**: `X-Trello-Token` header; server uses it over env `TRELLO_TOKEN` when present
-- **OAuth**: popup flow with `trello-callback.html` → `postMessage` → validate via `/api/trello?action=me`
+- **OAuth**: popup flow using `callback_method=postMessage` (no return_url needed) → validate via `/api/trello?action=me`
 - **Label remap**: `TrelloImportModal` supports `mappingOnly` prop to skip board selection and show mapping step directly
+- **Sync merge strategy**: Merge-by-Trello-ID for comments, checklists, attachments (preserves local-only items, avoids duplicates)
+- **Sync ID tracking**: Push functions capture `trelloCommentId`, `trelloChecklistId`, `trelloAttachmentId` from API responses
+- **Member push**: `mapTaskToTrelloCardUpdate()` includes `idMembers` — bidirectional member sync
+- **Enhanced Markdown**: `SimpleMarkdown` supports headings, blockquotes, fenced code blocks, ordered/unordered lists, strikethrough, hr
+- **Members UI**: Trello-style — assigned members as avatars + "+" button dropdown to add more
+
+### Authentication
+- **Auth gate**: `AuthGate.jsx` — shown before app loads if not authenticated
+- Two access modes: Trello OAuth login or guest password
+- Guest password verified via `api/auth.js` against `GUEST_PASSWORD` env var
+- Trello login sets `localStorage('trello_user_token')`, guest sets `sessionStorage('guest_auth')`
+- `sessionStorage` means guest auth expires when browser tab closes
+- `robots.txt` + `<meta name="robots" content="noindex, nofollow">` block search engine crawling
 
 ### localStorage as Backup Only
 - `localStorage` is a **backup only**, not a primary storage layer
@@ -303,7 +316,7 @@ Complex system with multiple solved issues:
 1. ~~**Vite migration**~~ — ✅ DONE (Phase 0). Monolith `index.html` → Vite + modular React
 2. ~~**Multi-board**~~ — ✅ DONE (Phase 1). Board selector, create/switch/rename/duplicate/delete boards.
 3. ~~**Trello integration**~~ — ✅ DONE (Phase 2). Import Trello boards, configurable label mapping (Action/Channel/Ignore), bidirectional sync with auto-polling
-4. **Multi-user auth** — Phase 3. Auth via Trello OAuth + RLS per user
+4. ~~**Auth + UI improvements**~~ — ✅ DONE (Phase 3). Trello OAuth, auth gate (guest password), sync robustness, enhanced Markdown, Trello-style members UI
 5. **File attachments** — `attachments: []` field exists on tasks, but no upload UI yet
 
 ## Deployment
@@ -368,3 +381,9 @@ Complex system with multiple solved issues:
 | 2026-03 | Label remap after import | TrelloImportModal mappingOnly mode, "Re-configure Labels" button in BoardSettingsModal |
 | 2026-03 | Trello OAuth login | Per-user token via X-Trello-Token header, popup OAuth flow, avatar in Header |
 | 2026-03 | Assignees → Members | UI label renamed, data field stays `assignees` for backward compat |
+| 2026-03 | OAuth postMessage | Switched from callback_method=fragment to postMessage — no return_url whitelist needed |
+| 2026-03 | Sync merge-by-ID | Comments/checklists/attachments merge by Trello ID, preserving local-only items |
+| 2026-03 | Auth gate | AuthGate.jsx: Trello login or guest password (GUEST_PASSWORD env var) |
+| 2026-03 | robots.txt + noindex | Block search engine crawling of the app |
+| 2026-03 | Enhanced Markdown | Headings, blockquotes, code blocks, ordered lists, strikethrough |
+| 2026-03 | Members UI Trello-style | Assigned avatars + "+" dropdown instead of toggle buttons |

@@ -8,48 +8,118 @@ import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
 
-// Simple Markdown renderer — builds React elements (no dangerouslySetInnerHTML)
+// Enhanced Markdown renderer — Trello-level quality, React elements only (no dangerouslySetInnerHTML)
 const SimpleMarkdown = ({ text }) => {
     if (!text) return null;
     const lines = text.split('\n');
-    const elements = [];
     let key = 0;
 
     const renderInline = (line) => {
         const parts = [];
         let remaining = line;
         let k = 0;
-        // Process inline patterns: **bold**, *italic*, `code`, [link](url)
-        const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((.+?)\))/;
+        const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|~~(.+?)~~|`(.+?)`|\[(.+?)\]\((.+?)\))/;
         while (remaining) {
             const match = remaining.match(inlineRegex);
             if (!match) { parts.push(remaining); break; }
             if (match.index > 0) parts.push(remaining.slice(0, match.index));
             if (match[2]) parts.push(React.createElement('strong', { key: k++ }, match[2]));
             else if (match[3]) parts.push(React.createElement('em', { key: k++ }, match[3]));
-            else if (match[4]) parts.push(React.createElement('code', { key: k++, style: { background: 'var(--bg-secondary)', padding: '1px 4px', borderRadius: 3, fontSize: '0.9em' } }, match[4]));
-            else if (match[5] && match[6]) parts.push(React.createElement('a', { key: k++, href: match[6], target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--accent)', textDecoration: 'underline' } }, match[5]));
+            else if (match[4]) parts.push(React.createElement('del', { key: k++, style: { color: 'var(--text-muted)' } }, match[4]));
+            else if (match[5]) parts.push(React.createElement('code', { key: k++, style: { background: 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 3, fontSize: '0.88em', fontFamily: 'var(--font-mono, monospace)' } }, match[5]));
+            else if (match[6] && match[7]) parts.push(React.createElement('a', { key: k++, href: match[7], target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--accent)', textDecoration: 'underline' } }, match[6]));
             remaining = remaining.slice(match.index + match[0].length);
         }
         return parts;
     };
 
-    for (let i = 0; i < lines.length; i++) {
+    // Parse into block structures
+    const blocks = [];
+    let i = 0;
+    while (i < lines.length) {
         const line = lines[i];
-        if (line.match(/^---+$/)) {
-            elements.push(React.createElement('hr', { key: key++, style: { border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0' } }));
-        } else if (line.match(/^- /)) {
-            elements.push(React.createElement('div', { key: key++, style: { display: 'flex', gap: 6, marginLeft: 4 } },
-                React.createElement('span', null, '\u2022'),
-                React.createElement('span', null, ...renderInline(line.slice(2)))
-            ));
-        } else if (line.trim() === '') {
-            elements.push(React.createElement('div', { key: key++, style: { height: 8 } }));
-        } else {
-            elements.push(React.createElement('div', { key: key++ }, ...renderInline(line)));
+
+        // Fenced code block
+        if (line.match(/^```/)) {
+            const lang = line.slice(3).trim();
+            const codeLines = [];
+            i++;
+            while (i < lines.length && !lines[i].match(/^```$/)) { codeLines.push(lines[i]); i++; }
+            i++; // skip closing ```
+            blocks.push({ type: 'codeblock', content: codeLines.join('\n'), lang });
+            continue;
         }
+        // Heading
+        const headingMatch = line.match(/^(#{1,3})\s+(.+)$/);
+        if (headingMatch) { blocks.push({ type: 'heading', level: headingMatch[1].length, content: headingMatch[2] }); i++; continue; }
+        // Horizontal rule
+        if (line.match(/^(-{3,}|\*{3,}|_{3,})$/)) { blocks.push({ type: 'hr' }); i++; continue; }
+        // Blockquote (group consecutive > lines)
+        if (line.match(/^>\s?/)) {
+            const quoteLines = [];
+            while (i < lines.length && lines[i].match(/^>\s?/)) { quoteLines.push(lines[i].replace(/^>\s?/, '')); i++; }
+            blocks.push({ type: 'blockquote', lines: quoteLines });
+            continue;
+        }
+        // Unordered list (group consecutive - or * lines)
+        if (line.match(/^[-*]\s+/)) {
+            const items = [];
+            while (i < lines.length && lines[i].match(/^[-*]\s+/)) { items.push(lines[i].replace(/^[-*]\s+/, '')); i++; }
+            blocks.push({ type: 'ul', items });
+            continue;
+        }
+        // Ordered list (group consecutive numbered lines)
+        if (line.match(/^\d+\.\s+/)) {
+            const items = [];
+            while (i < lines.length && lines[i].match(/^\d+\.\s+/)) { items.push(lines[i].replace(/^\d+\.\s+/, '')); i++; }
+            blocks.push({ type: 'ol', items });
+            continue;
+        }
+        // Blank line
+        if (line.trim() === '') { blocks.push({ type: 'blank' }); i++; continue; }
+        // Paragraph
+        blocks.push({ type: 'paragraph', content: line });
+        i++;
     }
-    return React.createElement('div', { style: { fontSize: 13, lineHeight: 1.6, color: 'var(--text-secondary)' } }, ...elements);
+
+    // Render blocks
+    const headingStyles = {
+        1: { fontSize: 20, fontWeight: 700, margin: '16px 0 8px', color: 'var(--text-primary)' },
+        2: { fontSize: 16, fontWeight: 600, margin: '14px 0 6px', color: 'var(--text-primary)' },
+        3: { fontSize: 14, fontWeight: 600, margin: '12px 0 4px', color: 'var(--text-primary)' }
+    };
+
+    const elements = blocks.map(block => {
+        switch (block.type) {
+            case 'heading':
+                return React.createElement(`h${block.level}`, { key: key++, style: headingStyles[block.level] }, ...renderInline(block.content));
+            case 'hr':
+                return React.createElement('hr', { key: key++, style: { border: 'none', borderTop: '1px solid var(--border)', margin: '12px 0' } });
+            case 'codeblock':
+                return React.createElement('pre', { key: key++, style: { background: 'var(--bg-secondary)', padding: '12px 16px', borderRadius: 6, overflow: 'auto', margin: '8px 0', fontSize: 12, lineHeight: 1.5, fontFamily: 'var(--font-mono, monospace)', border: '1px solid var(--border)' } },
+                    React.createElement('code', null, block.content)
+                );
+            case 'blockquote':
+                return React.createElement('div', { key: key++, style: { borderLeft: '3px solid var(--accent)', paddingLeft: 12, margin: '8px 0', color: 'var(--text-muted)', fontStyle: 'italic' } },
+                    ...block.lines.map((l, j) => React.createElement('div', { key: j }, ...renderInline(l)))
+                );
+            case 'ul':
+                return React.createElement('ul', { key: key++, style: { margin: '4px 0', paddingLeft: 20, listStyleType: 'disc' } },
+                    ...block.items.map((item, j) => React.createElement('li', { key: j, style: { marginBottom: 2 } }, ...renderInline(item)))
+                );
+            case 'ol':
+                return React.createElement('ol', { key: key++, style: { margin: '4px 0', paddingLeft: 20, listStyleType: 'decimal' } },
+                    ...block.items.map((item, j) => React.createElement('li', { key: j, style: { marginBottom: 2 } }, ...renderInline(item)))
+                );
+            case 'blank':
+                return React.createElement('div', { key: key++, style: { height: 8 } });
+            case 'paragraph':
+            default:
+                return React.createElement('p', { key: key++, style: { margin: '4px 0' } }, ...renderInline(block.content));
+        }
+    });
+
+    return React.createElement('div', { style: { fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' } }, ...elements);
 };
 
 const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory,members=[]})=>{
@@ -68,6 +138,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[newChecklistItems,setNewChecklistItems]=useState({}); // Per-checklist new item text
     const[newChecklistName,setNewChecklistName]=useState('');
     const[showAddChecklist,setShowAddChecklist]=useState(false);
+    const[showMemberPicker,setShowMemberPicker]=useState(false);
     const[showInlineCreateAction,setShowInlineCreateAction]=useState(false);
     const[newActionName,setNewActionName]=useState('');
     const[newActionCategoryId,setNewActionCategoryId]=useState(categories?.[0]?.id||'');
@@ -171,24 +242,38 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     {members.length > 0 && (
                         <div className="mb-4">
                             <label className="v11-label">👥 Members</label>
-                            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-                                {members.map(m => {
-                                    const isAssigned = (form.assignees || []).includes(m.id);
+                            <div style={{display:'flex',alignItems:'center',gap:4,flexWrap:'wrap',position:'relative'}}>
+                                {(form.assignees||[]).map(id => {
+                                    const m = members.find(m => m.id === id);
+                                    if (!m) return null;
                                     return (
-                                        <button key={m.id} onClick={() => {
-                                            const assignees = form.assignees || [];
-                                            setForm({...form, assignees: isAssigned ? assignees.filter(id=>id!==m.id) : [...assignees, m.id]});
-                                        }} style={{
-                                            display:'flex',alignItems:'center',gap:6,padding:'4px 10px',
-                                            borderRadius:'var(--radius-sm)',border:isAssigned?'2px solid var(--accent)':'1px solid var(--border)',
-                                            background:isAssigned?'var(--accent-light)':'var(--bg-secondary)',
-                                            cursor:'pointer',fontSize:12,color:'var(--text-primary)'
-                                        }}>
-                                            {m.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:20,height:20,borderRadius:'50%'}}/> : <span style={{width:20,height:20,borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:600}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
-                                            <span>{m.fullName || m.username}</span>
+                                        <button key={m.id} onClick={() => setForm({...form, assignees: (form.assignees||[]).filter(aid=>aid!==m.id)})} title={`${m.fullName||m.username} — click to remove`} style={{width:30,height:30,borderRadius:'50%',border:'2px solid var(--accent)',cursor:'pointer',padding:0,background:'none',flexShrink:0,overflow:'hidden'}}>
+                                            {m.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}}/> : <span style={{width:'100%',height:'100%',borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
                                         </button>
                                     );
                                 })}
+                                <div style={{position:'relative'}}>
+                                    <button onClick={() => setShowMemberPicker(!showMemberPicker)} style={{width:30,height:30,borderRadius:'50%',border:'1px dashed var(--border-strong)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg-secondary)',flexShrink:0}} title="Add member">
+                                        <Icon.Plus size={12}/>
+                                    </button>
+                                    {showMemberPicker && (
+                                        <>
+                                            <div style={{position:'fixed',inset:0,zIndex:98}} onClick={() => setShowMemberPicker(false)}/>
+                                            <div style={{position:'absolute',top:'100%',left:0,marginTop:4,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:99,minWidth:180,padding:4,maxHeight:200,overflowY:'auto'}}>
+                                                {members.filter(m => !(form.assignees||[]).includes(m.id)).map(m => (
+                                                    <button key={m.id} onClick={() => {setForm({...form, assignees: [...(form.assignees||[]), m.id]});setShowMemberPicker(false);}} style={{width:'100%',padding:'6px 10px',fontSize:12,color:'var(--text-primary)',background:'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',gap:8}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg-secondary)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                                                        {m.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:22,height:22,borderRadius:'50%'}}/> : <span style={{width:22,height:22,borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:600,flexShrink:0}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
+                                                        <span>{m.fullName || m.username}</span>
+                                                    </button>
+                                                ))}
+                                                {members.filter(m => !(form.assignees||[]).includes(m.id)).length === 0 && (
+                                                    <div style={{padding:'8px 10px',fontSize:12,color:'var(--text-muted)',textAlign:'center'}}>All members assigned</div>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                                {(form.assignees||[]).length === 0 && <span style={{fontSize:12,color:'var(--text-muted)',marginLeft:4}}>No members assigned</span>}
                             </div>
                         </div>
                     )}
