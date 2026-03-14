@@ -158,7 +158,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         return[];
     };
 
-    const canDragColumns = viewMode === 'category' || viewMode === 'country';
+    const canDragColumns = (viewMode === 'category' || viewMode === 'country') && !isReadOnly;
 
     const handleColumnDragStart = (e, idx) => {
         if (!canDragColumns) return;

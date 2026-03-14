@@ -95,7 +95,7 @@ export default async function handler(req, res) {
                 fetch(`${TRELLO_BASE}/boards/${boardId}?${authParams}&fields=name,desc,dateLastActivity,url`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/lists?${authParams}&fields=name,pos,closed&filter=open`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/labels?${authParams}&fields=name,color`),
-                fetch(`${TRELLO_BASE}/boards/${boardId}/cards?${authParams}&fields=name,desc,due,dueComplete,dateLastActivity,idList,idLabels,idMembers,pos,closed&filter=open&checklists=all&attachments=true&attachment_fields=name,url,mimeType,date`),
+                fetch(`${TRELLO_BASE}/boards/${boardId}/cards?${authParams}&fields=name,desc,due,start,dueComplete,dateLastActivity,idList,idLabels,idMembers,pos,closed&filter=open&checklists=all&attachments=true&attachment_fields=name,url,mimeType,date`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/members?${authParams}&fields=fullName,username,avatarUrl`)
             ]);
 
@@ -209,7 +209,7 @@ export default async function handler(req, res) {
         if (req.method === 'POST' && action === 'addChecklist') {
             const { cardId: cid, name: checklistName, items } = req.body;
             if (!cid) return res.status(400).json({ error: 'cardId required' });
-            console.log(`Adding checklist to card ${cid}...`);
+            console.log(`Adding checklist "${checklistName}" to card ${cid} with ${items?.length || 0} items...`);
 
             // Create checklist
             const clRes = await fetch(`${TRELLO_BASE}/cards/${cid}/checklists?${authParams}&name=${encodeURIComponent(checklistName || 'Checklist')}`, {
@@ -217,20 +217,36 @@ export default async function handler(req, res) {
             });
             if (!clRes.ok) {
                 const err = await clRes.text();
+                console.error('Trello checklist creation error:', clRes.status, err);
                 return res.status(clRes.status).json({ error: 'Trello checklist error', details: err });
             }
             const checklist = await clRes.json();
+            console.log(`Created checklist "${checklist.name}" (${checklist.id})`);
 
             // Add items to checklist
+            const createdItems = [];
             if (items && Array.isArray(items)) {
                 for (const item of items) {
-                    const checked = item.done ? 'complete' : 'incomplete';
-                    await fetch(`${TRELLO_BASE}/checklists/${checklist.id}/checkItems?${authParams}&name=${encodeURIComponent(item.text)}&checked=${checked}`, {
-                        method: 'POST'
-                    }).catch(e => console.error('Failed to add checklist item:', e));
+                    const checked = item.done ? 'true' : 'false';
+                    try {
+                        const itemRes = await fetch(`${TRELLO_BASE}/checklists/${checklist.id}/checkItems?${authParams}&name=${encodeURIComponent(item.text)}&checked=${checked}`, {
+                            method: 'POST'
+                        });
+                        if (itemRes.ok) {
+                            const itemData = await itemRes.json();
+                            createdItems.push(itemData);
+                            console.log(`  ✓ Added checkItem "${item.text}" (${itemData.id})`);
+                        } else {
+                            const errText = await itemRes.text();
+                            console.error(`  ✗ Failed to add checkItem "${item.text}": ${itemRes.status} ${errText}`);
+                        }
+                    } catch (e) {
+                        console.error(`  ✗ Network error adding checkItem "${item.text}":`, e.message);
+                    }
                 }
             }
-            return res.status(201).json(checklist);
+            console.log(`Checklist "${checklist.name}": ${createdItems.length}/${items?.length || 0} items created`);
+            return res.status(201).json({ ...checklist, checkItems: createdItems, itemsCreated: createdItems.length });
         }
 
         // POST /api/trello?action=addChecklistItems — Add items to an EXISTING checklist
@@ -242,12 +258,17 @@ export default async function handler(req, res) {
 
             const results = [];
             for (const item of items) {
-                const checked = item.done ? 'complete' : 'incomplete';
+                const checked = item.done ? 'true' : 'false';
                 try {
                     const itemRes = await fetch(`${TRELLO_BASE}/checklists/${checklistId}/checkItems?${authParams}&name=${encodeURIComponent(item.text)}&checked=${checked}`, {
                         method: 'POST'
                     });
-                    if (itemRes.ok) results.push(await itemRes.json());
+                    if (itemRes.ok) {
+                        results.push(await itemRes.json());
+                    } else {
+                        const errText = await itemRes.text();
+                        console.error(`Failed to add checkItem "${item.text}": ${itemRes.status} ${errText}`);
+                    }
                 } catch (e) {
                     console.error('Failed to add checklist item:', e);
                 }
