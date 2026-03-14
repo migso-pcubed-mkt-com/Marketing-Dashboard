@@ -255,6 +255,22 @@ export default async function handler(req, res) {
             return res.status(201).json({ checklistId, itemsAdded: results.length, items: results });
         }
 
+        // PUT /api/trello?action=updateCheckItem — Update a checklist item's state (complete/incomplete)
+        if (req.method === 'POST' && action === 'updateCheckItem') {
+            const { cardId: cid, checkItemId, state: itemState } = req.body;
+            if (!cid || !checkItemId) return res.status(400).json({ error: 'cardId and checkItemId required' });
+            const validState = itemState === 'complete' ? 'complete' : 'incomplete';
+            console.log(`Updating checkItem ${checkItemId} on card ${cid} to ${validState}...`);
+            const resp = await fetch(`${TRELLO_BASE}/cards/${cid}/checkItem/${checkItemId}?${authParams}&state=${validState}`, { method: 'PUT' });
+            if (!resp.ok) {
+                const errText = await resp.text();
+                console.error('Trello API error:', resp.status, errText);
+                return res.status(resp.status).json({ error: errText });
+            }
+            const data = await resp.json();
+            return res.status(200).json(data);
+        }
+
         // POST /api/trello?action=uploadAttachment — Upload a file (base64) to a Trello card
         if (req.method === 'POST' && action === 'uploadAttachment') {
             const { cardId: cid, data: base64Data, name: fileName, mimeType } = req.body;

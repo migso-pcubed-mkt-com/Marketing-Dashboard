@@ -329,7 +329,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 // Prevent column drag when dragging cards
                                 e.stopPropagation();
                             }}>
-                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?(viewMode==='country'?((draggedId,targetId,position)=>{
+                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?(viewMode==='country'?((draggedId,targetId,position)=>{
                                     const targetCountry=col.key==='_unassigned'?[]:[col.key];
                                     onUpdateTask(draggedId,{countries:targetCountry});
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
@@ -342,7 +342,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     const draggedTask=tasks.find(t=>t.id===draggedId);
                                     if(draggedTask)reordered.splice(insertAt,0,draggedTask);
                                     reordered.forEach((t,i)=>onUpdateTask(t.id,{order:i}));
-                                }):onReorderTask):null)} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries}/>)}
+                                }):onReorderTask):null)} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries} isReadOnly={isReadOnly}/>)}
                                 {col.items.length===0&&<div className="column-empty">No tasks</div>}
                                 <button onClick={()=>{
                                     const today=new Date().toISOString().split('T')[0];

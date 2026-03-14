@@ -122,6 +122,8 @@ const WysiwygToolbar = ({ editableRef }) => {
             </button>
             <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('formatBlock', '<blockquote>')} style={btnStyle} title="Quote">"</button>
             <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('insertHorizontalRule')} style={btnStyle} title="Horizontal rule">—</button>
+            <div style={sep} />
+            <button onMouseDown={e=>e.preventDefault()} onClick={() => { exec('removeFormat'); exec('formatBlock', '<div>'); }} style={btnStyle} title="Clear formatting"><span style={{textDecoration:'line-through',opacity:0.6}}>T</span></button>
         </div>
     );
 };

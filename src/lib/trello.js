@@ -59,6 +59,13 @@ export const addTrelloChecklist = (cardId, name, items) =>
         body: JSON.stringify({ cardId, name, items })
     });
 
+// Update a checklist item's state (complete/incomplete)
+export const updateTrelloChecklistItem = (cardId, checkItemId, state) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=updateCheckItem`, {
+        method: 'POST',
+        body: JSON.stringify({ cardId, checkItemId, state })
+    });
+
 // Add items to an EXISTING Trello checklist (by checklist ID)
 export const addTrelloChecklistItems = (checklistId, items) =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=addChecklistItems`, {
