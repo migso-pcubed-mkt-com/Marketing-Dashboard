@@ -285,13 +285,17 @@ const App = () => {
                 }
                 return;
             }
+            // Escape closes filter sidebar even from inputs (search field)
+            if (e.key === 'Escape' && showFilterSidebar) {
+                setShowFilterSidebar(false);
+                return;
+            }
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
             if (e.key === 'Escape') {
                 if (selectedTask) setSelectedTask(null);
                 else if (selectedAction) setSelectedAction(null);
                 else if (showCategoriesModal) setShowCategoriesModal(false);
                 else if (showCreateDropdown) setShowCreateDropdown(false);
-                else if (showFilterSidebar) setShowFilterSidebar(false);
                 else if (showNewActionModal) setShowNewActionModal(false);
                 else if (showNewTaskModal) setShowNewTaskModal(false);
             }
@@ -303,7 +307,7 @@ const App = () => {
         };
         document.addEventListener('keydown', handleKeyPress);
         return () => document.removeEventListener('keydown', handleKeyPress);
-    }, [selectedTask, selectedAction, showCategoriesModal, showNewActionModal, showNewTaskModal]);
+    }, [selectedTask, selectedAction, showCategoriesModal, showNewActionModal, showNewTaskModal, showFilterSidebar, showCreateDropdown]);
 
     // Data loading on mount
     useEffect(() => {
@@ -877,6 +881,25 @@ const App = () => {
     const completedCount = tasks.filter(t => t.status === 'completed').length;
     const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0);
 
+    // Filtered tasks for stats — same logic as views
+    const filteredTasks = useMemo(() => {
+        if (!activeFilterCount) return tasks;
+        return tasks.filter(t => {
+            const act = actions.find(a => a.id === t.actionId);
+            if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
+            if (filters.status.length > 0 && !filters.status.includes(t.status)) return false;
+            if (filters.category.length > 0 && !filters.category.includes(act?.categoryId)) return false;
+            if (filters.priority.length > 0 && !filters.priority.includes(t.priority)) return false;
+            if (filters.channel?.length > 0 && !(t.channels||[]).some(c => filters.channel.includes(c))) return false;
+            if (filters.country?.length > 0 && !(t.countries||[]).some(c => filters.country.includes(c))) return false;
+            if (filters.otherLabel?.length > 0 && !(t.otherLabels||[]).some(l => filters.otherLabel.includes(l.id))) return false;
+            if (filters.member?.length > 0 && !(t.assignees||[]).some(m => filters.member.includes(m))) return false;
+            return true;
+        });
+    }, [tasks, actions, filters, activeFilterCount]);
+    const filteredBudget = filteredTasks.reduce((s, t) => s + (t.budget || 0), 0);
+    const isFiltered = activeFilterCount > 0;
+
     // --- AppContext value ---
     const contextValue = useMemo(() => ({
         boards,
@@ -912,8 +935,8 @@ const App = () => {
                             {activeFilterCount > 0 && <span className="filter-count">{activeFilterCount}</span>}
                         </button>
                         <div className="stats-pills">
-                            <span className="stat-pill"><strong>{tasks.length}</strong> tasks</span>
-                            <span className="stat-pill"><strong>{(totalBudget/1000).toFixed(0)}k€</strong> budget</span>
+                            <span className="stat-pill"><strong>{isFiltered ? `${filteredTasks.length} / ${tasks.length}` : tasks.length}</strong> tasks</span>
+                            <span className="stat-pill"><strong>{isFiltered ? `${(filteredBudget/1000).toFixed(0)}k / ${(totalBudget/1000).toFixed(0)}k€` : `${(totalBudget/1000).toFixed(0)}k€`}</strong> budget</span>
                         </div>
                         <div className="toolbar-spacer"/>
                         <div className="new-btn-container" ref={exportDropdownRef}>

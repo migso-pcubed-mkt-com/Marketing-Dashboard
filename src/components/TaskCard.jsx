@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { CONFIG } from '../config.js';
 import { useApp } from '../context.js';
 
-const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=false, onTouchDrag, categories, allCountries}) => {
+const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=false, onTouchDrag, categories, allCountries, isReadOnly}) => {
     const { currentBoard } = useApp();
     const boardMembers = currentBoard?.members || [];
     const [touching, setTouching] = useState(false);
@@ -75,15 +75,15 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
     return (
         <div
             ref={cardRef}
-            draggable
-            onDragStart={(e) => { e.dataTransfer.setData('taskId', task.id); e.dataTransfer.setData('type', 'task'); e.currentTarget.classList.add('dragging'); }}
+            draggable={!isReadOnly}
+            onDragStart={(e) => { if(isReadOnly){e.preventDefault();return;} e.dataTransfer.setData('taskId', task.id); e.dataTransfer.setData('type', 'task'); e.currentTarget.classList.add('dragging'); }}
             onDragEnd={(e) => { e.currentTarget.classList.remove('dragging'); setDragOverPosition(null); }}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            onTouchStart={isReadOnly ? undefined : handleTouchStart}
+            onTouchMove={isReadOnly ? undefined : handleTouchMove}
+            onTouchEnd={isReadOnly ? undefined : handleTouchEnd}
             onClick={() => onOpen(task)}
             className={`kanban-card ${task.status === 'completed' ? 'completed' : ''} ${touching ? 'touch-dragging' : ''} ${dragOverPosition === 'before' ? 'drop-indicator-before' : dragOverPosition === 'after' ? 'drop-indicator-after' : ''}`}>
             <div className="card-header">

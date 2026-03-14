@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { CONFIG } from '../config.js';
 
-const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderAction}) => {
+const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderAction, isReadOnly}) => {
     const [dragOverPosition, setDragOverPosition] = useState(null);
     const cardRef = useRef(null);
 
@@ -39,8 +39,8 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
     return (
         <div
             ref={cardRef}
-            draggable
-            onDragStart={(e) => { e.dataTransfer.setData('actionId', action.id); e.currentTarget.classList.add('dragging'); }}
+            draggable={!isReadOnly}
+            onDragStart={(e) => { if(isReadOnly){e.preventDefault();return;} e.dataTransfer.setData('actionId', action.id); e.currentTarget.classList.add('dragging'); }}
             onDragEnd={(e) => { e.currentTarget.classList.remove('dragging'); setDragOverPosition(null); }}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}

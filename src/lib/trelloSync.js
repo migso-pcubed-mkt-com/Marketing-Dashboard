@@ -1,6 +1,6 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
-import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel } from './trello.js';
+import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, trelloColorToHex } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
 
@@ -58,6 +58,26 @@ const pushTaskExtrasToTrello = async (task, card) => {
                     pushed.checklists += newItems.length;
                 } catch (e) {
                     console.error('Failed to push checklist items:', e.message);
+                }
+            }
+            // Sync checked state of existing items
+            const trelloChecklistFull = card.checklists?.find(c => c.id === existing.id);
+            if (trelloChecklistFull?.checkItems) {
+                for (const localItem of (cl.items || [])) {
+                    if (!localItem.text) continue;
+                    const trelloItem = trelloChecklistFull.checkItems.find(ci => ci.name === localItem.text);
+                    if (trelloItem) {
+                        const localState = localItem.done ? 'complete' : 'incomplete';
+                        if (trelloItem.state !== localState) {
+                            try {
+                                await updateTrelloChecklistItem(task.trelloCardId, trelloItem.id, localState);
+                                pushed.checklists++;
+                                taskModified = true;
+                            } catch (e) {
+                                console.error(`Failed to update checkItem "${localItem.text}" state:`, e.message);
+                            }
+                        }
+                    }
                 }
             }
         } else {
