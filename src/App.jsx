@@ -277,8 +277,12 @@ const App = () => {
             // Ctrl+F / Cmd+F opens app search filter (works even from inputs)
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
                 e.preventDefault();
-                setShowFilterSidebar(true);
-                setTimeout(() => searchInputRef.current?.focus(), 100);
+                if (showFilterSidebar) {
+                    setShowFilterSidebar(false);
+                } else {
+                    setShowFilterSidebar(true);
+                    setTimeout(() => searchInputRef.current?.focus(), 100);
+                }
                 return;
             }
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 
-const IconSelect = ({value, options, onChange, renderOption, className, style}) => {
+const IconSelect = ({value, options, onChange, renderOption, className, style, disabled}) => {
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
     useEffect(() => {
@@ -11,7 +11,7 @@ const IconSelect = ({value, options, onChange, renderOption, className, style}) 
     const selected = options.find(o => o.id === value) || options[0];
     return (
         <div ref={ref} style={{position:'relative',...style}} className={className}>
-            <div onClick={() => setOpen(!open)} className="v11-select" style={{cursor:'pointer',display:'flex',alignItems:'center',gap:6,paddingRight:24}}>
+            <div onClick={() => !disabled && setOpen(!open)} className="v11-select" style={{cursor:disabled?'default':'pointer',display:'flex',alignItems:'center',gap:6,paddingRight:24,opacity:disabled?0.7:1}}>
                 {renderOption(selected)}
                 <span style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',fontSize:10,color:'var(--text-muted)'}}>▾</span>
             </div>

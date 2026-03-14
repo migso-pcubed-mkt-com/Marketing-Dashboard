@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon, PriorityIcon } from './Icons.jsx';
 
-const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef,isReadOnly})=>{
     const timelineRef=useRef(null);
     const dragGhostRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -333,6 +333,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
     // Resize handlers with useCallback to avoid recreating on every render
     const startResize=useCallback((taskId,handle,clientX,task)=>{
+        if(isReadOnly)return;
         document.body.classList.add('resizing');
         if(isUserInteractingRef)isUserInteractingRef.current=true;
         setResizing({
@@ -566,8 +567,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
     // Drag & Drop handlers for horizontal drag (date change)
     const handleTaskDragStart=(e,task)=>{
-        // Don't start drag if we're resizing
-        if(resizing){
+        // Don't start drag if we're resizing or in read-only mode
+        if(isReadOnly||resizing){
             e.preventDefault();
             return;
         }
@@ -1068,8 +1069,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
     // Task creation handlers
     const handleCreateTaskStart=(e,action)=>{
-        // Don't start if clicking on an existing task or if space is pressed
-        if(e.target.closest('.timeline-bar')||spacePressed||resizing||dragging)return;
+        // Don't start if clicking on an existing task or if space is pressed or read-only
+        if(isReadOnly||e.target.closest('.timeline-bar')||spacePressed||resizing||dragging)return;
 
         const rect=e.currentTarget.getBoundingClientRect();
         const startX=e.clientX-rect.left;
@@ -1294,11 +1295,11 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 const textColor=darkChannels.includes(mainChannel)?'#78350f':'white';
                                                 const isCompleted=task.status==='completed';
                                                 return(
-                                                    <div key={task.id} draggable={!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute flex items-center overflow-visible ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:Math.max(pos.width-2,4),top:`${topOffset}px`,height:26,borderRadius:5,padding:'0 8px',fontSize:10,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',backgroundColor:barColor,color:textColor,zIndex:1,transition:'transform 0.15s, box-shadow 0.15s',opacity:isCompleted?0.45:1,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
-                                                        <div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Resize start"/>
+                                                    <div key={task.id} draggable={!isReadOnly&&!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute flex items-center overflow-visible ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:Math.max(pos.width-2,4),top:`${topOffset}px`,height:26,borderRadius:5,padding:'0 8px',fontSize:10,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',backgroundColor:barColor,color:textColor,zIndex:1,transition:'transform 0.15s, box-shadow 0.15s',opacity:isCompleted?0.45:1,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
+                                                        {!isReadOnly&&<div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Resize start"/>}
                                                         <span className="truncate flex-1 pointer-events-none" style={isCompleted?{textDecoration:'line-through'}:{}}>{task.title}</span>
                                                         {task.budget>0&&(zoom==='month'||zoom==='quarter')&&<span style={{marginLeft:4,opacity:0.8,fontSize:9}} className="pointer-events-none">({(task.budget/1000).toFixed(0)}k)</span>}
-                                                        <div className="resize-handle resize-handle-right" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Resize end"/>
+                                                        {!isReadOnly&&<div className="resize-handle resize-handle-right" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false} title="Resize end"/>}
                                                     </div>
                                                 );
                                             })}
