@@ -276,13 +276,19 @@ export default async function handler(req, res) {
             return res.status(201).json({ checklistId, itemsAdded: results.length, items: results });
         }
 
-        // PUT /api/trello?action=updateCheckItem — Update a checklist item's state (complete/incomplete)
+        // PUT /api/trello?action=updateCheckItem — Update a checklist item (state, name, due, idMember)
         if (req.method === 'POST' && action === 'updateCheckItem') {
-            const { cardId: cid, checkItemId, state: itemState } = req.body;
+            const { cardId: cid, checkItemId, state: itemState, name: itemName, due: itemDue, idMember: itemMember } = req.body;
             if (!cid || !checkItemId) return res.status(400).json({ error: 'cardId and checkItemId required' });
-            const validState = itemState === 'complete' ? 'complete' : 'incomplete';
-            console.log(`Updating checkItem ${checkItemId} on card ${cid} to ${validState}...`);
-            const resp = await fetch(`${TRELLO_BASE}/cards/${cid}/checkItem/${checkItemId}?${authParams}&state=${validState}`, { method: 'PUT' });
+            const params = new URLSearchParams();
+            params.append('key', TRELLO_API_KEY);
+            params.append('token', TRELLO_TOKEN);
+            if (itemState) params.append('state', itemState === 'complete' ? 'complete' : 'incomplete');
+            if (itemName !== undefined && itemName !== null) params.append('name', itemName);
+            if (itemDue !== undefined) params.append('due', itemDue === null ? '' : itemDue);
+            if (itemMember !== undefined) params.append('idMember', itemMember === null ? '' : itemMember);
+            console.log(`Updating checkItem ${checkItemId} on card ${cid}...`);
+            const resp = await fetch(`${TRELLO_BASE}/cards/${cid}/checkItem/${checkItemId}?${params.toString()}`, { method: 'PUT' });
             if (!resp.ok) {
                 const errText = await resp.text();
                 console.error('Trello API error:', resp.status, errText);

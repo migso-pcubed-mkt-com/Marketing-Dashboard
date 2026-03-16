@@ -4,7 +4,7 @@ import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
 import TaskCard from './TaskCard.jsx';
 
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask})=>{
     const[viewMode,setViewMode]=useState('month');
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
@@ -353,9 +353,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
                                         const lastDay=new Date(year,monthIdx+1,0).getDate();
                                         const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
-                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:actions[0]?.id||'',month:monthIdx,startDate,dueDate,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[]};
-                                        onAddTask(newTask);
-                                        setTimeout(()=>onOpenTask(newTask),100);
+                                        if(onRequestNewTask) onRequestNewTask({startDate,dueDate});
                                     }else if(viewMode==='quarter'){
                                         const quarterIdx=col.key;
                                         const year=selectedYear;
@@ -364,21 +362,15 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         const lastMonth=quarterIdx*3+2;
                                         const lastDay=new Date(year,lastMonth+1,0).getDate();
                                         const dueDate=year+'-'+String(lastMonth+1).padStart(2,'0')+'-'+lastDay;
-                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:actions[0]?.id||'',month:firstMonth,startDate,dueDate,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[]};
-                                        onAddTask(newTask);
-                                        setTimeout(()=>onOpenTask(newTask),100);
+                                        if(onRequestNewTask) onRequestNewTask({startDate,dueDate});
                                     }else if(viewMode==='category'){
                                         const newAction={id:`a${Date.now()}`,name:'New action',categoryId:col.key,budget:0,priority:'medium',tags:[]};
                                         onAddAction(newAction);
                                         setTimeout(()=>onOpenAction(newAction),100);
                                     }else if(viewMode==='action'){
-                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:selectedAction||actions[0]?.id||'',month:new Date().getMonth(),startDate:today,dueDate:oneWeekLater,status:col.key,priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions.find(a=>a.id===(selectedAction||actions[0]?.id))?.tags||[]};
-                                        onAddTask(newTask);
-                                        setTimeout(()=>onOpenTask(newTask),100);
+                                        if(onRequestNewTask) onRequestNewTask({actionId:selectedAction||actions[0]?.id||'',status:col.key});
                                     }else if(viewMode==='country'){
-                                        const newTask={id:`t${Date.now()}`,title:'New task',actionId:actions[0]?.id||'',month:new Date().getMonth(),startDate:today,dueDate:oneWeekLater,status:'todo',priority:'medium',description:'',checklist:[],comments:[],attachments:[],channels:actions[0]?.tags||[],countries:col.key==='_unassigned'?[]:[col.key]};
-                                        onAddTask(newTask);
-                                        setTimeout(()=>onOpenTask(newTask),100);
+                                        if(onRequestNewTask) onRequestNewTask({countries:col.key==='_unassigned'?[]:[col.key]});
                                     }
                                 }} className="add-card-btn" style={isReadOnly?{display:'none'}:{}}>
                                     + Add

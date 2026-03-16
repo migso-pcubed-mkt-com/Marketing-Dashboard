@@ -33,9 +33,9 @@ const NewActionModal = ({categories, onClose, onAdd, onAddCategory}) => {
                         <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">
-                        <div><label className="block text-sm font-medium mb-2">Action name</label><input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="E.g. Google Ads - Brand" className="v11-input"/></div>
+                        <div><label className="v11-label">Action name</label><input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="E.g. Google Ads - Brand" className="v11-input" autoFocus/></div>
                         <div>
-                            <label className="block text-sm font-medium mb-2">Category</label>
+                            <label className="v11-label">Category</label>
                             {!showInlineCreateCategory ? (
                                 <>
                                     <select value={form.categoryId} onChange={e => setForm({...form, categoryId: e.target.value})} className="v11-input">{categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
@@ -66,12 +66,12 @@ const NewActionModal = ({categories, onClose, onAdd, onAddCategory}) => {
                             )}
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e => setForm({...form, budget: parseInt(e.target.value) || 0})} className="v11-input"/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v => setForm({...form, priority: v})} renderOption={o => <PriorityOption priority={o}/>}/></div>
+                            <div className="flex-1"><label className="v11-label">Budget (€)</label><input type="number" value={form.budget} onChange={e => setForm({...form, budget: parseInt(e.target.value) || 0})} className="v11-input"/></div>
+                            <div className="flex-1"><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v => setForm({...form, priority: v})} renderOption={o => <PriorityOption priority={o}/>}/></div>
                         </div>
-                        <div><label className="block text-sm font-medium mb-2">Channel Tags</label><ChannelTags channels={form.tags} onAdd={id => setForm({...form, tags: [...form.tags, id]})} onRemove={id => setForm({...form, tags: form.tags.filter(t => t !== id)})}/></div>
+                        <div><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.tags} onAdd={id => setForm({...form, tags: [...form.tags, id]})} onRemove={id => setForm({...form, tags: form.tags.filter(t => t !== id)})}/></div>
                     </div>
-                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className="v11-btn-secondary">Cancel</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Create action</button></div>
+                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className="v11-btn-secondary">Cancel</button><button onClick={handleAdd} className="px-6 py-2 text-white rounded-lg font-medium" style={{background:'var(--accent)'}}>Create action</button></div>
                 </div>
             </div>
         </div>

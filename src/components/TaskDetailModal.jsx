@@ -242,7 +242,7 @@ const SimpleMarkdown = ({ text }) => {
     return React.createElement('div', { style: { fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' } }, ...elements);
 };
 
-const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory,members=[],isReadOnly=false,availableOtherLabels=[]})=>{
+const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory,members=[],isReadOnly=false,availableOtherLabels=[],isTrelloBoard=false})=>{
     const { trelloUser } = useApp();
     const[form,setForm]=useState(()=>{
         const normalized={...task,checklists:normalizeTaskChecklists(task)};
@@ -264,6 +264,16 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[newOtherLabelName,setNewOtherLabelName]=useState('');
     const[newOtherLabelColor,setNewOtherLabelColor]=useState('#6366f1');
     const[showMemberPicker,setShowMemberPicker]=useState(false);
+    const[editingChecklistId,setEditingChecklistId]=useState(null);
+    const[editingChecklistName,setEditingChecklistName]=useState('');
+    const[editingItemId,setEditingItemId]=useState(null);
+    const[editingItemText,setEditingItemText]=useState('');
+    const[draggingChecklistIdx,setDraggingChecklistIdx]=useState(null);
+    const[dragOverChecklistIdx,setDragOverChecklistIdx]=useState(null);
+    const[draggingItemKey,setDraggingItemKey]=useState(null);
+    const[dragOverItemKey,setDragOverItemKey]=useState(null);
+    const[showItemMemberPicker,setShowItemMemberPicker]=useState(null);
+    const[showItemDatePicker,setShowItemDatePicker]=useState(null);
     const[showInlineCreateAction,setShowInlineCreateAction]=useState(false);
     const[newActionName,setNewActionName]=useState('');
     const[newActionCategoryId,setNewActionCategoryId]=useState(categories?.[0]?.id||'');
@@ -306,6 +316,12 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const removeChecklistItem=(checklistId,itemId)=>setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.filter(i=>i.id!==itemId)}:cl)});
     const addNewChecklist=()=>{const name=newChecklistName.trim();if(!name)return;setForm({...form,checklists:[...(form.checklists||[]),{id:`cl${Date.now()}`,name,items:[]}]});setNewChecklistName('');setShowAddChecklist(false);};
     const removeChecklist=(checklistId)=>setForm({...form,checklists:(form.checklists||[]).filter(cl=>cl.id!==checklistId)});
+    const renameChecklist=(checklistId,newName)=>{if(!newName.trim())return;setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,name:newName.trim()}:cl)});setEditingChecklistId(null);};
+    const renameChecklistItem=(checklistId,itemId,newText)=>{if(!newText.trim())return;setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,text:newText.trim()}:i)}:cl)});setEditingItemId(null);};
+    const reorderChecklists=(fromIdx,toIdx)=>{const cls=[...(form.checklists||[])];const[moved]=cls.splice(fromIdx,1);cls.splice(toIdx,0,moved);setForm({...form,checklists:cls});};
+    const reorderChecklistItems=(checklistId,fromIdx,toIdx)=>{setForm({...form,checklists:(form.checklists||[]).map(cl=>{if(cl.id!==checklistId)return cl;const items=[...cl.items];const[moved]=items.splice(fromIdx,1);items.splice(toIdx,0,moved);return{...cl,items};})});};
+    const updateChecklistItemAssignee=(checklistId,itemId,assignee)=>{setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,assignee}:i)}:cl)});setShowItemMemberPicker(null);};
+    const updateChecklistItemDue=(checklistId,itemId,due)=>{setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,due}:i)}:cl)});setShowItemDatePicker(null);};
     const addChannel=(id)=>setForm({...form,channels:[...(form.channels||[]),id]});
     const removeChannel=(id)=>setForm({...form,channels:(form.channels||[]).filter(c=>c!==id)});
     const addCountry=(id)=>setForm({...form,countries:[...(form.countries||[]),id]});
@@ -355,18 +371,25 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         </div>
                         <button onClick={handleClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
-                    <div className="flex flex-wrap gap-3 mb-6">
-                        {actions&&<div className="w-full"><label className="v11-label">📋 Action</label>{!showInlineCreateAction?(<><select value={form.actionId} onChange={e=>{if(isReadOnly)return;const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className="v11-select" style={{width:'100%'}} disabled={isReadOnly}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>{onCreateAction&&<button onClick={()=>setShowInlineCreateAction(true)} style={{marginTop:4,fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:4}}><Icon.Plus size={10}/> Create a new action</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',padding:12,background:'var(--bg-secondary)'}}><div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>New action</div><input ref={newActionInputRef} type="text" value={newActionName} onChange={e=>setNewActionName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleInlineCreateAction();if(e.key==='Escape')setShowInlineCreateAction(false);}} placeholder="Action name..." className="v11-input" style={{marginBottom:8}}/>{!showInlineCreateCategory?(<><select value={newActionCategoryId} onChange={e=>setNewActionCategoryId(e.target.value)} className="v11-input" style={{marginBottom:4}}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>{onAddCategory&&<button onClick={()=>setShowInlineCreateCategory(true)} style={{marginBottom:8,fontSize:10,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:3}}><Icon.Plus size={9}/> New category</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:8,background:'var(--bg-primary)',marginBottom:8}}><input type="text" value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&newCategoryName.trim()){const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}if(e.key==='Escape')setShowInlineCreateCategory(false);}} placeholder="Category name..." className="v11-input" style={{marginBottom:6,fontSize:12}} autoFocus/><div style={{display:'flex',gap:4}}><button onClick={()=>{if(!newCategoryName.trim())return;const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}} style={{padding:'3px 8px',fontSize:10,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Add</button><button onClick={()=>{setShowInlineCreateCategory(false);setNewCategoryName('');}} style={{padding:'3px 8px',fontSize:10,background:'var(--bg-secondary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}<div style={{display:'flex',gap:6}}><button onClick={handleInlineCreateAction} style={{padding:'5px 10px',fontSize:11,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Create</button><button onClick={()=>{setShowInlineCreateAction(false);setNewActionName('');setShowInlineCreateCategory(false);}} style={{padding:'5px 10px',fontSize:11,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}</div>}
-                        <div><label className="v11-label">Status</label><IconSelect value={form.status} options={CONFIG.STATUSES} onChange={v=>setForm({...form,status:v})} renderOption={o=><StatusOption status={o}/>} disabled={isReadOnly}/></div>
-                        <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>} disabled={isReadOnly}/></div>
-                        <div><label className="v11-label">Start</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input" readOnly={isReadOnly}/></div>
-                        <div><label className="v11-label">End</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input" readOnly={isReadOnly}/></div>
-                        <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}} readOnly={isReadOnly}/></div>
+                    {/* Details section */}
+                    <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:10}}>Details</div>
+                        {actions&&<div style={{marginBottom:10}}><label className="v11-label">📋 Action</label>{!showInlineCreateAction?(<><select value={form.actionId} onChange={e=>{if(isReadOnly)return;const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className="v11-select" style={{width:'100%'}} disabled={isReadOnly}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>{onCreateAction&&<button onClick={()=>setShowInlineCreateAction(true)} style={{marginTop:4,fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:4}}><Icon.Plus size={10}/> Create a new action</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',padding:12,background:'var(--bg-primary)'}}><div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>New action</div><input ref={newActionInputRef} type="text" value={newActionName} onChange={e=>setNewActionName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleInlineCreateAction();if(e.key==='Escape')setShowInlineCreateAction(false);}} placeholder="Action name..." className="v11-input" style={{marginBottom:8}}/>{!showInlineCreateCategory?(<><select value={newActionCategoryId} onChange={e=>setNewActionCategoryId(e.target.value)} className="v11-input" style={{marginBottom:4}}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>{onAddCategory&&<button onClick={()=>setShowInlineCreateCategory(true)} style={{marginBottom:8,fontSize:10,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:3}}><Icon.Plus size={9}/> New category</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:8,background:'var(--bg-primary)',marginBottom:8}}><input type="text" value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&newCategoryName.trim()){const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}if(e.key==='Escape')setShowInlineCreateCategory(false);}} placeholder="Category name..." className="v11-input" style={{marginBottom:6,fontSize:12}} autoFocus/><div style={{display:'flex',gap:4}}><button onClick={()=>{if(!newCategoryName.trim())return;const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}} style={{padding:'3px 8px',fontSize:10,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Add</button><button onClick={()=>{setShowInlineCreateCategory(false);setNewCategoryName('');}} style={{padding:'3px 8px',fontSize:10,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}<div style={{display:'flex',gap:6}}><button onClick={handleInlineCreateAction} style={{padding:'5px 10px',fontSize:11,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Create</button><button onClick={()=>{setShowInlineCreateAction(false);setNewActionName('');setShowInlineCreateCategory(false);}} style={{padding:'5px 10px',fontSize:11,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}</div>}
+                        <div className="flex flex-wrap gap-3">
+                            <div><label className="v11-label">Status</label><IconSelect value={form.status} options={CONFIG.STATUSES} onChange={v=>setForm({...form,status:v})} renderOption={o=><StatusOption status={o}/>} disabled={isReadOnly}/></div>
+                            <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>} disabled={isReadOnly}/></div>
+                            <div><label className="v11-label">Start</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input" readOnly={isReadOnly}/></div>
+                            <div><label className="v11-label">End</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input" readOnly={isReadOnly}/></div>
+                            <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}} readOnly={isReadOnly}/></div>
+                        </div>
                     </div>
-                    <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel} editable={!isReadOnly}/></div>
-                    <div className="mb-4"><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry} editable={!isReadOnly}/></div>
-                    {members.length > 0 && (
-                        <div className="mb-4">
+                    {/* Tags & People section */}
+                    <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:10}}>Tags & People</div>
+                        <div style={{marginBottom:10}}><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel} editable={!isReadOnly}/></div>
+                        <div style={{marginBottom:10}}><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry} editable={!isReadOnly}/></div>
+                    {(isTrelloBoard || members.length > 0) && (
+                        <div style={{marginBottom:10}}>
                             <label className="v11-label">👥 Members</label>
                             <div style={{display:'flex',alignItems:'center',gap:4,flexWrap:'wrap',position:'relative'}}>
                                 {(form.assignees||[]).map(id => {
@@ -403,7 +426,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             </div>
                         </div>
                     )}
-                    <div className="mb-4">
+                    <div>
                         <label className="v11-label">🏷️ Other Labels</label>
                         <div style={{display:'flex',flexWrap:'wrap',gap:4,alignItems:'center'}}>
                             {(form.otherLabels || []).map(label => (
@@ -417,7 +440,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                 </span>
                             ))}
                             {!isReadOnly && <div style={{position:'relative'}}>
-                                <button onClick={()=>setShowAddOtherLabel(!showAddOtherLabel)} style={{padding:'2px 8px',borderRadius:4,border:'1px dashed var(--border)',background:'none',cursor:'pointer',fontSize:11,color:'var(--text-muted)'}}>+ Label</button>
+                                <button onClick={()=>setShowAddOtherLabel(!showAddOtherLabel)} className="px-2 py-0.5 rounded-full text-xs flex items-center space-x-1" style={{background:'var(--bg-secondary)'}}><Icon.Plus/><span>Label</span></button>
                                 {showAddOtherLabel && (
                                     <>
                                         <div style={{position:'fixed',inset:0,zIndex:98}} onClick={()=>{setShowAddOtherLabel(false);setShowCreateOtherLabel(false);}}/>
@@ -455,31 +478,34 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             </div>}
                         </div>
                     </div>
-                    <div className="mb-6">
+                    </div>
+                    <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
                         <div className="flex items-center justify-between mb-2">
-                            <label className="block text-sm font-medium">📝 Description</label>
+                            <span style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px'}}>📝 Description</span>
                             {descriptionDraft&&!descriptionEditing&&!isReadOnly&&<button onClick={()=>{setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML=markdownToHtml(descriptionDraft);descEditableRef.current.focus();}},0);}} className="text-xs" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer'}}>Edit</button>}
                         </div>
+                        <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)',padding:12}}>
                         {descriptionEditing?(
                             <div>
                                 <WysiwygToolbar editableRef={descEditableRef}/>
-                                <div ref={descEditableRef} contentEditable suppressContentEditableWarning onInput={()=>setDescriptionSaved(false)} onFocus={()=>setDescriptionEditing(true)} className="v11-input" style={{minHeight:80,maxHeight:400,overflowY:'auto',width:'100%',lineHeight:1.6,outline:'none',whiteSpace:'pre-wrap',wordBreak:'break-word'}}/>
+                                <div ref={descEditableRef} contentEditable suppressContentEditableWarning onInput={()=>setDescriptionSaved(false)} onFocus={()=>setDescriptionEditing(true)} style={{minHeight:80,maxHeight:400,overflowY:'auto',width:'100%',lineHeight:1.6,outline:'none',whiteSpace:'pre-wrap',wordBreak:'break-word',fontSize:13,color:'var(--text-secondary)'}}/>
                                 <div className="flex gap-2 mt-2">
                                     <button onClick={()=>{const md=htmlToMarkdown(descEditableRef.current?.innerHTML||'');setDescriptionDraft(md);setForm(f=>({...f,description:md}));setDescriptionSaved(true);setDescriptionEditing(false);}} className="px-4 py-1.5 bg-secondary text-white rounded-lg text-sm">Save</button>
                                     <button onClick={()=>{setDescriptionEditing(false);setDescriptionSaved(true);}} className="px-4 py-1.5 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button>
                                 </div>
                             </div>
                         ):!descriptionDraft&&!isReadOnly?(
-                            <div onClick={()=>{setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML='';descEditableRef.current.focus();}},0);}} className="v11-input" style={{cursor:'text',minHeight:40,color:'var(--text-muted)',padding:8}}>Add a description...</div>
+                            <div onClick={()=>{setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML='';descEditableRef.current.focus();}},0);}} style={{cursor:'text',minHeight:40,color:'var(--text-muted)',fontSize:13}}>Add a description...</div>
                         ):(
-                            <div onClick={()=>{if(isReadOnly)return;setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML=markdownToHtml(descriptionDraft);descEditableRef.current.focus();}},0);}} style={{cursor:isReadOnly?'default':'pointer',padding:8,borderRadius:'var(--radius-md)',border:'1px solid transparent',transition:'border-color 0.2s'}} onMouseEnter={e=>{if(!isReadOnly)e.currentTarget.style.borderColor='var(--border)';}} onMouseLeave={e=>e.currentTarget.style.borderColor='transparent'}>
+                            <div onClick={()=>{if(isReadOnly)return;setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML=markdownToHtml(descriptionDraft);descEditableRef.current.focus();}},0);}} style={{cursor:isReadOnly?'default':'pointer'}}>
                                 <SimpleMarkdown text={descriptionDraft}/>
                             </div>
                         )}
+                        </div>
                     </div>
-                    <div className="mb-6">
+                    <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
                         <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-medium">✅ Checklists</label>
+                            <span style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px'}}>✅ Checklists</span>
                             <div className="flex items-center gap-3">
                                 {allChecklistItems.length>0&&<span className="text-sm" style={{color:'var(--text-muted)'}}>{checklistPct}%</span>}
                                 {!isReadOnly && <button onClick={()=>setShowAddChecklist(true)} className="text-xs flex items-center gap-1" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}><Icon.Plus size={10}/> Add checklist</button>}
@@ -487,28 +513,76 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         </div>
                         {allChecklistItems.length>0&&<div className="v11-progress-bar" style={{height:8,marginBottom:12}}><div className={`v11-progress-fill ${checklistPct>=70?'high':checklistPct>=40?'medium':'low'}`} style={{width:`${checklistPct}%`}}/></div>}
                         {showAddChecklist&&<div className="flex space-x-2 mb-3"><input type="text" value={newChecklistName} onChange={e=>setNewChecklistName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addNewChecklist();if(e.key==='Escape'){setShowAddChecklist(false);setNewChecklistName('');}}} placeholder="Checklist name..." className="v11-input" style={{flex:1}} autoFocus/><button onClick={addNewChecklist} className="px-3 py-2 bg-secondary text-white rounded-lg text-sm">Add</button><button onClick={()=>{setShowAddChecklist(false);setNewChecklistName('');}} className="px-2 py-2 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button></div>}
-                        {(form.checklists||[]).map(cl=>{const clPct=cl.items.length>0?Math.round((cl.items.filter(i=>i.done).length/cl.items.length)*100):0;return(
-                            <div key={cl.id} className="mb-4">
-                                <div className="flex items-center justify-between mb-1">
-                                    <span className="text-sm font-medium" style={{color:'var(--text-secondary)'}}>{cl.name}</span>
+                        {(form.checklists||[]).map((cl,clIdx)=>{const clPct=cl.items.length>0?Math.round((cl.items.filter(i=>i.done).length/cl.items.length)*100):0;return(
+                            <div key={cl.id} className="mb-3" style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)',overflow:'hidden',opacity:draggingChecklistIdx===clIdx?0.5:1}} draggable={!isReadOnly} onDragStart={e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','checklist');setDraggingChecklistIdx(clIdx);}} onDragEnd={()=>{if(draggingChecklistIdx!==null&&dragOverChecklistIdx!==null&&draggingChecklistIdx!==dragOverChecklistIdx)reorderChecklists(draggingChecklistIdx,dragOverChecklistIdx);setDraggingChecklistIdx(null);setDragOverChecklistIdx(null);}} onDragOver={e=>{e.preventDefault();if(draggingChecklistIdx!==null&&e.dataTransfer.types.includes('text/plain'))setDragOverChecklistIdx(clIdx);}} onDragLeave={()=>dragOverChecklistIdx===clIdx&&setDragOverChecklistIdx(null)}>
+                                {dragOverChecklistIdx===clIdx&&draggingChecklistIdx!==null&&draggingChecklistIdx!==clIdx&&<div style={{height:2,background:'var(--accent)',borderRadius:1}}/>}
+                                <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:8}}>
+                                    {!isReadOnly&&<span style={{cursor:'grab',color:'var(--text-muted)',fontSize:12,flexShrink:0,userSelect:'none'}} title="Drag to reorder">⋮⋮</span>}
+                                    {editingChecklistId===cl.id?(
+                                        <input type="text" value={editingChecklistName} onChange={e=>setEditingChecklistName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')renameChecklist(cl.id,editingChecklistName);if(e.key==='Escape')setEditingChecklistId(null);}} onBlur={()=>renameChecklist(cl.id,editingChecklistName)} className="text-sm font-semibold" style={{flex:1,border:'none',borderBottom:'1px solid var(--accent)',outline:'none',background:'transparent',padding:'0 0 1px',color:'var(--text-primary)'}} autoFocus/>
+                                    ):(
+                                        <span className="text-sm font-semibold" style={{flex:1,color:'var(--text-primary)',cursor:isReadOnly?'default':'pointer'}} onClick={()=>{if(isReadOnly)return;setEditingChecklistId(cl.id);setEditingChecklistName(cl.name);}}>{cl.name}</span>
+                                    )}
                                     <div className="flex items-center gap-2">
                                         {cl.items.length>0&&<span className="text-xs" style={{color:'var(--text-muted)'}}>{clPct}%</span>}
                                         {!isReadOnly && <button onClick={()=>removeChecklist(cl.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',fontSize:11}} title="Remove checklist"><Icon.Trash size={12}/></button>}
                                     </div>
                                 </div>
-                                {cl.items.length>0&&<div className="v11-progress-bar" style={{height:4,marginBottom:8}}><div className={`v11-progress-fill ${clPct>=70?'high':clPct>=40?'medium':'low'}`} style={{width:`${clPct}%`}}/></div>}
-                                <div className="space-y-2 mb-2">{cl.items.map(item=>(<div key={item.id} className="flex items-center space-x-3 p-2 rounded-lg" style={{background:'var(--bg-secondary)'}}><button onClick={()=>!isReadOnly&&toggleChecklistItem(cl.id,item.id)} className={`w-5 h-5 rounded border-2 flex items-center justify-center ${item.done?'bg-accent-green border-accent-green text-white':''}`} style={!item.done?{borderColor:'var(--border-strong)'}:{cursor:isReadOnly?'default':'pointer'}}>{item.done&&<Icon.Check/>}</button><span className={`flex-1 text-sm ${item.done?'line-through':''}`} style={item.done?{color:'var(--text-muted)'}:{}}>{item.text}</span>{!isReadOnly&&<button onClick={()=>removeChecklistItem(cl.id,item.id)} className="hover:text-accent-red" style={{color:'var(--text-muted)'}}><Icon.Trash/></button>}</div>))}</div>
-                                {!isReadOnly && <div className="flex space-x-2"><input type="text" value={newChecklistItems[cl.id]||''} onChange={e=>setNewChecklistItems({...newChecklistItems,[cl.id]:e.target.value})} onKeyPress={e=>e.key==='Enter'&&addChecklistItem(cl.id)} placeholder="Add item..." className="v11-input" style={{flex:1}}/><button onClick={()=>addChecklistItem(cl.id)} className="px-3 py-2 bg-secondary text-white rounded-lg"><Icon.Plus/></button></div>}
+                                {cl.items.length>0&&<div style={{padding:'0 12px'}}><div className="v11-progress-bar" style={{height:3,margin:'8px 0'}}><div className={`v11-progress-fill ${clPct>=70?'high':clPct>=40?'medium':'low'}`} style={{width:`${clPct}%`}}/></div></div>}
+                                <div style={{padding:'4px 8px'}}>{cl.items.map((item,itemIdx)=>{const itemKey=`${cl.id}:${item.id}`;const assigneeMember=item.assignee?members.find(m=>m.id===item.assignee):null;return(
+                                    <div key={item.id} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 4px',borderRadius:6,background:dragOverItemKey===itemKey?'var(--accent-light)':'transparent',opacity:draggingItemKey===itemKey?0.4:1,transition:'background 0.15s'}} draggable={!isReadOnly} onDragStart={e=>{e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','item');setDraggingItemKey(itemKey);}} onDragEnd={()=>{if(draggingItemKey&&dragOverItemKey){const[fromClId,fromItemId]=draggingItemKey.split(':');const[toClId,toItemId]=dragOverItemKey.split(':');if(fromClId===toClId){const fromIdx=cl.items.findIndex(i=>i.id===fromItemId);const toIdx=cl.items.findIndex(i=>i.id===toItemId);if(fromIdx>=0&&toIdx>=0&&fromIdx!==toIdx)reorderChecklistItems(cl.id,fromIdx,toIdx);}}setDraggingItemKey(null);setDragOverItemKey(null);}} onDragOver={e=>{e.preventDefault();e.stopPropagation();if(draggingItemKey&&draggingItemKey.startsWith(cl.id+':'))setDragOverItemKey(itemKey);}} onDragLeave={()=>dragOverItemKey===itemKey&&setDragOverItemKey(null)}>
+                                        {!isReadOnly&&<span style={{cursor:'grab',color:'var(--text-muted)',fontSize:10,flexShrink:0,userSelect:'none'}}>⋮⋮</span>}
+                                        <button onClick={()=>!isReadOnly&&toggleChecklistItem(cl.id,item.id)} style={{width:18,height:18,borderRadius:4,border:item.done?'none':'2px solid var(--border-strong)',background:item.done?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:isReadOnly?'default':'pointer',flexShrink:0,transition:'all 0.2s'}}>{item.done&&<svg width="10" height="10" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}</button>
+                                        {editingItemId===item.id?(
+                                            <input type="text" value={editingItemText} onChange={e=>setEditingItemText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')renameChecklistItem(cl.id,item.id,editingItemText);if(e.key==='Escape')setEditingItemId(null);}} onBlur={()=>renameChecklistItem(cl.id,item.id,editingItemText)} style={{flex:1,border:'none',borderBottom:'1px solid var(--accent)',outline:'none',background:'transparent',fontSize:13,padding:'0 0 1px',color:'var(--text-primary)'}} autoFocus/>
+                                        ):(
+                                            <span onClick={()=>{if(isReadOnly)return;setEditingItemId(item.id);setEditingItemText(item.text);}} style={{flex:1,fontSize:13,textDecoration:item.done?'line-through':'none',color:item.done?'var(--text-muted)':'var(--text-secondary)',cursor:isReadOnly?'default':'pointer'}}>{item.text}</span>
+                                        )}
+                                        {/* Assignee badge */}
+                                        <div style={{position:'relative',flexShrink:0}}>
+                                            <button onClick={()=>{if(isReadOnly)return;setShowItemMemberPicker(showItemMemberPicker===itemKey?null:itemKey);setShowItemDatePicker(null);}} style={{width:22,height:22,borderRadius:'50%',border:assigneeMember?'2px solid var(--accent)':'1px dashed var(--border)',background:assigneeMember?'none':'transparent',cursor:isReadOnly?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0,padding:0}} title={assigneeMember?(assigneeMember.fullName||assigneeMember.username):'Assign member'}>
+                                                {assigneeMember?(assigneeMember.avatarUrl?<img src={assigneeMember.avatarUrl} alt="" style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}}/>:<span style={{width:'100%',height:'100%',borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600}}>{(assigneeMember.fullName||assigneeMember.username||'?')[0].toUpperCase()}</span>):<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+                                            </button>
+                                            {showItemMemberPicker===itemKey&&members.length>0&&(<>
+                                                <div style={{position:'fixed',inset:0,zIndex:98}} onClick={()=>setShowItemMemberPicker(null)}/>
+                                                <div style={{position:'absolute',top:'100%',right:0,marginTop:4,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:99,minWidth:160,padding:4,maxHeight:180,overflowY:'auto'}}>
+                                                    {item.assignee&&<button onClick={()=>updateChecklistItemAssignee(cl.id,item.id,null)} style={{width:'100%',padding:'5px 8px',fontSize:11,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg-secondary)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>Remove assignee</button>}
+                                                    {members.map(m=>(<button key={m.id} onClick={()=>updateChecklistItemAssignee(cl.id,item.id,m.id)} style={{width:'100%',padding:'5px 8px',fontSize:11,color:'var(--text-primary)',background:item.assignee===m.id?'var(--accent-light)':'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',gap:6}} onMouseEnter={e=>{if(item.assignee!==m.id)e.currentTarget.style.background='var(--bg-secondary)';}} onMouseLeave={e=>{if(item.assignee!==m.id)e.currentTarget.style.background='none';}}>
+                                                        {m.avatarUrl?<img src={m.avatarUrl} alt="" style={{width:18,height:18,borderRadius:'50%'}}/>:<span style={{width:18,height:18,borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,flexShrink:0}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
+                                                        <span>{m.fullName||m.username}</span>
+                                                    </button>))}
+                                                </div>
+                                            </>)}
+                                        </div>
+                                        {/* Due date badge */}
+                                        <div style={{position:'relative',flexShrink:0}}>
+                                            <button onClick={()=>{if(isReadOnly)return;setShowItemDatePicker(showItemDatePicker===itemKey?null:itemKey);setShowItemMemberPicker(null);}} style={{padding:'2px 6px',borderRadius:4,border:'1px solid '+(item.due?'var(--accent)':'var(--border)'),background:item.due?'var(--accent-light)':'transparent',cursor:isReadOnly?'default':'pointer',fontSize:10,color:item.due?'var(--accent)':'var(--text-muted)',display:'flex',alignItems:'center',gap:3,whiteSpace:'nowrap'}} title={item.due?`Due: ${item.due}`:'Set due date'}>
+                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                                {item.due?new Date(item.due+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):''}
+                                            </button>
+                                            {showItemDatePicker===itemKey&&(<>
+                                                <div style={{position:'fixed',inset:0,zIndex:98}} onClick={()=>setShowItemDatePicker(null)}/>
+                                                <div style={{position:'absolute',top:'100%',right:0,marginTop:4,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:99,padding:8}}>
+                                                    <input type="date" value={item.due||''} onChange={e=>updateChecklistItemDue(cl.id,item.id,e.target.value||null)} className="v11-input" style={{fontSize:12}} autoFocus/>
+                                                    {item.due&&<button onClick={()=>updateChecklistItemDue(cl.id,item.id,null)} style={{marginTop:4,fontSize:10,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',width:'100%',textAlign:'center'}}>Clear date</button>}
+                                                </div>
+                                            </>)}
+                                        </div>
+                                        {!isReadOnly&&<button onClick={()=>removeChecklistItem(cl.id,item.id)} style={{color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',flexShrink:0,padding:2}} className="hover:text-accent-red"><Icon.Trash size={12}/></button>}
+                                    </div>
+                                );})}
+                                {!isReadOnly && <div style={{padding:'4px 4px 8px',display:'flex',gap:6}}><input type="text" value={newChecklistItems[cl.id]||''} onChange={e=>setNewChecklistItems({...newChecklistItems,[cl.id]:e.target.value})} onKeyPress={e=>e.key==='Enter'&&addChecklistItem(cl.id)} placeholder="Add item..." className="v11-input" style={{flex:1,fontSize:12}}/><button onClick={()=>addChecklistItem(cl.id)} className="px-3 py-1.5 bg-secondary text-white rounded-lg text-sm"><Icon.Plus size={12}/></button></div>}
+                                </div>
                             </div>
                         );})}
                     </div>
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium mb-2">💬 Comments ({form.comments?.length||0})</label>
-                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{[...(form.comments||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-secondary)'}}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><p className="text-sm" style={{color:'var(--text-secondary)'}}>{c.text}</p></div>))}</div>
+                    <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:8}}>💬 Comments ({form.comments?.length||0})</div>
+                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{[...(form.comments||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><p className="text-sm" style={{color:'var(--text-secondary)'}}>{c.text}</p></div>))}</div>
                         {!isReadOnly && <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Write..." className="v11-input" style={{flex:1}}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Send</button></div>}
                     </div>
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium mb-2">📎 Attachments ({(form.attachments||[]).length})</label>
+                    <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:8}}>📎 Attachments ({(form.attachments||[]).length})</div>
                         {(form.attachments||[]).length>0&&<div className="space-y-2 mb-3">
                             {(form.attachments||[]).map(att=>{
                                 const isImage = (att.type||att.mimeType||'').startsWith('image/');
@@ -560,8 +634,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                 });
                                 e.target.value='';
                             }}/>
-                            <p style={{fontSize:13,color:'var(--text-muted)'}}>Glissez des fichiers ici ou cliquez pour parcourir</p>
-                            <p style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>Max 5 Mo par fichier</p>
+                            <p style={{fontSize:13,color:'var(--text-muted)'}}>Drag files here or click to browse</p>
+                            <p style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>Max 5 MB per file</p>
                         </div>}
                     </div>
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>

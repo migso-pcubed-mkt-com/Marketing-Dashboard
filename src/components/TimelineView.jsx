@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon, PriorityIcon } from './Icons.jsx';
 
-const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef,isReadOnly})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef,isReadOnly,onRequestNewTask})=>{
     const timelineRef=useRef(null);
     const dragGhostRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -1137,8 +1137,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             dueDate=`${year}-${String(endMonth+1).padStart(2,'0')}-${String(endDay).padStart(2,'0')}`;
         }
 
-        // Create the task with calculated dates
-        if(onAddTask){
+        // Open the NewTaskModal with pre-populated dates and action
+        if(onRequestNewTask){
+            onRequestNewTask({actionId,startDate,dueDate});
+        }else if(onAddTask){
             onAddTask(actionId,startDate,dueDate);
         }
     };

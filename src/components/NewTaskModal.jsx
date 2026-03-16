@@ -3,8 +3,8 @@ import { CONFIG } from '../config.js';
 import { Icon, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 
-const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAddCategory}) => {
-    const [form, setForm] = useState({title:'',actionId:actions[0]?.id||'',startDate:new Date().toISOString().split('T')[0],dueDate:'',priority:'medium',status:'todo',description:'',budget:0});
+const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAddCategory, initialValues}) => {
+    const [form, setForm] = useState({title:'',actionId:initialValues?.actionId||actions[0]?.id||'',startDate:initialValues?.startDate||new Date().toISOString().split('T')[0],dueDate:initialValues?.dueDate||'',priority:initialValues?.priority||'medium',status:initialValues?.status||'todo',description:'',budget:0,countries:initialValues?.countries||[]});
     const [showInlineCreate, setShowInlineCreate] = useState(false);
     const [newActionName, setNewActionName] = useState('');
     const [newActionCategoryId, setNewActionCategoryId] = useState(categories[0]?.id || '');
@@ -50,7 +50,7 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
         if (!form.title.trim() || !form.actionId) return;
         const action = actions.find(a => a.id === form.actionId);
         const month = form.startDate ? new Date(form.startDate).getMonth() : new Date().getMonth();
-        onAdd({...form, id: `t${Date.now()}`, month, channels: action?.tags || [], checklist: [], comments: [], attachments: []});
+        onAdd({...form, id: `t${Date.now()}`, month, channels: action?.tags || [], checklist: [], comments: [], attachments: [], countries: form.countries || []});
         onClose();
     };
     const selectedAction = actions.find(a => a.id === form.actionId);
@@ -65,9 +65,9 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
                         <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">
-                        <div><label className="block text-sm font-medium mb-2">Title</label><input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="E.g. LinkedIn Post January" className="v11-input"/></div>
+                        <div><label className="v11-label">Title</label><input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="E.g. LinkedIn Post January" className="v11-input" autoFocus/></div>
                         <div>
-                            <label className="block text-sm font-medium mb-2">Action</label>
+                            <label className="v11-label">Action</label>
                             {!showInlineCreate ? (
                                 <>
                                     <select value={form.actionId} onChange={e => setForm({...form, actionId: e.target.value})} className="v11-input">{actions.map(a => { const cat = categories.find(c => c.id === a.categoryId); return <option key={a.id} value={a.id}>{a.name} ({cat?.name})</option>; })}</select>
@@ -114,16 +114,16 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
                             )}
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Start date</label><input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="v11-input"/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">End date</label><input type="date" value={form.dueDate} onChange={e => setForm({...form, dueDate: e.target.value})} className="v11-input"/></div>
+                            <div className="flex-1"><label className="v11-label">Start date</label><input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="v11-input"/></div>
+                            <div className="flex-1"><label className="v11-label">End date</label><input type="date" value={form.dueDate} onChange={e => setForm({...form, dueDate: e.target.value})} className="v11-input"/></div>
                         </div>
                         <div className="flex gap-4">
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v => setForm({...form, priority: v})} renderOption={o => <PriorityOption priority={o}/>}/></div>
-                            <div className="flex-1"><label className="block text-sm font-medium mb-2">Budget (€)</label><input type="number" value={form.budget} onChange={e => setForm({...form, budget: parseInt(e.target.value) || 0})} className="v11-input"/></div>
+                            <div className="flex-1"><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v => setForm({...form, priority: v})} renderOption={o => <PriorityOption priority={o}/>}/></div>
+                            <div className="flex-1"><label className="v11-label">Budget (€)</label><input type="number" value={form.budget} onChange={e => setForm({...form, budget: parseInt(e.target.value) || 0})} className="v11-input"/></div>
                         </div>
-                        <div><label className="block text-sm font-medium mb-2">Description</label><textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} className="v11-input" style={{resize:'none'}}/></div>
+                        <div><label className="v11-label">Description</label><textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} className="v11-input" style={{resize:'none'}}/></div>
                     </div>
-                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className="v11-btn-secondary">Cancel</button><button onClick={handleAdd} className="px-6 py-2 bg-primary text-white rounded-lg font-medium">Create task</button></div>
+                    <div className="flex justify-end gap-2 mt-6"><button onClick={onClose} className="v11-btn-secondary">Cancel</button><button onClick={handleAdd} className="px-6 py-2 text-white rounded-lg font-medium" style={{background:'var(--accent)'}}>Create task</button></div>
                 </div>
             </div>
         </div>
