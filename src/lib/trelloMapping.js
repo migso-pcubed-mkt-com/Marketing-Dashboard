@@ -300,14 +300,19 @@ export const mergeTrelloExtrasIntoTask = (task, card) => {
 
     // Merge checklist items from Trello into local checklists
     if (card.checklists && updated.checklists) {
-        const updatedChecklists = updated.checklists.map(cl => {
+        // Remove local checklists whose trelloChecklistId no longer exists on Trello (deleted on Trello)
+        const trelloClIds = new Set(card.checklists.map(tc => tc.id));
+        const updatedChecklists = updated.checklists
+            .filter(cl => !cl.trelloChecklistId || trelloClIds.has(cl.trelloChecklistId))
+            .map(cl => {
             if (!cl.trelloChecklistId) return cl;
             const trelloCl = card.checklists.find(tc => tc.id === cl.trelloChecklistId);
             if (!trelloCl || !trelloCl.checkItems) return cl;
             // Find items on Trello that don't exist locally (by trelloCheckItemId first, then by name)
             const localItemIds = new Set((cl.items || []).filter(i => i.trelloCheckItemId).map(i => i.trelloCheckItemId));
             const localItemNames = new Set((cl.items || []).map(i => i.text));
-            const newItems = trelloCl.checkItems
+            const sortedTrelloItems = [...trelloCl.checkItems].sort((a, b) => (a.pos || 0) - (b.pos || 0));
+            const newItems = sortedTrelloItems
                 .filter(ti => !localItemIds.has(ti.id) && !localItemNames.has(ti.name))
                 .map(ti => ({
                     id: genId('cli'),
@@ -318,7 +323,11 @@ export const mergeTrelloExtrasIntoTask = (task, card) => {
                     assignee: ti.idMember || null
                 }));
             // Also update state/metadata of existing items from Trello
-            const mergedItems = (cl.items || []).map(item => {
+            // Remove local items whose trelloCheckItemId no longer exists on Trello (deleted on Trello)
+            const trelloItemIds = new Set(trelloCl.checkItems.map(ti => ti.id));
+            const mergedItems = (cl.items || [])
+                .filter(item => !item.trelloCheckItemId || trelloItemIds.has(item.trelloCheckItemId))
+                .map(item => {
                 const trelloItem = item.trelloCheckItemId
                     ? trelloCl.checkItems.find(ti => ti.id === item.trelloCheckItemId)
                     : trelloCl.checkItems.find(ti => ti.name === item.text);

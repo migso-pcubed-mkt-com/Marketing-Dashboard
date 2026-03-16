@@ -314,8 +314,12 @@ Complex system with multiple solved issues:
 - **Label remap**: `TrelloImportModal` supports `mappingOnly` prop to skip board selection and show mapping step directly
 - **Sync merge strategy**: Merge-by-Trello-ID for comments, checklists, attachments (preserves local-only items, avoids duplicates)
 - **Checklist item sync**: `trelloCheckItemId` used for stable ID-based matching (not name); `due`, `assignee`, `pos` synced bidirectionally
-- **Position sync**: Checklist and item order synced via Trello `pos` field; sorted by `pos` on pull
+- **Checklist deletion sync**: Checklists/items deleted on Trello are removed locally during push (not recreated); `pushTaskExtrasToTrello` returns `deletedChecklistIds`
+- **Position sync**: Checklist and item order synced via Trello `pos` field; sorted by `pos` on pull; items always push positions to Trello
 - **Sync ID tracking**: Push functions capture `trelloCommentId`, `trelloChecklistId`, `trelloAttachmentId` from API responses
+- **Comment deduplication**: Before pushing, checks if identical text exists on Trello to prevent duplicates
+- **Comment attachment sync**: Comment attachments uploaded as card-level attachments (Trello API limitation: no per-comment attachments)
+- **Archived cards**: `api/trello.js` fetches cards with `filter=all`; `card.closed` maps to `task.trelloArchived=true` + `status='paused'`; FilterSidebar has "Show archived" toggle (default off)
 - **Member push**: `mapTaskToTrelloCardUpdate()` includes `idMembers` — bidirectional member sync
 - **Enhanced Markdown**: `SimpleMarkdown` supports headings, blockquotes, fenced code blocks, ordered/unordered lists, strikethrough, hr
 - **Members UI**: Trello-style — assigned members as avatars + "+" button dropdown to add more
@@ -418,3 +422,8 @@ Complex system with multiple solved issues:
 | 2026-03 | Comment markdown + attachments | Comments rendered with SimpleMarkdown, formatting toolbar, file attachments |
 | 2026-03 | beforeunload save flush | Pending saves flushed on tab close (localStorage + sendBeacon) |
 | 2026-03 | Guest read-only on Trello boards | Full read-only mode when guest visits Trello-linked board (no pushes) |
+| 2026-03 | Checklist deletion sync fix | Checklists with trelloChecklistId not found on Trello skip recreation, removed locally |
+| 2026-03 | Archived Trello cards | filter=all for cards, card.closed → trelloArchived + paused, "Show archived" filter toggle |
+| 2026-03 | Member picker fixed positioning | Checklist item member picker uses position:fixed + getBoundingClientRect to avoid clipping |
+| 2026-03 | Comment dedup on push | Prevent duplicate comments by checking text match before pushing |
+| 2026-03 | Comment drag & drop attachments | Comment area supports drag & drop + toolbar paperclip button for file attachments |

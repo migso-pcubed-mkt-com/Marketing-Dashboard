@@ -39,7 +39,7 @@ const App = () => {
     const [boardData, setBoardData] = useState(null);
     const [currentBoardId, setCurrentBoardId] = useState('board-default');
 
-    const [filters, setFilters] = useState({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
+    const [filters, setFilters] = useState({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
     const [syncing, setSyncing] = useState(false);
     const [savingStatus, setSavingStatus] = useState(null);
     const [selectedTask, setSelectedTask] = useState(null);
@@ -901,12 +901,14 @@ const App = () => {
 
     const totalBudget = tasks.reduce((s, t) => s + (t.budget || 0), 0);
     const completedCount = tasks.filter(t => t.status === 'completed').length;
-    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0);
+    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
 
     // Filtered tasks for stats — same logic as views
     const filteredTasks = useMemo(() => {
-        if (!activeFilterCount) return tasks;
-        return tasks.filter(t => {
+        // Always filter out archived unless showArchived is on
+        const baseTasks = filters.showArchived ? tasks : tasks.filter(t => !t.trelloArchived);
+        if (!activeFilterCount) return baseTasks;
+        return baseTasks.filter(t => {
             const act = actions.find(a => a.id === t.actionId);
             if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
             if (filters.status.length > 0 && !filters.status.includes(t.status)) return false;
