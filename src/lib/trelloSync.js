@@ -5,15 +5,49 @@ import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask
 import { CONFIG } from '../config.js';
 
 // Push comments, checklists, attachments that don't already exist on Trello.
-// Returns { pushed, updatedTask } — updatedTask has captured Trello IDs on newly pushed items.
+// Returns { pushed, taskModified, deletedChecklistIds } — deletedChecklistIds lists checklists deleted on Trello.
 const pushTaskExtrasToTrello = async (task, card) => {
     const pushed = { comments: 0, checklists: 0, attachments: 0 };
     let taskModified = false;
+    const deletedChecklistIds = []; // Track checklists deleted on Trello (had ID but not found)
 
     // Push new comments (those without trelloCommentId)
+    // Build set of existing Trello comment texts for dedup
+    const trelloCommentTexts = new Set((card.comments || []).map(c => (c.data?.text || c.text || '').trim()));
     for (const comment of (task.comments || [])) {
         if (!comment.trelloCommentId && comment.text) {
+            // Skip if identical text already exists on Trello (dedup)
+            if (trelloCommentTexts.has(comment.text.trim())) {
+                // Try to capture the Trello comment ID for this matching comment
+                const matchingTrelloComment = (card.comments || []).find(c => (c.data?.text || c.text || '').trim() === comment.text.trim());
+                if (matchingTrelloComment) {
+                    comment.trelloCommentId = matchingTrelloComment.id;
+                    taskModified = true;
+                }
+                continue;
+            }
             try {
+                // Upload comment attachments as card-level attachments first
+                if (comment.attachments?.length > 0) {
+                    for (const att of comment.attachments) {
+                        if (att.trelloAttachmentId) continue;
+                        try {
+                            let result = null;
+                            if (att.data) {
+                                result = await uploadTrelloAttachment(task.trelloCardId, att.data, att.name, att.type);
+                            } else if (att.url) {
+                                result = await addTrelloAttachment(task.trelloCardId, att.url, att.name);
+                            }
+                            if (result?.id) {
+                                att.trelloAttachmentId = result.id;
+                                if (result.url) att.url = result.url;
+                                taskModified = true;
+                            }
+                        } catch (e) {
+                            console.error('Failed to upload comment attachment:', att.name, e);
+                        }
+                    }
+                }
                 const result = await addTrelloComment(task.trelloCardId, comment.text);
                 if (result?.id) {
                     comment.trelloCommentId = result.id;
@@ -99,8 +133,13 @@ const pushTaskExtrasToTrello = async (task, card) => {
                     }
                 }
             }
+        } else if (cl.trelloChecklistId) {
+            // Checklist had a Trello ID but no longer exists on Trello → deleted on Trello side
+            console.log(`[Trello sync] Checklist "${cl.name}" (${cl.trelloChecklistId}) was deleted on Trello — removing locally`);
+            deletedChecklistIds.push(cl.id);
+            taskModified = true;
         } else {
-            // New checklist — create on Trello
+            // New checklist (never on Trello) — create on Trello
             const items = (cl.items || []).filter(item => item.text);
             console.log(`[Trello sync] Creating NEW checklist "${cl.name}" with ${items.length} items for card ${task.trelloCardId}`);
             if (items.length > 0 || cl.name) {
@@ -123,27 +162,28 @@ const pushTaskExtrasToTrello = async (task, card) => {
     }
 
     // Sync checklist and item positions to Trello (based on local array order)
+    // Use a simple approach: always push positions for items with trelloCheckItemId
     for (let clIdx = 0; clIdx < taskChecklists.length; clIdx++) {
         const cl = taskChecklists[clIdx];
         if (!cl.trelloChecklistId) continue;
         const trelloCl = card.checklists?.find(c => c.id === cl.trelloChecklistId);
-        if (!trelloCl) continue;
         // Sync checklist position (Trello uses pos as a float; use index * 16384)
         const expectedPos = (clIdx + 1) * 16384;
-        if (Math.abs((trelloCl.pos || 0) - expectedPos) > 1000) {
+        if (trelloCl && Math.abs((trelloCl.pos || 0) - expectedPos) > 1000) {
             try {
                 await updateTrelloChecklist(cl.trelloChecklistId, { pos: expectedPos });
                 taskModified = true;
             } catch (e) { console.error(`Failed to update checklist "${cl.name}" pos:`, e.message); }
         }
-        // Sync item positions within the checklist
+        // Sync item positions within the checklist — always push for all items with Trello IDs
         for (let itemIdx = 0; itemIdx < (cl.items || []).length; itemIdx++) {
             const item = cl.items[itemIdx];
             if (!item.trelloCheckItemId) continue;
-            const trelloItem = trelloCl.checkItems?.find(ci => ci.id === item.trelloCheckItemId);
-            if (!trelloItem) continue;
             const expectedItemPos = (itemIdx + 1) * 16384;
-            if (Math.abs((trelloItem.pos || 0) - expectedItemPos) > 1000) {
+            // Check against Trello's current pos if available, otherwise always push
+            const trelloItem = trelloCl?.checkItems?.find(ci => ci.id === item.trelloCheckItemId);
+            const currentPos = trelloItem?.pos || 0;
+            if (Math.abs(currentPos - expectedItemPos) > 1000) {
                 try {
                     await updateTrelloChecklistItem(task.trelloCardId, item.trelloCheckItemId, { pos: expectedItemPos });
                     taskModified = true;
@@ -207,7 +247,7 @@ const pushTaskExtrasToTrello = async (task, card) => {
         }
     }
 
-    return { pushed, taskModified };
+    return { pushed, taskModified, deletedChecklistIds };
 };
 
 // Map hex color to nearest Trello named color
@@ -375,7 +415,7 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
         if (!card) {
             // Card deleted on Trello — mark as paused
             if (task.status !== 'paused') {
-                updatedTasks[i] = { ...task, status: 'paused' };
+                updatedTasks[i] = { ...task, status: 'paused', trelloArchived: false };
                 result.updated++;
             }
             continue;
@@ -383,6 +423,20 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
 
         // Remove from map (processed)
         trelloCardMap.delete(task.trelloCardId);
+
+        // Handle archived cards
+        if (card.closed) {
+            if (!task.trelloArchived || task.status !== 'paused') {
+                updatedTasks[i] = { ...task, status: 'paused', trelloArchived: true, trelloLastModified: card.dateLastActivity };
+                result.updated++;
+            }
+            continue;
+        } else if (task.trelloArchived) {
+            // Card was unarchived on Trello — restore
+            updatedTasks[i] = { ...task, trelloArchived: false, status: task.status === 'paused' ? 'todo' : task.status };
+            task = updatedTasks[i]; // Use updated task for further processing
+            result.updated++;
+        }
 
         // Compare timestamps — last write wins
         const trelloTime = new Date(card.dateLastActivity).getTime();
@@ -407,7 +461,12 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
                     const updates = mapTaskToTrelloCardUpdate(task, listId);
                     await updateTrelloCard(task.trelloCardId, updates);
                     // Also push comments, checklists, attachments — capture Trello IDs
-                    const { taskModified } = await pushTaskExtrasToTrello(task, card);
+                    const { taskModified, deletedChecklistIds } = await pushTaskExtrasToTrello(task, card);
+                    // Remove checklists that were deleted on Trello
+                    if (deletedChecklistIds.length > 0) {
+                        const delSet = new Set(deletedChecklistIds);
+                        task.checklists = (task.checklists || []).filter(cl => !delSet.has(cl.id));
+                    }
                     // Push labels (channels, countries, otherLabels)
                     await pushTaskLabelsToTrello(task, card, board, mappingConfig);
                     // After push, also pull any new Trello extras (checklists, items) into local task
@@ -427,7 +486,11 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
                     const listId = action ? catToListId[action.categoryId] : null;
                     const updates = mapTaskToTrelloCardUpdate(task, listId);
                     await updateTrelloCard(task.trelloCardId, updates);
-                    const { taskModified } = await pushTaskExtrasToTrello(task, card);
+                    const { taskModified, deletedChecklistIds } = await pushTaskExtrasToTrello(task, card);
+                    if (deletedChecklistIds.length > 0) {
+                        const delSet = new Set(deletedChecklistIds);
+                        task.checklists = (task.checklists || []).filter(cl => !delSet.has(cl.id));
+                    }
                     await pushTaskLabelsToTrello(task, card, board, mappingConfig);
                     // After push, also pull any new Trello extras (checklists, items) into local task
                     const mergedTask = mergeTrelloExtrasIntoTask(task, card);
@@ -446,6 +509,9 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
 
     // 3. New cards on Trello (not yet in dashboard)
     for (const [cardId, card] of trelloCardMap) {
+        // Skip archived cards — don't import them as new tasks
+        if (card.closed) continue;
+
         const categoryId = listToCatId[card.idList];
         if (!categoryId) continue; // Card in unknown list, skip
 

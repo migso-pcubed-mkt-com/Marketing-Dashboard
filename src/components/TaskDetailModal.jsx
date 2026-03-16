@@ -82,7 +82,7 @@ const htmlToMarkdown = (html) => {
 };
 
 // WYSIWYG toolbar for contentEditable
-const WysiwygToolbar = ({ editableRef }) => {
+const WysiwygToolbar = ({ editableRef, onAttach }) => {
     const exec = (cmd, value = null) => {
         const sel = window.getSelection();
         const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
@@ -124,6 +124,7 @@ const WysiwygToolbar = ({ editableRef }) => {
             <button onMouseDown={e=>e.preventDefault()} onClick={() => exec('insertHorizontalRule')} style={btnStyle} title="Horizontal rule">—</button>
             <div style={sep} />
             <button onMouseDown={e=>e.preventDefault()} onClick={() => { exec('removeFormat'); exec('formatBlock', '<div>'); }} style={btnStyle} title="Clear formatting"><span style={{textDecoration:'line-through',opacity:0.6}}>T</span></button>
+            {onAttach && <><div style={sep} /><button onMouseDown={e=>e.preventDefault()} onClick={onAttach} style={btnStyle} title="Attach file"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button></>}
         </div>
     );
 };
@@ -273,6 +274,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[draggingItemKey,setDraggingItemKey]=useState(null);
     const[dragOverItemKey,setDragOverItemKey]=useState(null);
     const[showItemMemberPicker,setShowItemMemberPicker]=useState(null);
+    const[memberPickerPos,setMemberPickerPos]=useState(null);
     const[showInlineCreateAction,setShowInlineCreateAction]=useState(false);
     const[newActionName,setNewActionName]=useState('');
     const[newActionCategoryId,setNewActionCategoryId]=useState(categories?.[0]?.id||'');
@@ -552,13 +554,13 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                             <span onClick={()=>{if(isReadOnly)return;setEditingItemId(item.id);setEditingItemText(item.text);}} style={{flex:1,fontSize:13,textDecoration:item.done?'line-through':'none',color:item.done?'var(--text-muted)':'var(--text-secondary)',cursor:isReadOnly?'default':'pointer'}}>{item.text}</span>
                                         )}
                                         {/* Assignee badge */}
-                                        <div style={{position:'relative',flexShrink:0}}>
-                                            <button onClick={()=>{if(isReadOnly)return;setShowItemMemberPicker(showItemMemberPicker===itemKey?null:itemKey);}} style={{width:22,height:22,borderRadius:'50%',border:assigneeMember?'2px solid var(--accent)':'1px dashed var(--border)',background:assigneeMember?'none':'transparent',cursor:isReadOnly?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0,padding:0}} title={assigneeMember?(assigneeMember.fullName||assigneeMember.username):'Assign member'}>
+                                        <div style={{flexShrink:0}}>
+                                            <button onClick={e=>{if(isReadOnly)return;if(showItemMemberPicker===itemKey){setShowItemMemberPicker(null);setMemberPickerPos(null);}else{const rect=e.currentTarget.getBoundingClientRect();const dropH=Math.min(members.length*30+40,180);const flipUp=rect.bottom+dropH+8>window.innerHeight;setMemberPickerPos({top:flipUp?rect.top-dropH-4:rect.bottom+4,left:Math.min(rect.left,window.innerWidth-170)});setShowItemMemberPicker(itemKey);}}} style={{width:22,height:22,borderRadius:'50%',border:assigneeMember?'2px solid var(--accent)':'1px dashed var(--border)',background:assigneeMember?'none':'transparent',cursor:isReadOnly?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0,padding:0}} title={assigneeMember?(assigneeMember.fullName||assigneeMember.username):'Assign member'}>
                                                 {assigneeMember?(assigneeMember.avatarUrl?<img src={assigneeMember.avatarUrl} alt="" style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}}/>:<span style={{width:'100%',height:'100%',borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600}}>{(assigneeMember.fullName||assigneeMember.username||'?')[0].toUpperCase()}</span>):<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
                                             </button>
-                                            {showItemMemberPicker===itemKey&&members.length>0&&(<>
-                                                <div style={{position:'fixed',inset:0,zIndex:98}} onClick={()=>setShowItemMemberPicker(null)}/>
-                                                <div style={{position:'absolute',top:'100%',right:0,marginTop:4,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:99,minWidth:160,padding:4,maxHeight:180,overflowY:'auto'}}>
+                                            {showItemMemberPicker===itemKey&&members.length>0&&memberPickerPos&&(<>
+                                                <div style={{position:'fixed',inset:0,zIndex:98}} onClick={()=>{setShowItemMemberPicker(null);setMemberPickerPos(null);}}/>
+                                                <div style={{position:'fixed',top:memberPickerPos.top,left:memberPickerPos.left,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:99,minWidth:160,padding:4,maxHeight:180,overflowY:'auto'}}>
                                                     {item.assignee&&<button onClick={()=>updateChecklistItemAssignee(cl.id,item.id,null)} style={{width:'100%',padding:'5px 8px',fontSize:11,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg-secondary)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>Remove assignee</button>}
                                                     {members.map(m=>(<button key={m.id} onClick={()=>updateChecklistItemAssignee(cl.id,item.id,m.id)} style={{width:'100%',padding:'5px 8px',fontSize:11,color:'var(--text-primary)',background:item.assignee===m.id?'var(--accent-light)':'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',gap:6}} onMouseEnter={e=>{if(item.assignee!==m.id)e.currentTarget.style.background='var(--bg-secondary)';}} onMouseLeave={e=>{if(item.assignee!==m.id)e.currentTarget.style.background='none';}}>
                                                         {m.avatarUrl?<img src={m.avatarUrl} alt="" style={{width:18,height:18,borderRadius:'50%'}}/>:<span style={{width:18,height:18,borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,flexShrink:0}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
@@ -593,13 +595,17 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         </div>))}</div>
                         {!isReadOnly && <div>
                             {commentEditing ? (<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)',overflow:'hidden'}}>
-                                <WysiwygToolbar editableRef={commentEditableRef}/>
-                                <div ref={commentEditableRef} contentEditable suppressContentEditableWarning style={{minHeight:60,maxHeight:200,overflowY:'auto',padding:'8px 12px',outline:'none',fontSize:13,lineHeight:1.6,whiteSpace:'pre-wrap',wordBreak:'break-word',color:'var(--text-secondary)'}}/>
+                                <WysiwygToolbar editableRef={commentEditableRef} onAttach={()=>document.getElementById('comment-attach-input')?.click()}/>
+                                <div ref={commentEditableRef} contentEditable suppressContentEditableWarning
+                                    onDragOver={e=>{e.preventDefault();e.currentTarget.style.background='var(--accent-light)';}}
+                                    onDragLeave={e=>{e.currentTarget.style.background='transparent';}}
+                                    onDrop={e=>{e.preventDefault();e.currentTarget.style.background='transparent';const files=Array.from(e.dataTransfer.files);files.forEach(file=>{if(file.size>5*1024*1024)return;const reader=new FileReader();reader.onload=ev=>{setCommentAttachments(prev=>[...prev,{id:`catt${Date.now()}_${Math.random().toString(36).slice(2,6)}`,name:file.name,type:file.type,size:file.size,data:ev.target.result,date:new Date().toISOString()}]);};reader.readAsDataURL(file);});}}
+                                    style={{minHeight:60,maxHeight:200,overflowY:'auto',padding:'8px 12px',outline:'none',fontSize:13,lineHeight:1.6,whiteSpace:'pre-wrap',wordBreak:'break-word',color:'var(--text-secondary)'}}/>
                                 {commentAttachments.length>0&&<div style={{padding:'4px 12px 8px',display:'flex',flexWrap:'wrap',gap:4}}>{commentAttachments.map((att,i)=>(<span key={i} style={{fontSize:11,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',color:'var(--accent)',display:'inline-flex',alignItems:'center',gap:3}}>📎 {att.name}<button onClick={()=>setCommentAttachments(prev=>prev.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--accent)',fontSize:10,padding:0}}>&times;</button></span>))}</div>}
                                 <div style={{padding:'6px 12px 10px',display:'flex',gap:6,alignItems:'center',borderTop:'1px solid var(--border)'}}>
                                     <button onClick={addComment} className="px-4 py-1.5 bg-secondary text-white rounded-lg text-sm">Send</button>
                                     <button onClick={()=>{setCommentEditing(false);setCommentAttachments([]);}} className="px-3 py-1.5 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button>
-                                    <label style={{cursor:'pointer',color:'var(--text-muted)',display:'flex',alignItems:'center',gap:3,fontSize:12,marginLeft:'auto'}} title="Attach file"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg><input type="file" multiple style={{display:'none'}} onChange={e=>{const files=Array.from(e.target.files||[]);files.forEach(file=>{if(file.size>5*1024*1024)return;const reader=new FileReader();reader.onload=ev=>{setCommentAttachments(prev=>[...prev,{id:`catt${Date.now()}_${Math.random().toString(36).slice(2,6)}`,name:file.name,type:file.type,size:file.size,data:ev.target.result,date:new Date().toISOString()}]);};reader.readAsDataURL(file);});e.target.value='';}}/></label>
+                                    <label style={{cursor:'pointer',color:'var(--text-muted)',display:'flex',alignItems:'center',gap:3,fontSize:12,marginLeft:'auto'}} title="Attach file"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg><input id="comment-attach-input" type="file" multiple style={{display:'none'}} onChange={e=>{const files=Array.from(e.target.files||[]);files.forEach(file=>{if(file.size>5*1024*1024)return;const reader=new FileReader();reader.onload=ev=>{setCommentAttachments(prev=>[...prev,{id:`catt${Date.now()}_${Math.random().toString(36).slice(2,6)}`,name:file.name,type:file.type,size:file.size,data:ev.target.result,date:new Date().toISOString()}]);};reader.readAsDataURL(file);});e.target.value='';}}/></label>
                                 </div>
                             </div>) : (
                                 <div onClick={()=>setCommentEditing(true)} className="v11-input" style={{cursor:'text',minHeight:36,color:'var(--text-muted)',padding:'8px 12px',fontSize:13}}>Write a comment...</div>
