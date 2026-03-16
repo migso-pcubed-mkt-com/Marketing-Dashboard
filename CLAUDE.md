@@ -1,7 +1,7 @@
 # CLAUDE.md - Marketing Dashboard
 
 > Memory file for Claude Code. Read automatically at the start of each session.
-> Last updated: 2026-03-09
+> Last updated: 2026-03-16
 
 ## Maintenance Rule
 
@@ -277,6 +277,23 @@ Complex system with multiple solved issues:
 - Inline form: category name → creates category immediately and auto-selects it
 - `onAddCategory` prop passed from App.jsx (uses `handleAddCategory`)
 
+### Unified Task Creation Modal
+- All entry points (Kanban "+", Timeline "+", Calendar "+", header button, keyboard shortcut) open `NewTaskModal`
+- `NewTaskModal` accepts `initialValues` prop for pre-populated fields (actionId, startDate, dueDate, countries)
+- Replaces multiple inline task creation flows with a single unified modal
+
+### Modal Visual Hierarchy
+- **Section containers**: Details, Tags & People, Description, Checklists, Comments, Attachments — each in a rounded-xl bordered card
+- **Description**: Wrapped in bordered inner container with WYSIWYG toolbar (contentEditable + markdown conversion)
+- **Comments**: Markdown-rendered with `SimpleMarkdown`, formatting toolbar for new comments, file attachment support
+- **Consistent tag buttons**: Channel Tags, Country Tags, Other Labels all use identical solid pill-style add buttons
+- **Members section**: Always shown on Trello-connected boards (`isTrelloBoard` prop)
+
+### beforeunload Save Protection
+- `beforeunload` handler flushes pending auto-save debounce
+- Synchronous localStorage save as fallback
+- Attempts `sendBeacon` for Supabase save on tab close
+
 ### Trello Sync
 - `api/trello.js` keeps `TRELLO_API_KEY` and `TRELLO_TOKEN` server-side (same pattern as `api/github.js`)
 - Import wizard: TrelloImportModal.jsx — boards → label mapping → preview → import
@@ -287,11 +304,17 @@ Complex system with multiple solved issues:
 - Polling lifecycle managed in App.jsx via `trelloSyncIntervalRef` — starts/stops when board changes or sync settings change
 - `trelloSyncStatus` state: 'idle' | 'syncing' | 'synced' | 'error'
 - Trello API rate limit: 100 requests per 10 seconds per token — polling intervals respect this
-- **Named checklists**: `task.checklists` = `[{id, name, items: [{id, text, done}]}]` — old `task.checklist` auto-migrated via `normalizeTaskChecklists()`
+- **Named checklists**: `task.checklists` = `[{id, name, trelloChecklistId, items: [{id, text, done, due, assignee, trelloCheckItemId}]}]` — old `task.checklist` auto-migrated via `normalizeTaskChecklists()`
+- **Checklist item metadata**: Each item supports `due` (ISO date), `assignee` (member ID), `trelloCheckItemId` (for Trello sync)
+- **Checklist rename**: Click checklist name or item text to inline-edit (Enter to save, Escape to cancel)
+- **Checklist reorder**: Drag handles (⋮⋮) on checklists and items; positions synced to Trello via `pos` field
+- **Checklist item member/date picker**: Inline avatar + date badges on each item with dropdown pickers
 - **Per-user token**: `X-Trello-Token` header; server uses it over env `TRELLO_TOKEN` when present
 - **OAuth**: popup flow using `callback_method=postMessage` (no return_url needed) → validate via `/api/trello?action=me`
 - **Label remap**: `TrelloImportModal` supports `mappingOnly` prop to skip board selection and show mapping step directly
 - **Sync merge strategy**: Merge-by-Trello-ID for comments, checklists, attachments (preserves local-only items, avoids duplicates)
+- **Checklist item sync**: `trelloCheckItemId` used for stable ID-based matching (not name); `due`, `assignee`, `pos` synced bidirectionally
+- **Position sync**: Checklist and item order synced via Trello `pos` field; sorted by `pos` on pull
 - **Sync ID tracking**: Push functions capture `trelloCommentId`, `trelloChecklistId`, `trelloAttachmentId` from API responses
 - **Member push**: `mapTaskToTrelloCardUpdate()` includes `idMembers` — bidirectional member sync
 - **Enhanced Markdown**: `SimpleMarkdown` supports headings, blockquotes, fenced code blocks, ordered/unordered lists, strikethrough, hr
@@ -387,3 +410,11 @@ Complex system with multiple solved issues:
 | 2026-03 | robots.txt + noindex | Block search engine crawling of the app |
 | 2026-03 | Enhanced Markdown | Headings, blockquotes, code blocks, ordered lists, strikethrough |
 | 2026-03 | Members UI Trello-style | Assigned avatars + "+" dropdown instead of toggle buttons |
+| 2026-03 | Unified task creation modal | All entry points open NewTaskModal with optional initialValues pre-population |
+| 2026-03 | Modal section containers | Details, Tags & People, Description, Checklists, Comments, Attachments in bordered cards |
+| 2026-03 | WYSIWYG contentEditable | Description and comments use contentEditable + markdown conversion (not textarea) |
+| 2026-03 | Enhanced checklists | Inline rename, drag-reorder, member/date per item, trelloCheckItemId tracking |
+| 2026-03 | Checklist position sync | Checklist and item order synced with Trello via pos field |
+| 2026-03 | Comment markdown + attachments | Comments rendered with SimpleMarkdown, formatting toolbar, file attachments |
+| 2026-03 | beforeunload save flush | Pending saves flushed on tab close (localStorage + sendBeacon) |
+| 2026-03 | Guest read-only on Trello boards | Full read-only mode when guest visits Trello-linked board (no pushes) |

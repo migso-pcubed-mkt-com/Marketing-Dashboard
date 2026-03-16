@@ -435,6 +435,27 @@ const App = () => {
         return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); };
     }, [boardData, dataLoaded, githubToken]);
 
+    // Flush pending save on tab close / navigation away
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            if (autoSaveTimeoutRef.current && boardDataRef.current) {
+                clearTimeout(autoSaveTimeoutRef.current);
+                autoSaveTimeoutRef.current = null;
+                // Synchronous localStorage save as last resort (network saves are async and may not complete)
+                saveToLocalStorage();
+                // Attempt async save via sendBeacon if Supabase is configured
+                if (useSupabase) {
+                    try {
+                        const payload = JSON.stringify({ board_data: boardDataRef.current });
+                        navigator.sendBeacon?.('/api/save-beacon', payload);
+                    } catch (e) { /* best effort */ }
+                }
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, []);
+
     // Realtime sync
     useEffect(() => {
         if (!dataLoaded) return;

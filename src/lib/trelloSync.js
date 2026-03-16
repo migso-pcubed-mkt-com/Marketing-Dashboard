@@ -1,6 +1,6 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
-import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel } from './trello.js';
+import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
 
@@ -118,6 +118,36 @@ const pushTaskExtrasToTrello = async (task, card) => {
                 } catch (e) {
                     console.error('[Trello sync] Failed to push checklist:', e.message);
                 }
+            }
+        }
+    }
+
+    // Sync checklist and item positions to Trello (based on local array order)
+    for (let clIdx = 0; clIdx < taskChecklists.length; clIdx++) {
+        const cl = taskChecklists[clIdx];
+        if (!cl.trelloChecklistId) continue;
+        const trelloCl = card.checklists?.find(c => c.id === cl.trelloChecklistId);
+        if (!trelloCl) continue;
+        // Sync checklist position (Trello uses pos as a float; use index * 16384)
+        const expectedPos = (clIdx + 1) * 16384;
+        if (Math.abs((trelloCl.pos || 0) - expectedPos) > 1000) {
+            try {
+                await updateTrelloChecklist(cl.trelloChecklistId, { pos: expectedPos });
+                taskModified = true;
+            } catch (e) { console.error(`Failed to update checklist "${cl.name}" pos:`, e.message); }
+        }
+        // Sync item positions within the checklist
+        for (let itemIdx = 0; itemIdx < (cl.items || []).length; itemIdx++) {
+            const item = cl.items[itemIdx];
+            if (!item.trelloCheckItemId) continue;
+            const trelloItem = trelloCl.checkItems?.find(ci => ci.id === item.trelloCheckItemId);
+            if (!trelloItem) continue;
+            const expectedItemPos = (itemIdx + 1) * 16384;
+            if (Math.abs((trelloItem.pos || 0) - expectedItemPos) > 1000) {
+                try {
+                    await updateTrelloChecklistItem(task.trelloCardId, item.trelloCheckItemId, { pos: expectedItemPos });
+                    taskModified = true;
+                } catch (e) { console.error(`Failed to update item "${item.text}" pos:`, e.message); }
             }
         }
     }
