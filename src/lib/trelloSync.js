@@ -62,21 +62,38 @@ const pushTaskExtrasToTrello = async (task, card) => {
                     console.error('[Trello sync] Failed to push checklist items:', e.message);
                 }
             }
-            // Sync checked state of existing items
+            // Sync state, name, due, and assignee of existing items
             const trelloChecklistFull = card.checklists?.find(c => c.id === existing.id);
             if (trelloChecklistFull?.checkItems) {
                 for (const localItem of (cl.items || [])) {
                     if (!localItem.text) continue;
-                    const trelloItem = trelloChecklistFull.checkItems.find(ci => ci.name === localItem.text);
+                    const trelloItem = localItem.trelloCheckItemId
+                        ? trelloChecklistFull.checkItems.find(ci => ci.id === localItem.trelloCheckItemId)
+                        : trelloChecklistFull.checkItems.find(ci => ci.name === localItem.text);
                     if (trelloItem) {
+                        // Capture trelloCheckItemId if missing
+                        if (!localItem.trelloCheckItemId) {
+                            localItem.trelloCheckItemId = trelloItem.id;
+                            taskModified = true;
+                        }
+                        // Build update payload for changed fields
+                        const updates = {};
                         const localState = localItem.done ? 'complete' : 'incomplete';
-                        if (trelloItem.state !== localState) {
+                        if (trelloItem.state !== localState) updates.state = localState;
+                        if (localItem.text !== trelloItem.name) updates.name = localItem.text;
+                        const localDue = localItem.due || null;
+                        const trelloDue = trelloItem.due ? trelloItem.due.split('T')[0] : null;
+                        if (localDue !== trelloDue) updates.due = localDue;
+                        const localAssignee = localItem.assignee || null;
+                        const trelloMember = trelloItem.idMember || null;
+                        if (localAssignee !== trelloMember) updates.idMember = localAssignee;
+                        if (Object.keys(updates).length > 0) {
                             try {
-                                await updateTrelloChecklistItem(task.trelloCardId, trelloItem.id, localState);
+                                await updateTrelloChecklistItem(task.trelloCardId, trelloItem.id, updates);
                                 pushed.checklists++;
                                 taskModified = true;
                             } catch (e) {
-                                console.error(`Failed to update checkItem "${localItem.text}" state:`, e.message);
+                                console.error(`Failed to update checkItem "${localItem.text}":`, e.message);
                             }
                         }
                     }
@@ -446,7 +463,10 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
                     items: (cl.checkItems || []).map(item => ({
                         id: genId('cli'),
                         text: item.name,
-                        done: item.state === 'complete'
+                        done: item.state === 'complete',
+                        trelloCheckItemId: item.id,
+                        due: item.due ? item.due.split('T')[0] : null,
+                        assignee: item.idMember || null
                     }))
                 });
             }

@@ -94,7 +94,10 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
                 items: (cl.checkItems || []).map(item => ({
                     id: genId('cli'),
                     text: item.name,
-                    done: item.state === 'complete'
+                    done: item.state === 'complete',
+                    trelloCheckItemId: item.id,
+                    due: item.due ? item.due.split('T')[0] : null,
+                    assignee: item.idMember || null
                 }))
             });
         }
@@ -299,20 +302,26 @@ export const mergeTrelloExtrasIntoTask = (task, card) => {
             if (!cl.trelloChecklistId) return cl;
             const trelloCl = card.checklists.find(tc => tc.id === cl.trelloChecklistId);
             if (!trelloCl || !trelloCl.checkItems) return cl;
-            // Find items on Trello that don't exist locally (by name)
+            // Find items on Trello that don't exist locally (by trelloCheckItemId first, then by name)
+            const localItemIds = new Set((cl.items || []).filter(i => i.trelloCheckItemId).map(i => i.trelloCheckItemId));
             const localItemNames = new Set((cl.items || []).map(i => i.text));
             const newItems = trelloCl.checkItems
-                .filter(ti => !localItemNames.has(ti.name))
+                .filter(ti => !localItemIds.has(ti.id) && !localItemNames.has(ti.name))
                 .map(ti => ({
                     id: genId('cli'),
                     text: ti.name,
-                    done: ti.state === 'complete'
+                    done: ti.state === 'complete',
+                    trelloCheckItemId: ti.id,
+                    due: ti.due ? ti.due.split('T')[0] : null,
+                    assignee: ti.idMember || null
                 }));
-            // Also update checked state of existing items from Trello
+            // Also update state/metadata of existing items from Trello
             const mergedItems = (cl.items || []).map(item => {
-                const trelloItem = trelloCl.checkItems.find(ti => ti.name === item.text);
+                const trelloItem = item.trelloCheckItemId
+                    ? trelloCl.checkItems.find(ti => ti.id === item.trelloCheckItemId)
+                    : trelloCl.checkItems.find(ti => ti.name === item.text);
                 if (trelloItem) {
-                    return { ...item, done: trelloItem.state === 'complete' };
+                    return { ...item, done: trelloItem.state === 'complete', trelloCheckItemId: trelloItem.id, due: trelloItem.due ? trelloItem.due.split('T')[0] : item.due, assignee: trelloItem.idMember || item.assignee };
                 }
                 return item;
             });
@@ -330,7 +339,10 @@ export const mergeTrelloExtrasIntoTask = (task, card) => {
                 items: (tc.checkItems || []).map(ti => ({
                     id: genId('cli'),
                     text: ti.name,
-                    done: ti.state === 'complete'
+                    done: ti.state === 'complete',
+                    trelloCheckItemId: ti.id,
+                    due: ti.due ? ti.due.split('T')[0] : null,
+                    assignee: ti.idMember || null
                 }))
             }));
         updated.checklists = [...updatedChecklists, ...newChecklists];
@@ -343,7 +355,10 @@ export const mergeTrelloExtrasIntoTask = (task, card) => {
             items: (tc.checkItems || []).map(ti => ({
                 id: genId('cli'),
                 text: ti.name,
-                done: ti.state === 'complete'
+                done: ti.state === 'complete',
+                trelloCheckItemId: ti.id,
+                due: ti.due ? ti.due.split('T')[0] : null,
+                assignee: ti.idMember || null
             }))
         }));
     }
@@ -363,19 +378,24 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
     if (card.checklists) {
         for (const cl of card.checklists) {
             const existing = existingCLMap.get(cl.id);
-            // Merge items by name within each checklist
-            const existingItemMap = new Map();
+            // Merge items by trelloCheckItemId first, then by name
+            const existingItemByTrelloId = new Map();
+            const existingItemByName = new Map();
             if (existing) {
                 for (const item of (existing.items || [])) {
-                    existingItemMap.set(item.text, item);
+                    if (item.trelloCheckItemId) existingItemByTrelloId.set(item.trelloCheckItemId, item);
+                    existingItemByName.set(item.text, item);
                 }
             }
             const mergedItems = (cl.checkItems || []).map(item => {
-                const existingItem = existingItemMap.get(item.name);
+                const existingItem = existingItemByTrelloId.get(item.id) || existingItemByName.get(item.name);
                 return {
                     id: existingItem?.id || genId('cli'),
                     text: item.name,
-                    done: item.state === 'complete'
+                    done: item.state === 'complete',
+                    trelloCheckItemId: item.id,
+                    due: item.due ? item.due.split('T')[0] : (existingItem?.due || null),
+                    assignee: item.idMember || (existingItem?.assignee || null)
                 };
             });
             mergedChecklists.push({
