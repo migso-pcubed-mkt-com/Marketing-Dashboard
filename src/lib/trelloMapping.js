@@ -399,6 +399,32 @@ export const mergeTrelloExtrasIntoTask = (task, card) => {
         }
     }
 
+    // Merge attachments from Trello into local (by trelloAttachmentId, preserve local-only)
+    if (card.attachments) {
+        const localAttIds = new Set((updated.attachments || []).filter(a => a.trelloAttachmentId).map(a => a.trelloAttachmentId));
+        const localAttUrls = new Set((updated.attachments || []).map(a => a.url).filter(Boolean));
+        const newAtts = card.attachments
+            .filter(a => !localAttIds.has(a.id) && !localAttUrls.has(a.url))
+            .map(a => ({
+                id: genId('att'),
+                name: a.name,
+                url: a.url,
+                mimeType: a.mimeType || '',
+                date: a.date,
+                trelloAttachmentId: a.id
+            }));
+        if (newAtts.length > 0) {
+            updated.attachments = [...(updated.attachments || []), ...newAtts];
+        }
+        // Capture trelloAttachmentId for local attachments that match by URL
+        for (const localAtt of (updated.attachments || [])) {
+            if (!localAtt.trelloAttachmentId && localAtt.url) {
+                const match = card.attachments.find(ta => ta.url === localAtt.url);
+                if (match) localAtt.trelloAttachmentId = match.id;
+            }
+        }
+    }
+
     return updated;
 };
 
