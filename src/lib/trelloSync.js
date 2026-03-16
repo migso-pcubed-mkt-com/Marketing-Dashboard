@@ -54,10 +54,12 @@ const pushTaskExtrasToTrello = async (task, card) => {
             if (newItems.length > 0) {
                 try {
                     const result = await addTrelloChecklistItems(existing.id, newItems);
-                    console.log(`[Trello sync] Pushed ${newItems.length} items to checklist "${cl.name}"`, result);
-                    pushed.checklists += newItems.length;
+                    const actualCount = result?.itemsAdded || 0;
+                    console.log(`[Trello sync] Pushed ${actualCount}/${newItems.length} items to checklist "${cl.name}"`, result);
+                    pushed.checklists += actualCount;
+                    if (actualCount > 0) taskModified = true;
                 } catch (e) {
-                    console.error('Failed to push checklist items:', e.message);
+                    console.error('[Trello sync] Failed to push checklist items:', e.message);
                 }
             }
             // Sync checked state of existing items
@@ -83,17 +85,21 @@ const pushTaskExtrasToTrello = async (task, card) => {
         } else {
             // New checklist — create on Trello
             const items = (cl.items || []).filter(item => item.text);
-            console.log(`[Trello sync] Creating NEW checklist "${cl.name}" with ${items.length} items`);
+            console.log(`[Trello sync] Creating NEW checklist "${cl.name}" with ${items.length} items for card ${task.trelloCardId}`);
             if (items.length > 0 || cl.name) {
                 try {
                     const result = await addTrelloChecklist(task.trelloCardId, cl.name || 'Checklist', items);
                     if (result?.id) {
                         cl.trelloChecklistId = result.id;
                         taskModified = true;
+                        const actualCount = result.itemsCreated || 0;
+                        console.log(`[Trello sync] Created checklist "${cl.name}" (${result.id}) with ${actualCount}/${items.length} items`);
+                        pushed.checklists += actualCount;
+                    } else {
+                        console.error('[Trello sync] Checklist creation returned no ID:', result);
                     }
-                    pushed.checklists += items.length;
                 } catch (e) {
-                    console.error('Failed to push checklist:', e.message);
+                    console.error('[Trello sync] Failed to push checklist:', e.message);
                 }
             }
         }
