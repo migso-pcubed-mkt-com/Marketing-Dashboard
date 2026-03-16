@@ -49,6 +49,7 @@ const App = () => {
     const [showCategoriesModal, setShowCategoriesModal] = useState(false);
     const [showNewActionModal, setShowNewActionModal] = useState(false);
     const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+    const [newTaskInitialValues, setNewTaskInitialValues] = useState(null);
     const [showCreateDropdown, setShowCreateDropdown] = useState(false);
     const [showExportDropdown, setShowExportDropdown] = useState(false);
     const [showFilterSidebar, setShowFilterSidebar] = useState(false);
@@ -274,12 +275,6 @@ const App = () => {
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyPress = (e) => {
-            // Ctrl+N / Cmd+N opens new task modal (works even from inputs)
-            if ((e.ctrlKey || e.metaKey) && e.key === 'n' && !isReadOnly) {
-                e.preventDefault();
-                handleCreateNewTask();
-                return;
-            }
             // Ctrl+F / Cmd+F opens app search filter (works even from inputs)
             if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
                 e.preventDefault();
@@ -699,7 +694,7 @@ const App = () => {
         showNotification('🗑️ Task deleted');
     };
 
-    const handleCreateNewTask = () => setShowNewTaskModal(true);
+    const handleCreateNewTask = (initialValues = null) => { setNewTaskInitialValues(initialValues); setShowNewTaskModal(true); };
 
     const handleUpdateCategory = (catId, updates) => {
         setCategories(prev => prev.map(c => c.id === catId ? {...c, ...updates} : c));
@@ -991,8 +986,8 @@ const App = () => {
                             <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
                         </div>
                     )}
-                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
-                    {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly}/>}
+                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
+                    {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={tasks} members={currentBoard?.members || []}/>}
                 </main>
@@ -1000,7 +995,7 @@ const App = () => {
                 {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t => { setSelectedTask(t); }} onAddTask={handleAddTask} onDeleteAction={handleDeleteAction} isReadOnly={isReadOnly}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction} onAddCategory={handleAddCategory}/>}
-                {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => setShowNewTaskModal(false)} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory}/>}
+                {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues}/>}
                 {showTrelloImportModal && <TrelloImportModal onClose={() => setShowTrelloImportModal(false)} onImport={handleTrelloImport}/>}
                 {showTrelloRemapModal && currentBoard?.trelloSync?.trelloBoardId && <TrelloImportModal mappingOnly trelloBoardId={currentBoard.trelloSync.trelloBoardId} existingMappings={currentBoard.trelloSync.labelMappings} onClose={() => setShowTrelloRemapModal(false)} onSaveMappings={(mappings) => handleUpdateTrelloSyncSettings({ labelMappings: mappings })}/>}
                 <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={currentBoard?.members || []} searchInputRef={searchInputRef}/>

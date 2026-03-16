@@ -3,8 +3,8 @@ import { CONFIG } from '../config.js';
 import { Icon, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 
-const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAddCategory}) => {
-    const [form, setForm] = useState({title:'',actionId:actions[0]?.id||'',startDate:new Date().toISOString().split('T')[0],dueDate:'',priority:'medium',status:'todo',description:'',budget:0});
+const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAddCategory, initialValues}) => {
+    const [form, setForm] = useState({title:'',actionId:initialValues?.actionId||actions[0]?.id||'',startDate:initialValues?.startDate||new Date().toISOString().split('T')[0],dueDate:initialValues?.dueDate||'',priority:initialValues?.priority||'medium',status:initialValues?.status||'todo',description:'',budget:0,countries:initialValues?.countries||[]});
     const [showInlineCreate, setShowInlineCreate] = useState(false);
     const [newActionName, setNewActionName] = useState('');
     const [newActionCategoryId, setNewActionCategoryId] = useState(categories[0]?.id || '');
@@ -50,7 +50,7 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
         if (!form.title.trim() || !form.actionId) return;
         const action = actions.find(a => a.id === form.actionId);
         const month = form.startDate ? new Date(form.startDate).getMonth() : new Date().getMonth();
-        onAdd({...form, id: `t${Date.now()}`, month, channels: action?.tags || [], checklist: [], comments: [], attachments: []});
+        onAdd({...form, id: `t${Date.now()}`, month, channels: action?.tags || [], checklist: [], comments: [], attachments: [], countries: form.countries || []});
         onClose();
     };
     const selectedAction = actions.find(a => a.id === form.actionId);

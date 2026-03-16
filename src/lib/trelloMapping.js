@@ -287,6 +287,70 @@ export const mapTaskToTrelloCardUpdate = (task, listId) => {
     return updates;
 };
 
+// --- After push: merge new Trello extras (checklists, attachments) into local task ---
+// This ensures items added on Trello side are preserved even when "push wins".
+export const mergeTrelloExtrasIntoTask = (task, card) => {
+    if (!card) return task;
+    const updated = { ...task };
+
+    // Merge checklist items from Trello into local checklists
+    if (card.checklists && updated.checklists) {
+        const updatedChecklists = updated.checklists.map(cl => {
+            if (!cl.trelloChecklistId) return cl;
+            const trelloCl = card.checklists.find(tc => tc.id === cl.trelloChecklistId);
+            if (!trelloCl || !trelloCl.checkItems) return cl;
+            // Find items on Trello that don't exist locally (by name)
+            const localItemNames = new Set((cl.items || []).map(i => i.text));
+            const newItems = trelloCl.checkItems
+                .filter(ti => !localItemNames.has(ti.name))
+                .map(ti => ({
+                    id: genId('cli'),
+                    text: ti.name,
+                    done: ti.state === 'complete'
+                }));
+            // Also update checked state of existing items from Trello
+            const mergedItems = (cl.items || []).map(item => {
+                const trelloItem = trelloCl.checkItems.find(ti => ti.name === item.text);
+                if (trelloItem) {
+                    return { ...item, done: trelloItem.state === 'complete' };
+                }
+                return item;
+            });
+            if (newItems.length === 0 && mergedItems.every((item, i) => item.done === (cl.items || [])[i]?.done)) return cl;
+            return { ...cl, items: [...mergedItems, ...newItems] };
+        });
+        // Also add entirely new Trello checklists not present locally
+        const localTrelloClIds = new Set(updated.checklists.map(cl => cl.trelloChecklistId).filter(Boolean));
+        const newChecklists = (card.checklists || [])
+            .filter(tc => !localTrelloClIds.has(tc.id))
+            .map(tc => ({
+                id: genId('cl'),
+                name: tc.name || 'Checklist',
+                trelloChecklistId: tc.id,
+                items: (tc.checkItems || []).map(ti => ({
+                    id: genId('cli'),
+                    text: ti.name,
+                    done: ti.state === 'complete'
+                }))
+            }));
+        updated.checklists = [...updatedChecklists, ...newChecklists];
+    } else if (card.checklists && !updated.checklists?.length) {
+        // No local checklists but Trello has some — pull them all
+        updated.checklists = card.checklists.map(tc => ({
+            id: genId('cl'),
+            name: tc.name || 'Checklist',
+            trelloChecklistId: tc.id,
+            items: (tc.checkItems || []).map(ti => ({
+                id: genId('cli'),
+                text: ti.name,
+                done: ti.state === 'complete'
+            }))
+        }));
+    }
+
+    return updated;
+};
+
 // --- Merge Trello card changes into existing task (merge-by-ID, preserves local-only items) ---
 export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
     // --- Checklists: merge by trelloChecklistId ---

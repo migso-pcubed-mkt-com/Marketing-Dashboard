@@ -1,7 +1,7 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
 import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel } from './trello.js';
-import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, trelloColorToHex } from './trelloMapping.js';
+import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
 
 // Push comments, checklists, attachments that don't already exist on Trello.
@@ -363,7 +363,9 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
                     const { taskModified } = await pushTaskExtrasToTrello(task, card);
                     // Push labels (channels, countries, otherLabels)
                     await pushTaskLabelsToTrello(task, card, board, mappingConfig);
-                    updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
+                    // After push, also pull any new Trello extras (checklists, items) into local task
+                    const mergedTask = mergeTrelloExtrasIntoTask(task, card);
+                    updatedTasks[i] = { ...mergedTask, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
                     result.pushed++;
                 } catch (err) {
                     console.error(`Failed to push task "${task.title}" to Trello:`, err);
@@ -380,7 +382,9 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
                     await updateTrelloCard(task.trelloCardId, updates);
                     const { taskModified } = await pushTaskExtrasToTrello(task, card);
                     await pushTaskLabelsToTrello(task, card, board, mappingConfig);
-                    updatedTasks[i] = { ...task, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
+                    // After push, also pull any new Trello extras (checklists, items) into local task
+                    const mergedTask = mergeTrelloExtrasIntoTask(task, card);
+                    updatedTasks[i] = { ...mergedTask, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
                     result.pushed++;
                 } catch (err) {
                     console.error(`Failed to push task "${task.title}" to Trello:`, err);
