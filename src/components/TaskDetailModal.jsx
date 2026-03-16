@@ -355,18 +355,25 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         </div>
                         <button onClick={handleClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
-                    <div className="flex flex-wrap gap-3 mb-6">
-                        {actions&&<div className="w-full"><label className="v11-label">📋 Action</label>{!showInlineCreateAction?(<><select value={form.actionId} onChange={e=>{if(isReadOnly)return;const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className="v11-select" style={{width:'100%'}} disabled={isReadOnly}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>{onCreateAction&&<button onClick={()=>setShowInlineCreateAction(true)} style={{marginTop:4,fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:4}}><Icon.Plus size={10}/> Create a new action</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',padding:12,background:'var(--bg-secondary)'}}><div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>New action</div><input ref={newActionInputRef} type="text" value={newActionName} onChange={e=>setNewActionName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleInlineCreateAction();if(e.key==='Escape')setShowInlineCreateAction(false);}} placeholder="Action name..." className="v11-input" style={{marginBottom:8}}/>{!showInlineCreateCategory?(<><select value={newActionCategoryId} onChange={e=>setNewActionCategoryId(e.target.value)} className="v11-input" style={{marginBottom:4}}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>{onAddCategory&&<button onClick={()=>setShowInlineCreateCategory(true)} style={{marginBottom:8,fontSize:10,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:3}}><Icon.Plus size={9}/> New category</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:8,background:'var(--bg-primary)',marginBottom:8}}><input type="text" value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&newCategoryName.trim()){const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}if(e.key==='Escape')setShowInlineCreateCategory(false);}} placeholder="Category name..." className="v11-input" style={{marginBottom:6,fontSize:12}} autoFocus/><div style={{display:'flex',gap:4}}><button onClick={()=>{if(!newCategoryName.trim())return;const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}} style={{padding:'3px 8px',fontSize:10,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Add</button><button onClick={()=>{setShowInlineCreateCategory(false);setNewCategoryName('');}} style={{padding:'3px 8px',fontSize:10,background:'var(--bg-secondary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}<div style={{display:'flex',gap:6}}><button onClick={handleInlineCreateAction} style={{padding:'5px 10px',fontSize:11,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Create</button><button onClick={()=>{setShowInlineCreateAction(false);setNewActionName('');setShowInlineCreateCategory(false);}} style={{padding:'5px 10px',fontSize:11,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}</div>}
-                        <div><label className="v11-label">Status</label><IconSelect value={form.status} options={CONFIG.STATUSES} onChange={v=>setForm({...form,status:v})} renderOption={o=><StatusOption status={o}/>} disabled={isReadOnly}/></div>
-                        <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>} disabled={isReadOnly}/></div>
-                        <div><label className="v11-label">Start</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input" readOnly={isReadOnly}/></div>
-                        <div><label className="v11-label">End</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input" readOnly={isReadOnly}/></div>
-                        <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}} readOnly={isReadOnly}/></div>
+                    {/* Details section */}
+                    <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:10}}>Details</div>
+                        {actions&&<div style={{marginBottom:10}}><label className="v11-label">📋 Action</label>{!showInlineCreateAction?(<><select value={form.actionId} onChange={e=>{if(isReadOnly)return;const newAction=actions.find(a=>a.id===e.target.value);setForm({...form,actionId:e.target.value,channels:newAction?.tags||form.channels});}} className="v11-select" style={{width:'100%'}} disabled={isReadOnly}>{actions.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>{onCreateAction&&<button onClick={()=>setShowInlineCreateAction(true)} style={{marginTop:4,fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:4}}><Icon.Plus size={10}/> Create a new action</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',padding:12,background:'var(--bg-primary)'}}><div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>New action</div><input ref={newActionInputRef} type="text" value={newActionName} onChange={e=>setNewActionName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleInlineCreateAction();if(e.key==='Escape')setShowInlineCreateAction(false);}} placeholder="Action name..." className="v11-input" style={{marginBottom:8}}/>{!showInlineCreateCategory?(<><select value={newActionCategoryId} onChange={e=>setNewActionCategoryId(e.target.value)} className="v11-input" style={{marginBottom:4}}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>{onAddCategory&&<button onClick={()=>setShowInlineCreateCategory(true)} style={{marginBottom:8,fontSize:10,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:3}}><Icon.Plus size={9}/> New category</button>}</>):(<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:8,background:'var(--bg-primary)',marginBottom:8}}><input type="text" value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&newCategoryName.trim()){const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}if(e.key==='Escape')setShowInlineCreateCategory(false);}} placeholder="Category name..." className="v11-input" style={{marginBottom:6,fontSize:12}} autoFocus/><div style={{display:'flex',gap:4}}><button onClick={()=>{if(!newCategoryName.trim())return;const nc={id:`cat${Date.now()}`,name:newCategoryName.trim(),color:'#6366f1',gradient:'from-indigo-500 to-purple-500'};onAddCategory(nc);setNewActionCategoryId(nc.id);setNewCategoryName('');setShowInlineCreateCategory(false);}} style={{padding:'3px 8px',fontSize:10,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Add</button><button onClick={()=>{setShowInlineCreateCategory(false);setNewCategoryName('');}} style={{padding:'3px 8px',fontSize:10,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}<div style={{display:'flex',gap:6}}><button onClick={handleInlineCreateAction} style={{padding:'5px 10px',fontSize:11,color:'white',background:'var(--accent)',border:'none',borderRadius:'var(--radius-sm)',cursor:'pointer',fontWeight:500}}>Create</button><button onClick={()=>{setShowInlineCreateAction(false);setNewActionName('');setShowInlineCreateCategory(false);}} style={{padding:'5px 10px',fontSize:11,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',cursor:'pointer'}}>Cancel</button></div></div>)}</div>}
+                        <div className="flex flex-wrap gap-3">
+                            <div><label className="v11-label">Status</label><IconSelect value={form.status} options={CONFIG.STATUSES} onChange={v=>setForm({...form,status:v})} renderOption={o=><StatusOption status={o}/>} disabled={isReadOnly}/></div>
+                            <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>} disabled={isReadOnly}/></div>
+                            <div><label className="v11-label">Start</label><input type="date" value={form.startDate||''} onChange={e=>setForm({...form,startDate:e.target.value})} className="v11-input" readOnly={isReadOnly}/></div>
+                            <div><label className="v11-label">End</label><input type="date" value={form.dueDate||''} onChange={e=>setForm({...form,dueDate:e.target.value})} className="v11-input" readOnly={isReadOnly}/></div>
+                            <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:96}} readOnly={isReadOnly}/></div>
+                        </div>
                     </div>
-                    <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel} editable={!isReadOnly}/></div>
-                    <div className="mb-4"><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry} editable={!isReadOnly}/></div>
+                    {/* Tags & People section */}
+                    <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:10}}>Tags & People</div>
+                        <div style={{marginBottom:10}}><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.channels||[]} onAdd={addChannel} onRemove={removeChannel} editable={!isReadOnly}/></div>
+                        <div style={{marginBottom:10}}><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry} editable={!isReadOnly}/></div>
                     {members.length > 0 && (
-                        <div className="mb-4">
+                        <div style={{marginBottom:10}}>
                             <label className="v11-label">👥 Members</label>
                             <div style={{display:'flex',alignItems:'center',gap:4,flexWrap:'wrap',position:'relative'}}>
                                 {(form.assignees||[]).map(id => {
@@ -403,7 +410,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             </div>
                         </div>
                     )}
-                    <div className="mb-4">
+                    <div>
                         <label className="v11-label">🏷️ Other Labels</label>
                         <div style={{display:'flex',flexWrap:'wrap',gap:4,alignItems:'center'}}>
                             {(form.otherLabels || []).map(label => (
@@ -455,9 +462,10 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             </div>}
                         </div>
                     </div>
-                    <div className="mb-6">
+                    </div>
+                    <div className="mb-5">
                         <div className="flex items-center justify-between mb-2">
-                            <label className="block text-sm font-medium">📝 Description</label>
+                            <span style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px'}}>📝 Description</span>
                             {descriptionDraft&&!descriptionEditing&&!isReadOnly&&<button onClick={()=>{setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML=markdownToHtml(descriptionDraft);descEditableRef.current.focus();}},0);}} className="text-xs" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer'}}>Edit</button>}
                         </div>
                         {descriptionEditing?(
@@ -477,9 +485,9 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             </div>
                         )}
                     </div>
-                    <div className="mb-6">
+                    <div className="mb-5">
                         <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm font-medium">✅ Checklists</label>
+                            <span style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px'}}>✅ Checklists</span>
                             <div className="flex items-center gap-3">
                                 {allChecklistItems.length>0&&<span className="text-sm" style={{color:'var(--text-muted)'}}>{checklistPct}%</span>}
                                 {!isReadOnly && <button onClick={()=>setShowAddChecklist(true)} className="text-xs flex items-center gap-1" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}><Icon.Plus size={10}/> Add checklist</button>}
@@ -502,13 +510,13 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             </div>
                         );})}
                     </div>
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium mb-2">💬 Comments ({form.comments?.length||0})</label>
+                    <div className="mb-5">
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:8}}>💬 Comments ({form.comments?.length||0})</div>
                         <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{[...(form.comments||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-secondary)'}}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><p className="text-sm" style={{color:'var(--text-secondary)'}}>{c.text}</p></div>))}</div>
                         {!isReadOnly && <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Write..." className="v11-input" style={{flex:1}}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Send</button></div>}
                     </div>
-                    <div className="mb-6">
-                        <label className="block text-sm font-medium mb-2">📎 Attachments ({(form.attachments||[]).length})</label>
+                    <div className="mb-5">
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:8}}>📎 Attachments ({(form.attachments||[]).length})</div>
                         {(form.attachments||[]).length>0&&<div className="space-y-2 mb-3">
                             {(form.attachments||[]).map(att=>{
                                 const isImage = (att.type||att.mimeType||'').startsWith('image/');
@@ -560,8 +568,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                 });
                                 e.target.value='';
                             }}/>
-                            <p style={{fontSize:13,color:'var(--text-muted)'}}>Glissez des fichiers ici ou cliquez pour parcourir</p>
-                            <p style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>Max 5 Mo par fichier</p>
+                            <p style={{fontSize:13,color:'var(--text-muted)'}}>Drag files here or click to browse</p>
+                            <p style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>Max 5 MB per file</p>
                         </div>}
                     </div>
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>

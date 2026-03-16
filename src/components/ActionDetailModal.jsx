@@ -31,14 +31,20 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         </div>
                         <button onClick={handleClose} className="ml-2 v11-icon-btn"><Icon.Close/></button>
                     </div>
-                    <div className="flex flex-wrap gap-3 mb-4">
-                        <div><label className="v11-label">Category</label><select value={form.categoryId} onChange={e=>!isReadOnly&&setForm({...form,categoryId:e.target.value})} className="v11-select" disabled={isReadOnly}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-                        <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>} disabled={isReadOnly}/></div>
-                        <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:128}} readOnly={isReadOnly}/></div>
+                    {/* Details section */}
+                    <div className="rounded-xl mb-4" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:10}}>Details</div>
+                        <div className="flex flex-wrap gap-3">
+                            <div><label className="v11-label">Category</label><select value={form.categoryId} onChange={e=>!isReadOnly&&setForm({...form,categoryId:e.target.value})} className="v11-select" disabled={isReadOnly}>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                            <div><label className="v11-label">Priority</label><IconSelect value={form.priority} options={CONFIG.PRIORITIES} onChange={v=>setForm({...form,priority:v})} renderOption={o=><PriorityOption priority={o}/>} disabled={isReadOnly}/></div>
+                            <div><label className="v11-label">Budget €</label><input type="number" value={form.budget||0} onChange={e=>setForm({...form,budget:parseInt(e.target.value)||0})} className="v11-input" style={{width:128}} readOnly={isReadOnly}/></div>
+                        </div>
                     </div>
-                    <div className="rounded-xl p-4 mb-4" style={{background:'var(--bg-secondary)'}}>
+                    {/* Summary */}
+                    <div className="rounded-xl p-4 mb-4" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)'}}>
+                        <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:10}}>Summary</div>
                         <div className="flex justify-between mb-3">
-                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>💰 Total Tasks Budget</span><p className="text-lg font-bold text-secondary">{totalBudget.toLocaleString()}€</p></div>
+                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>💰 Budget</span><p className="text-lg font-bold text-secondary">{totalBudget.toLocaleString()}€</p></div>
                             <div><span className="text-xs" style={{color:'var(--text-muted)'}}>📊 Progress</span><p className="text-lg font-bold">{progressPct}%</p></div>
                             <div><span className="text-xs" style={{color:'var(--text-muted)'}}>📋 Tasks</span><p className="text-lg font-bold">{completedTasks}/{actionTasks.length}</p></div>
                         </div>
@@ -47,7 +53,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     <div className="mb-4"><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.tags||[]} onAdd={addChannel} onRemove={removeChannel} editable={!isReadOnly}/></div>
                     <div className="mb-4">
                         <div className="flex items-center justify-between mb-3">
-                            <label className="text-sm font-medium">📋 TASKS ({actionTasks.length})</label>
+                            <span style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px'}}>📋 Tasks ({actionTasks.length})</span>
                             {!isReadOnly && <button onClick={()=>onAddTask(action.id)} className="px-3 py-1 bg-secondary text-white rounded-lg text-xs flex items-center space-x-1"><Icon.Plus/><span>Add</span></button>}
                         </div>
                         <div className="space-y-2 max-h-48 overflow-y-auto">
