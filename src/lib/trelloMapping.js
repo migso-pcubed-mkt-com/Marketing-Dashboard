@@ -374,6 +374,31 @@ export const mergeTrelloExtrasIntoTask = (task, card) => {
         }));
     }
 
+    // Merge comments from Trello into local (same pattern as checklists: by trelloCommentId)
+    if (card.comments) {
+        const localCommentIds = new Set((updated.comments || []).filter(c => c.trelloCommentId).map(c => c.trelloCommentId));
+        const localCommentTexts = new Set((updated.comments || []).map(c => c.text?.trim()));
+        const newComments = card.comments
+            .filter(c => !localCommentIds.has(c.id) && !localCommentTexts.has((c.data?.text || '').trim()))
+            .map(c => ({
+                id: genId('cm'),
+                author: c.memberCreator?.fullName || c.memberCreator?.username || 'Unknown',
+                text: c.data?.text || '',
+                date: c.date,
+                trelloCommentId: c.id
+            }));
+        if (newComments.length > 0) {
+            updated.comments = [...(updated.comments || []), ...newComments];
+        }
+        // Also capture trelloCommentId for existing local comments that match by text
+        for (const localCm of (updated.comments || [])) {
+            if (!localCm.trelloCommentId) {
+                const match = card.comments.find(tc => (tc.data?.text || '').trim() === localCm.text?.trim());
+                if (match) localCm.trelloCommentId = match.id;
+            }
+        }
+    }
+
     return updated;
 };
 

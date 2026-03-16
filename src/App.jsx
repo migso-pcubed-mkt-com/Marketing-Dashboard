@@ -92,6 +92,12 @@ const App = () => {
     const tasks = currentBoard?.tasks || DEFAULT_TASKS;
     const boards = boardData?.boards || [];
 
+    // Filter out archived tasks unless "Show archived" filter is active
+    const visibleTasks = useMemo(() => {
+        if (filters.showArchived) return tasks;
+        return tasks.filter(t => !t.trelloArchived);
+    }, [tasks, filters.showArchived]);
+
     // Guest users are read-only on Trello-linked boards (can edit non-Trello boards)
     const isReadOnly = !trelloUser && !!currentBoard?.trelloSync?.trelloBoardId;
 
@@ -808,11 +814,14 @@ const App = () => {
             // In guest mode (no Trello user), sync is read-only — pull from Trello but never push
             const isGuest = !trelloUser;
             const { board: syncedBoard, result } = await syncWithTrello(currentBoard, mappingConfig, { readOnly: isGuest });
+            // Prevent Supabase Realtime from overwriting freshly synced data
+            isReceivingRealtimeRef.current = true;
             // Update the board in boardData
             setBoardData(prev => ({
                 ...prev,
                 boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b)
             }));
+            setTimeout(() => { isReceivingRealtimeRef.current = false; }, 3000);
             setTrelloSyncStatus('synced');
             const msg = [];
             if (result.created) msg.push(`${result.created} new`);
@@ -903,12 +912,10 @@ const App = () => {
     const completedCount = tasks.filter(t => t.status === 'completed').length;
     const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
 
-    // Filtered tasks for stats — same logic as views
+    // Filtered tasks for stats — same logic as views (visibleTasks already excludes archived)
     const filteredTasks = useMemo(() => {
-        // Always filter out archived unless showArchived is on
-        const baseTasks = filters.showArchived ? tasks : tasks.filter(t => !t.trelloArchived);
-        if (!activeFilterCount) return baseTasks;
-        return baseTasks.filter(t => {
+        if (!activeFilterCount) return visibleTasks;
+        return visibleTasks.filter(t => {
             const act = actions.find(a => a.id === t.actionId);
             if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
             if (filters.status.length > 0 && !filters.status.includes(t.status)) return false;
@@ -920,7 +927,7 @@ const App = () => {
             if (filters.member?.length > 0 && !(t.assignees||[]).some(m => filters.member.includes(m))) return false;
             return true;
         });
-    }, [tasks, actions, filters, activeFilterCount]);
+    }, [visibleTasks, actions, filters, activeFilterCount]);
     const filteredBudget = filteredTasks.reduce((s, t) => s + (t.budget || 0), 0);
     const isFiltered = activeFilterCount > 0;
 
@@ -1009,13 +1016,13 @@ const App = () => {
                             <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
                         </div>
                     )}
-                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
-                    {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
-                    {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={tasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
-                    {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={tasks} members={currentBoard?.members || []}/>}
+                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
+                    {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
+                    {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
+                    {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={visibleTasks} members={currentBoard?.members || []}/>}
                 </main>
                 {selectedTask && <TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={currentBoard?.members || []} isReadOnly={isReadOnly} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()}/>}
-                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={selectedAction} tasks={tasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t => { setSelectedTask(t); }} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} isReadOnly={isReadOnly}/>}
+                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t => { setSelectedTask(t); }} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} isReadOnly={isReadOnly}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction} onAddCategory={handleAddCategory}/>}
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues}/>}

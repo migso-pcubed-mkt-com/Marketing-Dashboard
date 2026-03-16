@@ -504,6 +504,18 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
                 updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig);
                 result.updated++;
             }
+        } else {
+            // Neither side has timestamp changes — still merge extras
+            // (positions, new checklist items, comments that don't affect dateLastActivity)
+            const mergedTask = mergeTrelloExtrasIntoTask(task, card);
+            // Check if anything actually changed
+            const extrasChanged = JSON.stringify(mergedTask.checklists) !== JSON.stringify(task.checklists) ||
+                JSON.stringify(mergedTask.comments) !== JSON.stringify(task.comments) ||
+                JSON.stringify(mergedTask.attachments) !== JSON.stringify(task.attachments);
+            if (extrasChanged) {
+                updatedTasks[i] = { ...mergedTask, trelloLastModified: card.dateLastActivity };
+                result.updated++;
+            }
         }
     }
 
