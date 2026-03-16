@@ -86,12 +86,14 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
     // Map Trello checklists (named, preserving checklist structure)
     const checklists = [];
     if (card.checklists) {
-        for (const cl of card.checklists) {
+        const sortedChecklists = [...card.checklists].sort((a, b) => (a.pos || 0) - (b.pos || 0));
+        for (const cl of sortedChecklists) {
+            const sortedItems = [...(cl.checkItems || [])].sort((a, b) => (a.pos || 0) - (b.pos || 0));
             checklists.push({
                 id: genId('cl'),
                 name: cl.name || 'Checklist',
                 trelloChecklistId: cl.id,
-                items: (cl.checkItems || []).map(item => ({
+                items: sortedItems.map(item => ({
                     id: genId('cli'),
                     text: item.name,
                     done: item.state === 'complete',
@@ -376,7 +378,8 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
     const localOnlyChecklists = (existingTask.checklists || []).filter(cl => !cl.trelloChecklistId);
     const mergedChecklists = [];
     if (card.checklists) {
-        for (const cl of card.checklists) {
+        const sortedCLs = [...card.checklists].sort((a, b) => (a.pos || 0) - (b.pos || 0));
+        for (const cl of sortedCLs) {
             const existing = existingCLMap.get(cl.id);
             // Merge items by trelloCheckItemId first, then by name
             const existingItemByTrelloId = new Map();
@@ -387,7 +390,8 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
                     existingItemByName.set(item.text, item);
                 }
             }
-            const mergedItems = (cl.checkItems || []).map(item => {
+            const sortedCheckItems = [...(cl.checkItems || [])].sort((a, b) => (a.pos || 0) - (b.pos || 0));
+            const mergedItems = sortedCheckItems.map(item => {
                 const existingItem = existingItemByTrelloId.get(item.id) || existingItemByName.get(item.name);
                 return {
                     id: existingItem?.id || genId('cli'),

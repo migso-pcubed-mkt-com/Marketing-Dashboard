@@ -273,7 +273,6 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[draggingItemKey,setDraggingItemKey]=useState(null);
     const[dragOverItemKey,setDragOverItemKey]=useState(null);
     const[showItemMemberPicker,setShowItemMemberPicker]=useState(null);
-    const[showItemDatePicker,setShowItemDatePicker]=useState(null);
     const[showInlineCreateAction,setShowInlineCreateAction]=useState(false);
     const[newActionName,setNewActionName]=useState('');
     const[newActionCategoryId,setNewActionCategoryId]=useState(categories?.[0]?.id||'');
@@ -310,7 +309,21 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
 
     const handleClose=()=>{if(!isReadOnly)onUpdate(task.id,form);onClose();}; // Auto-save on close (Trello-style), skip in read-only
     const saveDescription=()=>{setForm({...form,description:descriptionDraft});setDescriptionSaved(true);};
-    const addComment=()=>{if(!newComment.trim())return;const author=trelloUser?.fullName||'Guest';setForm({...form,comments:[...(form.comments||[]),{id:`cm${Date.now()}`,author,text:newComment,date:new Date().toISOString()}]});setNewComment('');};
+    const[commentEditing,setCommentEditing]=useState(false);
+    const commentEditableRef=useRef(null);
+    const[commentAttachments,setCommentAttachments]=useState([]);
+    const addComment=()=>{
+        const md = commentEditing && commentEditableRef.current ? htmlToMarkdown(commentEditableRef.current.innerHTML || '') : newComment.trim();
+        if(!md)return;
+        const author=trelloUser?.fullName||'Guest';
+        const comment = {id:`cm${Date.now()}`,author,text:md,date:new Date().toISOString()};
+        if (commentAttachments.length > 0) comment.attachments = [...commentAttachments];
+        setForm({...form,comments:[...(form.comments||[]),comment]});
+        setNewComment('');
+        setCommentAttachments([]);
+        setCommentEditing(false);
+        if(commentEditableRef.current) commentEditableRef.current.innerHTML='';
+    };
     const addChecklistItem=(checklistId)=>{const text=(newChecklistItems[checklistId]||'').trim();if(!text)return;setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:[...cl.items,{id:`cli${Date.now()}`,text,done:false}]}:cl)});setNewChecklistItems({...newChecklistItems,[checklistId]:''});};
     const toggleChecklistItem=(checklistId,itemId)=>setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,done:!i.done}:i)}:cl)});
     const removeChecklistItem=(checklistId,itemId)=>setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.filter(i=>i.id!==itemId)}:cl)});
@@ -318,10 +331,10 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const removeChecklist=(checklistId)=>setForm({...form,checklists:(form.checklists||[]).filter(cl=>cl.id!==checklistId)});
     const renameChecklist=(checklistId,newName)=>{if(!newName.trim())return;setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,name:newName.trim()}:cl)});setEditingChecklistId(null);};
     const renameChecklistItem=(checklistId,itemId,newText)=>{if(!newText.trim())return;setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,text:newText.trim()}:i)}:cl)});setEditingItemId(null);};
-    const reorderChecklists=(fromIdx,toIdx)=>{const cls=[...(form.checklists||[])];const[moved]=cls.splice(fromIdx,1);cls.splice(toIdx,0,moved);setForm({...form,checklists:cls});};
-    const reorderChecklistItems=(checklistId,fromIdx,toIdx)=>{setForm({...form,checklists:(form.checklists||[]).map(cl=>{if(cl.id!==checklistId)return cl;const items=[...cl.items];const[moved]=items.splice(fromIdx,1);items.splice(toIdx,0,moved);return{...cl,items};})});};
+    const reorderChecklists=(fromIdx,toIdx)=>{setForm(prev=>{const cls=[...(prev.checklists||[])];const[moved]=cls.splice(fromIdx,1);cls.splice(toIdx,0,moved);return{...prev,checklists:cls};});};
+    const reorderChecklistItems=(checklistId,fromItemId,toItemId)=>{setForm(prev=>({...prev,checklists:(prev.checklists||[]).map(cl=>{if(cl.id!==checklistId)return cl;const items=[...cl.items];const fromIdx=items.findIndex(i=>i.id===fromItemId);const toIdx=items.findIndex(i=>i.id===toItemId);if(fromIdx<0||toIdx<0||fromIdx===toIdx)return cl;const[moved]=items.splice(fromIdx,1);items.splice(toIdx,0,moved);return{...cl,items};})}));};
     const updateChecklistItemAssignee=(checklistId,itemId,assignee)=>{setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,assignee}:i)}:cl)});setShowItemMemberPicker(null);};
-    const updateChecklistItemDue=(checklistId,itemId,due)=>{setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,due}:i)}:cl)});setShowItemDatePicker(null);};
+    const updateChecklistItemDue=(checklistId,itemId,due)=>{setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,due}:i)}:cl)});};
     const addChannel=(id)=>setForm({...form,channels:[...(form.channels||[]),id]});
     const removeChannel=(id)=>setForm({...form,channels:(form.channels||[]).filter(c=>c!==id)});
     const addCountry=(id)=>setForm({...form,countries:[...(form.countries||[]),id]});
@@ -530,7 +543,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                 </div>
                                 {cl.items.length>0&&<div style={{padding:'0 12px'}}><div className="v11-progress-bar" style={{height:3,margin:'8px 0'}}><div className={`v11-progress-fill ${clPct>=70?'high':clPct>=40?'medium':'low'}`} style={{width:`${clPct}%`}}/></div></div>}
                                 <div style={{padding:'4px 8px'}}>{cl.items.map((item,itemIdx)=>{const itemKey=`${cl.id}:${item.id}`;const assigneeMember=item.assignee?members.find(m=>m.id===item.assignee):null;return(
-                                    <div key={item.id} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 4px',borderRadius:6,background:dragOverItemKey===itemKey?'var(--accent-light)':'transparent',opacity:draggingItemKey===itemKey?0.4:1,transition:'background 0.15s'}} draggable={!isReadOnly} onDragStart={e=>{e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','item');setDraggingItemKey(itemKey);}} onDragEnd={()=>{if(draggingItemKey&&dragOverItemKey){const[fromClId,fromItemId]=draggingItemKey.split(':');const[toClId,toItemId]=dragOverItemKey.split(':');if(fromClId===toClId){const fromIdx=cl.items.findIndex(i=>i.id===fromItemId);const toIdx=cl.items.findIndex(i=>i.id===toItemId);if(fromIdx>=0&&toIdx>=0&&fromIdx!==toIdx)reorderChecklistItems(cl.id,fromIdx,toIdx);}}setDraggingItemKey(null);setDragOverItemKey(null);}} onDragOver={e=>{e.preventDefault();e.stopPropagation();if(draggingItemKey&&draggingItemKey.startsWith(cl.id+':'))setDragOverItemKey(itemKey);}} onDragLeave={()=>dragOverItemKey===itemKey&&setDragOverItemKey(null)}>
+                                    <div key={item.id} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 4px',borderRadius:6,background:dragOverItemKey===itemKey?'var(--accent-light)':'transparent',opacity:draggingItemKey===itemKey?0.4:1,transition:'background 0.15s'}} draggable={!isReadOnly} onDragStart={e=>{e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','item');setDraggingItemKey(itemKey);}} onDragEnd={()=>{if(draggingItemKey&&dragOverItemKey){const[fromClId,fromItemId]=draggingItemKey.split(':');const[toClId,toItemId]=dragOverItemKey.split(':');if(fromClId===toClId&&fromItemId!==toItemId)reorderChecklistItems(fromClId,fromItemId,toItemId);}setDraggingItemKey(null);setDragOverItemKey(null);}} onDragOver={e=>{e.preventDefault();e.stopPropagation();if(draggingItemKey&&draggingItemKey.startsWith(cl.id+':'))setDragOverItemKey(itemKey);}} onDragLeave={()=>dragOverItemKey===itemKey&&setDragOverItemKey(null)}>
                                         {!isReadOnly&&<span style={{cursor:'grab',color:'var(--text-muted)',fontSize:10,flexShrink:0,userSelect:'none'}}>⋮⋮</span>}
                                         <button onClick={()=>!isReadOnly&&toggleChecklistItem(cl.id,item.id)} style={{width:18,height:18,borderRadius:4,border:item.done?'none':'2px solid var(--border-strong)',background:item.done?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:isReadOnly?'default':'pointer',flexShrink:0,transition:'all 0.2s'}}>{item.done&&<svg width="10" height="10" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}</button>
                                         {editingItemId===item.id?(
@@ -540,7 +553,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                         )}
                                         {/* Assignee badge */}
                                         <div style={{position:'relative',flexShrink:0}}>
-                                            <button onClick={()=>{if(isReadOnly)return;setShowItemMemberPicker(showItemMemberPicker===itemKey?null:itemKey);setShowItemDatePicker(null);}} style={{width:22,height:22,borderRadius:'50%',border:assigneeMember?'2px solid var(--accent)':'1px dashed var(--border)',background:assigneeMember?'none':'transparent',cursor:isReadOnly?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0,padding:0}} title={assigneeMember?(assigneeMember.fullName||assigneeMember.username):'Assign member'}>
+                                            <button onClick={()=>{if(isReadOnly)return;setShowItemMemberPicker(showItemMemberPicker===itemKey?null:itemKey);}} style={{width:22,height:22,borderRadius:'50%',border:assigneeMember?'2px solid var(--accent)':'1px dashed var(--border)',background:assigneeMember?'none':'transparent',cursor:isReadOnly?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0,padding:0}} title={assigneeMember?(assigneeMember.fullName||assigneeMember.username):'Assign member'}>
                                                 {assigneeMember?(assigneeMember.avatarUrl?<img src={assigneeMember.avatarUrl} alt="" style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}}/>:<span style={{width:'100%',height:'100%',borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600}}>{(assigneeMember.fullName||assigneeMember.username||'?')[0].toUpperCase()}</span>):<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
                                             </button>
                                             {showItemMemberPicker===itemKey&&members.length>0&&(<>
@@ -556,17 +569,12 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                         </div>
                                         {/* Due date badge */}
                                         <div style={{position:'relative',flexShrink:0}}>
-                                            <button onClick={()=>{if(isReadOnly)return;setShowItemDatePicker(showItemDatePicker===itemKey?null:itemKey);setShowItemMemberPicker(null);}} style={{padding:'2px 6px',borderRadius:4,border:'1px solid '+(item.due?'var(--accent)':'var(--border)'),background:item.due?'var(--accent-light)':'transparent',cursor:isReadOnly?'default':'pointer',fontSize:10,color:item.due?'var(--accent)':'var(--text-muted)',display:'flex',alignItems:'center',gap:3,whiteSpace:'nowrap'}} title={item.due?`Due: ${item.due}`:'Set due date'}>
+                                            <label style={{padding:'2px 6px',borderRadius:4,border:'1px solid '+(item.due?'var(--accent)':'var(--border)'),background:item.due?'var(--accent-light)':'transparent',cursor:isReadOnly?'default':'pointer',fontSize:10,color:item.due?'var(--accent)':'var(--text-muted)',display:'flex',alignItems:'center',gap:3,whiteSpace:'nowrap'}} title={item.due?`Due: ${item.due}`:'Set due date'}>
                                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                                                 {item.due?new Date(item.due+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):''}
-                                            </button>
-                                            {showItemDatePicker===itemKey&&(<>
-                                                <div style={{position:'fixed',inset:0,zIndex:98}} onClick={()=>setShowItemDatePicker(null)}/>
-                                                <div style={{position:'absolute',top:'100%',right:0,marginTop:4,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:99,padding:8}}>
-                                                    <input type="date" value={item.due||''} onChange={e=>updateChecklistItemDue(cl.id,item.id,e.target.value||null)} className="v11-input" style={{fontSize:12}} autoFocus/>
-                                                    {item.due&&<button onClick={()=>updateChecklistItemDue(cl.id,item.id,null)} style={{marginTop:4,fontSize:10,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',width:'100%',textAlign:'center'}}>Clear date</button>}
-                                                </div>
-                                            </>)}
+                                                {!isReadOnly&&<input type="date" value={item.due||''} onChange={e=>updateChecklistItemDue(cl.id,item.id,e.target.value||null)} onClick={e=>{e.target.showPicker?.();}} style={{position:'absolute',opacity:0,width:0,height:0,overflow:'hidden'}}/>}
+                                            </label>
+                                            {item.due&&!isReadOnly&&<button onClick={e=>{e.stopPropagation();updateChecklistItemDue(cl.id,item.id,null);}} style={{position:'absolute',top:-4,right:-4,width:14,height:14,borderRadius:'50%',background:'var(--text-muted)',color:'white',border:'none',cursor:'pointer',fontSize:8,display:'flex',alignItems:'center',justifyContent:'center',lineHeight:1}} title="Clear date">&times;</button>}
                                         </div>
                                         {!isReadOnly&&<button onClick={()=>removeChecklistItem(cl.id,item.id)} style={{color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',flexShrink:0,padding:2}} className="hover:text-accent-red"><Icon.Trash size={12}/></button>}
                                     </div>
@@ -578,8 +586,25 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     </div>
                     <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
                         <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:8}}>💬 Comments ({form.comments?.length||0})</div>
-                        <div className="space-y-2 mb-3 max-h-40 overflow-y-auto">{[...(form.comments||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}><div className="flex justify-between mb-1"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div><p className="text-sm" style={{color:'var(--text-secondary)'}}>{c.text}</p></div>))}</div>
-                        {!isReadOnly && <div className="flex space-x-2"><input type="text" value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyPress={e=>e.key==='Enter'&&addComment()} placeholder="Write..." className="v11-input" style={{flex:1}}/><button onClick={addComment} className="px-4 py-2 bg-secondary text-white rounded-lg text-sm">Send</button></div>}
+                        <div className="space-y-2 mb-3" style={{maxHeight:320,overflowY:'auto'}}>{[...(form.comments||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>
+                            <div className="flex justify-between mb-2"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+                            <div style={{fontSize:13,color:'var(--text-secondary)'}}><SimpleMarkdown text={c.text}/></div>
+                            {c.attachments&&c.attachments.length>0&&<div style={{marginTop:6,display:'flex',flexWrap:'wrap',gap:4}}>{c.attachments.map(att=>(<a key={att.id||att.name} href={att.data||att.url||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',textDecoration:'none'}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>{att.name}</a>))}</div>}
+                        </div>))}</div>
+                        {!isReadOnly && <div>
+                            {commentEditing ? (<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)',overflow:'hidden'}}>
+                                <WysiwygToolbar editableRef={commentEditableRef}/>
+                                <div ref={commentEditableRef} contentEditable suppressContentEditableWarning style={{minHeight:60,maxHeight:200,overflowY:'auto',padding:'8px 12px',outline:'none',fontSize:13,lineHeight:1.6,whiteSpace:'pre-wrap',wordBreak:'break-word',color:'var(--text-secondary)'}}/>
+                                {commentAttachments.length>0&&<div style={{padding:'4px 12px 8px',display:'flex',flexWrap:'wrap',gap:4}}>{commentAttachments.map((att,i)=>(<span key={i} style={{fontSize:11,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',color:'var(--accent)',display:'inline-flex',alignItems:'center',gap:3}}>📎 {att.name}<button onClick={()=>setCommentAttachments(prev=>prev.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--accent)',fontSize:10,padding:0}}>&times;</button></span>))}</div>}
+                                <div style={{padding:'6px 12px 10px',display:'flex',gap:6,alignItems:'center',borderTop:'1px solid var(--border)'}}>
+                                    <button onClick={addComment} className="px-4 py-1.5 bg-secondary text-white rounded-lg text-sm">Send</button>
+                                    <button onClick={()=>{setCommentEditing(false);setCommentAttachments([]);}} className="px-3 py-1.5 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button>
+                                    <label style={{cursor:'pointer',color:'var(--text-muted)',display:'flex',alignItems:'center',gap:3,fontSize:12,marginLeft:'auto'}} title="Attach file"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg><input type="file" multiple style={{display:'none'}} onChange={e=>{const files=Array.from(e.target.files||[]);files.forEach(file=>{if(file.size>5*1024*1024)return;const reader=new FileReader();reader.onload=ev=>{setCommentAttachments(prev=>[...prev,{id:`catt${Date.now()}_${Math.random().toString(36).slice(2,6)}`,name:file.name,type:file.type,size:file.size,data:ev.target.result,date:new Date().toISOString()}]);};reader.readAsDataURL(file);});e.target.value='';}}/></label>
+                                </div>
+                            </div>) : (
+                                <div onClick={()=>setCommentEditing(true)} className="v11-input" style={{cursor:'text',minHeight:36,color:'var(--text-muted)',padding:'8px 12px',fontSize:13}}>Write a comment...</div>
+                            )}
+                        </div>}
                     </div>
                     <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
                         <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:8}}>📎 Attachments ({(form.attachments||[]).length})</div>
