@@ -41,6 +41,12 @@ const pushTaskExtrasToTrello = async (task, card) => {
                             if (result?.id) {
                                 att.trelloAttachmentId = result.id;
                                 if (result.url) att.url = result.url;
+                                // Also update matching task-level attachment copy
+                                const taskAtt = (task.attachments || []).find(ta => ta.id === att.id);
+                                if (taskAtt) {
+                                    taskAtt.trelloAttachmentId = result.id;
+                                    if (result.url) taskAtt.url = result.url;
+                                }
                                 taskModified = true;
                             }
                         } catch (e) {

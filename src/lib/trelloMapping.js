@@ -402,7 +402,8 @@ export const buildImportDataCardAsAction = (trelloData, mappingConfig) => {
     const sortedCards = [...cards].sort((a, b) => (a.pos || 0) - (b.pos || 0));
     for (const card of sortedCards) {
         if (card.closed) continue; // Skip archived cards on import
-        const categoryId = listToCat[card.idList] || categories[0]?.id;
+        const categoryId = listToCat[card.idList];
+        if (!categoryId) continue; // Skip cards from unmapped/archived lists
         const action = mapTrelloCardToAction(card, categoryId, mappingConfig);
         actions.push(action);
 
