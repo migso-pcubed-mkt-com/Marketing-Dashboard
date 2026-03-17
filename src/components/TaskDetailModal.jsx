@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { CONFIG } from '../config.js';
 import { normalizeTaskChecklists } from '../lib/migration.js';
@@ -320,7 +321,16 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         const author=trelloUser?.fullName||'Guest';
         const comment = {id:`cm${Date.now()}`,author,text:md,date:new Date().toISOString()};
         if (commentAttachments.length > 0) comment.attachments = [...commentAttachments];
-        setForm({...form,comments:[...(form.comments||[]),comment]});
+        const updatedForm = {...form, comments:[...(form.comments||[]),comment]};
+        // Also add comment attachments to the task's attachment list
+        if (commentAttachments.length > 0) {
+            updatedForm.attachments = [...(form.attachments||[]), ...commentAttachments.map(att => ({
+                id: att.id || `att${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+                name: att.name, type: att.type, size: att.size,
+                data: att.data, url: att.url, date: att.date
+            }))];
+        }
+        setForm(updatedForm);
         setNewComment('');
         setCommentAttachments([]);
         setCommentEditing(false);
@@ -558,16 +568,17 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                             <button onClick={e=>{e.stopPropagation();if(isReadOnly)return;if(showItemMemberPicker===itemKey){setShowItemMemberPicker(null);setMemberPickerPos(null);}else{const rect=e.currentTarget.getBoundingClientRect();const dropH=Math.min(members.length*30+40,180);const flipUp=rect.bottom+dropH+8>window.innerHeight;setMemberPickerPos({top:flipUp?rect.top-dropH-4:rect.bottom+4,left:Math.min(rect.left,window.innerWidth-170)});setShowItemMemberPicker(itemKey);}}} style={{width:22,height:22,borderRadius:'50%',border:assigneeMember?'2px solid var(--accent)':'1px dashed var(--border)',background:assigneeMember?'none':'transparent',cursor:isReadOnly?'default':'pointer',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',flexShrink:0,padding:0}} title={assigneeMember?(assigneeMember.fullName||assigneeMember.username):'Assign member'}>
                                                 {assigneeMember?(assigneeMember.avatarUrl?<img src={assigneeMember.avatarUrl} alt="" style={{width:'100%',height:'100%',borderRadius:'50%',objectFit:'cover'}}/>:<span style={{width:'100%',height:'100%',borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600}}>{(assigneeMember.fullName||assigneeMember.username||'?')[0].toUpperCase()}</span>):<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
                                             </button>
-                                            {showItemMemberPicker===itemKey&&members.length>0&&memberPickerPos&&(<>
-                                                <div style={{position:'fixed',inset:0,zIndex:98}} onClick={e=>{e.stopPropagation();setShowItemMemberPicker(null);setMemberPickerPos(null);}}/>
-                                                <div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:memberPickerPos.top,left:memberPickerPos.left,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:99,minWidth:160,padding:4,maxHeight:180,overflowY:'auto'}}>
+                                            {showItemMemberPicker===itemKey&&memberPickerPos&&ReactDOM.createPortal(<>
+                                                <div style={{position:'fixed',inset:0,zIndex:9998}} onClick={e=>{e.stopPropagation();setShowItemMemberPicker(null);setMemberPickerPos(null);}}/>
+                                                <div onClick={e=>e.stopPropagation()} style={{position:'fixed',top:memberPickerPos.top,left:memberPickerPos.left,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:9999,minWidth:160,padding:4,maxHeight:180,overflowY:'auto'}}>
+                                                    {members.length===0?<div style={{padding:'8px',fontSize:11,color:'var(--text-muted)'}}>No members — sync with Trello first</div>:<>
                                                     {item.assignee&&<button onClick={e=>{e.stopPropagation();updateChecklistItemAssignee(cl.id,item.id,null);}} style={{width:'100%',padding:'5px 8px',fontSize:11,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)'}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg-secondary)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>Remove assignee</button>}
                                                     {members.map(m=>(<button key={m.id} onClick={e=>{e.stopPropagation();updateChecklistItemAssignee(cl.id,item.id,m.id);}} style={{width:'100%',padding:'5px 8px',fontSize:11,color:'var(--text-primary)',background:item.assignee===m.id?'var(--accent-light)':'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',gap:6}} onMouseEnter={e=>{if(item.assignee!==m.id)e.currentTarget.style.background='var(--bg-secondary)';}} onMouseLeave={e=>{if(item.assignee!==m.id)e.currentTarget.style.background='none';}}>
                                                         {m.avatarUrl?<img src={m.avatarUrl} alt="" style={{width:18,height:18,borderRadius:'50%'}}/>:<span style={{width:18,height:18,borderRadius:'50%',background:'var(--accent)',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,flexShrink:0}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
                                                         <span>{m.fullName||m.username}</span>
-                                                    </button>))}
+                                                    </button>))}</>}
                                                 </div>
-                                            </>)}
+                                            </>,document.body)}
                                         </div>
                                         {/* Due date badge */}
                                         <div style={{position:'relative',flexShrink:0}}>
@@ -591,7 +602,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         <div className="space-y-2 mb-3" style={{maxHeight:320,overflowY:'auto'}}>{[...(form.comments||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>
                             <div className="flex justify-between mb-2"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
                             <div style={{fontSize:13,color:'var(--text-secondary)'}}><SimpleMarkdown text={c.text}/></div>
-                            {c.attachments&&c.attachments.length>0&&<div style={{marginTop:6,display:'flex',flexWrap:'wrap',gap:4}}>{c.attachments.map(att=>(<a key={att.id||att.name} href={att.data||att.url||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',textDecoration:'none'}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>{att.name}</a>))}</div>}
+                            {c.attachments&&c.attachments.length>0&&<div style={{marginTop:6,display:'flex',flexWrap:'wrap',gap:4}}>{c.attachments.map(att=>(<a key={att.id||att.name} href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',textDecoration:'none'}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>{att.name}</a>))}</div>}
                         </div>))}</div>
                         {!isReadOnly && <div>
                             {commentEditing ? (<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)',overflow:'hidden'}}>

@@ -323,6 +323,14 @@ Complex system with multiple solved issues:
 - **Member push**: `mapTaskToTrelloCardUpdate()` includes `idMembers` — bidirectional member sync
 - **Enhanced Markdown**: `SimpleMarkdown` supports headings, blockquotes, fenced code blocks, ordered/unordered lists, strikethrough, hr
 - **Members UI**: Trello-style — assigned members as avatars + "+" button dropdown to add more
+- **Card-as-Action sync mode**: Per-board `trelloSync.syncMode` (`'card-as-task'` default or `'card-as-action'`). In `card-as-action` mode:
+  - Lists → Categories, Cards → Actions (`action.trelloCardId`), Checklist Items → Tasks (`task.trelloCheckItemId` + `task.trelloChecklistId`)
+  - Labels map to channels/countries/other only (no "Action" option)
+  - Tasks inherit dates from parent card if checklist item has no `due`
+  - Bidirectional sync: task title/status/due/assignee ↔ checklist item name/state/due/idMember
+  - New mapping functions: `mapTrelloCardToAction`, `mapTrelloCheckItemToTask`, `buildImportDataCardAsAction`, `mergeCardIntoAction`, `mergeCheckItemIntoTask`, `mapTaskToCheckItemUpdate`, `mapActionToTrelloCardUpdate`
+  - Sync function: `syncWithTrelloCardAsAction` (branched from `syncWithTrello`)
+  - Import wizard: mode selector step between board selection and label mapping
 
 ### Authentication
 - **Auth gate**: `AuthGate.jsx` — shown before app loads if not authenticated
@@ -427,3 +435,7 @@ Complex system with multiple solved issues:
 | 2026-03 | Member picker fixed positioning | Checklist item member picker uses position:fixed + getBoundingClientRect to avoid clipping |
 | 2026-03 | Comment dedup on push | Prevent duplicate comments by checking text match before pushing |
 | 2026-03 | Comment drag & drop attachments | Comment area supports drag & drop + toolbar paperclip button for file attachments |
+| 2026-03 | Card-as-Action sync mode | Per-board import choice: Cards→Actions + ChecklistItems→Tasks or Cards→Tasks (default). `trelloSync.syncMode: 'card-as-task' \| 'card-as-action'` |
+| 2026-03 | Member picker React Portal | Checklist item member picker uses ReactDOM.createPortal to escape modal stacking context |
+| 2026-03 | Parallel position sync | Checklist/item position updates use Promise.all instead of sequential awaits |
+| 2026-03 | Comment attachments to task PJ | Comment attachments also added to task.attachments list + prefer att.url over att.data for links |

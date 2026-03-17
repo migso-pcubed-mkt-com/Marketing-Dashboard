@@ -785,9 +785,13 @@ const App = () => {
         try {
             // Build mappingConfig from current board data
             const mappingConfig = { labelMappings: {} };
-            for (const action of (currentBoard.actions || [])) {
-                if (action.trelloLabelId) {
-                    mappingConfig.labelMappings[action.trelloLabelId] = { type: 'action', categoryId: action.categoryId };
+            const syncMode = currentBoard.trelloSync?.syncMode || 'card-as-task';
+            // In card-as-task mode, reconstruct action mappings from label IDs
+            if (syncMode === 'card-as-task') {
+                for (const action of (currentBoard.actions || [])) {
+                    if (action.trelloLabelId) {
+                        mappingConfig.labelMappings[action.trelloLabelId] = { type: 'action', categoryId: action.categoryId };
+                    }
                 }
             }
             // Reconstruct channel and other label mappings from existing tasks
