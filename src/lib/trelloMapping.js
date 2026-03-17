@@ -280,6 +280,221 @@ export const buildImportData = (trelloData, mappingConfig) => {
     };
 };
 
+// ============================================================
+// "Card as Action" mode — Cards → Actions, Checklist Items → Tasks
+// ============================================================
+
+// --- Trello Card → Dashboard Action (card-as-action mode) ---
+export const mapTrelloCardToAction = (card, categoryId, mappingConfig) => {
+    // Extract channels, countries, otherLabels from card labels
+    const channels = [];
+    const countries = [];
+    const otherLabels = [];
+    if (card.idLabels && mappingConfig?.labelMappings) {
+        for (const labelId of card.idLabels) {
+            const mapping = mappingConfig.labelMappings[labelId];
+            if (mapping?.type === 'channel') channels.push(mapping.channelId);
+            else if (mapping?.type === 'country' && mapping.countryId) countries.push(mapping.countryId);
+            else if (mapping?.type === 'other') {
+                const labelHex = mapping.labelColor?.startsWith('#') ? mapping.labelColor : (trelloColorToHex(mapping.labelColor) || '#64748b');
+                otherLabels.push({ id: labelId, name: mapping.labelName || '', color: labelHex });
+            }
+        }
+    }
+    return {
+        id: genId('act'),
+        name: card.name,
+        categoryId,
+        budget: 0,
+        priority: 'medium',
+        tags: [],
+        description: card.desc || '',
+        trelloCardId: card.id,
+        trelloLastModified: card.dateLastActivity,
+        // Store inherited label data so tasks can inherit them
+        _inheritChannels: channels,
+        _inheritCountries: countries,
+        _inheritOtherLabels: otherLabels,
+        _inheritAssignees: card.idMembers || []
+    };
+};
+
+// --- Trello Checklist Item → Dashboard Task (card-as-action mode) ---
+export const mapTrelloCheckItemToTask = (item, actionId, card, checklistId, checklistName, mappingConfig) => {
+    const now = new Date();
+    // Due date: item's own due, or inherit from card
+    const itemDue = item.due ? item.due.split('T')[0] : null;
+    const cardDue = card.due ? card.due.split('T')[0] : null;
+    const dueDate = itemDue || cardDue || null;
+    // Start date: card start, or 1st of due month, or 1st of current month
+    let startDate;
+    if (card.start) {
+        startDate = card.start.split('T')[0];
+    } else if (dueDate) {
+        const d = new Date(dueDate);
+        startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    } else {
+        startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    }
+    const month = dueDate ? new Date(dueDate).getMonth() : now.getMonth();
+
+    // Inherit channels, countries, otherLabels from card labels
+    const channels = [];
+    const countries = [];
+    const otherLabels = [];
+    if (card.idLabels && mappingConfig?.labelMappings) {
+        for (const labelId of card.idLabels) {
+            const mapping = mappingConfig.labelMappings[labelId];
+            if (mapping?.type === 'channel') channels.push(mapping.channelId);
+            else if (mapping?.type === 'country' && mapping.countryId) countries.push(mapping.countryId);
+            else if (mapping?.type === 'other') {
+                const labelHex = mapping.labelColor?.startsWith('#') ? mapping.labelColor : (trelloColorToHex(mapping.labelColor) || '#64748b');
+                otherLabels.push({ id: labelId, name: mapping.labelName || '', color: labelHex });
+            }
+        }
+    }
+
+    // Assignee: item member, or inherit from card
+    const assignees = item.idMember ? [item.idMember] : (card.idMembers || []);
+
+    return {
+        id: genId('task'),
+        actionId,
+        title: item.name,
+        description: '',
+        startDate,
+        dueDate: dueDate || startDate,
+        month,
+        status: item.state === 'complete' ? 'completed' : 'todo',
+        priority: 'medium',
+        budget: 0,
+        checklists: [],
+        comments: [],
+        attachments: [],
+        channels,
+        countries,
+        assignees,
+        otherLabels,
+        order: item.pos || 0,
+        createdAt: new Date().toISOString(),
+        trelloCardId: card.id,          // Parent card (for API calls)
+        trelloCheckItemId: item.id,     // The checklist item this task came from
+        trelloChecklistId: checklistId, // Which checklist on the card
+        trelloChecklistName: checklistName,
+        trelloLastModified: card.dateLastActivity
+    };
+};
+
+// --- Build import data in "card-as-action" mode ---
+export const buildImportDataCardAsAction = (trelloData, mappingConfig) => {
+    const { board, lists, labels, cards, members: trelloMembers } = trelloData;
+
+    // 1. Map lists → categories (same as card-as-task mode)
+    const categories = lists
+        .sort((a, b) => a.pos - b.pos)
+        .map((list, i) => mapTrelloListToCategory(list, i));
+    const listToCat = {};
+    lists.forEach((list, i) => { listToCat[list.id] = categories[i].id; });
+
+    // 2. Map cards → actions
+    const actions = [];
+    const tasks = [];
+    const sortedCards = [...cards].sort((a, b) => (a.pos || 0) - (b.pos || 0));
+    for (const card of sortedCards) {
+        if (card.closed) continue; // Skip archived cards on import
+        const categoryId = listToCat[card.idList] || categories[0]?.id;
+        const action = mapTrelloCardToAction(card, categoryId, mappingConfig);
+        actions.push(action);
+
+        // 3. Map checklist items → tasks
+        if (card.checklists) {
+            const sortedChecklists = [...card.checklists].sort((a, b) => (a.pos || 0) - (b.pos || 0));
+            for (const cl of sortedChecklists) {
+                const sortedItems = [...(cl.checkItems || [])].sort((a, b) => (a.pos || 0) - (b.pos || 0));
+                for (const item of sortedItems) {
+                    tasks.push(mapTrelloCheckItemToTask(item, action.id, card, cl.id, cl.name, mappingConfig));
+                }
+            }
+        }
+    }
+
+    // Map members
+    const members = (trelloMembers || []).map(m => ({
+        id: m.id,
+        fullName: m.fullName,
+        username: m.username,
+        avatarUrl: m.avatarUrl ? `${m.avatarUrl}/50.png` : null
+    }));
+
+    return {
+        categories,
+        actions,
+        tasks,
+        members,
+        trelloSync: {
+            trelloBoardId: board.id,
+            trelloBoardName: board.name,
+            trelloBoardUrl: board.url,
+            lastSyncAt: new Date().toISOString(),
+            syncEnabled: true,
+            pollIntervalMs: 120000,
+            syncMode: 'card-as-action',
+            labelMappings: mappingConfig.labelMappings
+        }
+    };
+};
+
+// --- Merge Trello card changes into existing Action (card-as-action pull) ---
+export const mergeCardIntoAction = (existingAction, card, listToCat) => {
+    return {
+        ...existingAction,
+        name: card.name,
+        description: card.desc || existingAction.description || '',
+        categoryId: listToCat?.[card.idList] || existingAction.categoryId,
+        trelloLastModified: card.dateLastActivity
+    };
+};
+
+// --- Merge Trello checklist item into existing Task (card-as-action pull) ---
+export const mergeCheckItemIntoTask = (existingTask, item, card) => {
+    const itemDue = item.due ? item.due.split('T')[0] : null;
+    const cardDue = card.due ? card.due.split('T')[0] : null;
+    const dueDate = itemDue || cardDue || existingTask.dueDate;
+    const month = dueDate ? new Date(dueDate).getMonth() : existingTask.month;
+    let startDate = existingTask.startDate;
+    if (dueDate && !existingTask.startDate) {
+        const d = new Date(dueDate);
+        startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    }
+    return {
+        ...existingTask,
+        title: item.name,
+        status: item.state === 'complete' ? 'completed' : (existingTask.status === 'completed' ? 'todo' : existingTask.status),
+        dueDate: dueDate || existingTask.dueDate,
+        startDate,
+        month,
+        assignees: item.idMember ? [item.idMember] : existingTask.assignees,
+        trelloLastModified: card.dateLastActivity
+    };
+};
+
+// --- Push Task back to Trello checklist item (card-as-action mode) ---
+export const mapTaskToCheckItemUpdate = (task) => {
+    const updates = { name: task.title };
+    updates.state = task.status === 'completed' ? 'complete' : 'incomplete';
+    if (task.dueDate) updates.due = task.dueDate;
+    if (task.assignees?.length > 0) updates.idMember = task.assignees[0];
+    return updates;
+};
+
+// --- Push Action back to Trello card (card-as-action mode) ---
+export const mapActionToTrelloCardUpdate = (action, listId) => {
+    const updates = { name: action.name };
+    if (action.description != null) updates.desc = action.description;
+    if (listId) updates.idList = listId;
+    return updates;
+};
+
 // --- Dashboard Task → Trello Card update ---
 export const mapTaskToTrelloCardUpdate = (task, listId) => {
     const updates = { name: task.title };

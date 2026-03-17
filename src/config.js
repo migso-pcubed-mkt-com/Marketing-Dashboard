@@ -57,6 +57,11 @@ export const CONFIG = {
     ]
 };
 
+export const TRELLO_SYNC_MODES = [
+    { id: 'card-as-task', label: 'Cards = Tasks', description: 'Labels → Actions, Cards → Tasks' },
+    { id: 'card-as-action', label: 'Cards = Actions', description: 'Cards → Actions, Checklist Items → Tasks' }
+];
+
 export const DEFAULT_ACTIONS = [
     { id: 'a1', name: 'Global MP Brand (Social Media)', categoryId: 'brand-awareness', budget: 0, priority: 'high', tags: ['social'] },
     { id: 'a2', name: 'Employeur Brand', categoryId: 'brand-awareness', budget: 0, priority: 'medium', tags: ['social', 'video'] },

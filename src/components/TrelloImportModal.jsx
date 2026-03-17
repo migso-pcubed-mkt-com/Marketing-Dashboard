@@ -1,21 +1,22 @@
 import { useState, useEffect } from 'react';
 import { Icon } from './Icons.jsx';
-import { CONFIG, TRELLO_COLORS } from '../config.js';
+import { CONFIG, TRELLO_COLORS, TRELLO_SYNC_MODES } from '../config.js';
 import { fetchTrelloBoards, fetchTrelloBoardFull, checkTrelloConnection } from '../lib/trello.js';
-import { buildImportData, matchLabelToChannel } from '../lib/trelloMapping.js';
+import { buildImportData, buildImportDataCardAsAction, matchLabelToChannel } from '../lib/trelloMapping.js';
 
 // mappingOnly mode: skip board selection, load linked board directly, show mapping step
 // existingMappings: pre-populate label mappings from board.trelloSync.labelMappings
 // trelloBoardId: the linked Trello board ID (required for mappingOnly)
 // onSaveMappings: callback when saving re-configured mappings (mappingOnly mode)
 const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMappings = null, trelloBoardId = null, onSaveMappings = null }) => {
-    const [step, setStep] = useState('loading'); // loading | boards | mapping | preview | importing | error
+    const [step, setStep] = useState('loading'); // loading | boards | mode | mapping | preview | importing | error
     const [error, setError] = useState(null);
     const [boards, setBoards] = useState([]);
     const [selectedBoardId, setSelectedBoardId] = useState(null);
     const [trelloData, setTrelloData] = useState(null);
     const [labelMappings, setLabelMappings] = useState({});
     const [importPreview, setImportPreview] = useState(null);
+    const [syncMode, setSyncMode] = useState('card-as-task');
 
     // Step 1: Check connection and load boards (or load linked board in mappingOnly mode)
     useEffect(() => {
@@ -67,30 +68,40 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
         try {
             const data = await fetchTrelloBoardFull(boardId);
             setTrelloData(data);
-            // Initialize label mappings with smart defaults
-            const mappings = {};
-            for (const label of data.labels) {
-                const channelMatch = matchLabelToChannel(label);
-                const labelColor = TRELLO_COLORS[label.color]?.hex || '#6b7280';
-                if (channelMatch) {
-                    mappings[label.id] = { type: 'channel', channelId: channelMatch, labelName: label.name || '', labelColor };
-                } else if (label.name) {
-                    mappings[label.id] = { type: 'action', categoryId: null, labelName: label.name || '', labelColor }; // Will pick first category
-                } else {
-                    mappings[label.id] = { type: 'ignore', labelName: label.name || '', labelColor };
-                }
-            }
-            setLabelMappings(mappings);
-            setStep('mapping');
+            setStep('mode'); // Show sync mode selection step
         } catch (err) {
             setError(err.message);
             setStep('error');
         }
     };
 
-    // Step 3: Build preview
+    // Initialize label mappings based on sync mode and proceed to mapping step
+    const handleSelectMode = (mode) => {
+        setSyncMode(mode);
+        const mappings = {};
+        for (const label of trelloData.labels) {
+            const channelMatch = matchLabelToChannel(label);
+            const labelColor = TRELLO_COLORS[label.color]?.hex || '#6b7280';
+            if (channelMatch) {
+                mappings[label.id] = { type: 'channel', channelId: channelMatch, labelName: label.name || '', labelColor };
+            } else if (label.name && mode === 'card-as-task') {
+                // In card-as-task mode, named labels default to Action
+                mappings[label.id] = { type: 'action', categoryId: null, labelName: label.name || '', labelColor };
+            } else if (label.name) {
+                // In card-as-action mode, named labels default to Other (no "action" option)
+                mappings[label.id] = { type: 'other', labelName: label.name || '', labelColor };
+            } else {
+                mappings[label.id] = { type: 'ignore', labelName: label.name || '', labelColor };
+            }
+        }
+        setLabelMappings(mappings);
+        setStep('mapping');
+    };
+
+    // Step 3: Build preview (uses different builder depending on sync mode)
     const handleBuildPreview = () => {
-        const preview = buildImportData(trelloData, { labelMappings });
+        const builder = syncMode === 'card-as-action' ? buildImportDataCardAsAction : buildImportData;
+        const preview = builder(trelloData, { labelMappings });
         setImportPreview(preview);
         setStep('preview');
     };
@@ -153,6 +164,7 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
     const stepTitle = {
         loading: 'Connecting to Trello...',
         boards: 'Select a Trello Board',
+        mode: 'Choose Sync Mode',
         mapping: mappingOnly ? 'Re-configure Label Mapping' : 'Configure Label Mapping',
         preview: 'Import Preview',
         importing: 'Importing...',
@@ -227,6 +239,57 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
                         </div>
                     )}
 
+                    {step === 'mode' && trelloData && (
+                        <div>
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+                                How are your Trello cards organized?
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <button onClick={() => handleSelectMode('card-as-task')} style={{
+                                    display: 'flex', flexDirection: 'column', gap: 8,
+                                    padding: '16px 20px', borderRadius: 'var(--radius-md)',
+                                    border: syncMode === 'card-as-task' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                                    background: 'var(--bg-primary)', cursor: 'pointer', textAlign: 'left'
+                                }}>
+                                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>Cards = Tasks</div>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                                        Each card is a work item (task). Labels define the actions/initiatives they belong to.
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#6366f120', color: '#6366f1' }}>List → Category</span>
+                                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#f59e0b20', color: '#f59e0b' }}>Label → Action</span>
+                                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#22c55e20', color: '#22c55e' }}>Card → Task</span>
+                                    </div>
+                                </button>
+                                <button onClick={() => handleSelectMode('card-as-action')} style={{
+                                    display: 'flex', flexDirection: 'column', gap: 8,
+                                    padding: '16px 20px', borderRadius: 'var(--radius-md)',
+                                    border: syncMode === 'card-as-action' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                                    background: 'var(--bg-primary)', cursor: 'pointer', textAlign: 'left'
+                                }}>
+                                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>Cards = Actions</div>
+                                    <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                                        Each card is a marketing initiative (action). Checklist items are the actual tasks.
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#6366f120', color: '#6366f1' }}>List → Category</span>
+                                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#f59e0b20', color: '#f59e0b' }}>Card → Action</span>
+                                        <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#22c55e20', color: '#22c55e' }}>Checklist Item → Task</span>
+                                    </div>
+                                </button>
+                            </div>
+                            {/* Board stats */}
+                            <div style={{
+                                marginTop: 16, padding: 12, borderRadius: 'var(--radius-md)',
+                                background: 'var(--bg-secondary)', fontSize: 12, color: 'var(--text-muted)'
+                            }}>
+                                This board has <strong>{trelloData.cards.length}</strong> cards,
+                                {' '}<strong>{trelloData.cards.reduce((sum, c) => sum + (c.checklists?.length || 0), 0)}</strong> checklists,
+                                {' '}<strong>{trelloData.cards.reduce((sum, c) => sum + (c.checklists || []).reduce((s, cl) => s + (cl.checkItems?.length || 0), 0), 0)}</strong> checklist items
+                            </div>
+                        </div>
+                    )}
+
                     {step === 'mapping' && trelloData && (
                         <div>
                             {/* Lists → Categories (automatic) */}
@@ -283,7 +346,7 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
                                                         color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer'
                                                     }}
                                                 >
-                                                    <option value="action">Action</option>
+                                                    {syncMode !== 'card-as-action' && <option value="action">Action</option>}
                                                     <option value="channel">Channel</option>
                                                     <option value="country">Country</option>
                                                     <option value="other">Other Label</option>
@@ -357,7 +420,10 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
                                 marginTop: 16, padding: 12, borderRadius: 'var(--radius-md)',
                                 background: 'var(--accent-light)', fontSize: 12, color: 'var(--accent)'
                             }}>
-                                {trelloData.cards.length} cards will be imported as tasks
+                                {syncMode === 'card-as-action'
+                                    ? `${trelloData.cards.filter(c => !c.closed).length} cards → actions, ${trelloData.cards.filter(c => !c.closed).reduce((sum, c) => sum + (c.checklists || []).reduce((s, cl) => s + (cl.checkItems?.length || 0), 0), 0)} checklist items → tasks`
+                                    : `${trelloData.cards.length} cards will be imported as tasks`
+                                }
                             </div>
                         </div>
                     )}
@@ -415,17 +481,11 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
                 </div>
 
                 {/* Footer */}
-                {(step === 'mapping' || step === 'preview') && (
+                {(step === 'mapping' || step === 'preview' || step === 'mode') && (
                     <div style={footerStyle}>
-                        {!mappingOnly && <button
-                            onClick={() => {
-                                if (step === 'mapping') { setStep('boards'); setTrelloData(null); }
-                                if (step === 'preview') setStep('mapping');
-                            }}
-                            style={btnSecondary}
-                        >
-                            Back
-                        </button>}
+                        {!mappingOnly && step === 'mode' && <button onClick={() => { setStep('boards'); setTrelloData(null); }} style={btnSecondary}>Back</button>}
+                        {!mappingOnly && step === 'mapping' && <button onClick={() => setStep('mode')} style={btnSecondary}>Back</button>}
+                        {!mappingOnly && step === 'preview' && <button onClick={() => setStep('mapping')} style={btnSecondary}>Back</button>}
                         {mappingOnly && step === 'mapping' && (
                             <>
                                 <button onClick={onClose} style={btnSecondary}>Cancel</button>
@@ -440,10 +500,7 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
                             </button>
                         )}
                         {step === 'preview' && (
-                            <>
-                                <button onClick={() => setStep('mapping')} style={btnSecondary}>Back</button>
-                                <button onClick={handleImport} style={btnPrimary}>Import Board</button>
-                            </>
+                            <button onClick={handleImport} style={btnPrimary}>Import Board</button>
                         )}
                     </div>
                 )}
