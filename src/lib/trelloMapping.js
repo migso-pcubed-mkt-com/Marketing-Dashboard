@@ -518,6 +518,7 @@ export const mergeCardIntoAction = (existingAction, card, listToCat, mappingConf
         name: card.name,
         description: card.desc || existingAction.description || '',
         categoryId: listToCat?.[card.idList] || existingAction.categoryId,
+        status: card.dueComplete ? 'completed' : (existingAction.status || 'inprogress'),
         assignees: card.idMembers || existingAction.assignees || [],
         startDate: card.start ? card.start.split('T')[0] : existingAction.startDate,
         dueDate: card.due ? card.due.split('T')[0] : existingAction.dueDate,
@@ -573,6 +574,7 @@ export const mapActionToTrelloCardUpdate = (action, listId) => {
     if (listId) updates.idList = listId;
     if (action.startDate) updates.start = action.startDate;
     if (action.dueDate) updates.due = action.dueDate;
+    updates.dueComplete = (action.status === 'completed').toString();
     if (action.assignees?.length > 0) updates.idMembers = action.assignees.join(',');
     else updates.idMembers = '';
     return updates;

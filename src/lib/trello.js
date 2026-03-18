@@ -162,6 +162,20 @@ export const deleteTrelloCard = (cardId) =>
         method: 'DELETE'
     });
 
+// Update a Trello list (name, pos)
+export const updateTrelloList = (listId, updates) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=updateList`, {
+        method: 'PUT',
+        body: JSON.stringify({ listId, updates })
+    });
+
+// Create a new list on a Trello board
+export const createTrelloList = (boardId, name, pos) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=createList`, {
+        method: 'POST',
+        body: JSON.stringify({ boardId, name, pos })
+    });
+
 // Check if Trello is configured (try fetching boards)
 export const checkTrelloConnection = async () => {
     try {

@@ -1,6 +1,6 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
-import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel } from './trello.js';
+import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex, mergeCardIntoAction, mergeCheckItemIntoTask, mapTaskToCheckItemUpdate, mapActionToTrelloCardUpdate, mapTrelloCardToAction, mapTrelloCheckItemToTask } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
 
@@ -896,6 +896,87 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         }
     }
 
+    // 1b. Sync lists ↔ categories (name, position, creation)
+    const updatedCategories = [...board.categories];
+    const trelloListMap = new Map(lists.map(l => [l.id, l]));
+
+    // Pull: update category names/positions from Trello lists
+    for (let i = 0; i < updatedCategories.length; i++) {
+        const cat = updatedCategories[i];
+        if (!cat.trelloListId) continue;
+        const list = trelloListMap.get(cat.trelloListId);
+        if (!list) continue;
+        const catUpdatedAt = new Date(cat.updatedAt || 0).getTime();
+        const catSyncTime = new Date(cat.trelloLastModified || 0).getTime();
+        const catLocallyModified = catUpdatedAt > catSyncTime;
+        if (catLocallyModified && !readOnly) {
+            // Push local changes to Trello
+            try {
+                const updates = {};
+                if (cat.name !== list.name) updates.name = cat.name;
+                if (cat.order !== undefined) updates.pos = String((cat.order + 1) * 16384);
+                if (Object.keys(updates).length > 0) {
+                    await updateTrelloList(cat.trelloListId, updates);
+                    updatedCategories[i] = { ...cat, trelloLastModified: new Date().toISOString() };
+                    result.pushed++;
+                }
+            } catch (e) {
+                console.error(`Failed to push category "${cat.name}" to Trello list:`, e);
+                result.errors++;
+                result.errorDetails.push({ name: cat.name, op: 'push list', error: e.message });
+            }
+        } else {
+            // Pull from Trello
+            if (cat.name !== list.name || (list.pos && cat.trelloListPos !== list.pos)) {
+                updatedCategories[i] = { ...cat, name: list.name, trelloListPos: list.pos, trelloLastModified: new Date().toISOString() };
+                result.updated++;
+            }
+        }
+    }
+
+    // Push: create new local categories (no trelloListId) as Trello lists
+    if (!readOnly) {
+        for (let i = 0; i < updatedCategories.length; i++) {
+            const cat = updatedCategories[i];
+            if (cat.trelloListId) continue;
+            try {
+                const pos = (i + 1) * 16384;
+                const created = await createTrelloList(trelloSync.trelloBoardId, cat.name, pos);
+                if (created?.id) {
+                    updatedCategories[i] = { ...cat, trelloListId: created.id, trelloListPos: created.pos, trelloLastModified: new Date().toISOString() };
+                    catToListId[cat.id] = created.id;
+                    listToCatId[created.id] = cat.id;
+                    result.pushed++;
+                }
+            } catch (e) {
+                console.error(`Failed to create Trello list for category "${cat.name}":`, e);
+                result.errors++;
+                result.errorDetails.push({ name: cat.name, op: 'create list', error: e.message });
+            }
+        }
+    }
+
+    // Pull: create local categories from new Trello lists
+    const existingListIds = new Set(updatedCategories.map(c => c.trelloListId).filter(Boolean));
+    for (const list of lists) {
+        if (existingListIds.has(list.id)) continue;
+        const newCat = {
+            id: `cat-${crypto.randomUUID()}`,
+            name: list.name,
+            color: CONFIG.CATEGORIES[updatedCategories.length % CONFIG.CATEGORIES.length]?.color || '#6366f1',
+            trelloListId: list.id,
+            trelloListPos: list.pos,
+            trelloLastModified: new Date().toISOString()
+        };
+        updatedCategories.push(newCat);
+        catToListId[newCat.id] = list.id;
+        listToCatId[list.id] = newCat.id;
+        result.created++;
+    }
+
+    // Sort categories by Trello list position
+    updatedCategories.sort((a, b) => (a.trelloListPos || 0) - (b.trelloListPos || 0));
+
     // Clone actions and tasks for mutation
     const updatedActions = [...board.actions];
     const updatedTasks = [...board.tasks];
@@ -938,9 +1019,49 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         // Compare timestamps for action
         const trelloTime = new Date(card.dateLastActivity).getTime();
         const lastSyncTime = new Date(action.trelloLastModified || 0).getTime();
+        const actionUpdateTime = new Date(action.updatedAt || 0).getTime();
+        const actionLocallyModified = actionUpdateTime > lastSyncTime;
+        const trelloCardModified = trelloTime > lastSyncTime;
 
-        // Always update action metadata from card (full merge with labels, members, dates, comments, attachments)
-        updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+        if (actionLocallyModified && !trelloCardModified && !readOnly) {
+            // Local action changed — push to Trello card
+            try {
+                const listId = catToListId[action.categoryId];
+                const updates = mapActionToTrelloCardUpdate(action, listId);
+                await updateTrelloCard(action.trelloCardId, updates);
+                updatedActions[i] = { ...action, trelloLastModified: new Date().toISOString() };
+                result.pushed++;
+            } catch (e) {
+                console.error(`Failed to push action "${action.name}" to Trello:`, e);
+                result.errors++;
+                result.errorDetails.push({ name: action.name, op: 'push card', error: e.message });
+                updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+            }
+        } else if (trelloCardModified && !actionLocallyModified) {
+            // Trello changed — pull
+            updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+        } else if (trelloCardModified && actionLocallyModified) {
+            // Both changed — last write wins
+            if (actionUpdateTime >= trelloTime && !readOnly) {
+                try {
+                    const listId = catToListId[action.categoryId];
+                    const updates = mapActionToTrelloCardUpdate(action, listId);
+                    await updateTrelloCard(action.trelloCardId, updates);
+                    updatedActions[i] = { ...action, trelloLastModified: new Date().toISOString() };
+                    result.pushed++;
+                } catch (e) {
+                    console.error(`Failed to push action "${action.name}" to Trello:`, e);
+                    result.errors++;
+                    result.errorDetails.push({ name: action.name, op: 'push card', error: e.message });
+                    updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+                }
+            } else {
+                updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+            }
+        } else {
+            // Neither changed — just refresh metadata (comments, attachments)
+            updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+        }
 
         // Push action extras (comments, attachments only — NEVER touch checklists)
         if (!readOnly && action.trelloCardId) {
@@ -1021,6 +1142,42 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 } else {
                     updatedTasks[j] = mergeCheckItemIntoTask(task, item, card);
                     result.updated++;
+                }
+            }
+        }
+
+        // Sync checklist names: if local trelloChecklistName differs from Trello, push rename
+        if (!readOnly) {
+            const localChecklistNames = new Map(); // checklistId → localName
+            for (const task of updatedTasks) {
+                if (task.actionId === action.id && task.trelloChecklistId && task.trelloChecklistName) {
+                    localChecklistNames.set(task.trelloChecklistId, task.trelloChecklistName);
+                }
+            }
+            for (const cl of (card.checklists || [])) {
+                const localName = localChecklistNames.get(cl.id);
+                if (localName && localName !== cl.name) {
+                    try {
+                        await updateTrelloChecklist(cl.id, { name: localName });
+                        result.pushed++;
+                    } catch (e) {
+                        console.error(`Failed to rename checklist "${cl.name}" → "${localName}":`, e);
+                    }
+                }
+            }
+        }
+
+        // Pull checklist names from Trello → update local tasks
+        for (const cl of (card.checklists || [])) {
+            for (let j = 0; j < updatedTasks.length; j++) {
+                const task = updatedTasks[j];
+                if (task.trelloChecklistId === cl.id && task.trelloChecklistName !== cl.name) {
+                    const taskUpdateTime = new Date(task.updatedAt || 0).getTime();
+                    const lastSyncTime = new Date(task.trelloLastModified || 0).getTime();
+                    // Only pull if local hasn't been modified since last sync
+                    if (taskUpdateTime <= lastSyncTime) {
+                        updatedTasks[j] = { ...task, trelloChecklistName: cl.name };
+                    }
                 }
             }
         }
@@ -1193,6 +1350,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     // 6. Build updated board
     const syncedBoard = {
         ...board,
+        categories: updatedCategories,
         actions: [...updatedActions, ...newActions],
         tasks: [...updatedTasks, ...newTasks],
         members: members.length ? members : (board.members || []),
