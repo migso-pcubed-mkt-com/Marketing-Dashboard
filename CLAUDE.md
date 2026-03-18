@@ -314,10 +314,12 @@ Complex system with multiple solved issues:
 - **Label remap**: `TrelloImportModal` supports `mappingOnly` prop to skip board selection and show mapping step directly
 - **Sync merge strategy**: Merge-by-Trello-ID for comments, checklists, attachments (preserves local-only items, avoids duplicates)
 - **Checklist item sync**: `trelloCheckItemId` used for stable ID-based matching (not name); `due`, `assignee`, `pos` synced bidirectionally
-- **Checklist deletion sync**: Checklists/items deleted on Trello are removed locally during push (not recreated); `pushTaskExtrasToTrello` returns `deletedChecklistIds`
+- **Checklist deletion sync**: Checklists/items deleted on Trello are removed locally during push (not recreated); `pushTaskExtrasToTrello` returns `deletedChecklistIds`. **Guard**: deletion only triggers if task has local checklists (`localChecklistIds.size > 0`) — tasks with no checklists never delete Trello checklists
 - **Position sync**: Checklist and item order synced via Trello `pos` field; sorted by `pos` on pull; items always push positions to Trello
 - **Sync ID tracking**: Push functions capture `trelloCommentId`, `trelloChecklistId`, `trelloAttachmentId` from API responses
 - **Comment deduplication**: Before pushing, checks if identical text exists on Trello to prevent duplicates
+- **Sync lock**: Module-level `syncInProgress` flag in `trelloSync.js` prevents concurrent sync operations. `syncWithTrello` returns early with `{ skipped: true }` if already running. App.jsx also checks `trelloSyncStatus === 'syncing'` before calling.
+- **Card-as-action task guard**: In card-as-task sync path, tasks with `trelloCheckItemId`, `trelloChecklistName`, or `trelloChecklistId` are skipped — they belong to card-as-action mode. Prevents accidental processing if `syncMode` is lost/corrupted.
 - **Comment attachment sync**: Comment attachments uploaded as card-level attachments (Trello API limitation: no per-comment attachments)
 - **Archived cards**: `api/trello.js` fetches cards with `filter=all`; `card.closed` maps to `task.trelloArchived=true` + `status='paused'`; FilterSidebar has "Show archived" toggle (default off)
 - **Member push**: `mapTaskToTrelloCardUpdate()` includes `idMembers` — bidirectional member sync
@@ -439,3 +441,6 @@ Complex system with multiple solved issues:
 | 2026-03 | Member picker React Portal | Checklist item member picker uses ReactDOM.createPortal to escape modal stacking context |
 | 2026-03 | Parallel position sync | Checklist/item position updates use Promise.all instead of sequential awaits |
 | 2026-03 | Comment attachments to task PJ | Comment attachments also added to task.attachments list + prefer att.url over att.data for links |
+| 2026-03 | Sync lock | Module-level `syncInProgress` flag prevents concurrent sync operations — avoids race conditions |
+| 2026-03 | Card-as-action task guard | Card-as-task path skips tasks with trelloCheckItemId/trelloChecklistName — prevents checklist deletion if syncMode lost |
+| 2026-03 | Checklist deletion guard | `pushTaskExtrasToTrello` only deletes checklists when task has local checklists (size > 0) — prevents wiping card-as-action data |
