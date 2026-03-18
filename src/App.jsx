@@ -781,6 +781,7 @@ const App = () => {
     // --- Trello sync ---
     const handleTrelloSync = useCallback(async () => {
         if (!currentBoard?.trelloSync?.trelloBoardId) return;
+        if (trelloSyncStatus === 'syncing') return; // Prevent concurrent syncs
         setTrelloSyncStatus('syncing');
         try {
             // Build mappingConfig from current board data
@@ -839,7 +840,7 @@ const App = () => {
             showNotification(`❌ Trello sync failed: ${err.message}`);
             setTimeout(() => setTrelloSyncStatus('idle'), 5000);
         }
-    }, [currentBoard]);
+    }, [currentBoard, trelloSyncStatus]);
 
     // --- Trello polling lifecycle ---
     useEffect(() => {

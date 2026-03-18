@@ -4,6 +4,9 @@ import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComm
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex, mergeCardIntoAction, mergeCheckItemIntoTask, mapTaskToCheckItemUpdate, mapActionToTrelloCardUpdate, mapTrelloCardToAction, mapTrelloCheckItemToTask } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
 
+// Sync lock — prevents concurrent sync operations
+let syncInProgress = false;
+
 // Push comments, checklists, attachments that don't already exist on Trello.
 // Returns { pushed, taskModified, deletedChecklistIds } — deletedChecklistIds lists checklists deleted on Trello.
 const pushTaskExtrasToTrello = async (task, card) => {
@@ -227,19 +230,23 @@ const pushTaskExtrasToTrello = async (task, card) => {
     }
 
     // Delete checklists removed locally but still on Trello
+    // Safety: only delete if the task actually has local checklists (owns the card's checklists).
+    // Tasks with no local checklists should never trigger deletion — avoids wiping card-as-action checklists.
     const localChecklistIds = new Set(taskChecklists.filter(cl => cl.trelloChecklistId).map(cl => cl.trelloChecklistId));
-    for (const cl of (card.checklists || [])) {
-        if (!localChecklistIds.has(cl.id)) {
-            try {
-                await deleteTrelloChecklist(cl.id);
-                console.log(`[Trello sync] Deleted checklist "${cl.name}" from Trello`);
-                pushed.checklists++;
-                taskModified = true;
-            } catch (e) {
-                console.error('Failed to delete checklist:', cl.name, e.message);
+    if (localChecklistIds.size > 0) {
+        for (const cl of (card.checklists || [])) {
+            if (!localChecklistIds.has(cl.id)) {
+                try {
+                    await deleteTrelloChecklist(cl.id);
+                    console.log(`[Trello sync] Deleted checklist "${cl.name}" from Trello`);
+                    pushed.checklists++;
+                    taskModified = true;
+                } catch (e) {
+                    console.error('Failed to delete checklist:', cl.name, e.message);
+                }
             }
         }
-    }
+    } // end: localChecklistIds.size > 0
 
     // Delete attachments removed locally but still on Trello
     const localAttIds = new Set((task.attachments || []).filter(a => a.trelloAttachmentId).map(a => a.trelloAttachmentId));
@@ -432,6 +439,21 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
     if (!trelloSync?.trelloBoardId) {
         throw new Error('Board is not linked to Trello');
     }
+    // Prevent concurrent syncs — skip if another sync is already running
+    if (syncInProgress) {
+        console.log('[Trello sync] Sync already in progress, skipping');
+        return { board, result: { created: 0, updated: 0, pushed: 0, errors: 0, skipped: true } };
+    }
+    syncInProgress = true;
+    try {
+        return await _syncWithTrelloInner(board, mappingConfig, { readOnly });
+    } finally {
+        syncInProgress = false;
+    }
+};
+
+const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } = {}) => {
+    const { trelloSync } = board;
     // Branch on sync mode
     if (trelloSync.syncMode === 'card-as-action') {
         return syncWithTrelloCardAsAction(board, mappingConfig, { readOnly });
@@ -467,6 +489,9 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
     for (let i = 0; i < updatedTasks.length; i++) {
         const task = updatedTasks[i];
         if (!task.trelloCardId) continue;
+        // Skip card-as-action tasks — they use trelloCheckItemId, not their own card
+        // This guard prevents accidental processing if syncMode is lost/corrupted
+        if (task.trelloCheckItemId || task.trelloChecklistName || task.trelloChecklistId) continue;
 
         const card = trelloCardMap.get(task.trelloCardId);
         if (!card) {
