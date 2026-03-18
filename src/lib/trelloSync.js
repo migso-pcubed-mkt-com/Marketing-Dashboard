@@ -148,8 +148,8 @@ const pushTaskExtrasToTrello = async (task, card) => {
                 cl.trelloChecklistId = existing.id;
                 taskModified = true;
             }
-            // Push only new items to the EXISTING checklist (don't create a new one)
-            const newItems = (cl.items || []).filter(item => item.text && !existing.itemNames.has(item.text));
+            // Push only truly new items (no trelloCheckItemId AND name not on Trello)
+            const newItems = (cl.items || []).filter(item => item.text && !item.trelloCheckItemId && !existing.itemNames.has(item.text));
             console.log(`[Trello sync] Checklist "${cl.name}" — ${cl.items?.length || 0} local items, ${existing.itemNames.size} on Trello, ${newItems.length} new to push`);
             if (newItems.length > 0) {
                 try {
@@ -914,10 +914,15 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             try {
                 const updates = {};
                 if (cat.name !== list.name) updates.name = cat.name;
-                if (cat.order !== undefined) updates.pos = String((cat.order + 1) * 16384);
+                if (cat.order !== undefined) {
+                    const expectedPos = (cat.order + 1) * 16384;
+                    if (Math.abs((list.pos || 0) - expectedPos) > 100) {
+                        updates.pos = String(expectedPos);
+                    }
+                }
                 if (Object.keys(updates).length > 0) {
                     await updateTrelloList(cat.trelloListId, updates);
-                    updatedCategories[i] = { ...cat, trelloLastModified: new Date().toISOString() };
+                    updatedCategories[i] = { ...cat, trelloListPos: cat.order !== undefined ? (cat.order + 1) * 16384 : list.pos, trelloLastModified: new Date().toISOString() };
                     result.pushed++;
                 }
             } catch (e) {
@@ -928,7 +933,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         } else {
             // Pull from Trello
             if (cat.name !== list.name || (list.pos && cat.trelloListPos !== list.pos)) {
-                updatedCategories[i] = { ...cat, name: list.name, trelloListPos: list.pos, trelloLastModified: new Date().toISOString() };
+                updatedCategories[i] = { ...cat, name: list.name, trelloListPos: list.pos, order: i, trelloLastModified: new Date().toISOString() };
                 result.updated++;
             }
         }

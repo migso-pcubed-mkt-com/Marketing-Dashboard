@@ -797,7 +797,8 @@ const App = () => {
     };
 
     const handleReorderCategories = (reorderedCategories) => {
-        setCategories(reorderedCategories);
+        const now = new Date().toISOString();
+        setCategories(reorderedCategories.map((c, i) => ({...c, order: i, updatedAt: now})));
         showNotification('✅ Category order updated');
     };
 

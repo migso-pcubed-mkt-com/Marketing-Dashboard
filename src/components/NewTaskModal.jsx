@@ -55,13 +55,20 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
     };
     const selectedAction = actions.find(a => a.id === form.actionId);
     const actionCategory = categories.find(c => c.id === selectedAction?.categoryId);
+    // Escape key to close
+    useEffect(() => {
+        const handleKeyDown = (e) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onClose]);
+
     return (
         <div className="v11-modal-overlay" onClick={onClose}>
             <div className="v11-modal animate-slide-up" style={{maxWidth:512}} onClick={e => e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${actionCategory?.gradient || 'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold">New Task</h2>
+                        <h2 className="text-xl font-bold flex items-center gap-2"><Icon.Plus size={18}/> New Task</h2>
                         <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">
