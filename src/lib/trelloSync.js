@@ -6,6 +6,8 @@ import { CONFIG } from '../config.js';
 
 // Sync lock — prevents concurrent sync operations
 let syncInProgress = false;
+let syncStartedAt = 0;
+const SYNC_LOCK_TIMEOUT_MS = 60000; // 60s max — auto-reset if sync hangs
 
 // Push comments, checklists, attachments that don't already exist on Trello.
 // Returns { pushed, taskModified, deletedChecklistIds } — deletedChecklistIds lists checklists deleted on Trello.
@@ -441,14 +443,22 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
     }
     // Prevent concurrent syncs — skip if another sync is already running
     if (syncInProgress) {
-        console.log('[Trello sync] Sync already in progress, skipping');
-        return { board, result: { created: 0, updated: 0, pushed: 0, errors: 0, skipped: true } };
+        // Auto-reset if lock held longer than timeout (sync hung)
+        if (syncStartedAt && Date.now() - syncStartedAt > SYNC_LOCK_TIMEOUT_MS) {
+            console.warn(`[Trello sync] Lock held for >${SYNC_LOCK_TIMEOUT_MS / 1000}s — force-resetting stale lock`);
+            syncInProgress = false;
+        } else {
+            console.log('[Trello sync] Sync already in progress, skipping');
+            return { board, result: { created: 0, updated: 0, pushed: 0, errors: 0, skipped: true } };
+        }
     }
     syncInProgress = true;
+    syncStartedAt = Date.now();
     try {
         return await _syncWithTrelloInner(board, mappingConfig, { readOnly });
     } finally {
         syncInProgress = false;
+        syncStartedAt = 0;
     }
 };
 

@@ -475,11 +475,37 @@ const App = () => {
                     isReceivingRealtimeRef.current = true;
                     const d = payload.new;
                     // Prefer board_data column (v2)
+                    let incoming = null;
                     if (d.board_data && d.board_data.version === 2) {
-                        setBoardData(d.board_data);
+                        incoming = d.board_data;
                     } else if (d.categories) {
                         // Legacy format from another client
-                        setBoardData(migrateToV2({ categories: d.categories, actions: d.actions, tasks: d.tasks }));
+                        incoming = migrateToV2({ categories: d.categories, actions: d.actions, tasks: d.tasks });
+                    }
+                    if (incoming) {
+                        // Protect critical Trello sync fields from being overwritten by stale Realtime data
+                        setBoardData(prev => {
+                            if (!prev?.boards) return incoming;
+                            const merged = {
+                                ...incoming,
+                                boards: incoming.boards.map(incomingBoard => {
+                                    const localBoard = prev.boards.find(b => b.id === incomingBoard.id);
+                                    if (!localBoard?.trelloSync) return incomingBoard;
+                                    // Preserve local syncMode/syncEnabled if incoming is missing them
+                                    const localSync = localBoard.trelloSync;
+                                    const incomingSync = incomingBoard.trelloSync;
+                                    if (localSync.syncMode && (!incomingSync || !incomingSync.syncMode)) {
+                                        console.warn('[Realtime] Preserving local trelloSync.syncMode — incoming data missing it');
+                                        return {
+                                            ...incomingBoard,
+                                            trelloSync: { ...incomingSync, syncMode: localSync.syncMode }
+                                        };
+                                    }
+                                    return incomingBoard;
+                                })
+                            };
+                            return merged;
+                        });
                     }
                     saveToLocalStorage();
                     showNotification('✅ Synced with team');
@@ -784,6 +810,14 @@ const App = () => {
         if (trelloSyncStatus === 'syncing') return; // Prevent concurrent syncs
         setTrelloSyncStatus('syncing');
         try {
+            // Snapshot board before sync — allows recovery if sync corrupts data
+            try {
+                localStorage.setItem('trello_sync_snapshot', JSON.stringify({
+                    board: currentBoard,
+                    timestamp: Date.now()
+                }));
+            } catch (e) { console.warn('Failed to save pre-sync snapshot:', e); }
+
             // Build mappingConfig from current board data
             const mappingConfig = { labelMappings: {} };
             const syncMode = currentBoard.trelloSync?.syncMode || 'card-as-task';
@@ -834,10 +868,27 @@ const App = () => {
             if (result.pushed) msg.push(`${result.pushed} pushed`);
             showNotification(`✅ Trello sync: ${msg.join(', ') || 'up to date'}`);
             setTimeout(() => setTrelloSyncStatus('idle'), 3000);
+            // Clear snapshot on success (keep for 24h as safety net)
+            // Snapshot is overwritten on next sync, so no cleanup needed
         } catch (err) {
             console.error('Trello sync error:', err);
             setTrelloSyncStatus('error');
-            showNotification(`❌ Trello sync failed: ${err.message}`);
+            // Attempt auto-restore from snapshot on critical failure
+            try {
+                const snapshot = JSON.parse(localStorage.getItem('trello_sync_snapshot'));
+                if (snapshot?.board && Date.now() - snapshot.timestamp < 86400000) {
+                    console.log('[Trello sync] Restoring board from pre-sync snapshot');
+                    setBoardData(prev => ({
+                        ...prev,
+                        boards: prev.boards.map(b => b.id === snapshot.board.id ? snapshot.board : b)
+                    }));
+                    showNotification(`❌ Trello sync failed: ${err.message} — board restored from snapshot`);
+                } else {
+                    showNotification(`❌ Trello sync failed: ${err.message}`);
+                }
+            } catch (restoreErr) {
+                showNotification(`❌ Trello sync failed: ${err.message}`);
+            }
             setTimeout(() => setTrelloSyncStatus('idle'), 5000);
         }
     }, [currentBoard, trelloSyncStatus]);
