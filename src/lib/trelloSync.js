@@ -796,9 +796,20 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         const trelloTime = new Date(card.dateLastActivity).getTime();
         const lastSyncTime = new Date(action.trelloLastModified || 0).getTime();
 
-        // Always update action metadata from card
-        if (action.name !== card.name || (action.description || '') !== (card.desc || '') || listToCatId[card.idList] !== action.categoryId) {
-            updatedActions[i] = mergeCardIntoAction(action, card, listToCatId);
+        // Always update action metadata from card (full merge with labels, members, dates, comments, attachments)
+        updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+
+        // Push action extras (comments, attachments) to Trello
+        if (!readOnly && action.trelloCardId) {
+            try {
+                const { taskModified } = await pushTaskExtrasToTrello(action, card);
+                if (taskModified) {
+                    updatedActions[i] = { ...updatedActions[i], ...action };
+                }
+            } catch (e) {
+                console.error(`Failed to push extras for action "${action.name}":`, e);
+                result.errors++;
+            }
         }
 
         // Sync checklist items ↔ tasks

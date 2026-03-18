@@ -307,8 +307,15 @@ export const mapTrelloCardToAction = (card, categoryId, mappingConfig) => {
         categoryId,
         budget: 0,
         priority: 'medium',
-        tags: [],
+        tags: channels,
+        countries,
+        otherLabels,
+        assignees: card.idMembers || [],
+        startDate: card.start ? card.start.split('T')[0] : null,
+        dueDate: card.due ? card.due.split('T')[0] : null,
         description: card.desc || '',
+        comments: [],
+        attachments: [],
         trelloCardId: card.id,
         trelloLastModified: card.dateLastActivity,
         // Store inherited label data so tasks can inherit them
@@ -446,12 +453,83 @@ export const buildImportDataCardAsAction = (trelloData, mappingConfig) => {
 };
 
 // --- Merge Trello card changes into existing Action (card-as-action pull) ---
-export const mergeCardIntoAction = (existingAction, card, listToCat) => {
+export const mergeCardIntoAction = (existingAction, card, listToCat, mappingConfig) => {
+    // Extract channels, countries, otherLabels from card labels
+    const channels = [];
+    const countries = [];
+    const otherLabels = [];
+    if (card.idLabels && mappingConfig?.labelMappings) {
+        for (const labelId of card.idLabels) {
+            const mapping = mappingConfig.labelMappings[labelId];
+            if (mapping?.type === 'channel') channels.push(mapping.channelId);
+            else if (mapping?.type === 'country' && mapping.countryId) countries.push(mapping.countryId);
+            else if (mapping?.type === 'other') {
+                const labelHex = mapping.labelColor?.startsWith('#') ? mapping.labelColor : (trelloColorToHex(mapping.labelColor) || '#64748b');
+                otherLabels.push({ id: labelId, name: mapping.labelName || '', color: labelHex });
+            }
+        }
+    }
+
+    // Merge comments by trelloCommentId
+    const existingCmMap = new Map();
+    for (const cm of (existingAction.comments || [])) {
+        if (cm.trelloCommentId) existingCmMap.set(cm.trelloCommentId, cm);
+    }
+    const localOnlyComments = (existingAction.comments || []).filter(cm => !cm.trelloCommentId);
+    const mergedComments = [];
+    if (card.comments) {
+        for (const comment of card.comments) {
+            const existing = existingCmMap.get(comment.id);
+            mergedComments.push({
+                id: existing?.id || genId('cm'),
+                author: comment.memberCreator?.fullName || comment.memberCreator?.username || 'Unknown',
+                text: comment.data?.text || '',
+                date: comment.date,
+                trelloCommentId: comment.id
+            });
+        }
+    }
+    mergedComments.push(...localOnlyComments);
+
+    // Merge attachments by trelloAttachmentId
+    const existingAttMap = new Map();
+    for (const att of (existingAction.attachments || [])) {
+        if (att.trelloAttachmentId) existingAttMap.set(att.trelloAttachmentId, att);
+    }
+    const localOnlyAtts = (existingAction.attachments || []).filter(att => !att.trelloAttachmentId);
+    const mergedAttachments = [];
+    if (card.attachments) {
+        for (const att of card.attachments) {
+            const existing = existingAttMap.get(att.id);
+            mergedAttachments.push({
+                id: existing?.id || genId('att'),
+                name: att.name, url: att.url, mimeType: att.mimeType || '',
+                date: att.date, trelloAttachmentId: att.id
+            });
+        }
+    }
+    const trelloAttUrls = new Set(mergedAttachments.map(a => a.url));
+    for (const att of localOnlyAtts) {
+        if (!att.url || !trelloAttUrls.has(att.url)) mergedAttachments.push(att);
+    }
+
     return {
         ...existingAction,
         name: card.name,
         description: card.desc || existingAction.description || '',
         categoryId: listToCat?.[card.idList] || existingAction.categoryId,
+        assignees: card.idMembers || existingAction.assignees || [],
+        startDate: card.start ? card.start.split('T')[0] : existingAction.startDate,
+        dueDate: card.due ? card.due.split('T')[0] : existingAction.dueDate,
+        tags: channels.length ? channels : (existingAction.tags || []),
+        countries: countries.length ? countries : (existingAction.countries || []),
+        otherLabels: otherLabels.length ? otherLabels : (existingAction.otherLabels || []),
+        comments: mergedComments,
+        attachments: mergedAttachments,
+        _inheritChannels: channels.length ? channels : (existingAction._inheritChannels || []),
+        _inheritCountries: countries.length ? countries : (existingAction._inheritCountries || []),
+        _inheritOtherLabels: otherLabels.length ? otherLabels : (existingAction._inheritOtherLabels || []),
+        _inheritAssignees: card.idMembers || existingAction._inheritAssignees || [],
         trelloLastModified: card.dateLastActivity
     };
 };
@@ -493,6 +571,10 @@ export const mapActionToTrelloCardUpdate = (action, listId) => {
     const updates = { name: action.name };
     if (action.description != null) updates.desc = action.description;
     if (listId) updates.idList = listId;
+    if (action.startDate) updates.start = action.startDate;
+    if (action.dueDate) updates.due = action.dueDate;
+    if (action.assignees?.length > 0) updates.idMembers = action.assignees.join(',');
+    else updates.idMembers = '';
     return updates;
 };
 
