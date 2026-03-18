@@ -259,6 +259,50 @@ const pushTaskExtrasToTrello = async (task, card) => {
     return { pushed, taskModified, deletedChecklistIds };
 };
 
+// Push ONLY comments and attachments for actions (card-as-action mode).
+// Unlike pushTaskExtrasToTrello, this NEVER touches checklists or deletes anything.
+// In card-as-action mode, checklists = tasks and are managed by the task-level sync.
+const pushActionExtrasToTrello = async (action, card) => {
+    let actionModified = false;
+
+    // Push new comments (without trelloCommentId)
+    const trelloCommentTexts = new Set((card.comments || []).map(c => (c.data?.text || c.text || '').trim()));
+    for (const comment of (action.comments || [])) {
+        if (!comment.trelloCommentId && comment.text) {
+            if (trelloCommentTexts.has(comment.text.trim())) {
+                const match = (card.comments || []).find(c => (c.data?.text || c.text || '').trim() === comment.text.trim());
+                if (match) { comment.trelloCommentId = match.id; actionModified = true; }
+                continue;
+            }
+            try {
+                const result = await addTrelloComment(action.trelloCardId, comment.text);
+                if (result?.id) { comment.trelloCommentId = result.id; actionModified = true; }
+            } catch (e) {
+                console.error('Failed to push action comment:', e);
+            }
+        }
+    }
+
+    // Push new attachments (without trelloAttachmentId) — additive only, no deletions
+    const trelloAttUrls = new Set((card.attachments || []).map(a => a.url));
+    for (const att of (action.attachments || [])) {
+        if (att.trelloAttachmentId) continue;
+        try {
+            let result = null;
+            if (att.url && !trelloAttUrls.has(att.url)) {
+                result = await addTrelloAttachment(action.trelloCardId, att.url, att.name);
+            } else if (att.data && !att.url) {
+                result = await uploadTrelloAttachment(action.trelloCardId, att.data, att.name, att.type);
+            }
+            if (result?.id) { att.trelloAttachmentId = result.id; if (result.url) att.url = result.url; actionModified = true; }
+        } catch (e) {
+            console.error('Failed to push action attachment:', att.name, e);
+        }
+    }
+
+    return { actionModified };
+};
+
 // Map hex color to nearest Trello named color
 const hexToTrelloColor = (hex) => {
     if (!hex) return null;
@@ -799,11 +843,11 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         // Always update action metadata from card (full merge with labels, members, dates, comments, attachments)
         updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
 
-        // Push action extras (comments, attachments) to Trello
+        // Push action extras (comments, attachments only — NEVER touch checklists)
         if (!readOnly && action.trelloCardId) {
             try {
-                const { taskModified } = await pushTaskExtrasToTrello(action, card);
-                if (taskModified) {
+                const { actionModified } = await pushActionExtrasToTrello(action, card);
+                if (actionModified) {
                     updatedActions[i] = { ...updatedActions[i], ...action };
                 }
             } catch (e) {
@@ -828,11 +872,9 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
 
             const itemData = trelloItems.get(task.trelloCheckItemId);
             if (!itemData) {
-                // Item deleted on Trello — mark task as paused
-                if (task.status !== 'paused') {
-                    updatedTasks[j] = { ...task, status: 'paused' };
-                    result.updated++;
-                }
+                // Item deleted on Trello — clear trelloCheckItemId so it can be recreated
+                updatedTasks[j] = { ...task, trelloCheckItemId: null, trelloChecklistId: null };
+                result.updated++;
                 continue;
             }
 
