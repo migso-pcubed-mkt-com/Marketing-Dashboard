@@ -7,9 +7,6 @@ import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
 
-// Cache for resolved Trello card names (shared across modal instances)
-const trelloUrlNameCache = {};
-
 const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask})=>{
     const { trelloUser } = useApp();
     const[form,setForm]=useState({...action});
@@ -33,8 +30,19 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     const[newGroupName,setNewGroupName]=useState('');
     const[addingTaskGroup,setAddingTaskGroup]=useState(null);
     const[newTaskTitle,setNewTaskTitle]=useState('');
+    const[addTaskPickerGroup,setAddTaskPickerGroup]=useState(null);
     const commentFileRef=useRef(null);
     const attachmentFileRef=useRef(null);
+    // Drag state for groups and tasks
+    const[dragGroupName,setDragGroupName]=useState(null);
+    const[dragTaskId,setDragTaskId]=useState(null);
+    const[dragOverGroup,setDragOverGroup]=useState(null);
+    const[dragOverTaskId,setDragOverTaskId]=useState(null);
+    const[dragOverTaskPos,setDragOverTaskPos]=useState(null);
+    // Inline member picker per task
+    const[taskMemberPicker,setTaskMemberPicker]=useState(null);
+    // Inline due date edit per task
+    const[editingTaskDue,setEditingTaskDue]=useState(null);
 
     const actionTasks=tasks.filter(t=>t.actionId===action.id);
     const completedTasks=actionTasks.filter(t=>t.status==='completed').length;
@@ -59,7 +67,6 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     },[descriptionEditing]);
 
     const handleClose=()=>{
-        // Save description from contentEditable
         let finalForm = form;
         if(descriptionEditing && descEditableRef.current){
             const md = htmlToMarkdown(descEditableRef.current.innerHTML);
@@ -152,40 +159,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         setCollapsedGroups(prev=>({...prev,[name]:!prev[name]}));
     };
 
-    const[resolvedNames,setResolvedNames]=useState({});
     const modalScrollRef=useRef(null);
-
-    // Resolve Trello URLs in task titles
-    useEffect(()=>{
-        const trelloUrlRegex=/^https?:\/\/trello\.com\/c\/([a-zA-Z0-9]+)/;
-        const toResolve=actionTasks.filter(t=>trelloUrlRegex.test(t.title)&&!resolvedNames[t.id]&&!trelloUrlNameCache[t.title]);
-        if(toResolve.length===0){
-            // Apply cached names
-            const cached={};
-            actionTasks.forEach(t=>{if(trelloUrlNameCache[t.title])cached[t.id]=trelloUrlNameCache[t.title];});
-            if(Object.keys(cached).length>0)setResolvedNames(prev=>({...prev,...cached}));
-            return;
-        }
-        // Fetch card names via Trello API (using short link)
-        const API_BASE=typeof window!=='undefined'?(window.location.hostname==='localhost'?'http://localhost:3000':window.location.origin):'';
-        toResolve.forEach(async(task)=>{
-            const match=task.title.match(trelloUrlRegex);
-            if(!match)return;
-            const shortLink=match[1];
-            try{
-                const headers={'Content-Type':'application/json','Accept':'application/json'};
-                const userToken=localStorage.getItem('trello_user_token');
-                if(userToken)headers['X-Trello-Token']=userToken;
-                const res=await fetch(`${API_BASE}/api/trello?action=board&boardId=${shortLink}`,{headers});
-                if(res.ok){
-                    const data=await res.json();
-                    const name=data.board?.name||shortLink;
-                    trelloUrlNameCache[task.title]=name;
-                    setResolvedNames(prev=>({...prev,[task.id]:name}));
-                }
-            }catch(e){/* silent */}
-        });
-    },[actionTasks.length]);
 
     // Restore scroll position when reopening from task view
     useEffect(()=>{
@@ -197,24 +171,123 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     },[action.id]);
 
     const handleOpenTask=(task)=>{
-        // Save scroll position before opening task
         if(modalScrollRef.current){
             sessionStorage.setItem(`action_scroll_${action.id}`,String(modalScrollRef.current.scrollTop));
         }
         onOpenTask(task);
     };
 
-    // Keyboard shortcuts (Delete key for delete confirmation)
+    // Keyboard shortcuts: Delete key for delete, Escape to close
     useEffect(()=>{
         const handleKeyDown=(e)=>{
+            if(e.key==='Escape'){
+                e.preventDefault();
+                handleClose();
+                return;
+            }
             if(e.key==='Delete'&&!isReadOnly&&!descriptionEditing&&!editingGroupName&&!addingTaskGroup&&!showAddGroup){
                 e.preventDefault();
-                setShowConfirmDelete(true);
+                if(!showConfirmDelete)setShowConfirmDelete(true);
+                else handleDelete();
             }
         };
         window.addEventListener('keydown',handleKeyDown);
         return()=>window.removeEventListener('keydown',handleKeyDown);
-    },[isReadOnly,descriptionEditing,editingGroupName,addingTaskGroup,showAddGroup]);
+    },[isReadOnly,descriptionEditing,editingGroupName,addingTaskGroup,showAddGroup,showConfirmDelete]);
+
+    // Group drag-and-drop handlers
+    const handleGroupDragStart=(e,groupName)=>{
+        e.dataTransfer.setData('groupDrag','true');
+        setDragGroupName(groupName);
+    };
+    const handleGroupDragOver=(e,groupName)=>{
+        if(!dragGroupName)return;
+        e.preventDefault();
+        setDragOverGroup(groupName);
+    };
+    const handleGroupDrop=(e,targetGroupName)=>{
+        e.preventDefault();
+        if(dragGroupName&&dragGroupName!==targetGroupName&&taskGroups.length>1){
+            // Reorder groups by reordering tasks' order field
+            const srcIdx=taskGroups.findIndex(g=>g.name===dragGroupName);
+            const tgtIdx=taskGroups.findIndex(g=>g.name===targetGroupName);
+            if(srcIdx>=0&&tgtIdx>=0){
+                const reordered=[...taskGroups];
+                const [moved]=reordered.splice(srcIdx,1);
+                reordered.splice(tgtIdx,0,moved);
+                let order=0;
+                for(const group of reordered){
+                    for(const task of group.tasks){
+                        onUpdateTask(task.id,{order:order++});
+                    }
+                }
+            }
+        }
+        setDragGroupName(null);
+        setDragOverGroup(null);
+    };
+
+    // Task drag within groups
+    const handleTaskDragStart=(e,taskId)=>{
+        e.stopPropagation();
+        e.dataTransfer.setData('taskDragInGroup','true');
+        setDragTaskId(taskId);
+    };
+    const handleTaskDragOver=(e,taskId)=>{
+        if(!dragTaskId||dragTaskId===taskId)return;
+        e.preventDefault();
+        e.stopPropagation();
+        const rect=e.currentTarget.getBoundingClientRect();
+        const mid=rect.top+rect.height/2;
+        setDragOverTaskId(taskId);
+        setDragOverTaskPos(e.clientY<mid?'before':'after');
+    };
+    const handleTaskDrop=(e,targetTaskId,groupName)=>{
+        e.preventDefault();
+        e.stopPropagation();
+        if(!dragTaskId||dragTaskId===targetTaskId)return;
+        const group=taskGroups.find(g=>g.name===groupName);
+        if(!group)return;
+        const srcTask=actionTasks.find(t=>t.id===dragTaskId);
+        if(!srcTask)return;
+        // Move task to this group if different
+        const updates={};
+        if((srcTask.trelloChecklistName||'Tasks')!==groupName){
+            updates.trelloChecklistName=groupName;
+        }
+        // Reorder within group
+        const groupTasks=[...group.tasks];
+        const srcInGroup=groupTasks.findIndex(t=>t.id===dragTaskId);
+        if(srcInGroup>=0)groupTasks.splice(srcInGroup,1);
+        const tgtIdx=groupTasks.findIndex(t=>t.id===targetTaskId);
+        if(tgtIdx>=0){
+            groupTasks.splice(dragOverTaskPos==='before'?tgtIdx:tgtIdx+1,0,srcTask);
+        }else{
+            groupTasks.push(srcTask);
+        }
+        groupTasks.forEach((t,i)=>{
+            if(t.id===dragTaskId){
+                onUpdateTask(t.id,{...updates,order:i});
+            }else{
+                onUpdateTask(t.id,{order:i});
+            }
+        });
+        setDragTaskId(null);
+        setDragOverTaskId(null);
+        setDragOverTaskPos(null);
+    };
+
+    // Handle "Add task" with group picker when multiple groups exist
+    const handleAddTaskClick=()=>{
+        if(taskGroups.length>1){
+            setAddTaskPickerGroup('__picker__');
+        }else if(taskGroups.length===1){
+            setAddingTaskGroup(taskGroups[0].name);
+        }else{
+            // No tasks yet — create first group
+            setShowAddGroup(true);
+        }
+    };
 
     const sectionLabel={fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px'};
     const sectionCard={background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'};
@@ -222,7 +295,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     return(
         <div className="v11-modal-overlay" onClick={handleClose} style={{alignItems:'flex-start',paddingTop:64,overflowY:'auto'}}>
             <div className="v11-modal animate-slide-up" style={{maxWidth:640,marginBottom:32}} onClick={e=>e.stopPropagation()}>
-                {/* Amber gradient bar — differentiates from task modals */}
+                {/* Amber gradient bar */}
                 <div className="h-2 rounded-t-2xl" style={{background:'linear-gradient(to right, #f59e0b, #d97706)'}}/>
                 <div ref={modalScrollRef} className="p-6" style={{maxHeight:'calc(90vh - 80px)',overflowY:'auto'}}>
                     {/* Header */}
@@ -249,13 +322,13 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         </div>
                     </div>
 
-                    {/* Summary — unique to actions */}
+                    {/* Summary */}
                     <div className="rounded-xl p-4 mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)'}}>
                         <div style={{...sectionLabel,marginBottom:10}}>Summary</div>
                         <div className="flex justify-between mb-3">
-                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>💰 Budget</span><p className="text-lg font-bold text-secondary">{totalBudget.toLocaleString()}€</p></div>
-                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>📊 Progress</span><p className="text-lg font-bold">{progressPct}%</p></div>
-                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>📋 Tasks</span><p className="text-lg font-bold">{completedTasks}/{actionTasks.length}</p></div>
+                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>Budget</span><p className="text-lg font-bold text-secondary">{totalBudget.toLocaleString()}€</p></div>
+                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>Progress</span><p className="text-lg font-bold">{progressPct}%</p></div>
+                            <div><span className="text-xs" style={{color:'var(--text-muted)'}}>Tasks</span><p className="text-lg font-bold">{completedTasks}/{actionTasks.length}</p></div>
                         </div>
                         <div className="v11-progress-bar" style={{height:12}}><div className={`v11-progress-fill ${progressPct>=70?'high':progressPct>=40?'medium':'low'}`} style={{width:`${progressPct}%`}}/></div>
                     </div>
@@ -263,12 +336,12 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     {/* Tags & People */}
                     <div className="rounded-xl mb-5" style={sectionCard}>
                         <div style={{...sectionLabel,marginBottom:10}}>Tags & People</div>
-                        <div style={{marginBottom:10}}><label className="v11-label">🏷️ Channel Tags</label><ChannelTags channels={form.tags||[]} onAdd={addChannel} onRemove={removeChannel} editable={!isReadOnly}/></div>
-                        <div style={{marginBottom:10}}><label className="v11-label">🌍 Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry} editable={!isReadOnly}/></div>
+                        <div style={{marginBottom:10}}><label className="v11-label">Channel Tags</label><ChannelTags channels={form.tags||[]} onAdd={addChannel} onRemove={removeChannel} editable={!isReadOnly}/></div>
+                        <div style={{marginBottom:10}}><label className="v11-label">Country Tags</label><CountryTags countries={form.countries||[]} onAdd={addCountry} onRemove={removeCountry} allCountries={allCountries} onAddCustomCountry={onAddCustomCountry} editable={!isReadOnly}/></div>
                         {/* Members */}
                         {(isTrelloBoard || members.length > 0) && (
                             <div style={{marginBottom:10}}>
-                                <label className="v11-label">👥 Members</label>
+                                <label className="v11-label">Members</label>
                                 <div style={{display:'flex',alignItems:'center',gap:4,flexWrap:'wrap',position:'relative'}}>
                                     {(form.assignees||[]).map(id=>{
                                         const m=members.find(m=>m.id===id);
@@ -300,7 +373,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         )}
                         {/* Other Labels */}
                         <div>
-                            <label className="v11-label">🏷️ Other Labels</label>
+                            <label className="v11-label">Other Labels</label>
                             <div style={{display:'flex',flexWrap:'wrap',gap:4,alignItems:'center'}}>
                                 {(form.otherLabels||[]).map(label=>(
                                     <span key={label.id} style={{padding:'2px 8px',borderRadius:4,background:(label.color||'#64748b')+'20',color:label.color||'#64748b',fontSize:11,fontWeight:500,display:'inline-flex',alignItems:'center',gap:4}}>
@@ -344,7 +417,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     {/* Description */}
                     <div className="rounded-xl mb-5" style={sectionCard}>
                         <div className="flex items-center justify-between mb-2">
-                            <span style={sectionLabel}>📝 Description</span>
+                            <span style={sectionLabel}>Description</span>
                             {!isReadOnly&&!descriptionEditing&&<button onClick={()=>setDescriptionEditing(true)} style={{fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}>Edit</button>}
                             {!isReadOnly&&descriptionEditing&&<button onClick={saveDescription} style={{fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}>Save</button>}
                         </div>
@@ -365,15 +438,25 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     {/* Tasks — grouped by checklist name */}
                     <div className="rounded-xl mb-5" style={sectionCard}>
                         <div className="flex items-center justify-between mb-3">
-                            <span style={sectionLabel}>📋 Tasks ({actionTasks.length})</span>
+                            <span style={sectionLabel}>Tasks ({actionTasks.length})</span>
                             <div style={{display:'flex',gap:6}}>
-                                {!isReadOnly&&<button onClick={()=>setShowAddGroup(true)} className="px-3 py-1 rounded-lg text-xs flex items-center space-x-1" style={{background:'var(--bg-primary)',border:'1px solid var(--border)',color:'var(--text-secondary)'}}><Icon.Plus size={10}/><span>Group</span></button>}
-                                {!isReadOnly&&<button onClick={()=>onAddTask(action.id)} className="px-3 py-1 text-white rounded-lg text-xs flex items-center space-x-1" style={{background:'#d97706'}}><Icon.Plus size={10}/><span>Add</span></button>}
+                                {!isReadOnly&&actionTasks.length===0&&<button onClick={()=>setShowAddGroup(true)} className="px-3 py-1 rounded-lg text-xs flex items-center space-x-1" style={{background:'var(--bg-primary)',border:'1px solid var(--border)',color:'var(--text-secondary)'}}><Icon.Plus size={10}/><span>Group</span></button>}
+                                {!isReadOnly&&<button onClick={handleAddTaskClick} className="px-3 py-1 text-white rounded-lg text-xs flex items-center space-x-1" style={{background:'#d97706'}}><Icon.Plus size={10}/><span>Add task</span></button>}
                             </div>
                         </div>
+                        {/* Group picker for "Add task" when multiple groups exist */}
+                        {addTaskPickerGroup==='__picker__'&&!isReadOnly&&<div style={{marginBottom:8,padding:8,background:'var(--bg-primary)',borderRadius:6,border:'1px solid var(--border)'}}>
+                            <div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>Select group:</div>
+                            <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
+                                {taskGroups.map(g=>(
+                                    <button key={g.name} onClick={()=>{setAddTaskPickerGroup(null);setAddingTaskGroup(g.name);}} style={{padding:'4px 10px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11,color:'var(--text-secondary)'}} onMouseEnter={e=>e.currentTarget.style.borderColor='#d97706'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border)'}>{g.name}</button>
+                                ))}
+                                <button onClick={()=>{setAddTaskPickerGroup(null);setShowAddGroup(true);}} style={{padding:'4px 10px',borderRadius:4,background:'none',border:'1px dashed var(--border)',cursor:'pointer',fontSize:11,color:'var(--accent)'}}><Icon.Plus size={9}/> New group</button>
+                            </div>
+                        </div>}
                         {showAddGroup&&!isReadOnly&&<div style={{marginBottom:8,display:'flex',gap:4,alignItems:'center'}}>
-                            <input type="text" value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="New group name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newGroupName.trim()){if(onRenameChecklistGroup)onRenameChecklistGroup(null,newGroupName.trim());setNewGroupName('');setShowAddGroup(false);}if(e.key==='Escape'){setShowAddGroup(false);setNewGroupName('');}}} style={{flex:1,padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}/>
-                            <button onClick={()=>{if(newGroupName.trim()&&onRenameChecklistGroup){onRenameChecklistGroup(null,newGroupName.trim());setNewGroupName('');setShowAddGroup(false);}}} style={{padding:'4px 10px',borderRadius:4,background:'#d97706',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Create</button>
+                            <input type="text" value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="New group name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newGroupName.trim()){if(onRenameChecklistGroup)onRenameChecklistGroup(null,newGroupName.trim());setNewGroupName('');setShowAddGroup(false);setAddingTaskGroup(newGroupName.trim());}if(e.key==='Escape'){setShowAddGroup(false);setNewGroupName('');}}} style={{flex:1,padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}/>
+                            <button onClick={()=>{if(newGroupName.trim()&&onRenameChecklistGroup){onRenameChecklistGroup(null,newGroupName.trim());setNewGroupName('');setShowAddGroup(false);setAddingTaskGroup(newGroupName.trim());}}} style={{padding:'4px 10px',borderRadius:4,background:'#d97706',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Create</button>
                             <button onClick={()=>{setShowAddGroup(false);setNewGroupName('');}} style={{padding:'4px 10px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11}}>Cancel</button>
                         </div>}
                         {taskGroups.length>0?taskGroups.map(group=>{
@@ -381,9 +464,16 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                             const groupPct=group.tasks.length>0?Math.round((groupCompleted/group.tasks.length)*100):0;
                             const isCollapsed=collapsedGroups[group.name];
                             return(
-                                <div key={group.name} className="mb-3">
-                                    {/* Group header — shows checklist name (editable) */}
+                                <div key={group.name} className="mb-3"
+                                    draggable={!isReadOnly&&taskGroups.length>1}
+                                    onDragStart={e=>handleGroupDragStart(e,group.name)}
+                                    onDragOver={e=>handleGroupDragOver(e,group.name)}
+                                    onDrop={e=>handleGroupDrop(e,group.name)}
+                                    onDragEnd={()=>{setDragGroupName(null);setDragOverGroup(null);}}
+                                    style={{opacity:dragGroupName===group.name?0.5:1,borderTop:dragOverGroup===group.name&&dragGroupName?'2px solid #d97706':'2px solid transparent'}}>
+                                    {/* Group header */}
                                     <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid var(--border-light)',marginBottom:8}}>
+                                        {!isReadOnly&&taskGroups.length>1&&<span style={{cursor:'grab',opacity:0.4,fontSize:10}}>⋮⋮</span>}
                                         {editingGroupName===group.name&&!isReadOnly?(
                                             <input type="text" value={editingGroupValue} onChange={e=>setEditingGroupValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'&&editingGroupValue.trim()){if(onRenameChecklistGroup)onRenameChecklistGroup(group.name,editingGroupValue.trim());setEditingGroupName(null);}if(e.key==='Escape')setEditingGroupName(null);}} onBlur={()=>{if(editingGroupValue.trim()&&editingGroupValue!==group.name&&onRenameChecklistGroup)onRenameChecklistGroup(group.name,editingGroupValue.trim());setEditingGroupName(null);}} style={{flex:1,padding:'2px 6px',borderRadius:4,border:'1px solid var(--accent)',fontSize:11,fontWeight:600,outline:'none'}}/>
                                         ):(
@@ -398,17 +488,27 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                     {!isCollapsed&&<div className="space-y-2">
                                         {group.tasks.map(task=>{
                                             const boardMembers=members||[];
-                                            const isTrelloUrl=/^https?:\/\/trello\.com\/c\//.test(task.title);
-                                            const displayTitle=isTrelloUrl?(resolvedNames[task.id]||trelloUrlNameCache[task.title]||task.title):task.title;
                                             return(
-                                                <div key={task.id} className="rounded-lg p-3" style={{background:'var(--bg-primary)',border:'1px solid var(--border-light)'}}>
+                                                <div key={task.id} className="rounded-lg p-3" style={{background:'var(--bg-primary)',border:dragOverTaskId===task.id?(dragOverTaskPos==='before'?'2px solid #d97706 transparent transparent transparent':'transparent transparent 2px solid #d97706 transparent'):'1px solid var(--border-light)',cursor:'default'}}
+                                                    draggable={!isReadOnly}
+                                                    onDragStart={e=>handleTaskDragStart(e,task.id)}
+                                                    onDragOver={e=>handleTaskDragOver(e,task.id)}
+                                                    onDrop={e=>handleTaskDrop(e,task.id,group.name)}
+                                                    onDragEnd={()=>{setDragTaskId(null);setDragOverTaskId(null);setDragOverTaskPos(null);}}>
                                                     <div className="flex items-center gap-3">
+                                                        {!isReadOnly&&<span style={{cursor:'grab',opacity:0.3,fontSize:10,flexShrink:0}}>⋮⋮</span>}
                                                         <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:110,flexShrink:0}} disabled={isReadOnly}/>
                                                         <div className="flex-1 min-w-0" style={{cursor:'pointer'}} onClick={()=>handleOpenTask(task)}>
-                                                            <p className="font-medium text-sm truncate" style={{color:'var(--accent)',textDecoration:'none'}} onMouseEnter={e=>e.target.style.textDecoration='underline'} onMouseLeave={e=>e.target.style.textDecoration='none'}>{isTrelloUrl?<><a href={task.title} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} title={task.title} style={{color:'var(--accent)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4}}><span style={{fontSize:10}}>🔗</span>{displayTitle}</a></>:displayTitle}</p>
-                                                            <p className="text-xs" style={{color:'var(--text-muted)'}}>📅 {task.startDate?new Date(task.startDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):'?'} → {task.dueDate?new Date(task.dueDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):'?'}</p>
+                                                            <p className="font-medium text-sm truncate" style={{color:'var(--accent)'}} onMouseEnter={e=>e.target.style.textDecoration='underline'} onMouseLeave={e=>e.target.style.textDecoration='none'}>{task.title}</p>
                                                         </div>
                                                         <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
+                                                            {/* Inline due date */}
+                                                            {editingTaskDue===task.id&&!isReadOnly?(
+                                                                <input type="date" value={task.dueDate||''} onChange={e=>{onUpdateTask(task.id,{dueDate:e.target.value});}} onBlur={()=>setEditingTaskDue(null)} autoFocus style={{fontSize:10,padding:'1px 3px',borderRadius:3,border:'1px solid var(--accent)',width:110}}/>
+                                                            ):(
+                                                                <span onClick={e=>{e.stopPropagation();if(!isReadOnly)setEditingTaskDue(task.id);}} style={{fontSize:10,color:task.dueDate&&new Date(task.dueDate)<new Date()&&task.status!=='completed'?'#ef4444':'var(--text-muted)',cursor:isReadOnly?'default':'pointer'}} title="Click to edit due date">{task.dueDate?new Date(task.dueDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):'No date'}</span>
+                                                            )}
+                                                            {/* Inline member avatars + picker */}
                                                             {(task.assignees||[]).slice(0,2).map((mId,idx)=>{
                                                                 const m=boardMembers.find(mb=>mb.id===mId);
                                                                 if(!m)return null;
@@ -417,6 +517,31 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                                     :<span key={mId} title={m.fullName||m.username} style={{width:20,height:20,borderRadius:'50%',background:'#d97706',color:'white',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:8,fontWeight:600,border:'1.5px solid var(--bg-primary)',marginLeft:idx>0?-4:0}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>;
                                                             })}
                                                             {(task.assignees||[]).length>2&&<span style={{fontSize:9,color:'var(--text-muted)'}}>+{task.assignees.length-2}</span>}
+                                                            {!isReadOnly&&members.length>0&&<div style={{position:'relative'}}>
+                                                                <button onClick={e=>{e.stopPropagation();setTaskMemberPicker(taskMemberPicker===task.id?null:task.id);}} style={{width:18,height:18,borderRadius:'50%',border:'1px dashed var(--border-strong)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg-secondary)',flexShrink:0,padding:0}} title="Assign member"><Icon.Plus size={8}/></button>
+                                                                {taskMemberPicker===task.id&&(<>
+                                                                    <div style={{position:'fixed',inset:0,zIndex:98}} onClick={()=>setTaskMemberPicker(null)}/>
+                                                                    <div style={{position:'absolute',top:'100%',right:0,marginTop:4,background:'var(--bg-primary)',border:'1px solid var(--border)',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',zIndex:99,minWidth:160,padding:4,maxHeight:180,overflowY:'auto'}}>
+                                                                        {members.filter(m=>!(task.assignees||[]).includes(m.id)).map(m=>(
+                                                                            <button key={m.id} onClick={e=>{e.stopPropagation();onUpdateTask(task.id,{assignees:[...(task.assignees||[]),m.id]});setTaskMemberPicker(null);}} style={{width:'100%',padding:'5px 8px',fontSize:11,color:'var(--text-primary)',background:'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg-secondary)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                                                                                {m.avatarUrl?<img src={m.avatarUrl} alt="" style={{width:18,height:18,borderRadius:'50%'}}/>:<span style={{width:18,height:18,borderRadius:'50%',background:'#d97706',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,flexShrink:0}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
+                                                                                <span>{m.fullName||m.username}</span>
+                                                                            </button>
+                                                                        ))}
+                                                                        {(task.assignees||[]).length>0&&<>
+                                                                            <div style={{borderTop:'1px solid var(--border)',marginTop:2,paddingTop:2}}/>
+                                                                            {(task.assignees||[]).map(mId=>{
+                                                                                const m=members.find(mb=>mb.id===mId);
+                                                                                if(!m)return null;
+                                                                                return <button key={mId} onClick={e=>{e.stopPropagation();onUpdateTask(task.id,{assignees:(task.assignees||[]).filter(a=>a!==mId)});}} style={{width:'100%',padding:'5px 8px',fontSize:11,color:'#ef4444',background:'none',border:'none',cursor:'pointer',textAlign:'left',borderRadius:'var(--radius-sm)',display:'flex',alignItems:'center',gap:6}} onMouseEnter={e=>e.currentTarget.style.background='var(--bg-secondary)'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                                                                                    {m.avatarUrl?<img src={m.avatarUrl} alt="" style={{width:18,height:18,borderRadius:'50%',opacity:0.6}}/>:<span style={{width:18,height:18,borderRadius:'50%',background:'#d97706',color:'white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,flexShrink:0,opacity:0.6}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>}
+                                                                                    <span style={{textDecoration:'line-through'}}>{m.fullName||m.username}</span>
+                                                                                </button>;
+                                                                            })}
+                                                                        </>}
+                                                                    </div>
+                                                                </>)}
+                                                            </div>}
                                                             {task.budget>0&&<span className="text-xs font-semibold text-secondary">{task.budget}€</span>}
                                                         </div>
                                                     </div>
@@ -427,9 +552,9 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                         {!isReadOnly&&(addingTaskGroup===group.name?(
                                             <div style={{display:'flex',gap:4,alignItems:'center',padding:'4px 0'}}>
                                                 <Icon.Plus size={10} style={{color:'var(--text-muted)',flexShrink:0}}/>
-                                                <input type="text" value={newTaskTitle} onChange={e=>setNewTaskTitle(e.target.value)} placeholder="Task name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newTaskTitle.trim()){if(onAddTaskInGroup)onAddTaskInGroup(action.id,group.name,newTaskTitle.trim());setNewTaskTitle('');setAddingTaskGroup(null);}if(e.key==='Escape'){setAddingTaskGroup(null);setNewTaskTitle('');}}} style={{flex:1,padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}/>
-                                                <button onClick={()=>{if(newTaskTitle.trim()&&onAddTaskInGroup){onAddTaskInGroup(action.id,group.name,newTaskTitle.trim());setNewTaskTitle('');setAddingTaskGroup(null);}}} style={{padding:'3px 8px',borderRadius:4,background:'#d97706',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Add</button>
-                                                <button onClick={()=>{setAddingTaskGroup(null);setNewTaskTitle('');}} style={{padding:'3px 8px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11}}>Cancel</button>
+                                                <input type="text" value={newTaskTitle} onChange={e=>setNewTaskTitle(e.target.value)} placeholder="Task name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newTaskTitle.trim()){if(onAddTaskInGroup)onAddTaskInGroup(action.id,group.name,newTaskTitle.trim());setNewTaskTitle('');/* Keep input open for quick multiple adds */}if(e.key==='Escape'){setAddingTaskGroup(null);setNewTaskTitle('');}}} style={{flex:1,padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}/>
+                                                <button onClick={()=>{if(newTaskTitle.trim()&&onAddTaskInGroup){onAddTaskInGroup(action.id,group.name,newTaskTitle.trim());setNewTaskTitle('');}}} style={{padding:'3px 8px',borderRadius:4,background:'#d97706',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Add</button>
+                                                <button onClick={()=>{setAddingTaskGroup(null);setNewTaskTitle('');}} style={{padding:'3px 8px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11}}>Done</button>
                                             </div>
                                         ):(
                                             <button onClick={()=>setAddingTaskGroup(group.name)} style={{width:'100%',padding:'6px 8px',fontSize:11,color:'var(--text-muted)',background:'none',border:'1px dashed var(--border-light)',borderRadius:6,cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:4}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--accent)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border-light)'}><Icon.Plus size={10}/> New task</button>
@@ -437,23 +562,23 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                     </div>}
                                 </div>
                             );
-                        }):<p className="text-center py-4 text-sm" style={{color:'var(--text-muted)'}}>No tasks</p>}
+                        }):<p className="text-center py-4 text-sm" style={{color:'var(--text-muted)'}}>No tasks yet. Create a group to get started.</p>}
                     </div>
 
                     {/* Comments */}
                     <div className="rounded-xl mb-5" style={sectionCard}>
-                        <div style={{...sectionLabel,marginBottom:10}}>💬 Comments ({(form.comments||[]).length})</div>
+                        <div style={{...sectionLabel,marginBottom:10}}>Comments ({(form.comments||[]).length})</div>
                         {(form.comments||[]).length>0&&<div className="mb-4" style={{display:'flex',flexDirection:'column',gap:0}}>
-                            {(form.comments||[]).slice().reverse().map((comment,idx)=>(
-                                <div key={comment.id} style={{borderBottom:'1px solid var(--border)',paddingBottom:12,paddingTop:idx>0?12:0,marginBottom:0}}>
+                            {(form.comments||[]).slice().sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)).map((comment,idx)=>(
+                                <div key={comment.id||idx} style={{borderBottom:idx<(form.comments||[]).length-1?'1px solid var(--border-light)':'none',paddingBottom:12,paddingTop:idx>0?12:0}}>
                                     <div className="flex items-center gap-2 mb-1">
                                         <span style={{fontSize:11,fontWeight:600,color:'var(--text-primary)'}}>{comment.author}</span>
                                         <span style={{fontSize:10,color:'var(--text-muted)'}}>{comment.date?new Date(comment.date).toLocaleDateString('en-US',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</span>
                                     </div>
-                                    <SimpleMarkdown text={comment.text}/>
+                                    <div style={{fontSize:13,lineHeight:1.6,color:'var(--text-secondary)'}}><SimpleMarkdown text={comment.text}/></div>
                                     {comment.attachments?.length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:6}}>
                                         {comment.attachments.map(att=>(
-                                            <a key={att.id||att.name} href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',background:'var(--bg-secondary)',borderRadius:4,textDecoration:'none'}}>📎 {att.name}</a>
+                                            <a key={att.id||att.name} href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',background:'var(--bg-primary)',borderRadius:4,textDecoration:'none',border:'1px solid var(--border-light)'}}>📎 {att.name}</a>
                                         ))}
                                     </div>}
                                 </div>
@@ -481,7 +606,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     {/* Attachments */}
                     <div className="rounded-xl mb-5" style={sectionCard}>
                         <div className="flex items-center justify-between mb-2">
-                            <span style={sectionLabel}>📎 Attachments ({(form.attachments||[]).length})</span>
+                            <span style={sectionLabel}>Attachments ({(form.attachments||[]).length})</span>
                             {!isReadOnly&&<button onClick={()=>attachmentFileRef.current?.click()} style={{fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}>+ Add</button>}
                         </div>
                         <input ref={attachmentFileRef} type="file" multiple style={{display:'none'}} onChange={handleAttachmentFileSelect}/>
@@ -504,10 +629,10 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     {/* Delete confirmation */}
                     {showConfirmDelete&&(
                         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-sm font-medium text-red-800 mb-2">⚠️ Confirm deletion?</p>
+                            <p className="text-sm font-medium text-red-800 mb-2">Confirm deletion?</p>
                             <p className="text-xs text-red-600 mb-3">This action and its {actionTasks.length} task(s) will be permanently deleted.</p>
                             <div className="flex space-x-2">
-                                <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">Confirm</button>
+                                <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">Delete</button>
                                 <button onClick={()=>setShowConfirmDelete(false)} className="v11-btn-secondary">Cancel</button>
                             </div>
                         </div>

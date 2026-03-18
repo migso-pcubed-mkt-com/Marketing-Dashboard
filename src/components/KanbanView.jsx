@@ -277,17 +277,23 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
                                         const monthIdx=col.key;
-                                        const year=selectedYear;
+                                        const year=Number(selectedYear)||new Date().getFullYear();
+                                        const task=filteredTasks.find(t=>t.id===taskId);
+                                        // Preserve task duration when moving between months
+                                        const oldStart=task?.startDate?new Date(task.startDate):null;
+                                        const oldEnd=task?.dueDate?new Date(task.dueDate):null;
+                                        const durationDays=(oldStart&&oldEnd)?Math.round((oldEnd-oldStart)/(1000*60*60*24)):0;
                                         const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
-                                        const lastDay=new Date(year,monthIdx+1,0).getDate();
-                                        const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+lastDay;
+                                        const startD=new Date(year,monthIdx,1);
+                                        const endD=durationDays>0?new Date(startD.getTime()+durationDays*86400000):new Date(year,monthIdx+1,0);
+                                        const dueDate=endD.getFullYear()+'-'+String(endD.getMonth()+1).padStart(2,'0')+'-'+String(endD.getDate()).padStart(2,'0');
                                         onUpdateTask(taskId,{startDate,dueDate,month:monthIdx});
                                     }
                                 }else if(viewMode==='quarter'){
                                     const taskId=e.dataTransfer.getData('taskId');
                                     if(taskId){
                                         const quarterIdx=col.key;
-                                        const year=selectedYear;
+                                        const year=Number(selectedYear)||new Date().getFullYear();
                                         const firstMonth=quarterIdx*3;
                                         const lastMonth=quarterIdx*3+2;
                                         const startDate=year+'-'+String(firstMonth+1).padStart(2,'0')+'-01';

@@ -79,6 +79,13 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     };
 
     const handleClose=()=>{if(!isReadOnly)onUpdate(task.id,form);onClose();}; // Auto-save on close (Trello-style), skip in read-only
+
+    // Escape key to close
+    useEffect(()=>{
+        const handleKeyDown=(e)=>{if(e.key==='Escape'){e.preventDefault();handleClose();}};
+        window.addEventListener('keydown',handleKeyDown);
+        return()=>window.removeEventListener('keydown',handleKeyDown);
+    },[]);
     const saveDescription=()=>{setForm({...form,description:descriptionDraft});setDescriptionSaved(true);};
     const[commentEditing,setCommentEditing]=useState(false);
     const commentEditableRef=useRef(null);
