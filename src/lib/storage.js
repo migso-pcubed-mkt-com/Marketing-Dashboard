@@ -211,3 +211,52 @@ export const saveToLocalStorage = (boardDataRef) => {
         console.error('LocalStorage save error:', e);
     }
 };
+
+// --- Snapshot ring buffer (3 most recent snapshots) ---
+
+const SNAPSHOT_COUNT = 3;
+const SNAPSHOT_KEY_PREFIX = 'mkt_snapshot_';
+const SNAPSHOT_INDEX_KEY = 'mkt_snapshot_index';
+const SNAPSHOT_MAX_AGE_MS = 48 * 60 * 60 * 1000; // 48h
+
+export const saveSnapshot = (boardData, trigger = 'auto-save') => {
+    try {
+        const index = parseInt(localStorage.getItem(SNAPSHOT_INDEX_KEY) || '0', 10);
+        const nextIndex = (index + 1) % SNAPSHOT_COUNT;
+        const snapshot = { boardData, timestamp: Date.now(), trigger };
+        localStorage.setItem(`${SNAPSHOT_KEY_PREFIX}${nextIndex}`, JSON.stringify(snapshot));
+        localStorage.setItem(SNAPSHOT_INDEX_KEY, String(nextIndex));
+    } catch (e) {
+        console.error('Snapshot save error:', e);
+    }
+};
+
+export const listSnapshots = () => {
+    const snapshots = [];
+    const now = Date.now();
+    for (let i = 0; i < SNAPSHOT_COUNT; i++) {
+        try {
+            const raw = localStorage.getItem(`${SNAPSHOT_KEY_PREFIX}${i}`);
+            if (!raw) continue;
+            const snapshot = JSON.parse(raw);
+            if (now - snapshot.timestamp > SNAPSHOT_MAX_AGE_MS) {
+                localStorage.removeItem(`${SNAPSHOT_KEY_PREFIX}${i}`);
+                continue;
+            }
+            snapshots.push({ index: i, ...snapshot });
+        } catch (e) { /* skip corrupted */ }
+    }
+    return snapshots.sort((a, b) => b.timestamp - a.timestamp);
+};
+
+export const restoreSnapshot = (index) => {
+    try {
+        const raw = localStorage.getItem(`${SNAPSHOT_KEY_PREFIX}${index}`);
+        if (!raw) return null;
+        const snapshot = JSON.parse(raw);
+        return snapshot.boardData || null;
+    } catch (e) {
+        console.error('Snapshot restore error:', e);
+        return null;
+    }
+};

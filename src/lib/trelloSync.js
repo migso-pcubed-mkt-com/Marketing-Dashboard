@@ -6,6 +6,63 @@ import { CONFIG } from '../config.js';
 
 // Sync lock — prevents concurrent sync operations
 let syncInProgress = false;
+let syncStartedAt = 0;
+const SYNC_LOCK_TIMEOUT_MS = 60000; // 60s max — auto-reset if sync hangs
+
+// Validate board integrity after sync — detect orphans, duplicates, missing refs
+export const validateBoardIntegrity = (board) => {
+    const warnings = [];
+    const actionIds = new Set((board.actions || []).map(a => a.id));
+    const categoryIds = new Set((board.categories || []).map(c => c.id));
+
+    // Check tasks reference valid actions
+    for (const task of (board.tasks || [])) {
+        if (task.actionId && !actionIds.has(task.actionId)) {
+            warnings.push(`Task "${task.title}" references missing action ${task.actionId}`);
+        }
+    }
+
+    // Check actions reference valid categories
+    for (const action of (board.actions || [])) {
+        if (action.categoryId && !categoryIds.has(action.categoryId)) {
+            warnings.push(`Action "${action.name}" references missing category ${action.categoryId}`);
+        }
+    }
+
+    // Check for duplicate trelloCardId
+    const cardIds = new Map();
+    for (const task of (board.tasks || [])) {
+        if (task.trelloCardId) {
+            if (cardIds.has(task.trelloCardId)) {
+                warnings.push(`Duplicate trelloCardId ${task.trelloCardId}: "${task.title}" and "${cardIds.get(task.trelloCardId)}"`);
+            } else {
+                cardIds.set(task.trelloCardId, task.title);
+            }
+        }
+    }
+
+    // Check for duplicate trelloCheckItemId
+    const checkItemIds = new Map();
+    for (const task of (board.tasks || [])) {
+        if (task.trelloCheckItemId) {
+            if (checkItemIds.has(task.trelloCheckItemId)) {
+                warnings.push(`Duplicate trelloCheckItemId ${task.trelloCheckItemId}: "${task.title}" and "${checkItemIds.get(task.trelloCheckItemId)}"`);
+            } else {
+                checkItemIds.set(task.trelloCheckItemId, task.title);
+            }
+        }
+    }
+
+    // Check syncMode consistency
+    if (board.trelloSync?.trelloBoardId && !board.trelloSync?.syncMode) {
+        warnings.push('Board has trelloBoardId but no syncMode set');
+    }
+
+    if (warnings.length > 0) {
+        console.warn(`[Board integrity] ${warnings.length} warning(s):`, warnings);
+    }
+    return { valid: warnings.length === 0, warnings };
+};
 
 // Push comments, checklists, attachments that don't already exist on Trello.
 // Returns { pushed, taskModified, deletedChecklistIds } — deletedChecklistIds lists checklists deleted on Trello.
@@ -441,14 +498,22 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
     }
     // Prevent concurrent syncs — skip if another sync is already running
     if (syncInProgress) {
-        console.log('[Trello sync] Sync already in progress, skipping');
-        return { board, result: { created: 0, updated: 0, pushed: 0, errors: 0, skipped: true } };
+        // Auto-reset if lock held longer than timeout (sync hung)
+        if (syncStartedAt && Date.now() - syncStartedAt > SYNC_LOCK_TIMEOUT_MS) {
+            console.warn(`[Trello sync] Lock held for >${SYNC_LOCK_TIMEOUT_MS / 1000}s — force-resetting stale lock`);
+            syncInProgress = false;
+        } else {
+            console.log('[Trello sync] Sync already in progress, skipping');
+            return { board, result: { created: 0, updated: 0, pushed: 0, errors: 0, skipped: true } };
+        }
     }
     syncInProgress = true;
+    syncStartedAt = Date.now();
     try {
         return await _syncWithTrelloInner(board, mappingConfig, { readOnly });
     } finally {
         syncInProgress = false;
+        syncStartedAt = 0;
     }
 };
 
@@ -459,7 +524,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         return syncWithTrelloCardAsAction(board, mappingConfig, { readOnly });
     }
 
-    const result = { created: 0, updated: 0, pushed: 0, errors: 0 };
+    const result = { created: 0, updated: 0, pushed: 0, errors: 0, errorDetails: [] };
 
     // 1. Fetch current Trello state
     const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId);
@@ -558,6 +623,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 } catch (err) {
                     console.error(`Failed to push task "${task.title}" to Trello:`, err);
                     result.errors++;
+                    result.errorDetails.push({ name: task.title, op: 'push', error: err.message });
                 }
             }
         } else if (trelloModified && locallyModified) {
@@ -581,6 +647,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 } catch (err) {
                     console.error(`Failed to push task "${task.title}" to Trello:`, err);
                     result.errors++;
+                    result.errorDetails.push({ name: task.title, op: 'push', error: err.message });
                 }
             } else {
                 updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig);
@@ -628,7 +695,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         }
         if (!actionId) continue;
 
-        const genId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const genId = (prefix) => `${prefix}-${crypto.randomUUID()}`;
         const dueDate = card.due ? card.due.split('T')[0] : null;
         // Default start date: 1st of the due date's month (or current month if no due date)
         let startDate;
@@ -772,6 +839,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         } catch (err) {
             console.error(`Failed to create Trello card for "${task.title}":`, err);
             result.errors++;
+            result.errorDetails.push({ name: task.title, op: 'create card', error: err.message });
         }
     }
 
@@ -795,6 +863,12 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         updatedAt: new Date().toISOString()
     };
 
+    // Post-sync integrity check
+    const integrity = validateBoardIntegrity(syncedBoard);
+    if (!integrity.valid) {
+        result.integrityWarnings = integrity.warnings;
+    }
+
     return { board: syncedBoard, result };
 };
 
@@ -803,7 +877,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
 // ============================================================
 const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = false } = {}) => {
     const { trelloSync } = board;
-    const result = { created: 0, updated: 0, pushed: 0, errors: 0 };
+    const result = { created: 0, updated: 0, pushed: 0, errors: 0, errorDetails: [] };
 
     // 1. Fetch current Trello state
     const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId);
@@ -878,6 +952,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             } catch (e) {
                 console.error(`Failed to push extras for action "${action.name}":`, e);
                 result.errors++;
+                result.errorDetails.push({ name: action.name, op: 'push extras', error: e.message });
             }
         }
 
@@ -927,6 +1002,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     } catch (e) {
                         console.error(`Failed to push task "${task.title}" to Trello checkItem:`, e);
                         result.errors++;
+                        result.errorDetails.push({ name: task.title, op: 'push checkItem', error: e.message });
                     }
                 }
             } else if (trelloItemModified && taskLocallyModified) {
@@ -940,6 +1016,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     } catch (e) {
                         console.error(`Failed to push task "${task.title}" to Trello checkItem:`, e);
                         result.errors++;
+                        result.errorDetails.push({ name: task.title, op: 'push checkItem', error: e.message });
                     }
                 } else {
                     updatedTasks[j] = mergeCheckItemIntoTask(task, item, card);
@@ -1023,6 +1100,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             } catch (e) {
                 console.error(`Failed to create Trello card for action "${action.name}":`, e);
                 result.errors++;
+                result.errorDetails.push({ name: action.name, op: 'create card', error: e.message });
             }
         }
 
@@ -1098,6 +1176,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 } catch (e) {
                     console.error(`Failed to push items to checklist "${checklistName}":`, e);
                     result.errors++;
+                    result.errorDetails.push({ name: checklistName, op: 'push checklist items', error: e.message });
                 }
             }
         }
@@ -1123,6 +1202,12 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         },
         updatedAt: new Date().toISOString()
     };
+
+    // Post-sync integrity check
+    const integrity = validateBoardIntegrity(syncedBoard);
+    if (!integrity.valid) {
+        result.integrityWarnings = integrity.warnings;
+    }
 
     return { board: syncedBoard, result };
 };

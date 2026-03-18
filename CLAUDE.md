@@ -1,7 +1,7 @@
 # CLAUDE.md - Marketing Dashboard
 
 > Memory file for Claude Code. Read automatically at the start of each session.
-> Last updated: 2026-03-16
+> Last updated: 2026-03-18
 
 ## Maintenance Rule
 
@@ -151,6 +151,8 @@ All backends store the full v2 multi-board envelope.
    - Auto-save debounce: 2s
 
 4. **Fallback: localStorage** — key `marketing_tracker_backup`
+   - **Snapshot ring buffer**: 3 most recent states stored as `mkt_snapshot_0/1/2` with `mkt_snapshot_index` pointer. Auto-cleanup after 48h. Functions: `saveSnapshot()`, `listSnapshots()`, `restoreSnapshot(index)` in `storage.js`
+   - **Offline mode**: `navigator.onLine` detection — when offline, all saves go to localStorage only. Yellow banner shown. Auto-resync on reconnect via `saveData()` call.
 
 ### State Management
 
@@ -178,6 +180,7 @@ Props still drilled for view-specific data (categories, actions, tasks, handlers
 - **Named exports** in `config.js` — use `import { CONFIG } from '../config.js'` (NOT default import)
 - ES Modules throughout — no CommonJS, no CDN/UMD
 - Inline styles + Tailwind classes + CSS custom properties (design tokens in `:root`)
+- **ID generation**: Use `crypto.randomUUID()` for all entity IDs (tasks, actions, checklists, etc.) — `genId(prefix)` = `${prefix}-${crypto.randomUUID()}`. Do NOT use `Date.now() + Math.random()`.
 - No TypeScript, no ESLint
 
 ### CSS Design System (V11)
@@ -230,6 +233,8 @@ Complex system with multiple solved issues:
 - Auto-save and Realtime subscription can create infinite loops
 - Solution: skip saving when change originated from Realtime (use a flag/ref)
 - Specifically: `isReceivingRealtimeRef` — set to `true` when handling a Realtime event, auto-save checks this flag and skips if true, resets after 2s via `setTimeout`
+- **Realtime syncMode protection**: Incoming Realtime data is merged intelligently — if the local board has `trelloSync.syncMode` set but the incoming payload doesn't, the local value is preserved. Prevents card-as-action mode from being lost by stale Realtime events from other tabs/clients.
+- **Post-sync Supabase refresh**: After Trello sync completes, a light fetch from Supabase runs after 4s to recover any Realtime events that were ignored during the sync.
 
 ### Race Conditions & Stale Closures
 - Rapid edits can cause state reversion — debounce saves (2s)
@@ -291,8 +296,8 @@ Complex system with multiple solved issues:
 
 ### beforeunload Save Protection
 - `beforeunload` handler flushes pending auto-save debounce
-- Synchronous localStorage save as fallback
-- Attempts `sendBeacon` for Supabase save on tab close
+- Synchronous localStorage save as fallback (guaranteed to complete before unload)
+- **No sendBeacon** — removed (endpoint never existed). localStorage sync save is sufficient.
 
 ### Trello Sync
 - `api/trello.js` keeps `TRELLO_API_KEY` and `TRELLO_TOKEN` server-side (same pattern as `api/github.js`)
@@ -318,7 +323,11 @@ Complex system with multiple solved issues:
 - **Position sync**: Checklist and item order synced via Trello `pos` field; sorted by `pos` on pull; items always push positions to Trello
 - **Sync ID tracking**: Push functions capture `trelloCommentId`, `trelloChecklistId`, `trelloAttachmentId` from API responses
 - **Comment deduplication**: Before pushing, checks if identical text exists on Trello to prevent duplicates
-- **Sync lock**: Module-level `syncInProgress` flag in `trelloSync.js` prevents concurrent sync operations. `syncWithTrello` returns early with `{ skipped: true }` if already running. App.jsx also checks `trelloSyncStatus === 'syncing'` before calling.
+- **Sync lock with timeout**: Module-level `syncInProgress` flag + `syncStartedAt` timestamp in `trelloSync.js`. If lock held > 60s (API hang), auto-resets with warning. App.jsx also checks `trelloSyncStatus === 'syncing'` before calling.
+- **Pre-sync snapshot**: Before each Trello sync, `currentBoard` is saved to `localStorage('trello_sync_snapshot')`. On sync failure, board is auto-restored from snapshot (valid 24h). Prevents data corruption from partial/failed syncs.
+- **Retry with backoff**: `trelloFetch` in `src/lib/trello.js` retries up to 3× on 429 (rate limit), 502/503/504 (server errors), and network errors (TypeError). Backoff: 1s, 2s, 4s. Respects `Retry-After` header on 429.
+- **Detailed error tracking**: Sync result includes `errorDetails: [{name, op, error}]`. App.jsx displays failed item names in notification: `"⚠️ 3 synced, 2 failed (Task A, Task B)"`.
+- **Post-sync integrity check**: `validateBoardIntegrity(board)` runs after every sync — checks orphan task→action refs, orphan action→category refs, duplicate `trelloCardId`/`trelloCheckItemId`, missing `syncMode`. Logs warnings to console.
 - **Card-as-action task guard**: In card-as-task sync path, tasks with `trelloCheckItemId`, `trelloChecklistName`, or `trelloChecklistId` are skipped — they belong to card-as-action mode. Prevents accidental processing if `syncMode` is lost/corrupted.
 - **Comment attachment sync**: Comment attachments uploaded as card-level attachments (Trello API limitation: no per-comment attachments)
 - **Archived cards**: `api/trello.js` fetches cards with `filter=all`; `card.closed` maps to `task.trelloArchived=true` + `status='paused'`; FilterSidebar has "Show archived" toggle (default off)
@@ -347,6 +356,8 @@ Complex system with multiple solved issues:
 - Load order: Supabase → GitHub → localStorage
 - Write order: Supabase (primary) + localStorage (parallel fallback)
 - GitHub polling every 15s was replaced by Supabase Realtime — do not re-add polling if Supabase is active
+- **Snapshot ring buffer**: 3 rotating snapshots (`mkt_snapshot_0/1/2`) saved on each successful auto-save. Trigger recorded (`auto-save`, `pre-sync`, `manual`). Auto-cleaned after 48h. Restorable via `restoreSnapshot(index)`.
+- **Offline mode**: When `navigator.onLine === false`, all saves go to localStorage only (skip Supabase/GitHub). Yellow banner displayed. On reconnect, `saveData()` called to push local changes.
 
 ## Roadmap
 
@@ -362,7 +373,7 @@ Complex system with multiple solved issues:
 - Auto-deploys on push to `main`
 - **Build**: `npm run build` → output in `dist/` (configured in `vercel.json`)
 - Serverless functions in `api/` directory
-- Environment variable: `GITHUB_TOKEN` (required for GitHub backend)
+- Environment variables: `GITHUB_TOKEN` (required for GitHub backend), `ALLOWED_ORIGIN` (optional, restricts CORS — defaults to `*`)
 - Config: `vercel.json` — `buildCommand: "npm run build"`, `outputDirectory: "dist"`, 1024MB memory, 10s max duration for functions
 
 ### Supabase
@@ -430,7 +441,7 @@ Complex system with multiple solved issues:
 | 2026-03 | Enhanced checklists | Inline rename, drag-reorder, member/date per item, trelloCheckItemId tracking |
 | 2026-03 | Checklist position sync | Checklist and item order synced with Trello via pos field |
 | 2026-03 | Comment markdown + attachments | Comments rendered with SimpleMarkdown, formatting toolbar, file attachments |
-| 2026-03 | beforeunload save flush | Pending saves flushed on tab close (localStorage + sendBeacon) |
+| 2026-03 | beforeunload save flush | Pending saves flushed on tab close (synchronous localStorage only) |
 | 2026-03 | Guest read-only on Trello boards | Full read-only mode when guest visits Trello-linked board (no pushes) |
 | 2026-03 | Checklist deletion sync fix | Checklists with trelloChecklistId not found on Trello skip recreation, removed locally |
 | 2026-03 | Archived Trello cards | filter=all for cards, card.closed → trelloArchived + paused, "Show archived" filter toggle |
@@ -444,3 +455,15 @@ Complex system with multiple solved issues:
 | 2026-03 | Sync lock | Module-level `syncInProgress` flag prevents concurrent sync operations — avoids race conditions |
 | 2026-03 | Card-as-action task guard | Card-as-task path skips tasks with trelloCheckItemId/trelloChecklistName — prevents checklist deletion if syncMode lost |
 | 2026-03 | Checklist deletion guard | `pushTaskExtrasToTrello` only deletes checklists when task has local checklists (size > 0) — prevents wiping card-as-action data |
+| 2026-03 | Sync lock timeout (60s) | Auto-reset stale `syncInProgress` lock if Trello API hangs > 60s — prevents permanent sync blockage |
+| 2026-03 | Pre-sync snapshot | Save board to `localStorage('trello_sync_snapshot')` before each Trello sync; auto-restore on failure (24h validity) |
+| 2026-03 | Realtime syncMode protection | Incoming Realtime data merged intelligently — preserve local `trelloSync.syncMode` if incoming is missing it |
+| 2026-03 | Trello retry backoff | `trelloFetch` retries 3× on 429/502-504/network errors with exponential backoff (1s, 2s, 4s) |
+| 2026-03 | Detailed sync error tracking | `result.errorDetails` collects per-item `{name, op, error}` — shown in notification with failed item names |
+| 2026-03 | Post-sync integrity check | `validateBoardIntegrity()` checks orphan refs, duplicate IDs, missing syncMode after every sync |
+| 2026-03 | Post-sync Supabase refresh | Light `loadFromSupabase()` 4s after sync to recover Realtime events ignored during sync |
+| 2026-03 | Snapshot ring buffer | 3 rotating snapshots in localStorage (`mkt_snapshot_0/1/2`), saved on auto-save, 48h auto-cleanup |
+| 2026-03 | Offline mode | `navigator.onLine` detection, yellow banner, localStorage-only saves, auto-resync on reconnect |
+| 2026-03 | Remove sendBeacon | Dead code removed — `/api/save-beacon` endpoint never existed; localStorage sync is sufficient |
+| 2026-03 | CORS restriction | `ALLOWED_ORIGIN` env var on `api/trello.js` and `api/github.js` — replaces `Access-Control-Allow-Origin: *` |
+| 2026-03 | crypto.randomUUID for IDs | Replace `Date.now()+Math.random()` with `crypto.randomUUID()` in genId — collision-free entity IDs |

@@ -8,6 +8,7 @@ import {
     loadDataFromGitHub, saveToGitHub,
     loadFromLocalStorage as loadFromLocalStorageFn,
     saveToLocalStorage as saveToLocalStorageFn,
+    saveSnapshot,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
 import { syncWithTrello } from './lib/trelloSync.js';
@@ -69,6 +70,7 @@ const App = () => {
     const [authenticated, setAuthenticated] = useState(() => {
         return !!(sessionStorage.getItem('guest_auth') || localStorage.getItem('trello_user_token'));
     });
+    const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
     const trelloSyncIntervalRef = useRef(null);
 
     const saveQueueRef = useRef([]);
@@ -193,17 +195,17 @@ const App = () => {
             const source = prev.boards.find(b => b.id === boardId);
             if (!source) return prev;
             const cloned = JSON.parse(JSON.stringify(source));
-            const newId = `board-${Date.now()}`;
+            const newId = `board-${crypto.randomUUID()}`;
             // Regenerate IDs to avoid cross-board conflicts
             const actionIdMap = {};
             cloned.actions = cloned.actions.map(a => {
-                const newAId = `a${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                const newAId = `a-${crypto.randomUUID()}`;
                 actionIdMap[a.id] = newAId;
                 return { ...a, id: newAId };
             });
             cloned.tasks = cloned.tasks.map(t => ({
                 ...t,
-                id: `t${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                id: `t-${crypto.randomUUID()}`,
                 actionId: actionIdMap[t.actionId] || t.actionId
             }));
             const newBoard = {
@@ -262,6 +264,11 @@ const App = () => {
     };
 
     const saveData = async () => {
+        // In offline mode, only save to localStorage
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            saveToLocalStorage();
+            return true;
+        }
         if (useSupabase) {
             const result = await saveToSupabase(boardDataRef, setSyncing, showNotification);
             if (result) saveToLocalStorage();
@@ -434,7 +441,10 @@ const App = () => {
             const success = await saveData();
             setSavingStatus(success ? 'saved' : 'error');
             if (!success) saveToLocalStorage();
-            if (success) justSavedTimestampRef.current = Date.now();
+            if (success) {
+                justSavedTimestampRef.current = Date.now();
+                saveSnapshot(boardDataRef.current, 'auto-save');
+            }
             setTimeout(() => setSavingStatus(null), 2000);
         };
         autoSaveTimeoutRef.current = setTimeout(doSave, delay);
@@ -447,20 +457,35 @@ const App = () => {
             if (autoSaveTimeoutRef.current && boardDataRef.current) {
                 clearTimeout(autoSaveTimeoutRef.current);
                 autoSaveTimeoutRef.current = null;
-                // Synchronous localStorage save as last resort (network saves are async and may not complete)
+                // Synchronous localStorage save — guaranteed to complete before page unloads
                 saveToLocalStorage();
-                // Attempt async save via sendBeacon if Supabase is configured
-                if (useSupabase) {
-                    try {
-                        const payload = JSON.stringify({ board_data: boardDataRef.current });
-                        navigator.sendBeacon?.('/api/save-beacon', payload);
-                    } catch (e) { /* best effort */ }
-                }
             }
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, []);
+
+    // Network online/offline detection
+    useEffect(() => {
+        const goOffline = () => {
+            setIsOffline(true);
+            showNotification('📡 You are offline — changes saved locally');
+        };
+        const goOnline = () => {
+            setIsOffline(false);
+            showNotification('✅ Back online — syncing...');
+            // Trigger a save to push any offline changes
+            if (boardDataRef.current && dataLoaded) {
+                saveData();
+            }
+        };
+        window.addEventListener('offline', goOffline);
+        window.addEventListener('online', goOnline);
+        return () => {
+            window.removeEventListener('offline', goOffline);
+            window.removeEventListener('online', goOnline);
+        };
+    }, [dataLoaded]);
 
     // Realtime sync
     useEffect(() => {
@@ -475,11 +500,37 @@ const App = () => {
                     isReceivingRealtimeRef.current = true;
                     const d = payload.new;
                     // Prefer board_data column (v2)
+                    let incoming = null;
                     if (d.board_data && d.board_data.version === 2) {
-                        setBoardData(d.board_data);
+                        incoming = d.board_data;
                     } else if (d.categories) {
                         // Legacy format from another client
-                        setBoardData(migrateToV2({ categories: d.categories, actions: d.actions, tasks: d.tasks }));
+                        incoming = migrateToV2({ categories: d.categories, actions: d.actions, tasks: d.tasks });
+                    }
+                    if (incoming) {
+                        // Protect critical Trello sync fields from being overwritten by stale Realtime data
+                        setBoardData(prev => {
+                            if (!prev?.boards) return incoming;
+                            const merged = {
+                                ...incoming,
+                                boards: incoming.boards.map(incomingBoard => {
+                                    const localBoard = prev.boards.find(b => b.id === incomingBoard.id);
+                                    if (!localBoard?.trelloSync) return incomingBoard;
+                                    // Preserve local syncMode/syncEnabled if incoming is missing them
+                                    const localSync = localBoard.trelloSync;
+                                    const incomingSync = incomingBoard.trelloSync;
+                                    if (localSync.syncMode && (!incomingSync || !incomingSync.syncMode)) {
+                                        console.warn('[Realtime] Preserving local trelloSync.syncMode — incoming data missing it');
+                                        return {
+                                            ...incomingBoard,
+                                            trelloSync: { ...incomingSync, syncMode: localSync.syncMode }
+                                        };
+                                    }
+                                    return incomingBoard;
+                                })
+                            };
+                            return merged;
+                        });
                     }
                     saveToLocalStorage();
                     showNotification('✅ Synced with team');
@@ -784,6 +835,14 @@ const App = () => {
         if (trelloSyncStatus === 'syncing') return; // Prevent concurrent syncs
         setTrelloSyncStatus('syncing');
         try {
+            // Snapshot board before sync — allows recovery if sync corrupts data
+            try {
+                localStorage.setItem('trello_sync_snapshot', JSON.stringify({
+                    board: currentBoard,
+                    timestamp: Date.now()
+                }));
+            } catch (e) { console.warn('Failed to save pre-sync snapshot:', e); }
+
             // Build mappingConfig from current board data
             const mappingConfig = { labelMappings: {} };
             const syncMode = currentBoard.trelloSync?.syncMode || 'card-as-task';
@@ -827,17 +886,66 @@ const App = () => {
                 boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b)
             }));
             setTimeout(() => { isReceivingRealtimeRef.current = false; }, 3000);
-            setTrelloSyncStatus('synced');
+            setTrelloSyncStatus(result.errors > 0 ? 'error' : 'synced');
             const msg = [];
             if (result.created) msg.push(`${result.created} new`);
             if (result.updated) msg.push(`${result.updated} updated`);
             if (result.pushed) msg.push(`${result.pushed} pushed`);
-            showNotification(`✅ Trello sync: ${msg.join(', ') || 'up to date'}`);
+            if (result.errors > 0) {
+                const failedNames = (result.errorDetails || []).slice(0, 3).map(e => e.name).join(', ');
+                const extra = result.errors > 3 ? ` +${result.errors - 3} more` : '';
+                msg.push(`${result.errors} failed (${failedNames}${extra})`);
+                showNotification(`⚠️ Trello sync: ${msg.join(', ')}`);
+            } else {
+                showNotification(`✅ Trello sync: ${msg.join(', ') || 'up to date'}`);
+            }
+            // Log integrity warnings if any
+            if (result.integrityWarnings?.length > 0) {
+                console.warn('[Post-sync integrity]', result.integrityWarnings);
+            }
             setTimeout(() => setTrelloSyncStatus('idle'), 3000);
+            // After sync completes, schedule a light refresh from Supabase to catch
+            // any changes from other tabs that were ignored during the sync
+            if (useSupabase) {
+                setTimeout(async () => {
+                    try {
+                        const freshData = await loadFromSupabase(() => {});
+                        if (freshData && freshData.boards) {
+                            // Only apply if there are boards we don't know about
+                            const localBoardIds = new Set(boardDataRef.current?.boards?.map(b => b.id) || []);
+                            const hasNewBoards = freshData.boards.some(b => !localBoardIds.has(b.id));
+                            if (hasNewBoards) {
+                                console.log('[Post-sync refresh] Found new boards from Supabase');
+                                isReceivingRealtimeRef.current = true;
+                                setBoardData(freshData);
+                                setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
+                            }
+                        }
+                    } catch (e) {
+                        // Silent — best effort refresh
+                        console.log('[Post-sync refresh] Skipped:', e.message);
+                    }
+                }, 4000);
+            }
         } catch (err) {
             console.error('Trello sync error:', err);
             setTrelloSyncStatus('error');
-            showNotification(`❌ Trello sync failed: ${err.message}`);
+            // Attempt auto-restore from snapshot on critical failure
+            try {
+                const snapshot = JSON.parse(localStorage.getItem('trello_sync_snapshot'));
+                if (snapshot?.board && Date.now() - snapshot.timestamp < 86400000) {
+                    console.log('[Trello sync] Restoring board from pre-sync snapshot');
+                    setBoardData(prev => ({
+                        ...prev,
+                        boards: prev.boards.map(b => b.id === snapshot.board.id ? snapshot.board : b)
+                    }));
+                    showNotification(`❌ Trello sync failed: ${err.message} — board restored from snapshot`);
+                } else {
+                    showNotification(`❌ Trello sync failed: ${err.message}`);
+                }
+            } catch (restoreErr) {
+                showNotification(`❌ Trello sync failed: ${err.message}`);
+            }
             setTimeout(() => setTrelloSyncStatus('idle'), 5000);
         }
     }, [currentBoard, trelloSyncStatus]);
@@ -963,6 +1071,11 @@ const App = () => {
     return (
         <AppContext.Provider value={contextValue}>
             <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
+                {isOffline && (
+                    <div style={{background:'#f59e0b',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
+                        📡 Offline — changes saved locally. Will sync when back online.
+                    </div>
+                )}
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
                     <div className="toolbar">
