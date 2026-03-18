@@ -609,7 +609,7 @@ const App = () => {
     };
 
     const handleUpdateAction = (actionId, updates) => {
-        setActions(prev => prev.map(a => a.id === actionId ? {...a, ...updates} : a));
+        setActions(prev => prev.map(a => a.id === actionId ? {...a, ...updates, updatedAt: new Date().toISOString()} : a));
         showNotification('✅ Action updated');
     };
 
@@ -775,7 +775,7 @@ const App = () => {
     const handleCreateNewTask = (initialValues = null) => { setNewTaskInitialValues(initialValues); setShowNewTaskModal(true); };
 
     const handleUpdateCategory = (catId, updates) => {
-        setCategories(prev => prev.map(c => c.id === catId ? {...c, ...updates} : c));
+        setCategories(prev => prev.map(c => c.id === catId ? {...c, ...updates, updatedAt: new Date().toISOString()} : c));
         showNotification('✅ Category updated');
     };
 
@@ -804,6 +804,54 @@ const App = () => {
     const handleAddAction = (newAction) => {
         setActions(prev => [...prev, newAction]);
         showNotification('✅ Action created');
+    };
+
+    // Rename checklist group (task category) — updates trelloChecklistName on all tasks in group
+    // If oldName is null, creates a new empty group (no tasks to update)
+    const handleRenameChecklistGroup = (oldName, newName) => {
+        if (!oldName) {
+            // Creating a new group — nothing to update yet, but we'll use this name when creating tasks
+            showNotification(`✅ Group "${newName}" created`);
+            return;
+        }
+        setTasks(prev => prev.map(t => t.trelloChecklistName === oldName ? {...t, trelloChecklistName: newName, updatedAt: new Date().toISOString()} : t));
+        showNotification(`✅ Group renamed to "${newName}"`);
+    };
+
+    // Add a task within a specific checklist group in an action card
+    const handleAddTaskInGroup = (actionId, groupName, title) => {
+        const action = actions.find(a => a.id === actionId);
+        const now = new Date().toISOString();
+        const startDate = action?.startDate || now.split('T')[0];
+        const dueDate = action?.dueDate || startDate;
+        const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
+        // Find the trelloCardId and trelloChecklistId from sibling tasks in same group
+        const siblingTask = tasks.find(t => t.actionId === actionId && t.trelloChecklistName === groupName);
+        const newTask = {
+            id: `t-${crypto.randomUUID()}`,
+            actionId,
+            title,
+            description: '',
+            status: 'todo',
+            priority: 'medium',
+            month: new Date(dueDate).getMonth(),
+            startDate,
+            dueDate,
+            budget: 0,
+            channels: action?.tags || [],
+            checklist: [],
+            checklists: [],
+            comments: [],
+            attachments: [],
+            order: maxOrder,
+            createdAt: now,
+            updatedAt: now,
+            trelloChecklistName: groupName,
+            trelloCardId: siblingTask?.trelloCardId || action?.trelloCardId || null,
+            trelloChecklistId: siblingTask?.trelloChecklistId || null
+        };
+        setTasks(prev => [...prev, newTask]);
+        showNotification('✅ Task created');
     };
 
     // --- Trello import ---
@@ -1134,13 +1182,13 @@ const App = () => {
                             <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
                         </div>
                     )}
-                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
+                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={visibleTasks} members={currentBoard?.members || []}/>}
                 </main>
                 {selectedTask && <TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={currentBoard?.members || []} isReadOnly={isReadOnly} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()}/>}
-                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t => { setSelectedTask(t); }} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={currentBoard?.members || []} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly}/>}
+                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onOpenTask={t => { setSelectedTask(t); }} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={currentBoard?.members || []} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction} onAddCategory={handleAddCategory}/>}
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues}/>}

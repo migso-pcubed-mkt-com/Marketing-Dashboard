@@ -7,7 +7,10 @@ import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
 
-const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false})=>{
+// Cache for resolved Trello card names (shared across modal instances)
+const trelloUrlNameCache = {};
+
+const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask})=>{
     const { trelloUser } = useApp();
     const[form,setForm]=useState({...action});
     const[showConfirmDelete,setShowConfirmDelete]=useState(false);
@@ -24,6 +27,12 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     const newCommentEditableRef=useRef(null);
     const[previewAttachment,setPreviewAttachment]=useState(null);
     const[collapsedGroups,setCollapsedGroups]=useState({});
+    const[editingGroupName,setEditingGroupName]=useState(null);
+    const[editingGroupValue,setEditingGroupValue]=useState('');
+    const[showAddGroup,setShowAddGroup]=useState(false);
+    const[newGroupName,setNewGroupName]=useState('');
+    const[addingTaskGroup,setAddingTaskGroup]=useState(null);
+    const[newTaskTitle,setNewTaskTitle]=useState('');
     const commentFileRef=useRef(null);
     const attachmentFileRef=useRef(null);
 
@@ -143,6 +152,70 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         setCollapsedGroups(prev=>({...prev,[name]:!prev[name]}));
     };
 
+    const[resolvedNames,setResolvedNames]=useState({});
+    const modalScrollRef=useRef(null);
+
+    // Resolve Trello URLs in task titles
+    useEffect(()=>{
+        const trelloUrlRegex=/^https?:\/\/trello\.com\/c\/([a-zA-Z0-9]+)/;
+        const toResolve=actionTasks.filter(t=>trelloUrlRegex.test(t.title)&&!resolvedNames[t.id]&&!trelloUrlNameCache[t.title]);
+        if(toResolve.length===0){
+            // Apply cached names
+            const cached={};
+            actionTasks.forEach(t=>{if(trelloUrlNameCache[t.title])cached[t.id]=trelloUrlNameCache[t.title];});
+            if(Object.keys(cached).length>0)setResolvedNames(prev=>({...prev,...cached}));
+            return;
+        }
+        // Fetch card names via Trello API (using short link)
+        const API_BASE=typeof window!=='undefined'?(window.location.hostname==='localhost'?'http://localhost:3000':window.location.origin):'';
+        toResolve.forEach(async(task)=>{
+            const match=task.title.match(trelloUrlRegex);
+            if(!match)return;
+            const shortLink=match[1];
+            try{
+                const headers={'Content-Type':'application/json','Accept':'application/json'};
+                const userToken=localStorage.getItem('trello_user_token');
+                if(userToken)headers['X-Trello-Token']=userToken;
+                const res=await fetch(`${API_BASE}/api/trello?action=board&boardId=${shortLink}`,{headers});
+                if(res.ok){
+                    const data=await res.json();
+                    const name=data.board?.name||shortLink;
+                    trelloUrlNameCache[task.title]=name;
+                    setResolvedNames(prev=>({...prev,[task.id]:name}));
+                }
+            }catch(e){/* silent */}
+        });
+    },[actionTasks.length]);
+
+    // Restore scroll position when reopening from task view
+    useEffect(()=>{
+        const saved=sessionStorage.getItem(`action_scroll_${action.id}`);
+        if(saved&&modalScrollRef.current){
+            setTimeout(()=>{if(modalScrollRef.current)modalScrollRef.current.scrollTop=parseInt(saved,10);},50);
+            sessionStorage.removeItem(`action_scroll_${action.id}`);
+        }
+    },[action.id]);
+
+    const handleOpenTask=(task)=>{
+        // Save scroll position before opening task
+        if(modalScrollRef.current){
+            sessionStorage.setItem(`action_scroll_${action.id}`,String(modalScrollRef.current.scrollTop));
+        }
+        onOpenTask(task);
+    };
+
+    // Keyboard shortcuts (Delete key for delete confirmation)
+    useEffect(()=>{
+        const handleKeyDown=(e)=>{
+            if(e.key==='Delete'&&!isReadOnly&&!descriptionEditing&&!editingGroupName&&!addingTaskGroup&&!showAddGroup){
+                e.preventDefault();
+                setShowConfirmDelete(true);
+            }
+        };
+        window.addEventListener('keydown',handleKeyDown);
+        return()=>window.removeEventListener('keydown',handleKeyDown);
+    },[isReadOnly,descriptionEditing,editingGroupName,addingTaskGroup,showAddGroup]);
+
     const sectionLabel={fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px'};
     const sectionCard={background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'};
 
@@ -151,12 +224,15 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
             <div className="v11-modal animate-slide-up" style={{maxWidth:640,marginBottom:32}} onClick={e=>e.stopPropagation()}>
                 {/* Amber gradient bar — differentiates from task modals */}
                 <div className="h-2 rounded-t-2xl" style={{background:'linear-gradient(to right, #f59e0b, #d97706)'}}/>
-                <div className="p-6" style={{maxHeight:'calc(90vh - 80px)',overflowY:'auto'}}>
+                <div ref={modalScrollRef} className="p-6" style={{maxHeight:'calc(90vh - 80px)',overflowY:'auto'}}>
                     {/* Header */}
                     <div className="flex items-start justify-between mb-4">
                         <div className="flex-1">
                             <span className="text-xs" style={{color:'#d97706',textTransform:'uppercase',letterSpacing:0.5,fontWeight:700}}>📁 ACTION</span>
-                            <input type="text" value={form.name} onChange={e=>!isReadOnly&&setForm({...form,name:e.target.value})} className="v11-input" style={{fontSize:'1.25rem',fontWeight:700,marginTop:4}} readOnly={isReadOnly}/>
+                            <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}>
+                                <button onClick={()=>{if(!isReadOnly)setForm({...form,status:form.status==='completed'?'inprogress':'completed'});}} style={{width:24,height:24,borderRadius:'50%',border:form.status==='completed'?'2px solid #22c55e':'2px solid var(--border-strong)',background:form.status==='completed'?'#22c55e':'transparent',cursor:isReadOnly?'default':'pointer',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',padding:0}} title={form.status==='completed'?'Mark incomplete':'Mark complete'}>{form.status==='completed'&&<svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}</button>
+                                <input type="text" value={form.name} onChange={e=>!isReadOnly&&setForm({...form,name:e.target.value})} className="v11-input" style={{fontSize:'1.25rem',fontWeight:700,textDecoration:form.status==='completed'?'line-through':'none'}} readOnly={isReadOnly}/>
+                            </div>
                         </div>
                         <button onClick={handleClose} className="ml-2 v11-icon-btn"><Icon.Close/></button>
                     </div>
@@ -290,32 +366,46 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     <div className="rounded-xl mb-5" style={sectionCard}>
                         <div className="flex items-center justify-between mb-3">
                             <span style={sectionLabel}>📋 Tasks ({actionTasks.length})</span>
-                            {!isReadOnly&&<button onClick={()=>onAddTask(action.id)} className="px-3 py-1 text-white rounded-lg text-xs flex items-center space-x-1" style={{background:'#d97706'}}><Icon.Plus/><span>Add</span></button>}
+                            <div style={{display:'flex',gap:6}}>
+                                {!isReadOnly&&<button onClick={()=>setShowAddGroup(true)} className="px-3 py-1 rounded-lg text-xs flex items-center space-x-1" style={{background:'var(--bg-primary)',border:'1px solid var(--border)',color:'var(--text-secondary)'}}><Icon.Plus size={10}/><span>Group</span></button>}
+                                {!isReadOnly&&<button onClick={()=>onAddTask(action.id)} className="px-3 py-1 text-white rounded-lg text-xs flex items-center space-x-1" style={{background:'#d97706'}}><Icon.Plus size={10}/><span>Add</span></button>}
+                            </div>
                         </div>
+                        {showAddGroup&&!isReadOnly&&<div style={{marginBottom:8,display:'flex',gap:4,alignItems:'center'}}>
+                            <input type="text" value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="New group name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newGroupName.trim()){if(onRenameChecklistGroup)onRenameChecklistGroup(null,newGroupName.trim());setNewGroupName('');setShowAddGroup(false);}if(e.key==='Escape'){setShowAddGroup(false);setNewGroupName('');}}} style={{flex:1,padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}/>
+                            <button onClick={()=>{if(newGroupName.trim()&&onRenameChecklistGroup){onRenameChecklistGroup(null,newGroupName.trim());setNewGroupName('');setShowAddGroup(false);}}} style={{padding:'4px 10px',borderRadius:4,background:'#d97706',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Create</button>
+                            <button onClick={()=>{setShowAddGroup(false);setNewGroupName('');}} style={{padding:'4px 10px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11}}>Cancel</button>
+                        </div>}
                         {taskGroups.length>0?taskGroups.map(group=>{
                             const groupCompleted=group.tasks.filter(t=>t.status==='completed').length;
                             const groupPct=group.tasks.length>0?Math.round((groupCompleted/group.tasks.length)*100):0;
                             const isCollapsed=collapsedGroups[group.name];
                             return(
                                 <div key={group.name} className="mb-3">
-                                    {/* Group header — shows checklist name */}
-                                    <div onClick={()=>toggleGroup(group.name)} style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',padding:'6px 0',borderBottom:'1px solid var(--border-light)',marginBottom:8}}>
-                                        <span style={{fontSize:11,fontWeight:600,color:'var(--text-secondary)',flex:1}}>{group.name}</span>
+                                    {/* Group header — shows checklist name (editable) */}
+                                    <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid var(--border-light)',marginBottom:8}}>
+                                        {editingGroupName===group.name&&!isReadOnly?(
+                                            <input type="text" value={editingGroupValue} onChange={e=>setEditingGroupValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'&&editingGroupValue.trim()){if(onRenameChecklistGroup)onRenameChecklistGroup(group.name,editingGroupValue.trim());setEditingGroupName(null);}if(e.key==='Escape')setEditingGroupName(null);}} onBlur={()=>{if(editingGroupValue.trim()&&editingGroupValue!==group.name&&onRenameChecklistGroup)onRenameChecklistGroup(group.name,editingGroupValue.trim());setEditingGroupName(null);}} style={{flex:1,padding:'2px 6px',borderRadius:4,border:'1px solid var(--accent)',fontSize:11,fontWeight:600,outline:'none'}}/>
+                                        ):(
+                                            <span onClick={()=>{if(!isReadOnly){setEditingGroupName(group.name);setEditingGroupValue(group.name);}else toggleGroup(group.name);}} style={{fontSize:11,fontWeight:600,color:'var(--text-secondary)',flex:1,cursor:'pointer'}} title={isReadOnly?'':'Click to rename'}>{group.name}</span>
+                                        )}
                                         <span style={{fontSize:10,color:'var(--text-muted)'}}>{groupCompleted}/{group.tasks.length}</span>
                                         <div style={{width:60,height:4,borderRadius:2,background:'var(--border-light)',overflow:'hidden'}}>
                                             <div style={{width:`${groupPct}%`,height:'100%',borderRadius:2,background:groupPct>=70?'#22c55e':groupPct>=40?'#f59e0b':'#ef4444'}}/>
                                         </div>
-                                        <span style={{fontSize:10,transform:isCollapsed?'rotate(-90deg)':'rotate(0)',transition:'transform 0.15s',color:'var(--text-muted)'}}>▼</span>
+                                        <span onClick={()=>toggleGroup(group.name)} style={{fontSize:10,transform:isCollapsed?'rotate(-90deg)':'rotate(0)',transition:'transform 0.15s',color:'var(--text-muted)',cursor:'pointer'}}>▼</span>
                                     </div>
                                     {!isCollapsed&&<div className="space-y-2">
                                         {group.tasks.map(task=>{
                                             const boardMembers=members||[];
+                                            const isTrelloUrl=/^https?:\/\/trello\.com\/c\//.test(task.title);
+                                            const displayTitle=isTrelloUrl?(resolvedNames[task.id]||trelloUrlNameCache[task.title]||task.title):task.title;
                                             return(
                                                 <div key={task.id} className="rounded-lg p-3" style={{background:'var(--bg-primary)',border:'1px solid var(--border-light)'}}>
                                                     <div className="flex items-center gap-3">
                                                         <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:110,flexShrink:0}} disabled={isReadOnly}/>
-                                                        <div className="flex-1 min-w-0" style={{cursor:'pointer'}} onClick={()=>onOpenTask(task)}>
-                                                            <p className="font-medium text-sm truncate" style={{color:'var(--accent)',textDecoration:'none'}} onMouseEnter={e=>e.target.style.textDecoration='underline'} onMouseLeave={e=>e.target.style.textDecoration='none'}>{task.title}</p>
+                                                        <div className="flex-1 min-w-0" style={{cursor:'pointer'}} onClick={()=>handleOpenTask(task)}>
+                                                            <p className="font-medium text-sm truncate" style={{color:'var(--accent)',textDecoration:'none'}} onMouseEnter={e=>e.target.style.textDecoration='underline'} onMouseLeave={e=>e.target.style.textDecoration='none'}>{isTrelloUrl?<><a href={task.title} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} title={task.title} style={{color:'var(--accent)',textDecoration:'none',display:'inline-flex',alignItems:'center',gap:4}}><span style={{fontSize:10}}>🔗</span>{displayTitle}</a></>:displayTitle}</p>
                                                             <p className="text-xs" style={{color:'var(--text-muted)'}}>📅 {task.startDate?new Date(task.startDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):'?'} → {task.dueDate?new Date(task.dueDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):'?'}</p>
                                                         </div>
                                                         <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
@@ -333,6 +423,17 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                 </div>
                                             );
                                         })}
+                                        {/* Add task within this group */}
+                                        {!isReadOnly&&(addingTaskGroup===group.name?(
+                                            <div style={{display:'flex',gap:4,alignItems:'center',padding:'4px 0'}}>
+                                                <Icon.Plus size={10} style={{color:'var(--text-muted)',flexShrink:0}}/>
+                                                <input type="text" value={newTaskTitle} onChange={e=>setNewTaskTitle(e.target.value)} placeholder="Task name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newTaskTitle.trim()){if(onAddTaskInGroup)onAddTaskInGroup(action.id,group.name,newTaskTitle.trim());setNewTaskTitle('');setAddingTaskGroup(null);}if(e.key==='Escape'){setAddingTaskGroup(null);setNewTaskTitle('');}}} style={{flex:1,padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}/>
+                                                <button onClick={()=>{if(newTaskTitle.trim()&&onAddTaskInGroup){onAddTaskInGroup(action.id,group.name,newTaskTitle.trim());setNewTaskTitle('');setAddingTaskGroup(null);}}} style={{padding:'3px 8px',borderRadius:4,background:'#d97706',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Add</button>
+                                                <button onClick={()=>{setAddingTaskGroup(null);setNewTaskTitle('');}} style={{padding:'3px 8px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11}}>Cancel</button>
+                                            </div>
+                                        ):(
+                                            <button onClick={()=>setAddingTaskGroup(group.name)} style={{width:'100%',padding:'6px 8px',fontSize:11,color:'var(--text-muted)',background:'none',border:'1px dashed var(--border-light)',borderRadius:6,cursor:'pointer',textAlign:'left',display:'flex',alignItems:'center',gap:4}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--accent)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border-light)'}><Icon.Plus size={10}/> New task</button>
+                                        ))}
                                     </div>}
                                 </div>
                             );
@@ -342,9 +443,9 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     {/* Comments */}
                     <div className="rounded-xl mb-5" style={sectionCard}>
                         <div style={{...sectionLabel,marginBottom:10}}>💬 Comments ({(form.comments||[]).length})</div>
-                        {(form.comments||[]).length>0&&<div className="space-y-3 mb-4">
-                            {(form.comments||[]).slice().reverse().map(comment=>(
-                                <div key={comment.id} style={{borderBottom:'1px solid var(--border-light)',paddingBottom:8}}>
+                        {(form.comments||[]).length>0&&<div className="mb-4" style={{display:'flex',flexDirection:'column',gap:0}}>
+                            {(form.comments||[]).slice().reverse().map((comment,idx)=>(
+                                <div key={comment.id} style={{borderBottom:'1px solid var(--border)',paddingBottom:12,paddingTop:idx>0?12:0,marginBottom:0}}>
                                     <div className="flex items-center gap-2 mb-1">
                                         <span style={{fontSize:11,fontWeight:600,color:'var(--text-primary)'}}>{comment.author}</span>
                                         <span style={{fontSize:10,color:'var(--text-muted)'}}>{comment.date?new Date(comment.date).toLocaleDateString('en-US',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</span>

@@ -485,6 +485,43 @@ export default async function handler(req, res) {
             return res.status(200).json({ deleted: true });
         }
 
+        // PUT /api/trello?action=updateList — Update a list (name, pos)
+        if (req.method === 'PUT' && action === 'updateList') {
+            const { listId: lid, updates } = req.body;
+            if (!lid || !updates) return res.status(400).json({ error: 'listId and updates required' });
+            console.log(`Updating Trello list ${lid}...`, updates);
+            const cleanUpdates = {};
+            for (const [k, v] of Object.entries(updates)) {
+                if (v != null) cleanUpdates[k] = String(v);
+            }
+            const params = new URLSearchParams(cleanUpdates);
+            const response = await fetch(`${TRELLO_BASE}/lists/${lid}?${authParams}&${params.toString()}`, { method: 'PUT' });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello update list error', details: err });
+            }
+            const list = await response.json();
+            console.log(`Updated list "${list.name}"`);
+            return res.status(200).json(list);
+        }
+
+        // POST /api/trello?action=createList — Create a list on a board
+        if (req.method === 'POST' && action === 'createList') {
+            const { boardId: bid, name: listName, pos: listPos } = req.body;
+            if (!bid || !listName) return res.status(400).json({ error: 'boardId and name required' });
+            console.log(`Creating list "${listName}" on board ${bid}...`);
+            const params = new URLSearchParams({ name: listName });
+            if (listPos != null) params.append('pos', String(listPos));
+            const response = await fetch(`${TRELLO_BASE}/boards/${bid}/lists?${authParams}&${params.toString()}`, { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello create list error', details: err });
+            }
+            const list = await response.json();
+            console.log(`Created list "${list.name}" (${list.id})`);
+            return res.status(201).json(list);
+        }
+
         return res.status(400).json({
             error: 'Invalid action',
             message: `Action "${action}" with method ${req.method} is not supported. Valid actions: boards (GET), board (GET), updateCard (PUT), createCard (POST), deleteCard (DELETE)`

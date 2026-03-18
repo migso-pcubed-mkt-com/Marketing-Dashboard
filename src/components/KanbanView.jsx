@@ -4,8 +4,8 @@ import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
 import TaskCard from './TaskCard.jsx';
 
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask})=>{
-    const[viewMode,setViewMode]=useState('month');
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask,onUpdateCategory,onAddCategory,onDeleteCategory})=>{
+    const[viewMode,setViewMode]=useState('category');
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
     const[sortBy,setSortBy]=useState('order');
@@ -14,6 +14,10 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     // Column drag state
     const[dragColIdx,setDragColIdx]=useState(null);
     const[dropColIdx,setDropColIdx]=useState(null);
+    const[editingCategoryId,setEditingCategoryId]=useState(null);
+    const[editingCategoryValue,setEditingCategoryValue]=useState('');
+    const[showAddCategory,setShowAddCategory]=useState(false);
+    const[newCategoryName,setNewCategoryName]=useState('');
 
     // Persisted column orders (category and country)
     const[categoryOrder,setCategoryOrder]=useState(null); // null = default order
@@ -74,11 +78,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         };
 
         const getTaskMonth=(t)=>{
-            if(!t.startDate)return t.month;
-            const sy=new Date(t.startDate).getFullYear();
+            const refDate=t.dueDate||t.startDate;
+            if(!refDate)return t.month;
+            const sy=new Date(refDate).getFullYear();
             if(sy<selectedYear)return 0;
             if(sy>selectedYear)return 11;
-            return new Date(t.startDate).getMonth();
+            return new Date(refDate).getMonth();
         };
         if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:sortItems(filteredTasks.filter(t=>getTaskMonth(t)===idx))}));
         if(viewMode==='quarter'){
@@ -212,7 +217,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             <div className="kanban-toolbar">
                 <div className="kanban-toolbar-left">
                     <div className="view-btn-group">
-                        {[{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'category',label:'By Category'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
+                        {[{id:'category',label:'By Category'},{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
                             <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
                         ))}
                     </div>
@@ -320,7 +325,11 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     {col.color&&!col.countryColor&&<StatusIcon statusId={col.key} size={12}/>}
                                     {col.gradient&&<div style={{background:categories.find(c=>c.id===col.key)?.color||'var(--accent)',width:4,height:20,borderRadius:2,flexShrink:0}}/>}
                                     {col.countryColor&&<span style={{background:col.countryColor,color:'white',fontSize:9,fontWeight:700,padding:'2px 5px',borderRadius:4,letterSpacing:0.3,lineHeight:1}}>{col.countryFlag}</span>}
-                                    <span className="column-name">{col.name}</span>
+                                    {viewMode==='category'&&editingCategoryId===col.key&&!isReadOnly?(
+                                        <input type="text" value={editingCategoryValue} onChange={e=>setEditingCategoryValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'&&editingCategoryValue.trim()){onUpdateCategory(col.key,{name:editingCategoryValue.trim()});setEditingCategoryId(null);}if(e.key==='Escape')setEditingCategoryId(null);}} onBlur={()=>{if(editingCategoryValue.trim()&&editingCategoryValue!==col.name)onUpdateCategory(col.key,{name:editingCategoryValue.trim()});setEditingCategoryId(null);}} onClick={e=>e.stopPropagation()} style={{fontSize:12,fontWeight:600,padding:'2px 4px',border:'1px solid var(--accent)',borderRadius:4,outline:'none',width:'100%'}}/>
+                                    ):(
+                                        <span className="column-name" onDoubleClick={()=>{if(viewMode==='category'&&!isReadOnly&&onUpdateCategory){setEditingCategoryId(col.key);setEditingCategoryValue(col.name);}}}>{col.name}</span>
+                                    )}
                                     <span className="column-count">{col.items.length}</span>
                                 </div>
                                 <button className="column-menu" onClick={(e)=>e.stopPropagation()}>⋮</button>
@@ -329,7 +338,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 // Prevent column drag when dragging cards
                                 e.stopPropagation();
                             }}>
-                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?(viewMode==='country'?((draggedId,targetId,position)=>{
+                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?(viewMode==='country'?((draggedId,targetId,position)=>{
                                     const targetCountry=col.key==='_unassigned'?[]:[col.key];
                                     onUpdateTask(draggedId,{countries:targetCountry});
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
@@ -378,6 +387,21 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                             </div>
                         </div>
                     ))}
+                    {viewMode==='category'&&!isReadOnly&&onAddCategory&&(
+                        showAddCategory?(
+                            <div className="kanban-column" style={{minWidth:200,background:'var(--bg-secondary)',border:'1px dashed var(--border)',borderRadius:8,padding:12}}>
+                                <input type="text" value={newCategoryName} onChange={e=>setNewCategoryName(e.target.value)} placeholder="Category name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newCategoryName.trim()){onAddCategory({id:`cat-${crypto.randomUUID()}`,name:newCategoryName.trim(),color:CONFIG.CATEGORIES[categories.length%CONFIG.CATEGORIES.length]?.color||'#6366f1'});setNewCategoryName('');setShowAddCategory(false);}if(e.key==='Escape'){setShowAddCategory(false);setNewCategoryName('');}}} style={{width:'100%',padding:'6px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12,marginBottom:6}}/>
+                                <div style={{display:'flex',gap:4}}>
+                                    <button onClick={()=>{if(newCategoryName.trim()){onAddCategory({id:`cat-${crypto.randomUUID()}`,name:newCategoryName.trim(),color:CONFIG.CATEGORIES[categories.length%CONFIG.CATEGORIES.length]?.color||'#6366f1'});setNewCategoryName('');setShowAddCategory(false);}}} style={{padding:'4px 10px',borderRadius:4,background:'var(--accent)',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Create</button>
+                                    <button onClick={()=>{setShowAddCategory(false);setNewCategoryName('');}} style={{padding:'4px 10px',borderRadius:4,background:'var(--bg-primary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11}}>Cancel</button>
+                                </div>
+                            </div>
+                        ):(
+                            <div className="kanban-column" onClick={()=>setShowAddCategory(true)} style={{minWidth:120,background:'transparent',border:'1px dashed var(--border)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',opacity:0.6,padding:16}} onMouseEnter={e=>e.currentTarget.style.opacity='1'} onMouseLeave={e=>e.currentTarget.style.opacity='0.6'}>
+                                <span style={{fontSize:12,color:'var(--text-muted)',display:'flex',alignItems:'center',gap:4}}><Icon.Plus size={12}/> Add category</span>
+                            </div>
+                        )
+                    )}
                 </div>
             </div>
         </div>
