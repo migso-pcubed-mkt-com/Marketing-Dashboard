@@ -2,8 +2,8 @@
 
 import { CONFIG, TRELLO_COLORS } from '../config.js';
 
-// --- ID generation ---
-const genId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+// --- ID generation (crypto.randomUUID for collision-free IDs) ---
+const genId = (prefix) => `${prefix}-${crypto.randomUUID()}`;
 
 // --- Trello color → Dashboard color/gradient ---
 const colorMap = {

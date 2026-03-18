@@ -8,6 +8,7 @@ import {
     loadDataFromGitHub, saveToGitHub,
     loadFromLocalStorage as loadFromLocalStorageFn,
     saveToLocalStorage as saveToLocalStorageFn,
+    saveSnapshot,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
 import { syncWithTrello } from './lib/trelloSync.js';
@@ -69,6 +70,7 @@ const App = () => {
     const [authenticated, setAuthenticated] = useState(() => {
         return !!(sessionStorage.getItem('guest_auth') || localStorage.getItem('trello_user_token'));
     });
+    const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
     const trelloSyncIntervalRef = useRef(null);
 
     const saveQueueRef = useRef([]);
@@ -193,17 +195,17 @@ const App = () => {
             const source = prev.boards.find(b => b.id === boardId);
             if (!source) return prev;
             const cloned = JSON.parse(JSON.stringify(source));
-            const newId = `board-${Date.now()}`;
+            const newId = `board-${crypto.randomUUID()}`;
             // Regenerate IDs to avoid cross-board conflicts
             const actionIdMap = {};
             cloned.actions = cloned.actions.map(a => {
-                const newAId = `a${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                const newAId = `a-${crypto.randomUUID()}`;
                 actionIdMap[a.id] = newAId;
                 return { ...a, id: newAId };
             });
             cloned.tasks = cloned.tasks.map(t => ({
                 ...t,
-                id: `t${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                id: `t-${crypto.randomUUID()}`,
                 actionId: actionIdMap[t.actionId] || t.actionId
             }));
             const newBoard = {
@@ -262,6 +264,11 @@ const App = () => {
     };
 
     const saveData = async () => {
+        // In offline mode, only save to localStorage
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+            saveToLocalStorage();
+            return true;
+        }
         if (useSupabase) {
             const result = await saveToSupabase(boardDataRef, setSyncing, showNotification);
             if (result) saveToLocalStorage();
@@ -434,7 +441,10 @@ const App = () => {
             const success = await saveData();
             setSavingStatus(success ? 'saved' : 'error');
             if (!success) saveToLocalStorage();
-            if (success) justSavedTimestampRef.current = Date.now();
+            if (success) {
+                justSavedTimestampRef.current = Date.now();
+                saveSnapshot(boardDataRef.current, 'auto-save');
+            }
             setTimeout(() => setSavingStatus(null), 2000);
         };
         autoSaveTimeoutRef.current = setTimeout(doSave, delay);
@@ -447,20 +457,35 @@ const App = () => {
             if (autoSaveTimeoutRef.current && boardDataRef.current) {
                 clearTimeout(autoSaveTimeoutRef.current);
                 autoSaveTimeoutRef.current = null;
-                // Synchronous localStorage save as last resort (network saves are async and may not complete)
+                // Synchronous localStorage save — guaranteed to complete before page unloads
                 saveToLocalStorage();
-                // Attempt async save via sendBeacon if Supabase is configured
-                if (useSupabase) {
-                    try {
-                        const payload = JSON.stringify({ board_data: boardDataRef.current });
-                        navigator.sendBeacon?.('/api/save-beacon', payload);
-                    } catch (e) { /* best effort */ }
-                }
             }
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, []);
+
+    // Network online/offline detection
+    useEffect(() => {
+        const goOffline = () => {
+            setIsOffline(true);
+            showNotification('📡 You are offline — changes saved locally');
+        };
+        const goOnline = () => {
+            setIsOffline(false);
+            showNotification('✅ Back online — syncing...');
+            // Trigger a save to push any offline changes
+            if (boardDataRef.current && dataLoaded) {
+                saveData();
+            }
+        };
+        window.addEventListener('offline', goOffline);
+        window.addEventListener('online', goOnline);
+        return () => {
+            window.removeEventListener('offline', goOffline);
+            window.removeEventListener('online', goOnline);
+        };
+    }, [dataLoaded]);
 
     // Realtime sync
     useEffect(() => {
@@ -1046,6 +1071,11 @@ const App = () => {
     return (
         <AppContext.Provider value={contextValue}>
             <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
+                {isOffline && (
+                    <div style={{background:'#f59e0b',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
+                        📡 Offline — changes saved locally. Will sync when back online.
+                    </div>
+                )}
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
                     <div className="toolbar">

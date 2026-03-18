@@ -2,8 +2,13 @@
 // This function secures your GitHub token by keeping it server-side
 
 export default async function handler(req, res) {
-    // CORS configuration to allow calls from your frontend
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // CORS configuration — restrict to known origins in production
+    const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';
+    const origin = req.headers.origin || '';
+    const corsOrigin = allowedOrigin === '*' || origin.includes('localhost')
+        ? (origin || '*')
+        : (origin === allowedOrigin ? allowedOrigin : allowedOrigin);
+    res.setHeader('Access-Control-Allow-Origin', corsOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 

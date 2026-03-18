@@ -695,7 +695,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         }
         if (!actionId) continue;
 
-        const genId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const genId = (prefix) => `${prefix}-${crypto.randomUUID()}`;
         const dueDate = card.due ? card.due.split('T')[0] : null;
         // Default start date: 1st of the due date's month (or current month if no due date)
         let startDate;
