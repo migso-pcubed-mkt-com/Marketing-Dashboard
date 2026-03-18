@@ -10,17 +10,44 @@ let _userTrelloToken = null;
 export const setTrelloUserToken = (token) => { _userTrelloToken = token; };
 export const getTrelloUserToken = () => _userTrelloToken;
 
-const trelloFetch = async (url, options = {}) => {
+// Retry with exponential backoff for rate limits (429) and network errors
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const trelloFetch = async (url, options = {}, retries = 3) => {
     const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
     if (_userTrelloToken) {
         headers['X-Trello-Token'] = _userTrelloToken;
     }
-    const response = await fetch(url, { headers, ...options });
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: response.statusText }));
-        throw new Error(error.error || error.message || `Trello API error: ${response.status}`);
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const response = await fetch(url, { headers, ...options });
+
+            // Retry on 429 (rate limit) or 502/503/504 (server overload)
+            if ((response.status === 429 || response.status >= 502) && attempt < retries) {
+                const retryAfter = response.headers.get('Retry-After');
+                const delayMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : (1000 * Math.pow(2, attempt));
+                console.warn(`[Trello] ${response.status} on attempt ${attempt + 1}/${retries + 1} — retrying in ${delayMs}ms`);
+                await sleep(delayMs);
+                continue;
+            }
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({ error: response.statusText }));
+                throw new Error(error.error || error.message || `Trello API error: ${response.status}`);
+            }
+            return response.json();
+        } catch (err) {
+            // Retry on network errors (TypeError: Failed to fetch)
+            if (err instanceof TypeError && attempt < retries) {
+                const delayMs = 1000 * Math.pow(2, attempt);
+                console.warn(`[Trello] Network error on attempt ${attempt + 1}/${retries + 1} — retrying in ${delayMs}ms`);
+                await sleep(delayMs);
+                continue;
+            }
+            throw err;
+        }
     }
-    return response.json();
 };
 
 // List user's open Trello boards

@@ -861,15 +861,47 @@ const App = () => {
                 boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b)
             }));
             setTimeout(() => { isReceivingRealtimeRef.current = false; }, 3000);
-            setTrelloSyncStatus('synced');
+            setTrelloSyncStatus(result.errors > 0 ? 'error' : 'synced');
             const msg = [];
             if (result.created) msg.push(`${result.created} new`);
             if (result.updated) msg.push(`${result.updated} updated`);
             if (result.pushed) msg.push(`${result.pushed} pushed`);
-            showNotification(`✅ Trello sync: ${msg.join(', ') || 'up to date'}`);
+            if (result.errors > 0) {
+                const failedNames = (result.errorDetails || []).slice(0, 3).map(e => e.name).join(', ');
+                const extra = result.errors > 3 ? ` +${result.errors - 3} more` : '';
+                msg.push(`${result.errors} failed (${failedNames}${extra})`);
+                showNotification(`⚠️ Trello sync: ${msg.join(', ')}`);
+            } else {
+                showNotification(`✅ Trello sync: ${msg.join(', ') || 'up to date'}`);
+            }
+            // Log integrity warnings if any
+            if (result.integrityWarnings?.length > 0) {
+                console.warn('[Post-sync integrity]', result.integrityWarnings);
+            }
             setTimeout(() => setTrelloSyncStatus('idle'), 3000);
-            // Clear snapshot on success (keep for 24h as safety net)
-            // Snapshot is overwritten on next sync, so no cleanup needed
+            // After sync completes, schedule a light refresh from Supabase to catch
+            // any changes from other tabs that were ignored during the sync
+            if (useSupabase) {
+                setTimeout(async () => {
+                    try {
+                        const freshData = await loadFromSupabase(() => {});
+                        if (freshData && freshData.boards) {
+                            // Only apply if there are boards we don't know about
+                            const localBoardIds = new Set(boardDataRef.current?.boards?.map(b => b.id) || []);
+                            const hasNewBoards = freshData.boards.some(b => !localBoardIds.has(b.id));
+                            if (hasNewBoards) {
+                                console.log('[Post-sync refresh] Found new boards from Supabase');
+                                isReceivingRealtimeRef.current = true;
+                                setBoardData(freshData);
+                                setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
+                            }
+                        }
+                    } catch (e) {
+                        // Silent — best effort refresh
+                        console.log('[Post-sync refresh] Skipped:', e.message);
+                    }
+                }, 4000);
+            }
         } catch (err) {
             console.error('Trello sync error:', err);
             setTrelloSyncStatus('error');
