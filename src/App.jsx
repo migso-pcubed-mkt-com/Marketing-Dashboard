@@ -614,12 +614,7 @@ const App = () => {
     };
 
     const handleDeleteAction = (actionId) => {
-        const action = actions.find(a => a.id === actionId);
-        const affectedTasks = tasks.filter(t => t.actionId === actionId).length;
-        const confirmMessage = affectedTasks > 0
-            ? `Are you sure you want to delete the action "${action?.name}" ?\n\nThis will also delete ${affectedTasks} associated task(s).`
-            : `Are you sure you want to delete the action "${action?.name}" ?`;
-        if (!confirm(confirmMessage)) return;
+        // No confirm() here — caller (ActionDetailModal) handles confirmation popup
         setActions(prev => prev.filter(a => a.id !== actionId));
         setTasks(prev => prev.filter(t => t.actionId !== actionId));
         showNotification('🗑️ Action deleted');
