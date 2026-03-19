@@ -31,6 +31,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     const[addingTaskGroup,setAddingTaskGroup]=useState(null);
     const[newTaskTitle,setNewTaskTitle]=useState('');
     const[addTaskPickerGroup,setAddTaskPickerGroup]=useState(null);
+    const[pendingGroups,setPendingGroups]=useState([]);
     const commentFileRef=useRef(null);
     const attachmentFileRef=useRef(null);
     // Drag state for groups and tasks
@@ -41,8 +42,6 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     const[dragOverTaskPos,setDragOverTaskPos]=useState(null);
     // Inline member picker per task
     const[taskMemberPicker,setTaskMemberPicker]=useState(null);
-    // Inline due date edit per task
-    const[editingTaskDue,setEditingTaskDue]=useState(null);
 
     const actionTasks=tasks.filter(t=>t.actionId===action.id);
     const completedTasks=actionTasks.filter(t=>t.status==='completed').length;
@@ -57,6 +56,10 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         const gName=t.trelloChecklistName||'Tasks';
         if(!groupMap[gName]){groupMap[gName]={name:gName,tasks:[]};taskGroups.push(groupMap[gName]);}
         groupMap[gName].tasks.push(t);
+    });
+    // Include pending (empty) groups that have no tasks yet
+    pendingGroups.forEach(gName=>{
+        if(!groupMap[gName]){taskGroups.push({name:gName,tasks:[]});}
     });
 
     useEffect(()=>{
@@ -177,11 +180,18 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         onOpenTask(task);
     };
 
-    // Keyboard shortcuts: Delete key for delete, Escape to close
+    // Keyboard shortcuts: Delete key for delete, Escape to close (context-aware)
     useEffect(()=>{
         const handleKeyDown=(e)=>{
             if(e.key==='Escape'){
                 e.preventDefault();
+                // Close sub-forms/popups first before closing the modal
+                if(showConfirmDelete){setShowConfirmDelete(false);return;}
+                if(descriptionEditing){setDescriptionEditing(false);return;}
+                if(editingGroupName){setEditingGroupName(null);return;}
+                if(showAddGroup){setShowAddGroup(false);setNewGroupName('');return;}
+                if(addingTaskGroup){setAddingTaskGroup(null);setNewTaskTitle('');return;}
+                if(addTaskPickerGroup){setAddTaskPickerGroup(null);return;}
                 handleClose();
                 return;
             }
@@ -193,7 +203,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         };
         window.addEventListener('keydown',handleKeyDown);
         return()=>window.removeEventListener('keydown',handleKeyDown);
-    },[isReadOnly,descriptionEditing,editingGroupName,addingTaskGroup,showAddGroup,showConfirmDelete]);
+    },[isReadOnly,descriptionEditing,editingGroupName,addingTaskGroup,showAddGroup,showConfirmDelete,addTaskPickerGroup]);
 
     // Group drag-and-drop handlers
     const handleGroupDragStart=(e,groupName)=>{
@@ -417,22 +427,27 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     {/* Description */}
                     <div className="rounded-xl mb-5" style={sectionCard}>
                         <div className="flex items-center justify-between mb-2">
-                            <span style={sectionLabel}>Description</span>
-                            {!isReadOnly&&!descriptionEditing&&<button onClick={()=>setDescriptionEditing(true)} style={{fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}>Edit</button>}
-                            {!isReadOnly&&descriptionEditing&&<button onClick={saveDescription} style={{fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}>Save</button>}
+                            <span style={sectionLabel}>📝 Description</span>
+                            {descriptionDraft&&!descriptionEditing&&!isReadOnly&&<button onClick={()=>{setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML=markdownToHtml(descriptionDraft);descEditableRef.current.focus();}},0);}} style={{fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}>Edit</button>}
                         </div>
+                        <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)',padding:12}}>
                         {descriptionEditing?(
-                            <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)'}}>
-                                <div style={{padding:'4px 8px',borderBottom:'1px solid var(--border)'}}>
-                                    <WysiwygToolbar editableRef={descEditableRef}/>
+                            <div>
+                                <WysiwygToolbar editableRef={descEditableRef}/>
+                                <div ref={descEditableRef} contentEditable suppressContentEditableWarning style={{minHeight:80,maxHeight:400,overflowY:'auto',width:'100%',lineHeight:1.7,outline:'none',whiteSpace:'pre-wrap',wordBreak:'break-word',fontSize:13,color:'var(--text-secondary)'}} onBlur={()=>{if(descEditableRef.current){const md=htmlToMarkdown(descEditableRef.current.innerHTML);setDescriptionDraft(md);setForm(f=>({...f,description:md}))}}}/>
+                                <div className="flex gap-2 mt-2">
+                                    <button onClick={()=>{const md=htmlToMarkdown(descEditableRef.current?.innerHTML||'');setDescriptionDraft(md);setForm(f=>({...f,description:md}));setDescriptionEditing(false);}} className="px-4 py-1.5 text-white rounded-lg text-sm" style={{background:'#d97706'}}>Save</button>
+                                    <button onClick={()=>{setDescriptionEditing(false);}} className="px-4 py-1.5 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button>
                                 </div>
-                                <div ref={descEditableRef} contentEditable suppressContentEditableWarning style={{padding:'10px 12px',minHeight:80,fontSize:13,lineHeight:1.7,outline:'none',color:'var(--text-secondary)'}} onBlur={()=>{if(descEditableRef.current){const md=htmlToMarkdown(descEditableRef.current.innerHTML);setDescriptionDraft(md);setForm(f=>({...f,description:md}))}}}/>
                             </div>
+                        ):!descriptionDraft&&!isReadOnly?(
+                            <div onClick={()=>{setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML='';descEditableRef.current.focus();}},0);}} style={{cursor:'text',minHeight:40,color:'var(--text-muted)',fontSize:13}}>Add a description...</div>
                         ):(
-                            <div onClick={()=>!isReadOnly&&setDescriptionEditing(true)} style={{cursor:isReadOnly?'default':'pointer',minHeight:32}}>
-                                {descriptionDraft?<SimpleMarkdown text={descriptionDraft}/>:<p style={{fontSize:13,color:'var(--text-muted)',fontStyle:'italic'}}>{isReadOnly?'No description':'Click to add a description...'}</p>}
+                            <div onClick={()=>{if(isReadOnly)return;setDescriptionEditing(true);setTimeout(()=>{if(descEditableRef.current){descEditableRef.current.innerHTML=markdownToHtml(descriptionDraft);descEditableRef.current.focus();}},0);}} style={{cursor:isReadOnly?'default':'pointer'}}>
+                                {descriptionDraft?<SimpleMarkdown text={descriptionDraft}/>:<p style={{fontSize:13,color:'var(--text-muted)',fontStyle:'italic'}}>No description</p>}
                             </div>
                         )}
+                        </div>
                     </div>
 
                     {/* Tasks — grouped by checklist name */}
@@ -440,7 +455,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         <div className="flex items-center justify-between mb-3">
                             <span style={sectionLabel}>Tasks ({actionTasks.length})</span>
                             <div style={{display:'flex',gap:6}}>
-                                {!isReadOnly&&actionTasks.length===0&&<button onClick={()=>setShowAddGroup(true)} className="px-3 py-1 rounded-lg text-xs flex items-center space-x-1" style={{background:'var(--bg-primary)',border:'1px solid var(--border)',color:'var(--text-secondary)'}}><Icon.Plus size={10}/><span>Group</span></button>}
+                                {!isReadOnly&&<button onClick={()=>setShowAddGroup(true)} className="px-3 py-1 rounded-lg text-xs flex items-center space-x-1" style={{background:'var(--bg-primary)',border:'1px solid var(--border)',color:'var(--text-secondary)'}}><Icon.Plus size={10}/><span>Group</span></button>}
                                 {!isReadOnly&&<button onClick={handleAddTaskClick} className="px-3 py-1 text-white rounded-lg text-xs flex items-center space-x-1" style={{background:'#d97706'}}><Icon.Plus size={10}/><span>Add task</span></button>}
                             </div>
                         </div>
@@ -451,12 +466,12 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                 {taskGroups.map(g=>(
                                     <button key={g.name} onClick={()=>{setAddTaskPickerGroup(null);setAddingTaskGroup(g.name);}} style={{padding:'4px 10px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11,color:'var(--text-secondary)'}} onMouseEnter={e=>e.currentTarget.style.borderColor='#d97706'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border)'}>{g.name}</button>
                                 ))}
-                                <button onClick={()=>{setAddTaskPickerGroup(null);setShowAddGroup(true);}} style={{padding:'4px 10px',borderRadius:4,background:'none',border:'1px dashed var(--border)',cursor:'pointer',fontSize:11,color:'var(--accent)'}}><Icon.Plus size={9}/> New group</button>
+                                <button onClick={()=>{setAddTaskPickerGroup(null);setShowAddGroup(true);}} style={{padding:'4px 10px',borderRadius:4,background:'none',border:'1px dashed var(--border)',cursor:'pointer',fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3}}><Icon.Plus size={9}/> New group</button>
                             </div>
                         </div>}
                         {showAddGroup&&!isReadOnly&&<div style={{marginBottom:8,display:'flex',gap:4,alignItems:'center'}}>
-                            <input type="text" value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="New group name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newGroupName.trim()){if(onRenameChecklistGroup)onRenameChecklistGroup(null,newGroupName.trim());setNewGroupName('');setShowAddGroup(false);setAddingTaskGroup(newGroupName.trim());}if(e.key==='Escape'){setShowAddGroup(false);setNewGroupName('');}}} style={{flex:1,padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}/>
-                            <button onClick={()=>{if(newGroupName.trim()&&onRenameChecklistGroup){onRenameChecklistGroup(null,newGroupName.trim());setNewGroupName('');setShowAddGroup(false);setAddingTaskGroup(newGroupName.trim());}}} style={{padding:'4px 10px',borderRadius:4,background:'#d97706',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Create</button>
+                            <input type="text" value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="New group name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newGroupName.trim()){const gn=newGroupName.trim();if(onRenameChecklistGroup)onRenameChecklistGroup(null,gn);setPendingGroups(prev=>[...prev,gn]);setNewGroupName('');setShowAddGroup(false);setAddingTaskGroup(gn);}if(e.key==='Escape'){setShowAddGroup(false);setNewGroupName('');}}} style={{flex:1,padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}/>
+                            <button onClick={()=>{if(newGroupName.trim()){const gn=newGroupName.trim();if(onRenameChecklistGroup)onRenameChecklistGroup(null,gn);setPendingGroups(prev=>[...prev,gn]);setNewGroupName('');setShowAddGroup(false);setAddingTaskGroup(gn);}}} style={{padding:'4px 10px',borderRadius:4,background:'#d97706',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Create</button>
                             <button onClick={()=>{setShowAddGroup(false);setNewGroupName('');}} style={{padding:'4px 10px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11}}>Cancel</button>
                         </div>}
                         {taskGroups.length>0?taskGroups.map(group=>{
@@ -489,7 +504,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                         {group.tasks.map(task=>{
                                             const boardMembers=members||[];
                                             return(
-                                                <div key={task.id} className="rounded-lg p-3" style={{background:'var(--bg-primary)',border:dragOverTaskId===task.id?(dragOverTaskPos==='before'?'2px solid #d97706 transparent transparent transparent':'transparent transparent 2px solid #d97706 transparent'):'1px solid var(--border-light)',cursor:'default'}}
+                                                <div key={task.id} className="rounded-lg p-3" style={{background:'var(--bg-primary)',border:'1px solid var(--border-light)',borderTop:dragOverTaskId===task.id&&dragOverTaskPos==='before'?'2px solid #d97706':undefined,borderBottom:dragOverTaskId===task.id&&dragOverTaskPos==='after'?'2px solid #d97706':undefined,cursor:'default'}}
                                                     draggable={!isReadOnly}
                                                     onDragStart={e=>handleTaskDragStart(e,task.id)}
                                                     onDragOver={e=>handleTaskDragOver(e,task.id)}
@@ -502,12 +517,12 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                             <p className="font-medium text-sm truncate" style={{color:'var(--accent)'}} onMouseEnter={e=>e.target.style.textDecoration='underline'} onMouseLeave={e=>e.target.style.textDecoration='none'}>{task.title}</p>
                                                         </div>
                                                         <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
-                                                            {/* Inline due date */}
-                                                            {editingTaskDue===task.id&&!isReadOnly?(
-                                                                <input type="date" value={task.dueDate||''} onChange={e=>{onUpdateTask(task.id,{dueDate:e.target.value});}} onBlur={()=>setEditingTaskDue(null)} autoFocus style={{fontSize:10,padding:'1px 3px',borderRadius:3,border:'1px solid var(--accent)',width:110}}/>
-                                                            ):(
-                                                                <span onClick={e=>{e.stopPropagation();if(!isReadOnly)setEditingTaskDue(task.id);}} style={{fontSize:10,color:task.dueDate&&new Date(task.dueDate)<new Date()&&task.status!=='completed'?'#ef4444':'var(--text-muted)',cursor:isReadOnly?'default':'pointer'}} title="Click to edit due date">{task.dueDate?new Date(task.dueDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}):'No date'}</span>
-                                                            )}
+                                                            {/* Inline due date — click opens calendar directly */}
+                                                            <label onClick={e=>e.stopPropagation()} style={{position:'relative',padding:'2px 6px',borderRadius:4,border:'1px solid '+(task.dueDate?'var(--accent)':'var(--border)'),background:task.dueDate?'var(--accent-light)':'transparent',cursor:isReadOnly?'default':'pointer',fontSize:10,color:task.dueDate&&new Date(task.dueDate)<new Date()&&task.status!=='completed'?'#ef4444':task.dueDate?'var(--accent)':'var(--text-muted)',display:'flex',alignItems:'center',gap:3,whiteSpace:'nowrap'}} title={task.dueDate?`Due: ${task.dueDate}`:'Set due date'}>
+                                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                                                {task.dueDate?new Date(task.dueDate+'T00:00:00').toLocaleDateString('en-US',{day:'numeric',month:'short'}):'No date'}
+                                                                {!isReadOnly&&<input type="date" value={task.dueDate||''} onChange={e=>onUpdateTask(task.id,{dueDate:e.target.value})} onClick={e=>{e.target.showPicker?.();}} style={{position:'absolute',opacity:0,width:0,height:0,overflow:'hidden'}}/>}
+                                                            </label>
                                                             {/* Inline member avatars + picker */}
                                                             {(task.assignees||[]).slice(0,2).map((mId,idx)=>{
                                                                 const m=boardMembers.find(mb=>mb.id===mId);
@@ -567,18 +582,18 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 
                     {/* Comments */}
                     <div className="rounded-xl mb-5" style={sectionCard}>
-                        <div style={{...sectionLabel,marginBottom:10}}>Comments ({(form.comments||[]).length})</div>
-                        {(form.comments||[]).length>0&&<div className="mb-4" style={{display:'flex',flexDirection:'column',gap:0}}>
+                        <div style={{...sectionLabel,marginBottom:10}}>💬 Comments ({(form.comments||[]).length})</div>
+                        {(form.comments||[]).length>0&&<div className="space-y-2 mb-4">
                             {(form.comments||[]).slice().sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)).map((comment,idx)=>(
-                                <div key={comment.id||idx} style={{borderBottom:idx<(form.comments||[]).length-1?'1px solid var(--border-light)':'none',paddingBottom:12,paddingTop:idx>0?12:0}}>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span style={{fontSize:11,fontWeight:600,color:'var(--text-primary)'}}>{comment.author}</span>
-                                        <span style={{fontSize:10,color:'var(--text-muted)'}}>{comment.date?new Date(comment.date).toLocaleDateString('en-US',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):''}</span>
+                                <div key={comment.id||idx} className="p-3 rounded-lg" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>
+                                    <div className="flex justify-between mb-2">
+                                        <span className="font-medium text-sm">{comment.author}</span>
+                                        <span className="text-xs" style={{color:'var(--text-muted)'}}>{comment.date?new Date(comment.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</span>
                                     </div>
-                                    <div style={{fontSize:13,lineHeight:1.6,color:'var(--text-secondary)'}}><SimpleMarkdown text={comment.text}/></div>
+                                    <div style={{fontSize:13,color:'var(--text-secondary)'}}><SimpleMarkdown text={comment.text}/></div>
                                     {comment.attachments?.length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:6}}>
                                         {comment.attachments.map(att=>(
-                                            <a key={att.id||att.name} href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',background:'var(--bg-primary)',borderRadius:4,textDecoration:'none',border:'1px solid var(--border-light)'}}>📎 {att.name}</a>
+                                            <a key={att.id||att.name} href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',textDecoration:'none'}}>📎 {att.name}</a>
                                         ))}
                                     </div>}
                                 </div>
@@ -626,18 +641,6 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         </div>:<p style={{fontSize:12,color:'var(--text-muted)',fontStyle:'italic'}}>No attachments</p>}
                     </div>
 
-                    {/* Delete confirmation */}
-                    {showConfirmDelete&&(
-                        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-sm font-medium text-red-800 mb-2">Confirm deletion?</p>
-                            <p className="text-xs text-red-600 mb-3">This action and its {actionTasks.length} task(s) will be permanently deleted.</p>
-                            <div className="flex space-x-2">
-                                <button onClick={handleDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium">Delete</button>
-                                <button onClick={()=>setShowConfirmDelete(false)} className="v11-btn-secondary">Cancel</button>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Footer */}
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
                         {!isReadOnly&&<button onClick={()=>setShowConfirmDelete(true)} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Delete</span></button>}
@@ -646,6 +649,24 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     </div>
                 </div>
             </div>
+            {/* Delete confirmation popup */}
+            {showConfirmDelete&&(
+                <div onClick={()=>setShowConfirmDelete(false)} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <div onClick={e=>e.stopPropagation()} className="animate-slide-up" style={{background:'var(--bg-primary)',borderRadius:'var(--radius-lg)',padding:24,maxWidth:400,width:'90%',boxShadow:'var(--shadow-lg)'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+                            <div style={{width:36,height:36,borderRadius:'50%',background:'#fef2f2',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Icon.Trash size={16} style={{color:'#ef4444'}}/></div>
+                            <h3 style={{fontSize:16,fontWeight:700,color:'var(--text-primary)'}}>Delete action?</h3>
+                        </div>
+                        <p style={{fontSize:13,color:'var(--text-secondary)',marginBottom:16,lineHeight:1.6}}>
+                            The action <strong>"{form.name}"</strong> and its <strong>{actionTasks.length} task(s)</strong> will be permanently deleted. This cannot be undone.
+                        </p>
+                        <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
+                            <button onClick={()=>setShowConfirmDelete(false)} className="px-4 py-2 rounded-lg text-sm font-medium" style={{background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer'}}>Cancel</button>
+                            <button onClick={handleDelete} className="px-4 py-2 rounded-lg text-sm font-medium" style={{background:'#ef4444',color:'white',border:'none',cursor:'pointer'}}>Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

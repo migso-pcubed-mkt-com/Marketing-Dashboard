@@ -78,7 +78,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         };
 
         const getTaskMonth=(t)=>{
-            const refDate=t.dueDate||t.startDate;
+            const refDate=t.startDate||t.dueDate;
             if(!refDate)return t.month;
             const sy=new Date(refDate).getFullYear();
             if(sy<selectedYear)return 0;
