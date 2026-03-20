@@ -1167,11 +1167,11 @@ const App = () => {
                                     <div className="dropdown-item-content"><div className="dropdown-item-title">New task</div><div className="dropdown-item-desc">Add a task to an action</div></div>
                                     <span className="dropdown-item-shortcut">N</span>
                                 </button>
-                                <button className="dropdown-item" onClick={() => {setShowCreateDropdown(false);setShowNewActionModal(true);}}>
+                                {currentBoard?.trelloSync?.syncMode !== 'card-as-task' && <button className="dropdown-item" onClick={() => {setShowCreateDropdown(false);setShowNewActionModal(true);}}>
                                     <div className="dropdown-item-icon action"><Icon.List/></div>
                                     <div className="dropdown-item-content"><div className="dropdown-item-title">New action</div><div className="dropdown-item-desc">Create a group of tasks</div></div>
                                     <span className="dropdown-item-shortcut">⇧N</span>
-                                </button>
+                                </button>}
                                 <div className="dropdown-divider"/>
                                 <button className="dropdown-item" onClick={() => {setShowCreateDropdown(false);setShowCategoriesModal(true);}}>
                                     <div className="dropdown-item-icon category"><Icon.Folder/></div>
