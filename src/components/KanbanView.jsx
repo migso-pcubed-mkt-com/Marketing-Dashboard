@@ -452,9 +452,15 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         const dueDate=year+'-'+String(lastMonth+1).padStart(2,'0')+'-'+lastDay;
                                         if(onRequestNewTask) onRequestNewTask({startDate,dueDate});
                                     }else if(viewMode==='category'){
-                                        const newAction={id:`a${Date.now()}`,name:'New action',categoryId:col.key,budget:0,priority:'medium',tags:[]};
-                                        onAddAction(newAction);
-                                        setTimeout(()=>onOpenAction(newAction),100);
+                                        if(col.directTasks){
+                                            // card-as-task mode: create a task under the default action
+                                            const defaultAction=actions.find(a=>a.categoryId===col.key&&a.isDefault);
+                                            if(defaultAction&&onRequestNewTask) onRequestNewTask({actionId:defaultAction.id});
+                                        }else{
+                                            const newAction={id:`a${Date.now()}`,name:'New action',categoryId:col.key,budget:0,priority:'medium',tags:[]};
+                                            onAddAction(newAction);
+                                            setTimeout(()=>onOpenAction(newAction),100);
+                                        }
                                     }else if(viewMode==='action'){
                                         if(onRequestNewTask) onRequestNewTask({actionId:selectedAction||actions[0]?.id||'',status:col.key});
                                     }else if(viewMode==='country'){
