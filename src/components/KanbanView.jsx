@@ -104,7 +104,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         }
         if(viewMode==='category'){
             let cats = [...categories];
-            if(catOrder){
+            // Sort by category.order field (set by Trello sync or column drag)
+            // Only fall back to localStorage catOrder if no order fields exist
+            const hasOrderField = cats.some(c => c.order !== undefined);
+            if(hasOrderField){
+                cats.sort((a,b)=>(a.order??999)-(b.order??999));
+            } else if(catOrder){
                 cats.sort((a,b)=>{
                     const ai=catOrder.indexOf(a.id);
                     const bi=catOrder.indexOf(b.id);
@@ -204,8 +209,8 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         const newOrder = reordered.map(c => c.key);
 
         if (viewMode === 'category') {
-            setCatOrder(newOrder);
-            try { localStorage.setItem('kanban_category_order', JSON.stringify(newOrder)); } catch {}
+            setCatOrder(null);
+            try { localStorage.removeItem('kanban_category_order'); } catch {}
             // Update actual category order fields so Trello sync picks up the change
             if (onUpdateCategory) {
                 newOrder.forEach((catId, idx) => {
