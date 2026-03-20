@@ -4,7 +4,8 @@ import { Icon, StatusIcon } from './Icons.jsx';
 const DashboardView = ({categories, actions, tasks, members = []}) => {
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
-    const totalBudget = tasks.reduce((s, t) => s + (t.budget || 0), 0);
+    const actionBudgetTotal = actions.reduce((s, a) => s + (a.budget || 0), 0);
+    const totalBudget = actionBudgetTotal + tasks.reduce((s, t) => s + (t.budget || 0), 0);
     const spentBudget = tasks.filter(t => ['completed', 'inprogress'].includes(t.status)).reduce((s, t) => s + (t.budget || 0), 0);
     const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
     const currentMonth = new Date().getMonth();
@@ -50,7 +51,7 @@ const DashboardView = ({categories, actions, tasks, members = []}) => {
                         const catTasks = tasks.filter(t => catActions.some(a => a.id === t.actionId));
                         const catCompleted = catTasks.filter(t => t.status === 'completed').length;
                         const catPct = catTasks.length > 0 ? Math.round((catCompleted / catTasks.length) * 100) : 0;
-                        const catBudget = catTasks.reduce((s, t) => s + (t.budget || 0), 0);
+                        const catBudget = catActions.reduce((s, a) => s + (a.budget || 0), 0) + catTasks.reduce((s, t) => s + (t.budget || 0), 0);
                         return (
                             <div key={cat.id}>
                                 <div className="flex items-center justify-between mb-2"><div className="flex items-center space-x-3"><div className={`w-3 h-3 rounded-full bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium text-sm">{cat.name}</span></div><div className="flex items-center space-x-4 text-sm"><span style={{color:'var(--text-muted)'}}>{catCompleted}/{catTasks.length}</span><span className="font-semibold text-secondary">{(catBudget/1000).toFixed(0)}k€</span><span className="font-bold">{catPct}%</span></div></div>

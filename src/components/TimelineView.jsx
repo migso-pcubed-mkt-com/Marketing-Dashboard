@@ -801,7 +801,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     });
 
     const groupedByCategory=categories.map(cat=>{
-        const catActions=actions.filter(a=>a.categoryId===cat.id).map(action=>({action,tasks:filteredTasks.filter(t=>t.actionId===action.id)})).filter(({tasks:t})=>t.length>0);
+        const catActions=actions.filter(a=>a.categoryId===cat.id).map(action=>({action,tasks:filteredTasks.filter(t=>t.actionId===action.id)}));
         return{category:cat,actions:catActions};
     }).filter(g=>g.actions.length>0);
     const scrollToQuarter=(q)=>{if(timelineRef.current)timelineRef.current.scrollLeft=(q-1)*3*colWidth;};
