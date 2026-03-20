@@ -1,0 +1,77 @@
+# DECISIONS.md — Marketing Dashboard
+
+> Append-only decisions log. Newest entries at top.
+> Do NOT duplicate content already present in CLAUDE.md current state.
+> Format: one row per decision — date | decision | context (one sentence max).
+
+---
+
+## Maintenance Rules (for Claude Code)
+
+- **Append only** — never edit or delete existing rows.
+- **Newest first** — insert new rows at the top of the table.
+- **One row per decision** — if multiple small decisions were made in one session, group them as one row with a compound decision label if needed.
+- **Decision column** = what changed (action verb: "Add", "Fix", "Replace", "Remove", etc.).
+- **Context column** = why, in one sentence. No narrative, no bullet lists.
+- If a decision **supersedes** a previous one, note it: `(supersedes 2026-02-XX)`.
+- Do not add rows for trivial implementation details — only decisions that affect architecture, patterns, cross-cutting concerns, or recurring bugs.
+
+---
+
+## Log
+
+| Date | Decision | Context |
+|------|----------|---------|
+| 2026-03-18 | crypto.randomUUID for all entity IDs | Eliminates ID collision risk from `Date.now()+Math.random()` |
+| 2026-03-18 | CORS restriction via ALLOWED_ORIGIN | Replace wildcard `*` with env var on `api/trello.js` and `api/github.js` |
+| 2026-03-18 | Remove sendBeacon dead code | `/api/save-beacon` endpoint never existed — localStorage sync is sufficient |
+| 2026-03-18 | Offline mode with yellow banner | `navigator.onLine` detection; saves to localStorage only when offline, auto-resync on reconnect |
+| 2026-03-18 | Snapshot ring buffer (3 slots) | Rotating snapshots `mkt_snapshot_0/1/2` on auto-save, 48h TTL, restorable via `restoreSnapshot(index)` |
+| 2026-03-18 | Post-sync Supabase refresh (4s) | Light load after Trello sync recovers Realtime events ignored during sync lock |
+| 2026-03-18 | Post-sync integrity check | `validateBoardIntegrity()` after every sync — orphan refs, duplicate IDs, missing syncMode |
+| 2026-03-18 | Detailed sync error tracking | `result.errorDetails [{name, op, error}]` shows failed item names in notification |
+| 2026-03-18 | Trello retry with exponential backoff | `trelloFetch` retries 3× on 429/502–504/network errors; backoff 1s, 2s, 4s |
+| 2026-03-18 | Pre-sync snapshot (24h validity) | Save board to `localStorage('trello_sync_snapshot')` before sync; auto-restore on failure |
+| 2026-03-18 | Sync lock with 60s auto-timeout | Prevents permanent sync blockage when Trello API hangs |
+| 2026-03-18 | Checklist deletion guard | Only delete Trello checklists when `localChecklistIds.size > 0` — prevents wiping card-as-action data |
+| 2026-03-18 | Card-as-action task guard | Skip tasks with `trelloCheckItemId`/`trelloChecklistName` in card-as-task path — prevents data corruption if syncMode lost |
+| 2026-03-18 | Sync merge-by-ID for comments/checklists | Match by Trello ID (not name) — preserves local-only items, avoids duplicates |
+| 2026-03-18 | Card-as-Action sync mode | Per-board `trelloSync.syncMode`: `card-as-task` (default) or `card-as-action` (Cards→Actions, ChecklistItems→Tasks) |
+| 2026-03-18 | Realtime syncMode protection | Merge incoming Realtime data preserving local `trelloSync.syncMode` if incoming is missing it |
+| 2026-03-18 | Checklist position sync via `pos` | Checklist and item order synced with Trello `pos` field; `Promise.all` for parallel updates |
+| 2026-03-18 | Member picker via ReactDOM.createPortal | Escapes modal stacking context — prevents picker clipping |
+| 2026-03-18 | Comment deduplication before push | Check text match before pushing to Trello — prevents duplicate comments |
+| 2026-03-18 | OAuth via postMessage | Replace `callback_method=fragment` — no return_url whitelist needed |
+| 2026-03-18 | Guest read-only on Trello boards | Full read-only mode for guest users visiting Trello-linked board |
+| 2026-03-18 | Auth gate (AuthGate.jsx) | Trello OAuth login or guest password; guest uses sessionStorage (expires on tab close) |
+| 2026-03-18 | Enhanced Markdown (SimpleMarkdown) | Headings, blockquotes, fenced code blocks, ordered lists, strikethrough, hr — no innerHTML |
+| 2026-03-18 | WYSIWYG contentEditable descriptions | Replace textarea with contentEditable + markdown conversion in TaskDetailModal/comments |
+| 2026-03-18 | Unified task creation modal | All entry points (Kanban/Timeline/Calendar/header) use `NewTaskModal` with `initialValues` prop |
+| 2026-03-18 | beforeunload save flush | Flush pending auto-save debounce on tab close; synchronous localStorage save as guaranteed fallback |
+| 2026-03-18 | Trello archived cards support | `filter=all` fetch; `card.closed` → `trelloArchived=true` + `status='paused'`; "Show archived" filter toggle |
+| 2026-03-18 | Named checklists (task.checklists) | Replace flat `task.checklist`; named groups with per-checklist progress; `normalizeTaskChecklists()` migration |
+| 2026-03-18 | Trello OAuth login per-user token | `X-Trello-Token` header sent per-user; server prefers it over env `TRELLO_TOKEN` |
+| 2026-03-18 | Label remap after import | `TrelloImportModal` supports `mappingOnly` mode; "Re-configure Labels" in BoardSettingsModal |
+| 2026-03-18 | Trello sync polling lifecycle | Managed in App.jsx via `trelloSyncIntervalRef`; starts/stops on board change or settings change |
+| 2026-03-18 | Trello integration (Phase 2) | `api/trello.js` serverless proxy, import wizard, bidirectional sync, last-write-wins |
+| 2026-03-18 | robots.txt + noindex meta | Block search engine crawling of the app |
+| 2026-03-18 | Calendar +N more expands row | "+N more" expands week row in month view (click again to collapse) — no new task creation |
+| 2026-03-18 | Calendar hover add button | ClickUp-style "+" hover button (bottom-left of day cell) replaces click-on-day task creation |
+| 2026-03-18 | Calendar bar color system | All bars use category color gradient — consistent across single-day and multi-day tasks |
+| 2026-03-18 | Calendar view added | Month/week modes, shared `computeWeekBars()`, drag-to-reschedule, ClickUp-inspired |
+| 2026-03-18 | Draggable Kanban columns | Category and country views; order persisted to localStorage; `stopPropagation` separates card vs column drag |
+| 2026-03-18 | Multi-board v2 format (Phase 1) | Boards array in data envelope; BoardSelector; BoardSettingsModal; `board_data` JSONB column in Supabase |
+| 2026-03-18 | Inline category/action creation | NewActionModal creates categories inline; NewTaskModal creates actions inline |
+| 2026-03-18 | Kanban "By Country" view | 5th grouping mode; all 16 countries as columns + "Unassigned"; drag replaces country (not appends) |
+| 2026-03-18 | Vite migration (Phase 0) | Monolith `index.html` (~3800 lines) → Vite 5 + modular React components in `src/` |
+| 2026-03-18 | CLAUDE.md created | Persistent memory file across Claude Code sessions |
+| 2026-03-18 | isReceivingRealtimeRef flag | Prevent infinite loop between Supabase Realtime and auto-save |
+| 2026-03-18 | Refs for save closures | Fix stale closure in save callbacks; `boardDataRef` updated synchronously before each save |
+| 2026-03-18 | GitHub org migration | Moved `FbnCrr/Dashboard-marketing` → `migso-pcubed-mkt-com/Marketing-Dashboard` |
+| 2026-03-18 | Dark mode removed (V3.0) | V11 design system migration — single-theme CSS only. Do NOT re-add `dark:` classes. |
+| 2026-03-18 | Timeline swim lane freezing | Prevent visual jumps during drag/resize — freeze lane order during operations |
+| 2026-02-28 | UI translated to English | International team accessibility |
+| 2026-02-28 | Vercel serverless for GitHub proxy | Keep GITHUB_TOKEN server-side |
+| 2026-02-28 | GitHub API as fallback storage | Original storage layer kept for resilience alongside Supabase |
+| 2026-02-28 | Supabase as primary storage | Real-time sync needed for multi-device use |
+| 2026-02-28 | Single index.html architecture (superseded 2026-03 Vite) | Initial simplicity choice — no build step, CDN deps. Superseded by Vite migration. |
