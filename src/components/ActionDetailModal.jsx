@@ -228,7 +228,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         setDragGroupName(groupName);
     };
     const handleGroupDragOver=(e,groupName)=>{
-        if(!dragGroupName&&!dragTaskId)return;
+        if(!dragGroupName)return;  // Only react to group drags, not task drags
         e.preventDefault();
         setDragOverGroup(groupName);
     };
@@ -563,7 +563,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                     onDragStart={e=>handleTaskDragStart(e,task.id)}
                                                     onDragOver={e=>handleTaskDragOver(e,task.id)}
                                                     onDrop={e=>handleTaskDrop(e,task.id,group.name)}
-                                                    onDragEnd={()=>{setDragTaskId(null);setDragOverTaskId(null);setDragOverTaskPos(null);}}>
+                                                    onDragEnd={()=>{setDragTaskId(null);setDragOverTaskId(null);setDragOverTaskPos(null);setDragOverGroup(null);}}>
                                                     <div className="flex items-center gap-3">
                                                         {!isReadOnly&&<span style={{cursor:'grab',opacity:0.3,fontSize:10,flexShrink:0}}>⋮⋮</span>}
                                                         <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:110,flexShrink:0}} disabled={isReadOnly}/>
