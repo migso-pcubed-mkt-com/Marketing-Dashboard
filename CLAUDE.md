@@ -1,469 +1,240 @@
-# CLAUDE.md - Marketing Dashboard
+# CLAUDE.md — Marketing Dashboard
 
-> Memory file for Claude Code. Read automatically at the start of each session.
+> Memory file for Claude Code. Loaded automatically at session start.
 > Last updated: 2026-03-18
 
-## Maintenance Rule
+---
 
-**Before every commit, check if CLAUDE.md needs updating** — new architectural decisions, new patterns, resolved bugs worth documenting, or roadmap changes. If yes, update this file and include it in the commit.
+## File Maintenance Rules
+
+### Role of each file
+
+| File | Purpose | Update strategy |
+|---|---|---|
+| **CLAUDE.md** | Current state of the project — architecture, patterns, conventions, active pitfalls | **Replace in place** — never append, always reflect reality |
+| **DECISIONS.md** | Why things changed — historical trace for context | **Append only** — newest row at top, never edit existing rows |
+
+### When to update (after every commit that touches any of the following)
+
+| Trigger | Update CLAUDE.md | Update DECISIONS.md |
+|---|---|---|
+| New component or file with non-obvious role | Add to Key Files section | No |
+| New view, feature, or major UI pattern | Add/update relevant section | Add one row |
+| Architecture change (storage, state, data model) | Update the affected section | Add one row |
+| Bug fix that reveals a structural pitfall | Add to Known Pitfalls | Add one row |
+| Decision to remove or forbid something | Add a "Do NOT" rule | Add one row |
+| Config, env var, or deploy change | Update Deployment/Config section | No (unless architectural) |
+| Roadmap item completed | Mark ✅ in Roadmap | No |
+| Anything that would cause a future Claude session to make the wrong assumption | Update the relevant section | Add one row |
+
+### How to update CLAUDE.md
+
+- **Replace** outdated content — do not append old + new side by side.
+- Update the `Last updated` date at the top.
+- Keep total file under ~220 lines. If a section grows too large, summarize and move detail to DECISIONS.md.
+- Never add historical narrative ("we used to do X, now we do Y") — only describe current state.
+- Self-explanatory file names, trivial implementation details, and one-off fixes do not belong here.
+- **"Do NOT" rules are the highest-value content** — always preserve them, they prevent regressions across sessions.
+
+### How to update DECISIONS.md
+
+- Insert new rows at the **top** of the table, never at the bottom.
+- Format: `| YYYY-MM-DD | Action verb + what changed | Why, one sentence max |`
+- If a decision supersedes a previous one, note it: `(supersedes YYYY-MM-DD)`.
+- Do not duplicate info already self-evident from CLAUDE.md current state — DECISIONS.md explains *why*, not *what*.
+
+---
 
 ## Project Overview
 
-Marketing Project Tracker for MIGSO-PCUBED marketing team. A single-page React application that manages marketing **Categories**, **Actions**, and **Tasks** with multiple views (Kanban, Timeline, Calendar, Dashboard/KPIs).
+Marketing Project Tracker for MIGSO-PCUBED. Single-page React app managing **Categories → Actions → Tasks** with Kanban, Timeline, Calendar, and Dashboard views.
 
-- **Owner**: migso-pcubed-mkt-com (GitHub org — previously FbnCrr, migrated)
-- **Repo**: Marketing-Dashboard
-- **Live URL**: Deployed on Vercel (auto-deploy on push to `main`)
-- **Current version**: V4.0 (post-Vite migration)
+- **Repo**: `migso-pcubed-mkt-com/Marketing-Dashboard` (GitHub)
+- **Deploy**: Vercel — auto-deploy on push to `main`
+- **Version**: V4.0 (post-Vite migration)
+- **Current branch**: update before each session if relevant
+
+---
 
 ## Architecture
 
-### Vite + React Modular SPA
+### Stack
 
-Migrated from a monolithic `index.html` (~3800 lines) to a proper Vite build system (Phase 0, completed March 2026).
-
-- **React 18** via npm (`react`, `react-dom`)
-- **Vite 5** as build tool + dev server
+- **React 18** + **Vite 5** (ES Modules, no CDN/Babel/UMD)
 - **Tailwind CSS 3** via PostCSS (not CDN)
-- **Supabase JS SDK** via npm (`@supabase/supabase-js`)
-- ES Modules throughout — no Babel standalone, no CDN for React
+- **Supabase JS SDK** (`@supabase/supabase-js`)
+- No TypeScript, no ESLint
 
-> **Dark mode removed in V3.0** — Do NOT re-introduce `darkMode` state or `dark:` Tailwind classes.
+### Key Files
+
+```
+src/
+├── App.jsx              # Central state (~624 lines)
+├── config.js            # CONFIG, DEFAULT_*, Supabase/GitHub config — NAMED exports only
+├── context.js           # AppContext + useApp()
+├── lib/
+│   ├── storage.js       # Supabase + GitHub + localStorage (load/save/snapshots)
+│   ├── trello.js        # Trello API client (calls /api/trello proxy)
+│   ├── trelloMapping.js # Trello ↔ Dashboard entity conversion
+│   ├── trelloSync.js    # Bidirectional sync engine
+│   └── migration.js     # v1→v2 data migration
+api/
+├── github.js            # Serverless: GitHub API proxy (keeps GITHUB_TOKEN server-side)
+└── trello.js            # Serverless: Trello API proxy (keeps TRELLO_API_KEY server-side)
+```
 
 ### Commands
 
 ```bash
-npm run dev       # Vite dev server (port 5173, proxy /api to localhost:3000)
+npm run dev       # Vite dev server — port 5173, proxies /api → localhost:3000
 npm run build     # Production build → dist/
-npm run preview   # Preview production build
 ```
 
-### Project Structure
+---
+
+## Data Model
+
+### Entity hierarchy (per board)
 
 ```
-Marketing-Dashboard/
-├── index.html                      # Minimal Vite entry point
-├── package.json                    # Dependencies (react, vite, tailwind, supabase)
-├── vite.config.js                  # Vite config (react plugin, /api proxy)
-├── tailwind.config.js              # Tailwind config
-├── postcss.config.js               # PostCSS (tailwind + autoprefixer)
-├── vercel.json                     # Vercel: buildCommand + outputDirectory + functions
-├── api/
-│   ├── github.js                   # Serverless function (GitHub API proxy)
-│   └── trello.js                   # Serverless function (Trello API proxy)
-├── src/
-│   ├── main.jsx                    # React entry point (createRoot)
-│   ├── App.jsx                     # Central state management (~624 lines)
-│   ├── config.js                   # CONFIG, DEFAULT_ACTIONS, DEFAULT_TASKS, Supabase/GitHub config
-│   ├── context.js                  # AppContext + useApp()
-│   ├── styles/
-│   │   └── index.css               # Tailwind directives + custom CSS
-│   ├── components/
-│   │   ├── Header.jsx              # Navigation tabs (kanban/timeline/calendar/kpis)
-│   │   ├── KanbanView.jsx          # Kanban with 5 view modes + draggable columns
-│   │   ├── TimelineView.jsx        # Gantt timeline (~1317 lines)
-│   │   ├── CalendarView.jsx        # Calendar view (month/week modes)
-│   │   ├── DashboardView.jsx       # KPIs and charts
-│   │   ├── FilterSidebar.jsx       # Filter panel
-│   │   ├── TaskCard.jsx            # Task card component
-│   │   ├── ActionCard.jsx          # Action card component
-│   │   ├── TaskDetailModal.jsx     # Task detail/edit modal
-│   │   ├── ActionDetailModal.jsx   # Action detail/edit modal
-│   │   ├── NewTaskModal.jsx        # Create task modal
-│   │   ├── NewActionModal.jsx      # Create action modal
-│   │   ├── CategoriesManagementModal.jsx
-│   │   ├── BoardSelector.jsx       # Board switcher dropdown in header
-│   │   ├── BoardSettingsModal.jsx  # Board rename/delete/duplicate modal
-│   │   ├── Icons.jsx               # SVG icon library
-│   │   ├── IconSelect.jsx          # Icon picker
-│   │   ├── ChannelTags.jsx         # Channel tag badges
-│   │   ├── CountryTags.jsx         # Country tag badges
-│   │   └── TrelloImportModal.jsx   # Trello board import (multi-step wizard)
-│   └── lib/
-│       ├── storage.js              # Supabase + GitHub + localStorage (load/save)
-│       ├── migration.js            # v1→v2 data migration (flat → multi-board)
-│       ├── trello.js               # Trello API client (calls /api/trello proxy)
-│       ├── trelloMapping.js        # Trello ↔ Dashboard entity mapping/conversion
-│       └── trelloSync.js           # Bidirectional sync (last write wins)
-├── data.json                       # Persisted app data (GitHub backend)
-├── design-system-v11.css           # Legacy CSS (reference only)
-├── marketing-tracker-v11.html      # Legacy monolith (backup)
-├── supabase-setup.sql              # Supabase schema
-├── SETUP_GITHUB.md                 # GitHub token setup guide
-└── VERCEL_SETUP.md                 # Vercel deployment guide
+Category → Action → Task
 ```
 
-### Data Model
+- **Categories**: top-level grouping
+- **Actions**: belong to a category, represent a marketing initiative
+- **Tasks**: belong to an action, actual work items (dates, status, owner, checklists)
 
-**Multi-board v2 format** (since Phase 1):
+### Multi-board v2 envelope
+
 ```json
 {
   "version": 2,
   "currentBoardId": "board-default",
-  "boards": [
-    {
-      "id": "board-default",
-      "name": "Marketing Plan",
-      "createdAt": "...",
-      "updatedAt": "...",
-      "categories": [...],
-      "actions": [...],
-      "tasks": [...]
-    }
-  ]
+  "boards": [{ "id": "...", "name": "...", "categories": [], "actions": [], "tasks": [] }]
 }
 ```
 
-Each board contains its own categories, actions, tasks. Migration from v1 (flat) to v2 is automatic via `src/lib/migration.js`.
+Migration from v1 (flat) → v2 is automatic via `src/lib/migration.js`.
 
-Three entity types per board:
-- **Categories** — top-level grouping (e.g., "Brand Awareness", "Consideration", "Conversion")
-- **Actions** — belong to a category, represent a marketing initiative
-- **Tasks** — belong to an action, the actual work items with dates, status, owner
+### Config constants (`src/config.js`)
 
-Config constants in `src/config.js`:
-- CONFIG.CATEGORIES: 3 | CONFIG.STATUSES: 6 | CONFIG.CHANNELS: 13
-- CONFIG.COUNTRIES: 16 (Global/World first, then Europe, America, Asia, Oceania)
-- CONFIG.PRIORITIES: 3 (low, medium, high)
+- `CONFIG.STATUSES`: 6 | `CONFIG.CHANNELS`: 13 | `CONFIG.PRIORITIES`: 3
+- `CONFIG.COUNTRIES`: 16 — Global/World **first**, then Europe, America, Asia, Oceania
 
-### Storage Backend (triple fallback)
+---
 
-All backends store the full v2 multi-board envelope.
+## Storage (triple fallback)
 
-1. **Primary: Supabase** — Real-time sync via Supabase Realtime
-   - Table: `app_data` (id TEXT PK, `board_data` JSONB for v2, plus legacy `categories`/`actions`/`tasks` columns)
-   - On load: reads `board_data` if present, otherwise reads legacy columns + auto-migrates
-   - On save: writes to `board_data` + legacy columns (backward compat)
-   - Realtime subscription for live cross-device sync
-   - RLS enabled with permissive anonymous policy (single-user mode)
-   - Auto-save debounce: 1s
-   - **Required SQL migration**: `ALTER TABLE app_data ADD COLUMN IF NOT EXISTS board_data JSONB;`
+| Layer | Tech | Notes |
+|---|---|---|
+| Primary | Supabase | Real-time via Supabase Realtime. Table: `app_data`, column `board_data` (JSONB). Auto-save debounce: 1s |
+| Secondary | GitHub API | `data.json` on `main` via `api/github.js` proxy. Auto-save debounce: 2s |
+| Fallback | localStorage | Key: `marketing_tracker_backup`. Snapshot ring buffer: 3 rotating keys `mkt_snapshot_0/1/2`, 48h TTL |
 
-2. **Trello Sync**: Bidirectional sync via `api/trello.js` serverless proxy
-   - Env vars: `TRELLO_API_KEY` + `TRELLO_TOKEN` (server-side only)
-   - Endpoints: boards, board detail, createCard, updateCard, deleteCard
-   - Sync: polling every 1-10 min (configurable), "last write wins" based on `dateLastActivity`
-   - Metadata: `trelloSync` on board, `trelloCardId`/`trelloLastModified` on tasks, `trelloListId` on categories, `trelloLabelId` on actions
+**Load order**: Supabase → GitHub → localStorage. `localStorage` is backup only — never primary.
 
-3. **Secondary: GitHub API** via Vercel serverless function
-   - `api/github.js` — proxy that keeps GITHUB_TOKEN server-side
-   - Reads/writes `data.json` on the `main` branch via GitHub Contents API
-   - Auto-save debounce: 2s
+**Offline mode**: `navigator.onLine` detection — saves to localStorage only + yellow banner. Auto-resync on reconnect.
 
-4. **Fallback: localStorage** — key `marketing_tracker_backup`
-   - **Snapshot ring buffer**: 3 most recent states stored as `mkt_snapshot_0/1/2` with `mkt_snapshot_index` pointer. Auto-cleanup after 48h. Functions: `saveSnapshot()`, `listSnapshots()`, `restoreSnapshot(index)` in `storage.js`
-   - **Offline mode**: `navigator.onLine` detection — when offline, all saves go to localStorage only. Yellow banner shown. Auto-resync on reconnect via `saveData()` call.
+**Required Supabase migration**: `ALTER TABLE app_data ADD COLUMN IF NOT EXISTS board_data JSONB;`
 
-### State Management
+---
+
+## State Management
 
 Central state in `App.jsx`:
-- **`boardData`** — full v2 envelope (all boards)
-- **`currentBoardId`** — active board ID
-- `categories`, `actions`, `tasks` — derived from active board via `useMemo`
-- `setCategories`, `setActions`, `setTasks` — wrapper `useCallback` functions that update the active board inside `boardData`
-- Single `boardDataRef` replaces old `categoriesRef`/`actionsRef`/`tasksRef`
+- `boardData` — full v2 envelope; `currentBoardId` — active board
+- `categories`, `actions`, `tasks` — derived via `useMemo` from active board
+- Single `boardDataRef` (replaces old `categoriesRef`/`actionsRef`/`tasksRef`)
 
-**AppContext** (`useApp()`) now provides: `boards`, `currentBoardId`, `currentBoard`, `onSwitchBoard`, `onCreateBoard`, `onRenameBoard`, `onDeleteBoard`, `onDuplicateBoard`
+`AppContext` (`useApp()`) exposes: `boards`, `currentBoardId`, `currentBoard`, `onSwitchBoard`, `onCreateBoard`, `onRenameBoard`, `onDeleteBoard`, `onDuplicateBoard`.
 
-Props still drilled for view-specific data (categories, actions, tasks, handlers).
+Props still drilled for view-specific data.
 
-## Development Conventions
+---
 
-### Language
-- **UI**: English (translated from French in commit a987fee)
-- **Code comments**: English
-- **Documentation files**: French or English (mixed, legacy)
+## Code Conventions
 
-### Code Style
-- Modular React components in `src/components/`, one component per file
-- React functional components with hooks (useState, useEffect, useCallback, useMemo, useRef)
-- **Named exports** in `config.js` — use `import { CONFIG } from '../config.js'` (NOT default import)
-- ES Modules throughout — no CommonJS, no CDN/UMD
-- Inline styles + Tailwind classes + CSS custom properties (design tokens in `:root`)
-- **ID generation**: Use `crypto.randomUUID()` for all entity IDs (tasks, actions, checklists, etc.) — `genId(prefix)` = `${prefix}-${crypto.randomUUID()}`. Do NOT use `Date.now() + Math.random()`.
-- No TypeScript, no ESLint
+- **Named exports** in `config.js`: `import { CONFIG } from '../config.js'` — NOT default import
+- **ID generation**: always `crypto.randomUUID()` via `genId(prefix)`. Do NOT use `Date.now() + Math.random()`
+- **UI language**: English. Code comments: English.
+- CSS: `v11-` prefix for design system components. Design tokens in `:root`. DM Sans (body) + JetBrains Mono (mono). Accent: `#6366f1`.
+- `@import url(...)` must precede `@tailwind` directives in `src/styles/index.css`
 
-### CSS Design System (V11)
-- CSS custom properties defined in `:root` (colors, spacing, radii, shadows)
-- Class prefix: `v11-` for design system components
-- Font: DM Sans (body) + JetBrains Mono (monospace)
-- Primary accent: `#6366f1` (indigo)
+### ❌ Do NOT
 
-### Views
-- **Kanban view** — Cards with 5 grouping modes: month, quarter, category, action, **country**
-  - Country mode shows ALL 16 countries as columns + "Unassigned" column
-  - Drag between country columns replaces the country (not adds)
-  - **Draggable columns** in category and country views — reorder persisted to localStorage
-- **Timeline view** — Gantt-like horizontal bars with drag/resize
-  - Swim lanes with collision detection
-  - Drag-and-drop with ghost preview
-  - Resize handles on both ends
-  - **Year navigation** — `timelineYear` state shared in App, nav buttons to switch years
-  - Touch + mouse support (mobile/tablet compatible)
-- **Calendar view** — Month and week display modes (ClickUp-inspired)
-  - Both views use same bar layout system: `computeWeekBars()` computes row positions for overlapping tasks
-  - **Month view**: compact bars (20px height) — title + status icon + priority dot
-  - **Week view**: detailed bars (56px height) — title + action name + date range + status + priority
-  - All bars use category color as background (translucent gradient) — consistent across single-day and multi-day tasks
-  - Drag-and-drop to reschedule tasks (preserves duration)
-  - Navigation: prev/next month/week, "Today" button
-  - "+N more" in month view expands the week row to show all tasks (click again to collapse)
-  - Task creation via hover "+" button (bottom-left of each day cell), not click-on-day
-  - Keyboard shortcut: `3` key
-- **Dashboard view** — KPIs and charts (replaced Table view)
+- Re-introduce `darkMode` state or `dark:` Tailwind classes (removed in V3.0)
+- Use CDN or UMD imports for React/Vite — ES Modules only
+- Trigger auto-save during drag/resize (`isDragging`/`isResizing` flags must block saves)
+- Use `Date.now() + Math.random()` for IDs
+- Default-import from `config.js`
 
-## Known Patterns & Pitfalls
+---
 
-### TimelineView — Critical Declaration Order (TDZ)
-- `colWidth` must be declared **BEFORE** any `useCallback` that references it in its dependency array
-- React evaluates `useCallback` dependency arrays during render — if a `const` is declared after the `useCallback`, it triggers a Temporal Dead Zone (TDZ) error
-- Current correct order in TimelineView.jsx: `colWidth` (line ~29) → `getCenterDate` → `scrollToDate` → helper functions → handlers
-- Same principle applies to `getTaskPosition`, `calculateSwimLanes`, `dateToPixel`, `pixelToDate` — all must be declared before handlers that use them
+## Trello Integration
 
-### Timeline Drag & Drop
-Complex system with multiple solved issues:
-- Swim lane assignment uses sort-by-date + frozen lane order during resize
-- Ghost preview element follows cursor with `position: fixed`
-- Drop preview line shows destination with opacity
-- `body.task-dragging` class disables pointer events on non-dragged bars
-- Lane freezing prevents jumps during resize operations
-- Shared `dateToPixel` / `pixelToDate` utilities used across all timeline handlers — do not inline these
+- **Proxy**: `api/trello.js` keeps `TRELLO_API_KEY` + `TRELLO_TOKEN` server-side
+- **Import wizard**: `TrelloImportModal.jsx` — boards → label mapping → preview → import
+- **Sync**: bidirectional, "last write wins" (`dateLastActivity` vs `trelloLastModified`), polling every 1–10 min
+- **Auth**: Trello OAuth via popup (`callback_method=postMessage`) — no return_url needed
+- **Archived cards**: fetched with `filter=all`; `card.closed` → `trelloArchived=true` + `status='paused'`
 
-### Supabase Realtime Loop Prevention
-- Auto-save and Realtime subscription can create infinite loops
-- Solution: skip saving when change originated from Realtime (use a flag/ref)
-- Specifically: `isReceivingRealtimeRef` — set to `true` when handling a Realtime event, auto-save checks this flag and skips if true, resets after 2s via `setTimeout`
-- **Realtime syncMode protection**: Incoming Realtime data is merged intelligently — if the local board has `trelloSync.syncMode` set but the incoming payload doesn't, the local value is preserved. Prevents card-as-action mode from being lost by stale Realtime events from other tabs/clients.
-- **Post-sync Supabase refresh**: After Trello sync completes, a light fetch from Supabase runs after 4s to recover any Realtime events that were ignored during the sync.
+### Sync modes (per board: `trelloSync.syncMode`)
 
-### Race Conditions & Stale Closures
-- Rapid edits can cause state reversion — debounce saves (2s)
-- SHA conflicts on GitHub backend — always use latest SHA for PUT
-- **Stale closure bug (resolved)**: `saveToSupabase()` / `saveToGitHub()` used to capture stale state. Fixed by using refs (`categoriesRef`, `actionsRef`, `tasksRef`) that are updated synchronously before each save call
-- **Do not trigger auto-save during drag/resize** — intermediate state must not be persisted; disable auto-save while `isDragging` or `isResizing` flags are true
+| Mode | Cards map to | Checklist items map to |
+|---|---|---|
+| `card-as-task` (default) | Tasks | — |
+| `card-as-action` | Actions | Tasks |
 
-### GitHub API — SHA Conflicts (resolved)
-- Error 422 `sha wasn't supplied` or `does not match` means the local SHA is stale
-- Solution: always fetch the latest SHA from GitHub before a PUT; implement automatic conflict resolution (re-fetch on 409 / sha-mismatch errors)
+**Guard**: never delete Trello checklists from a task that has no local checklists (`localChecklistIds.size === 0`).
 
-### UTF-8 Encoding (resolved)
-- French characters (accents, œ, etc.) were corrupted when saving/loading via GitHub API
-- Solution: explicitly encode/decode as UTF-8 in both the load and save functions in `api/github.js`
+### Sync robustness
 
-### CSS / PostCSS
-- `@import url(...)` statements **must** precede `@tailwind` directives in `src/styles/index.css` (PostCSS requirement)
-- Design system CSS custom properties defined in `:root` (colors, spacing, radii, shadows)
-- Class prefix: `v11-` for design system components
-- Inline `style={{}}` props for dynamic colors (e.g. category colors) are acceptable and intentional
+- **Sync lock**: module-level `syncInProgress` flag + 60s auto-timeout in `trelloSync.js`
+- **Pre-sync snapshot**: board saved to `localStorage('trello_sync_snapshot')` before each sync; auto-restored on failure (24h validity)
+- **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors — backoff 1s, 2s, 4s
+- **Post-sync**: `validateBoardIntegrity()` checks orphan refs + duplicate IDs. Light Supabase fetch 4s after sync to recover ignored Realtime events.
 
-### Kanban Country View
-- Reorder between cards in country view uses local reorder logic in KanbanView (not App.jsx's `handleReorderTask`)
-- `handleReorderTask` in App.jsx groups by month/status — doesn't support country grouping
-- Country drag replaces the task's country array (not appends)
+---
 
-### Kanban Draggable Columns
-- Category and country views support column drag-and-drop reordering
-- Column order persisted to localStorage (`kanban_category_order`, `kanban_country_order`)
-- Card drag vs column drag: `onDragStart` in `.kanban-cards` calls `e.stopPropagation()` to prevent column drag when dragging cards
-- `_unassigned` column (country view) is not draggable
+## Known Pitfalls
 
-### Header — Board Name Display
-- Header shows current board name directly (ClickUp-style) instead of "Marketing Tracker / MIGSO-PCUBED"
-- BoardSelector button includes M logo + board name + chevron dropdown
-- Dropdown shows all boards with task count and settings gear
+### Supabase Realtime infinite loop
+`isReceivingRealtimeRef` flag — set `true` when handling Realtime event; auto-save skips if true; resets after 2s. Preserve local `trelloSync.syncMode` when merging incoming Realtime data (incoming may be stale).
 
-### NewTaskModal — Inline Action Creation
-- "Create a new action" link below action dropdown opens inline form
-- Inline form: action name + category select → creates action immediately
-- `onCreateAction` callback accepts either a new action object (inline) or no args (opens NewActionModal)
+### Stale closures in save functions
+`boardDataRef` updated synchronously before each save. Do not capture state directly in save callbacks.
 
-### NewActionModal — Inline Category Creation
-- "Create a new category" link below category dropdown opens inline form
-- Inline form: category name → creates category immediately and auto-selects it
-- `onAddCategory` prop passed from App.jsx (uses `handleAddCategory`)
+### TimelineView — TDZ (Temporal Dead Zone)
+`colWidth` must be declared **before** any `useCallback` that references it. Same for `getTaskPosition`, `calculateSwimLanes`, `dateToPixel`, `pixelToDate`. Current order in `TimelineView.jsx`: `colWidth` (~line 29) → `getCenterDate` → `scrollToDate` → helpers → handlers.
 
-### Unified Task Creation Modal
-- All entry points (Kanban "+", Timeline "+", Calendar "+", header button, keyboard shortcut) open `NewTaskModal`
-- `NewTaskModal` accepts `initialValues` prop for pre-populated fields (actionId, startDate, dueDate, countries)
-- Replaces multiple inline task creation flows with a single unified modal
+### GitHub SHA conflicts
+Always fetch latest SHA before PUT. Auto-resolve on 409/sha-mismatch: re-fetch then retry.
 
-### Modal Visual Hierarchy
-- **Section containers**: Details, Tags & People, Description, Checklists, Comments, Attachments — each in a rounded-xl bordered card
-- **Description**: Wrapped in bordered inner container with WYSIWYG toolbar (contentEditable + markdown conversion)
-- **Comments**: Markdown-rendered with `SimpleMarkdown`, formatting toolbar for new comments, file attachment support
-- **Consistent tag buttons**: Channel Tags, Country Tags, Other Labels all use identical solid pill-style add buttons
-- **Members section**: Always shown on Trello-connected boards (`isTrelloBoard` prop)
+### UTF-8 on GitHub API
+Explicitly encode/decode UTF-8 in `api/github.js` load and save functions.
 
-### beforeunload Save Protection
-- `beforeunload` handler flushes pending auto-save debounce
-- Synchronous localStorage save as fallback (guaranteed to complete before unload)
-- **No sendBeacon** — removed (endpoint never existed). localStorage sync save is sufficient.
+### Kanban country view reorder
+Uses local reorder logic in `KanbanView` — not `App.jsx`'s `handleReorderTask` (which groups by month/status only).
 
-### Trello Sync
-- `api/trello.js` keeps `TRELLO_API_KEY` and `TRELLO_TOKEN` server-side (same pattern as `api/github.js`)
-- Import wizard: TrelloImportModal.jsx — boards → label mapping → preview → import
-- Label mapping is configurable at import: each label can be mapped to Action, Channel, or Ignore
-- Sync uses "last write wins" based on `card.dateLastActivity` vs `task.trelloLastModified`
-- New cards on Trello → create tasks locally; new tasks locally → create cards on Trello
-- Deleted cards on Trello → task status set to "paused" (no auto-delete)
-- Polling lifecycle managed in App.jsx via `trelloSyncIntervalRef` — starts/stops when board changes or sync settings change
-- `trelloSyncStatus` state: 'idle' | 'syncing' | 'synced' | 'error'
-- Trello API rate limit: 100 requests per 10 seconds per token — polling intervals respect this
-- **Named checklists**: `task.checklists` = `[{id, name, trelloChecklistId, items: [{id, text, done, due, assignee, trelloCheckItemId}]}]` — old `task.checklist` auto-migrated via `normalizeTaskChecklists()`
-- **Checklist item metadata**: Each item supports `due` (ISO date), `assignee` (member ID), `trelloCheckItemId` (for Trello sync)
-- **Checklist rename**: Click checklist name or item text to inline-edit (Enter to save, Escape to cancel)
-- **Checklist reorder**: Drag handles (⋮⋮) on checklists and items; positions synced to Trello via `pos` field
-- **Checklist item member/date picker**: Inline avatar + date badges on each item with dropdown pickers
-- **Per-user token**: `X-Trello-Token` header; server uses it over env `TRELLO_TOKEN` when present
-- **OAuth**: popup flow using `callback_method=postMessage` (no return_url needed) → validate via `/api/trello?action=me`
-- **Label remap**: `TrelloImportModal` supports `mappingOnly` prop to skip board selection and show mapping step directly
-- **Sync merge strategy**: Merge-by-Trello-ID for comments, checklists, attachments (preserves local-only items, avoids duplicates)
-- **Checklist item sync**: `trelloCheckItemId` used for stable ID-based matching (not name); `due`, `assignee`, `pos` synced bidirectionally
-- **Checklist deletion sync**: Checklists/items deleted on Trello are removed locally during push (not recreated); `pushTaskExtrasToTrello` returns `deletedChecklistIds`. **Guard**: deletion only triggers if task has local checklists (`localChecklistIds.size > 0`) — tasks with no checklists never delete Trello checklists
-- **Position sync**: Checklist and item order synced via Trello `pos` field; sorted by `pos` on pull; items always push positions to Trello
-- **Sync ID tracking**: Push functions capture `trelloCommentId`, `trelloChecklistId`, `trelloAttachmentId` from API responses
-- **Comment deduplication**: Before pushing, checks if identical text exists on Trello to prevent duplicates
-- **Sync lock with timeout**: Module-level `syncInProgress` flag + `syncStartedAt` timestamp in `trelloSync.js`. If lock held > 60s (API hang), auto-resets with warning. App.jsx also checks `trelloSyncStatus === 'syncing'` before calling.
-- **Pre-sync snapshot**: Before each Trello sync, `currentBoard` is saved to `localStorage('trello_sync_snapshot')`. On sync failure, board is auto-restored from snapshot (valid 24h). Prevents data corruption from partial/failed syncs.
-- **Retry with backoff**: `trelloFetch` in `src/lib/trello.js` retries up to 3× on 429 (rate limit), 502/503/504 (server errors), and network errors (TypeError). Backoff: 1s, 2s, 4s. Respects `Retry-After` header on 429.
-- **Detailed error tracking**: Sync result includes `errorDetails: [{name, op, error}]`. App.jsx displays failed item names in notification: `"⚠️ 3 synced, 2 failed (Task A, Task B)"`.
-- **Post-sync integrity check**: `validateBoardIntegrity(board)` runs after every sync — checks orphan task→action refs, orphan action→category refs, duplicate `trelloCardId`/`trelloCheckItemId`, missing `syncMode`. Logs warnings to console.
-- **Card-as-action task guard**: In card-as-task sync path, tasks with `trelloCheckItemId`, `trelloChecklistName`, or `trelloChecklistId` are skipped — they belong to card-as-action mode. Prevents accidental processing if `syncMode` is lost/corrupted.
-- **Comment attachment sync**: Comment attachments uploaded as card-level attachments (Trello API limitation: no per-comment attachments)
-- **Archived cards**: `api/trello.js` fetches cards with `filter=all`; `card.closed` maps to `task.trelloArchived=true` + `status='paused'`; FilterSidebar has "Show archived" toggle (default off)
-- **Member push**: `mapTaskToTrelloCardUpdate()` includes `idMembers` — bidirectional member sync
-- **Enhanced Markdown**: `SimpleMarkdown` supports headings, blockquotes, fenced code blocks, ordered/unordered lists, strikethrough, hr
-- **Members UI**: Trello-style — assigned members as avatars + "+" button dropdown to add more
-- **Card-as-Action sync mode**: Per-board `trelloSync.syncMode` (`'card-as-task'` default or `'card-as-action'`). In `card-as-action` mode:
-  - Lists → Categories, Cards → Actions (`action.trelloCardId`), Checklist Items → Tasks (`task.trelloCheckItemId` + `task.trelloChecklistId`)
-  - Labels map to channels/countries/other only (no "Action" option)
-  - Tasks inherit dates from parent card if checklist item has no `due`
-  - Bidirectional sync: task title/status/due/assignee ↔ checklist item name/state/due/idMember
-  - New mapping functions: `mapTrelloCardToAction`, `mapTrelloCheckItemToTask`, `buildImportDataCardAsAction`, `mergeCardIntoAction`, `mergeCheckItemIntoTask`, `mapTaskToCheckItemUpdate`, `mapActionToTrelloCardUpdate`
-  - Sync function: `syncWithTrelloCardAsAction` (branched from `syncWithTrello`)
-  - Import wizard: mode selector step between board selection and label mapping
+### Kanban column drag vs card drag
+`onDragStart` inside `.kanban-cards` calls `e.stopPropagation()` — prevents column drag when dragging a card.
 
-### Authentication
-- **Auth gate**: `AuthGate.jsx` — shown before app loads if not authenticated
-- Two access modes: Trello OAuth login or guest password
-- Guest password verified via `api/auth.js` against `GUEST_PASSWORD` env var
-- Trello login sets `localStorage('trello_user_token')`, guest sets `sessionStorage('guest_auth')`
-- `sessionStorage` means guest auth expires when browser tab closes
-- `robots.txt` + `<meta name="robots" content="noindex, nofollow">` block search engine crawling
+---
 
-### localStorage as Backup Only
-- `localStorage` is a **backup only**, not a primary storage layer
-- Load order: Supabase → GitHub → localStorage
-- Write order: Supabase (primary) + localStorage (parallel fallback)
-- GitHub polling every 15s was replaced by Supabase Realtime — do not re-add polling if Supabase is active
-- **Snapshot ring buffer**: 3 rotating snapshots (`mkt_snapshot_0/1/2`) saved on each successful auto-save. Trigger recorded (`auto-save`, `pre-sync`, `manual`). Auto-cleaned after 48h. Restorable via `restoreSnapshot(index)`.
-- **Offline mode**: When `navigator.onLine === false`, all saves go to localStorage only (skip Supabase/GitHub). Yellow banner displayed. On reconnect, `saveData()` called to push local changes.
+## Authentication
+
+- `AuthGate.jsx` — shown before app loads
+- Two modes: Trello OAuth login OR guest password (`GUEST_PASSWORD` env var via `api/auth.js`)
+- Trello token → `localStorage('trello_user_token')` | Guest → `sessionStorage('guest_auth')` (expires on tab close)
+- `robots.txt` + `<meta noindex>` block search engine crawling
+- **Guest + Trello board**: read-only mode (no pushes to Trello)
+
+---
 
 ## Roadmap
 
-1. ~~**Vite migration**~~ — ✅ DONE (Phase 0). Monolith `index.html` → Vite + modular React
-2. ~~**Multi-board**~~ — ✅ DONE (Phase 1). Board selector, create/switch/rename/duplicate/delete boards.
-3. ~~**Trello integration**~~ — ✅ DONE (Phase 2). Import Trello boards, configurable label mapping (Action/Channel/Ignore), bidirectional sync with auto-polling
-4. ~~**Auth + UI improvements**~~ — ✅ DONE (Phase 3). Trello OAuth, auth gate (guest password), sync robustness, enhanced Markdown, Trello-style members UI
-5. **File attachments** — `attachments: []` field exists on tasks, but no upload UI yet
-
-## Deployment
-
-### Vercel
-- Auto-deploys on push to `main`
-- **Build**: `npm run build` → output in `dist/` (configured in `vercel.json`)
-- Serverless functions in `api/` directory
-- Environment variables: `GITHUB_TOKEN` (required for GitHub backend), `ALLOWED_ORIGIN` (optional, restricts CORS — defaults to `*`)
-- Config: `vercel.json` — `buildCommand: "npm run build"`, `outputDirectory: "dist"`, 1024MB memory, 10s max duration for functions
-
-### Supabase
-- External service — credentials configured in `src/config.js`
-- `SUPABASE_URL` and `SUPABASE_ANON_KEY` set in the frontend code
-- Table: `app_data` — schema in `supabase-setup.sql`
-- The `anon` key is **intentionally public** — it's designed for client-side use; RLS policies enforce access control
-
-## Git Workflow
-
-- **Main branch**: `main` — production, auto-deployed
-- **Feature branches**: `claude/multi-board-trello-setup-FSIH8` (current working branch)
-- Commits are descriptive, in English, prefixed with action (Fix, Add, Improve, etc.)
-
-## Decisions Log
-
-| Date | Decision | Context |
-|------|----------|---------|
-| 2026-02 | Single index.html architecture | Simplicity, no build step, CDN-loaded deps |
-| 2026-02 | Supabase as primary storage | Real-time sync needed for multi-device |
-| 2026-02 | GitHub API as fallback storage | Original storage, kept for resilience |
-| 2026-02 | Vercel serverless for GitHub proxy | Keep GITHUB_TOKEN server-side |
-| 2026-02 | UI translated to English | International team accessibility |
-| 2026-03 | Timeline swim lane freezing | Prevent visual jumps during drag/resize |
-| 2026-03 | Dark mode removed (V3.0) | V11 design system migration — cleaner single-theme CSS |
-| 2026-03 | GitHub org migration | Moved from FbnCrr/Dashboard-marketing → migso-pcubed-mkt-com/Marketing-Dashboard |
-| 2026-03 | Refs for save closures | Stale closure bug fix — categoriesRef/actionsRef/tasksRef updated before each save |
-| 2026-03 | isReceivingRealtimeRef flag | Prevent infinite loop between Supabase Realtime and auto-save |
-| 2026-03 | CLAUDE.md created | Persistent memory across Claude Code sessions |
-| 2026-03 | Vite migration (Phase 0) | Monolith index.html → Vite + modular React components |
-| 2026-03 | Kanban "By Country" view | 5th view mode, all 16 countries as columns |
-| 2026-03 | South East Asia + Global | Fixed SEA country tag, added Global/World country |
-| 2026-03 | Named exports in config.js | `import { CONFIG } from` — no default export |
-| 2026-03 | Multi-board (Phase 1) | v2 data format with boards array, BoardSelector, BoardSettingsModal |
-| 2026-03 | board_data Supabase column | New JSONB column for v2 format, legacy columns kept for backward compat |
-| 2026-03 | Header shows board name | ClickUp-style: board name + dropdown replaces "Marketing Tracker" |
-| 2026-03 | Inline action creation | NewTaskModal can create actions inline without switching modals |
-| 2026-03 | Global/World country first | Moved to top of CONFIG.COUNTRIES array |
-| 2026-03 | Draggable Kanban columns | Category and country views support column reordering (localStorage) |
-| 2026-03 | Calendar view added | Month/week modes, drag-to-reschedule, ClickUp-inspired design |
-| 2026-03 | Calendar bar layout system | Shared `computeWeekBars()` for both month/week; week bars taller with detail |
-| 2026-03 | Calendar hover + button | Replaced click-on-day task creation with ClickUp-style hover add button |
-| 2026-03 | Calendar +N more expand | "+N more" expands week row instead of creating new task |
-| 2026-03 | Consistent bar colors | All calendar bars use category color gradient — no more white vs colored distinction |
-| 2026-03 | Inline category creation | NewActionModal can create categories inline (like NewTaskModal creates actions) |
-| 2026-03 | Trello integration (Phase 2) | api/trello.js serverless proxy, import wizard, bidirectional sync |
-| 2026-03 | Trello List → Category mapping | Lists map to Categories (not statuses), configurable label mapping |
-| 2026-03 | Trello sync polling | Auto-polling every 1-10min, last write wins, manual sync button |
-| 2026-03 | Trello sync metadata | trelloCardId/trelloLastModified on tasks, trelloListId on categories, trelloLabelId on actions |
-| 2026-03 | Named checklists | task.checklists replaces task.checklist — named groups with per-checklist progress |
-| 2026-03 | Markdown description | SimpleMarkdown renderer (React elements, no innerHTML), toggle edit/view mode, auto-resize textarea |
-| 2026-03 | otherLabel + member filters | New filter dimensions in FilterSidebar, filter chips, member KPIs in DashboardView |
-| 2026-03 | Label remap after import | TrelloImportModal mappingOnly mode, "Re-configure Labels" button in BoardSettingsModal |
-| 2026-03 | Trello OAuth login | Per-user token via X-Trello-Token header, popup OAuth flow, avatar in Header |
-| 2026-03 | Assignees → Members | UI label renamed, data field stays `assignees` for backward compat |
-| 2026-03 | OAuth postMessage | Switched from callback_method=fragment to postMessage — no return_url whitelist needed |
-| 2026-03 | Sync merge-by-ID | Comments/checklists/attachments merge by Trello ID, preserving local-only items |
-| 2026-03 | Auth gate | AuthGate.jsx: Trello login or guest password (GUEST_PASSWORD env var) |
-| 2026-03 | robots.txt + noindex | Block search engine crawling of the app |
-| 2026-03 | Enhanced Markdown | Headings, blockquotes, code blocks, ordered lists, strikethrough |
-| 2026-03 | Members UI Trello-style | Assigned avatars + "+" dropdown instead of toggle buttons |
-| 2026-03 | Unified task creation modal | All entry points open NewTaskModal with optional initialValues pre-population |
-| 2026-03 | Modal section containers | Details, Tags & People, Description, Checklists, Comments, Attachments in bordered cards |
-| 2026-03 | WYSIWYG contentEditable | Description and comments use contentEditable + markdown conversion (not textarea) |
-| 2026-03 | Enhanced checklists | Inline rename, drag-reorder, member/date per item, trelloCheckItemId tracking |
-| 2026-03 | Checklist position sync | Checklist and item order synced with Trello via pos field |
-| 2026-03 | Comment markdown + attachments | Comments rendered with SimpleMarkdown, formatting toolbar, file attachments |
-| 2026-03 | beforeunload save flush | Pending saves flushed on tab close (synchronous localStorage only) |
-| 2026-03 | Guest read-only on Trello boards | Full read-only mode when guest visits Trello-linked board (no pushes) |
-| 2026-03 | Checklist deletion sync fix | Checklists with trelloChecklistId not found on Trello skip recreation, removed locally |
-| 2026-03 | Archived Trello cards | filter=all for cards, card.closed → trelloArchived + paused, "Show archived" filter toggle |
-| 2026-03 | Member picker fixed positioning | Checklist item member picker uses position:fixed + getBoundingClientRect to avoid clipping |
-| 2026-03 | Comment dedup on push | Prevent duplicate comments by checking text match before pushing |
-| 2026-03 | Comment drag & drop attachments | Comment area supports drag & drop + toolbar paperclip button for file attachments |
-| 2026-03 | Card-as-Action sync mode | Per-board import choice: Cards→Actions + ChecklistItems→Tasks or Cards→Tasks (default). `trelloSync.syncMode: 'card-as-task' \| 'card-as-action'` |
-| 2026-03 | Member picker React Portal | Checklist item member picker uses ReactDOM.createPortal to escape modal stacking context |
-| 2026-03 | Parallel position sync | Checklist/item position updates use Promise.all instead of sequential awaits |
-| 2026-03 | Comment attachments to task PJ | Comment attachments also added to task.attachments list + prefer att.url over att.data for links |
-| 2026-03 | Sync lock | Module-level `syncInProgress` flag prevents concurrent sync operations — avoids race conditions |
-| 2026-03 | Card-as-action task guard | Card-as-task path skips tasks with trelloCheckItemId/trelloChecklistName — prevents checklist deletion if syncMode lost |
-| 2026-03 | Checklist deletion guard | `pushTaskExtrasToTrello` only deletes checklists when task has local checklists (size > 0) — prevents wiping card-as-action data |
-| 2026-03 | Sync lock timeout (60s) | Auto-reset stale `syncInProgress` lock if Trello API hangs > 60s — prevents permanent sync blockage |
-| 2026-03 | Pre-sync snapshot | Save board to `localStorage('trello_sync_snapshot')` before each Trello sync; auto-restore on failure (24h validity) |
-| 2026-03 | Realtime syncMode protection | Incoming Realtime data merged intelligently — preserve local `trelloSync.syncMode` if incoming is missing it |
-| 2026-03 | Trello retry backoff | `trelloFetch` retries 3× on 429/502-504/network errors with exponential backoff (1s, 2s, 4s) |
-| 2026-03 | Detailed sync error tracking | `result.errorDetails` collects per-item `{name, op, error}` — shown in notification with failed item names |
-| 2026-03 | Post-sync integrity check | `validateBoardIntegrity()` checks orphan refs, duplicate IDs, missing syncMode after every sync |
-| 2026-03 | Post-sync Supabase refresh | Light `loadFromSupabase()` 4s after sync to recover Realtime events ignored during sync |
-| 2026-03 | Snapshot ring buffer | 3 rotating snapshots in localStorage (`mkt_snapshot_0/1/2`), saved on auto-save, 48h auto-cleanup |
-| 2026-03 | Offline mode | `navigator.onLine` detection, yellow banner, localStorage-only saves, auto-resync on reconnect |
-| 2026-03 | Remove sendBeacon | Dead code removed — `/api/save-beacon` endpoint never existed; localStorage sync is sufficient |
-| 2026-03 | CORS restriction | `ALLOWED_ORIGIN` env var on `api/trello.js` and `api/github.js` — replaces `Access-Control-Allow-Origin: *` |
-| 2026-03 | crypto.randomUUID for IDs | Replace `Date.now()+Math.random()` with `crypto.randomUUID()` in genId — collision-free entity IDs |
+- ✅ Phase 0 — Vite migration
+- ✅ Phase 1 — Multi-board
+- ✅ Phase 2 — Trello integration
+- ✅ Phase 3 — Auth + UI improvements
+- 🔲 Phase 4 — File attachments (`attachments: []` field exists, no upload UI yet)
