@@ -49,10 +49,14 @@ export const mapTrelloLabelToAction = (label, categoryId) => ({
 // Tries to match label name to existing channels
 export const matchLabelToChannel = (label) => {
     if (!label.name) return null;
-    const name = label.name.toLowerCase();
-    const channel = CONFIG.CHANNELS.find(c =>
-        name.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(name)
-    );
+    const name = label.name.toLowerCase().trim();
+    const channel = CONFIG.CHANNELS.find(c => {
+        const cName = c.name.toLowerCase();
+        // Short channel names (<=3 chars like "IA", "AI"): exact match only
+        if (cName.length <= 3) return name === cName;
+        // Longer names: substring match
+        return name.includes(cName) || cName.includes(name);
+    });
     return channel ? channel.id : null;
 };
 
@@ -334,6 +338,34 @@ export const mapTrelloCardToAction = (card, categoryId, mappingConfig) => {
             }
         }
     }
+    // Map Trello comments
+    const comments = [];
+    if (card.comments) {
+        for (const comment of card.comments) {
+            comments.push({
+                id: genId('cm'),
+                author: comment.memberCreator?.fullName || comment.memberCreator?.username || 'Unknown',
+                text: comment.data?.text || '',
+                date: comment.date,
+                trelloCommentId: comment.id
+            });
+        }
+    }
+    // Map Trello attachments
+    const attachments = [];
+    if (card.attachments) {
+        for (const att of card.attachments) {
+            attachments.push({
+                id: genId('att'),
+                name: att.name,
+                url: att.url,
+                mimeType: att.mimeType || '',
+                date: att.date,
+                trelloAttachmentId: att.id
+            });
+        }
+    }
+
     return {
         id: genId('act'),
         name: card.name,
@@ -347,8 +379,8 @@ export const mapTrelloCardToAction = (card, categoryId, mappingConfig) => {
         startDate: card.start ? card.start.split('T')[0] : null,
         dueDate: card.due ? card.due.split('T')[0] : null,
         description: card.desc || '',
-        comments: [],
-        attachments: [],
+        comments,
+        attachments,
         trelloCardId: card.id,
         trelloLastModified: card.dateLastActivity,
         // Store inherited label data so tasks can inherit them

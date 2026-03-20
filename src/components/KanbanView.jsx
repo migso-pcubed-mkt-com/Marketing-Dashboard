@@ -80,10 +80,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         const getTaskMonth=(t)=>{
             const refDate=t.startDate||t.dueDate;
             if(!refDate)return t.month!=null?t.month:0;
-            const sy=new Date(refDate).getFullYear();
+            // Parse as local time to avoid UTC month shift
+            const d=new Date(refDate+'T00:00:00');
+            const sy=d.getFullYear();
             if(sy<selectedYear)return 0;
             if(sy>selectedYear)return 11;
-            return new Date(refDate).getMonth();
+            return d.getMonth();
         };
         if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:sortItems(filteredTasks.filter(t=>getTaskMonth(t)===idx))}));
         if(viewMode==='quarter'){
@@ -280,15 +282,15 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     if(taskId){
                                         const monthIdx=col.key;
                                         const year=Number(selectedYear)||new Date().getFullYear();
-                                        const task=filteredTasks.find(t=>t.id===taskId);
-                                        // Preserve task duration when moving between months
-                                        const oldStart=task?.startDate?new Date(task.startDate):null;
-                                        const oldEnd=task?.dueDate?new Date(task.dueDate):null;
-                                        const durationDays=(oldStart&&oldEnd)?Math.round((oldEnd-oldStart)/(1000*60*60*24)):0;
-                                        const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-01';
-                                        const startD=new Date(year,monthIdx,1);
-                                        const endD=durationDays>0?new Date(startD.getTime()+durationDays*86400000):new Date(year,monthIdx+1,0);
-                                        const dueDate=endD.getFullYear()+'-'+String(endD.getMonth()+1).padStart(2,'0')+'-'+String(endD.getDate()).padStart(2,'0');
+                                        const task=tasks.find(t=>t.id===taskId);
+                                        // Preserve day-of-month, clamped to target month's last day
+                                        const oldStart=task?.startDate?new Date(task.startDate+'T00:00:00'):null;
+                                        const oldEnd=task?.dueDate?new Date(task.dueDate+'T00:00:00'):null;
+                                        const lastDay=new Date(year,monthIdx+1,0).getDate();
+                                        const startDay=oldStart?Math.min(oldStart.getDate(),lastDay):1;
+                                        const endDay=oldEnd?Math.min(oldEnd.getDate(),lastDay):lastDay;
+                                        const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(startDay).padStart(2,'0');
+                                        const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(endDay).padStart(2,'0');
                                         // Always set startDate so getTaskMonth anchors correctly (fixes null-date tasks from Trello)
                                         onUpdateTask(taskId,{startDate,dueDate,month:monthIdx});
                                     }

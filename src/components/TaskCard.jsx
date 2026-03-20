@@ -45,14 +45,19 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
     };
 
     const handleDragLeave = (e) => {
+        if (!onReorderTask) return;
         e.stopPropagation();
         setDragOverPosition(null);
     };
 
     const handleDrop = (e) => {
         e.preventDefault();
+        if (!onReorderTask || !dragOverPosition) {
+            // Let the event bubble up to the column handler
+            setDragOverPosition(null);
+            return;
+        }
         e.stopPropagation();
-        if (!onReorderTask || !dragOverPosition) return;
         const draggedId = e.dataTransfer.getData('taskId');
         if (draggedId && draggedId !== task.id) {
             onReorderTask(draggedId, task.id, dragOverPosition);

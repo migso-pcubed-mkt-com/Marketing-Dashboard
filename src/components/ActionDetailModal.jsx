@@ -220,12 +220,26 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         setDragGroupName(groupName);
     };
     const handleGroupDragOver=(e,groupName)=>{
-        if(!dragGroupName)return;
+        if(!dragGroupName&&!dragTaskId)return;
         e.preventDefault();
         setDragOverGroup(groupName);
     };
     const handleGroupDrop=(e,targetGroupName)=>{
         e.preventDefault();
+        // Handle task dropped on group area (move task to this group)
+        if(dragTaskId&&!dragGroupName){
+            const srcTask=actionTasks.find(t=>t.id===dragTaskId);
+            if(srcTask){
+                const currentGroup=srcTask.trelloChecklistName||'Tasks';
+                if(currentGroup!==targetGroupName){
+                    onUpdateTask(dragTaskId,{trelloChecklistName:targetGroupName});
+                }
+            }
+            setDragTaskId(null);
+            setDragOverTaskId(null);
+            setDragOverTaskPos(null);
+            return;
+        }
         if(dragGroupName&&dragGroupName!==targetGroupName&&taskGroups.length>1){
             // Reorder groups by reordering tasks' order field
             const srcIdx=taskGroups.findIndex(g=>g.name===dragGroupName);
