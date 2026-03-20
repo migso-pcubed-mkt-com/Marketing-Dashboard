@@ -854,30 +854,36 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     // 5b. Sync list positions bidirectionally
     const updatedCategories = [...board.categories];
     const trelloLists = lists.filter(l => !l.closed).sort((a, b) => a.pos - b.pos);
-    if (!readOnly) {
-        for (let i = 0; i < updatedCategories.length; i++) {
-            const cat = updatedCategories[i];
-            if (!cat.trelloListId) continue;
-            const trelloList = trelloLists.find(l => l.id === cat.trelloListId);
-            if (!trelloList) continue;
-            // Pull: update local order from Trello pos
-            updatedCategories[i] = { ...cat, trelloListPos: trelloList.pos, order: trelloLists.indexOf(trelloList) };
-        }
-        // Push local order → Trello pos for categories that have been reordered locally
-        const posUpdates = [];
-        for (const cat of updatedCategories) {
-            if (!cat.trelloListId) continue;
-            const expectedPos = (cat.order + 1) * 16384;
-            const trelloList = trelloLists.find(l => l.id === cat.trelloListId);
-            if (trelloList && Math.abs(trelloList.pos - expectedPos) > 100) {
-                posUpdates.push(updateTrelloList(cat.trelloListId, { pos: expectedPos }));
+    for (let i = 0; i < updatedCategories.length; i++) {
+        const cat = updatedCategories[i];
+        if (!cat.trelloListId) continue;
+        const trelloList = trelloLists.find(l => l.id === cat.trelloListId);
+        if (!trelloList) continue;
+        const catUpdatedAt = new Date(cat.updatedAt || 0).getTime();
+        const catSyncTime = new Date(cat.trelloLastModified || 0).getTime();
+        const catLocallyModified = catUpdatedAt > catSyncTime;
+        const trelloSortedIdx = trelloLists.indexOf(trelloList);
+        if (catLocallyModified && !readOnly) {
+            // Push local order to Trello
+            if (cat.order !== undefined) {
+                const expectedPos = (cat.order + 1) * 16384;
+                if (Math.abs((trelloList.pos || 0) - expectedPos) > 100) {
+                    try {
+                        await updateTrelloList(cat.trelloListId, { pos: String(expectedPos) });
+                        updatedCategories[i] = { ...cat, trelloListPos: expectedPos, trelloLastModified: new Date().toISOString() };
+                    } catch (e) {
+                        console.warn('List position push error:', e);
+                    }
+                }
+            }
+        } else {
+            // Pull from Trello
+            if (cat.trelloListPos !== trelloList.pos || cat.order !== trelloSortedIdx) {
+                updatedCategories[i] = { ...cat, trelloListPos: trelloList.pos, order: trelloSortedIdx, trelloLastModified: new Date().toISOString() };
             }
         }
-        if (posUpdates.length > 0) {
-            await Promise.all(posUpdates).catch(err => console.warn('List position sync error:', err));
-        }
-        updatedCategories.sort((a, b) => (a.trelloListPos || 0) - (b.trelloListPos || 0));
     }
+    updatedCategories.sort((a, b) => (a.trelloListPos || 0) - (b.trelloListPos || 0));
 
     // 6. Build updated board
     const syncedBoard = {
@@ -960,9 +966,12 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 result.errorDetails.push({ name: cat.name, op: 'push list', error: e.message });
             }
         } else {
-            // Pull from Trello
-            if (cat.name !== list.name || (list.pos && cat.trelloListPos !== list.pos)) {
-                updatedCategories[i] = { ...cat, name: list.name, trelloListPos: list.pos, order: i, trelloLastModified: new Date().toISOString() };
+            // Pull from Trello — use Trello list's sorted position, not loop index
+            const sortedLists = [...lists].filter(l => !l.closed).sort((a, b) => a.pos - b.pos);
+            const trelloSortedIdx = sortedLists.findIndex(l => l.id === cat.trelloListId);
+            const trelloOrder = trelloSortedIdx >= 0 ? trelloSortedIdx : i;
+            if (cat.name !== list.name || (list.pos && cat.trelloListPos !== list.pos) || cat.order !== trelloOrder) {
+                updatedCategories[i] = { ...cat, name: list.name, trelloListPos: list.pos, order: trelloOrder, trelloLastModified: new Date().toISOString() };
                 result.updated++;
             }
         }
@@ -1267,11 +1276,23 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             }
         }
 
-        // New checklist items on Trello → create local tasks
+        // New checklist items on Trello → create local tasks (with dedup guard)
         for (const [itemId, { item, checklistId, checklistName }] of trelloItems) {
-            const newTask = mapTrelloCheckItemToTask(item, action.id, card, checklistId, checklistName, mappingConfig);
-            newTasks.push(newTask);
-            result.created++;
+            // Check for existing local task with same title under this action that lost its trelloCheckItemId
+            const existingTask = updatedTasks.find(t =>
+                t.actionId === action.id && !t.trelloCheckItemId &&
+                t.title === item.name && (t.trelloChecklistName || 'Tasks') === checklistName
+            );
+            if (existingTask) {
+                // Re-link existing task instead of creating duplicate
+                const idx = updatedTasks.indexOf(existingTask);
+                updatedTasks[idx] = { ...existingTask, trelloCheckItemId: itemId, trelloChecklistId: checklistId, trelloChecklistName: checklistName, trelloCardId: card.id, trelloLastModified: new Date().toISOString() };
+                result.updated++;
+            } else {
+                const newTask = mapTrelloCheckItemToTask(item, action.id, card, checklistId, checklistName, mappingConfig);
+                newTasks.push(newTask);
+                result.created++;
+            }
         }
     }
 

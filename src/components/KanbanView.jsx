@@ -57,6 +57,17 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         }
     };
 
+    const getTaskMonth=(t)=>{
+        const refDate=t.startDate||t.dueDate;
+        if(!refDate)return t.month!=null?t.month:0;
+        // Parse as local time to avoid UTC month shift
+        const d=new Date(refDate+'T00:00:00');
+        const sy=d.getFullYear();
+        if(sy<selectedYear)return 0;
+        if(sy>selectedYear)return 11;
+        return d.getMonth();
+    };
+
     const getColumns=()=>{
         const sortItems=(items)=>{
             const sorted=[...items];
@@ -77,16 +88,6 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             return[...sortGroup(notCompleted),...sortGroup(completed)];
         };
 
-        const getTaskMonth=(t)=>{
-            const refDate=t.startDate||t.dueDate;
-            if(!refDate)return t.month!=null?t.month:0;
-            // Parse as local time to avoid UTC month shift
-            const d=new Date(refDate+'T00:00:00');
-            const sy=d.getFullYear();
-            if(sy<selectedYear)return 0;
-            if(sy>selectedYear)return 11;
-            return d.getMonth();
-        };
         if(viewMode==='month')return CONFIG.MONTHS_FULL.map((name,idx)=>({key:idx,name,items:sortItems(filteredTasks.filter(t=>getTaskMonth(t)===idx))}));
         if(viewMode==='quarter'){
             const quarters=[
@@ -205,6 +206,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         if (viewMode === 'category') {
             setCatOrder(newOrder);
             try { localStorage.setItem('kanban_category_order', JSON.stringify(newOrder)); } catch {}
+            // Update actual category order fields so Trello sync picks up the change
+            if (onUpdateCategory) {
+                newOrder.forEach((catId, idx) => {
+                    onUpdateCategory(catId, { order: idx });
+                });
+            }
         } else if (viewMode === 'country') {
             setCountryOrder(newOrder);
             try { localStorage.setItem('kanban_country_order', JSON.stringify(newOrder)); } catch {}

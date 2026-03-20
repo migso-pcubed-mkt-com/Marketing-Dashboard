@@ -213,8 +213,14 @@ Always fetch latest SHA before PUT. Auto-resolve on 409/sha-mismatch: re-fetch t
 ### UTF-8 on GitHub API
 Explicitly encode/decode UTF-8 in `api/github.js` load and save functions.
 
-### Kanban country view reorder
-Uses local reorder logic in `KanbanView` — not `App.jsx`'s `handleReorderTask` (which groups by month/status only).
+### Kanban month/quarter/country view reorder
+Uses inline batch reorder in `KanbanView` via `onBatchUpdateTasks` — not `App.jsx`'s `handleReorderTask`. `getTaskMonth()` is defined at component level (NOT inside `getColumns()`) so it's accessible from the inline handler.
+
+### Batch updates for reorder operations
+Any reorder that affects multiple tasks (kanban cards, action modal groups/tasks) must use `handleBatchUpdateTasks` — a single atomic `setTasks` call. Do NOT use N separate `onUpdateTask` calls in a loop (causes React state batching to lose intermediate updates).
+
+### Category column reorder + Trello sync
+`handleColumnDrop` in KanbanView updates both `catOrder` (localStorage) AND each category's `order` field via `onUpdateCategory`. The `order` field + `updatedAt` timestamp are used by Trello sync to push positions.
 
 ### Kanban column drag vs card drag
 `onDragStart` inside `.kanban-cards` calls `e.stopPropagation()` — prevents column drag when dragging a card.

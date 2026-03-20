@@ -7,7 +7,7 @@ import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
 
-const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask})=>{
+const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onBatchUpdateTasks,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask})=>{
     const { trelloUser } = useApp();
     const[form,setForm]=useState({...action, comments: action.comments || [], attachments: action.attachments || []});
     const[showConfirmDelete,setShowConfirmDelete]=useState(false);
@@ -256,19 +256,22 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
             return;
         }
         if(dragGroupName&&dragGroupName!==targetGroupName&&taskGroups.length>1){
-            // Reorder groups by reordering tasks' order field
+            // Reorder groups by reordering tasks' order field — atomic batch
             const srcIdx=taskGroups.findIndex(g=>g.name===dragGroupName);
             const tgtIdx=taskGroups.findIndex(g=>g.name===targetGroupName);
             if(srcIdx>=0&&tgtIdx>=0){
                 const reordered=[...taskGroups];
                 const [moved]=reordered.splice(srcIdx,1);
                 reordered.splice(tgtIdx,0,moved);
+                const batchUpdates=[];
                 let order=0;
                 for(const group of reordered){
                     for(const task of group.tasks){
-                        onUpdateTask(task.id,{order:order++});
+                        batchUpdates.push({id:task.id,changes:{order:order++}});
                     }
                 }
+                if(onBatchUpdateTasks)onBatchUpdateTasks(batchUpdates);
+                else batchUpdates.forEach(u=>onUpdateTask(u.id,u.changes));
             }
         }
         setDragGroupName(null);
@@ -313,13 +316,12 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         }else{
             groupTasks.push(srcTask);
         }
-        groupTasks.forEach((t,i)=>{
-            if(t.id===dragTaskId){
-                onUpdateTask(t.id,{...updates,order:i});
-            }else{
-                onUpdateTask(t.id,{order:i});
-            }
-        });
+        const batchUpdates=groupTasks.map((t,i)=>({
+            id:t.id,
+            changes:t.id===dragTaskId?{...updates,order:i}:{order:i}
+        }));
+        if(onBatchUpdateTasks)onBatchUpdateTasks(batchUpdates);
+        else batchUpdates.forEach(u=>onUpdateTask(u.id,u.changes));
         setDragTaskId(null);
         setDragOverTaskId(null);
         setDragOverTaskPos(null);
