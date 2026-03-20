@@ -46,21 +46,29 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
 
     const handleDragLeave = (e) => {
         if (!onReorderTask) return;
-        e.stopPropagation();
-        setDragOverPosition(null);
+        // Only clear if actually leaving the card (not moving between children)
+        if (cardRef.current && !cardRef.current.contains(e.relatedTarget)) {
+            e.stopPropagation();
+            setDragOverPosition(null);
+        }
     };
 
     const handleDrop = (e) => {
-        e.preventDefault();
-        if (!onReorderTask || !dragOverPosition) {
-            // Let the event bubble up to the column handler
+        if (!onReorderTask) {
             setDragOverPosition(null);
-            return;
+            return; // Let event bubble to column handler
         }
+        e.preventDefault();
         e.stopPropagation();
+        // Compute position from drop event directly — immune to dragLeave race
+        let pos = dragOverPosition;
+        if (!pos && cardRef.current) {
+            const rect = cardRef.current.getBoundingClientRect();
+            pos = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+        }
         const draggedId = e.dataTransfer.getData('taskId');
-        if (draggedId && draggedId !== task.id) {
-            onReorderTask(draggedId, task.id, dragOverPosition);
+        if (draggedId && draggedId !== task.id && pos) {
+            onReorderTask(draggedId, task.id, pos);
         }
         setDragOverPosition(null);
     };
