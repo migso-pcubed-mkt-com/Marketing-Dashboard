@@ -40,7 +40,9 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
     const cat = categories.find(c => c.id === action.categoryId);
 
     // Collect unique assignees from all tasks of this action
-    const allAssignees = [...new Set(actionTasks.flatMap(t => t.assignees || []))];
+    const actionAssignees = action.assignees || [];
+    const allAssignees = [...new Set([...actionAssignees, ...actionTasks.flatMap(t => t.assignees || [])])];
+    const totalBudget = (action.budget||0) + actionTasks.reduce((s, t) => s + (t.budget || 0), 0);
 
     return (
         <div
@@ -62,19 +64,21 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
                 <div className="action-progress-bar"><div className={`action-progress-fill ${pct >= 70 ? 'high' : pct >= 40 ? 'medium' : 'low'}`} style={{width:`${pct}%`}}/></div>
                 <div className="action-progress-label"><span className="action-task-count"><strong>{completed}</strong>/{actionTasks.length} tasks</span><span className="action-progress-percent">{pct}%</span></div>
             </div>
-            {(action.dueDate || action.startDate || allAssignees.length > 0 || (action.budget||0) + actionTasks.reduce((s, t) => s + (t.budget || 0), 0) > 0) && <div className="card-footer">
+            {(action.dueDate || action.startDate || allAssignees.length > 0 || totalBudget > 0) && <div className="card-footer">
                 {(action.dueDate || action.startDate) && <span className={`card-date ${action.dueDate && new Date(action.dueDate+'T00:00:00') < new Date() && action.status !== 'completed' ? 'overdue' : ''}`}>{action.dueDate ? new Date(action.dueDate+'T00:00:00').toLocaleDateString('en-US',{day:'numeric',month:'short'}) : new Date(action.startDate+'T00:00:00').toLocaleDateString('en-US',{day:'numeric',month:'short'})}</span>}
-                <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto'}}>
-                    {allAssignees.slice(0,4).map((mId,idx) => {
-                        const m = boardMembers.find(mb => mb.id === mId);
-                        if (!m) return null;
-                        return m.avatarUrl
-                            ? <img key={mId} src={m.avatarUrl} alt={m.fullName||''} title={m.fullName||m.username} style={{width:22,height:22,borderRadius:'50%',border:'2px solid var(--bg-primary)',marginLeft:idx>0?-6:0}}/>
-                            : <span key={mId} title={m.fullName||m.username} style={{width:22,height:22,borderRadius:'50%',background:'var(--accent)',color:'white',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,border:'2px solid var(--bg-primary)',marginLeft:idx>0?-6:0}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>;
-                    })}
-                    {allAssignees.length > 4 && <span style={{fontSize:10,color:'var(--text-muted)',marginLeft:4}}>+{allAssignees.length-4}</span>}
+                <div style={{display:'flex',alignItems:'center',gap:8,marginLeft:'auto'}}>
+                    {allAssignees.length > 0 && <div style={{display:'flex',alignItems:'center'}}>
+                        {allAssignees.slice(0,3).map((mId,idx) => {
+                            const m = boardMembers.find(mb => mb.id === mId);
+                            if (!m) return null;
+                            return m.avatarUrl
+                                ? <img key={mId} src={m.avatarUrl} alt={m.fullName||''} title={m.fullName||m.username} style={{width:22,height:22,borderRadius:'50%',border:'2px solid var(--bg-primary)',marginLeft:idx>0?-6:0}}/>
+                                : <span key={mId} title={m.fullName||m.username} style={{width:22,height:22,borderRadius:'50%',background:'var(--accent)',color:'white',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,border:'2px solid var(--bg-primary)',marginLeft:idx>0?-6:0}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>;
+                        })}
+                        {allAssignees.length > 3 && <span style={{fontSize:10,color:'var(--text-muted)',marginLeft:4}}>+{allAssignees.length-3}</span>}
+                    </div>}
+                    {totalBudget > 0 && <span className="card-budget">{totalBudget.toLocaleString()}€</span>}
                 </div>
-                {(action.budget||0) + actionTasks.reduce((s, t) => s + (t.budget || 0), 0) > 0 && <span className="card-budget">{((action.budget||0) + actionTasks.reduce((s, t) => s + (t.budget || 0), 0)).toLocaleString()}€</span>}
             </div>}
         </div>
     );

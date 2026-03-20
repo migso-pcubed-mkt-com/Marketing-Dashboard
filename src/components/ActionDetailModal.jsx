@@ -511,14 +511,14 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                             const isCollapsed=collapsedGroups[group.name];
                             return(
                                 <div key={group.name} className="mb-3"
-                                    draggable={!isReadOnly&&taskGroups.length>1}
-                                    onDragStart={e=>handleGroupDragStart(e,group.name)}
                                     onDragOver={e=>handleGroupDragOver(e,group.name)}
                                     onDrop={e=>handleGroupDrop(e,group.name)}
-                                    onDragEnd={()=>{setDragGroupName(null);setDragOverGroup(null);}}
                                     style={{opacity:dragGroupName===group.name?0.5:1,borderTop:dragOverGroup===group.name&&dragGroupName?'2px solid #d97706':'2px solid transparent'}}>
-                                    {/* Group header */}
-                                    <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid var(--border-light)',marginBottom:8}}>
+                                    {/* Group header — draggable for group reorder */}
+                                    <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid var(--border-light)',marginBottom:8}}
+                                        draggable={!isReadOnly&&taskGroups.length>1}
+                                        onDragStart={e=>handleGroupDragStart(e,group.name)}
+                                        onDragEnd={()=>{setDragGroupName(null);setDragOverGroup(null);}}>
                                         {!isReadOnly&&taskGroups.length>1&&<span style={{cursor:'grab',opacity:0.4,fontSize:10}}>⋮⋮</span>}
                                         {editingGroupName===group.name&&!isReadOnly?(
                                             <input type="text" value={editingGroupValue} onChange={e=>setEditingGroupValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'&&editingGroupValue.trim()){if(onRenameChecklistGroup)onRenameChecklistGroup(group.name,editingGroupValue.trim());setEditingGroupName(null);}if(e.key==='Escape')setEditingGroupName(null);}} onBlur={()=>{if(editingGroupValue.trim()&&editingGroupValue!==group.name&&onRenameChecklistGroup)onRenameChecklistGroup(group.name,editingGroupValue.trim());setEditingGroupName(null);}} style={{flex:1,padding:'2px 6px',borderRadius:4,border:'1px solid var(--accent)',fontSize:11,fontWeight:600,outline:'none'}}/>

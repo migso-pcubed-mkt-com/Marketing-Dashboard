@@ -1172,6 +1172,57 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             }
         }
 
+        // Sync checklist and item positions to Trello (card-as-action mode)
+        if (!readOnly) {
+            const positionUpdates = [];
+            // Group tasks by checklistId, sorted by order
+            const checklistGroups = new Map();
+            for (const task of updatedTasks) {
+                if (task.actionId !== action.id || !task.trelloChecklistId) continue;
+                if (!checklistGroups.has(task.trelloChecklistId)) checklistGroups.set(task.trelloChecklistId, []);
+                checklistGroups.get(task.trelloChecklistId).push(task);
+            }
+            // Sort each group by order
+            for (const [clId, clTasks] of checklistGroups) {
+                clTasks.sort((a, b) => (a.order || 0) - (b.order || 0));
+            }
+            // Sync checklist positions (based on first task's order in each checklist)
+            const sortedChecklists = [...checklistGroups.entries()].sort((a, b) => {
+                const aMin = Math.min(...a[1].map(t => t.order || 0));
+                const bMin = Math.min(...b[1].map(t => t.order || 0));
+                return aMin - bMin;
+            });
+            sortedChecklists.forEach(([clId, _], clIdx) => {
+                const expectedPos = (clIdx + 1) * 16384;
+                const trelloCl = card.checklists?.find(c => c.id === clId);
+                if (trelloCl && Math.abs((trelloCl.pos || 0) - expectedPos) > 100) {
+                    positionUpdates.push(
+                        updateTrelloChecklist(clId, { pos: expectedPos })
+                            .catch(e => console.error(`[card-as-action] Failed to update checklist pos:`, e.message))
+                    );
+                }
+            });
+            // Sync item positions within each checklist
+            for (const [clId, clTasks] of checklistGroups) {
+                const trelloCl = card.checklists?.find(c => c.id === clId);
+                clTasks.forEach((task, itemIdx) => {
+                    if (!task.trelloCheckItemId) return;
+                    const expectedItemPos = (itemIdx + 1) * 16384;
+                    const trelloItem = trelloCl?.checkItems?.find(ci => ci.id === task.trelloCheckItemId);
+                    if (trelloItem && Math.abs((trelloItem.pos || 0) - expectedItemPos) > 100) {
+                        positionUpdates.push(
+                            updateTrelloChecklistItem(card.id, task.trelloCheckItemId, { pos: expectedItemPos })
+                                .catch(e => console.error(`[card-as-action] Failed to update item pos:`, e.message))
+                        );
+                    }
+                });
+            }
+            if (positionUpdates.length > 0) {
+                await Promise.all(positionUpdates);
+                result.pushed += positionUpdates.length;
+            }
+        }
+
         // Pull checklist names from Trello → update local tasks
         for (const cl of (card.checklists || [])) {
             for (let j = 0; j < updatedTasks.length; j++) {
