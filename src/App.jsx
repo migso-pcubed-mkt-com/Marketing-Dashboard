@@ -694,9 +694,11 @@ const App = () => {
         if (draggedIndex === -1 || targetIndex === -1) return;
         const reordered = [...targetColumnTasks];
         const [removed] = reordered.splice(draggedIndex, 1);
-        const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
-        const adjustedIndex = draggedIndex < targetIndex ? insertIndex - 1 : insertIndex;
-        reordered.splice(adjustedIndex, 0, removed);
+        // Recalculate target index AFTER removal (indices shifted)
+        const adjustedTargetIdx = reordered.findIndex(t => t.id === targetId);
+        if (adjustedTargetIdx === -1) return;
+        const insertIndex = position === 'before' ? adjustedTargetIdx : adjustedTargetIdx + 1;
+        reordered.splice(insertIndex, 0, removed);
         const updatedTasks = reordered.map((t, idx) => ({...t, order: idx}));
         setTasks(prev => prev.map(t => {
             const updated = updatedTasks.find(ut => ut.id === t.id);
