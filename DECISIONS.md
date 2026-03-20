@@ -22,6 +22,10 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-20 | Move getTaskMonth out of getColumns() to component scope | Root cause of persistent month/quarter reorder failure — function was unreachable from inline handler, causing silent ReferenceError |
+| 2026-03-20 | Add handleBatchUpdateTasks for all multi-task reorder operations | N separate onUpdateTask calls caused React state batching to lose intermediate order updates |
+| 2026-03-20 | Category column reorder now updates category.order field | Column drag only saved to localStorage, Trello sync couldn't detect position changes |
+| 2026-03-20 | Add dedup guard in card-as-action checklist item pull | Tasks that lost trelloCheckItemId were recreated as duplicates on next sync |
 | 2026-03-18 | crypto.randomUUID for all entity IDs | Eliminates ID collision risk from `Date.now()+Math.random()` |
 | 2026-03-18 | CORS restriction via ALLOWED_ORIGIN | Replace wildcard `*` with env var on `api/trello.js` and `api/github.js` |
 | 2026-03-18 | Remove sendBeacon dead code | `/api/save-beacon` endpoint never existed — localStorage sync is sufficient |
