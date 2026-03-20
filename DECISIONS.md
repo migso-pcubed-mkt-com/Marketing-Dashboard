@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-20 | Audit fix: protect statuses from Trello overwrite, sync startDate, auto-sync after save, robust Realtime guard, add gradient/timestamps to new categories, hide Action dropdown in card-as-task | Comprehensive sync audit — TRELLO_PROTECTED_STATUSES prevents status reversal, post-save debounced sync replaces manual clicks, syncRealtimeGuardRef ties guard to save cycle, missing fields on new Trello categories caused visual bugs |
 | 2026-03-20 | Fix month/quarter column assignment to use dueDate first, add list sync to card-as-task, auto-create default actions, hide all action creation UI, fix checklist reorder DnD | Multiple card-as-task bugs: month used startDate, new lists didn't sync, new categories had no default action, inline "Create action" was still visible, checklist drag events bubbled incorrectly |
 | 2026-03-20 | Fix "Add" button in category view to create task (not action) for card-as-task boards + hide "New Action" in header | Creating actions in card-as-task mode breaks `allDefault` invariant — "Add" now opens NewTaskModal with default action pre-filled |
 | 2026-03-20 | Remove "Action" label mapping option for card-as-task sync mode | Mixing default + non-default actions in one category breaks Kanban `allDefault` check — users wanting action-level organization should use card-as-action mode instead |

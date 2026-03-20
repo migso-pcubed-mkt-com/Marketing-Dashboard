@@ -258,6 +258,8 @@ const App = () => {
 
     const autoSaveTimeoutRef = useRef(null);
     const isReceivingRealtimeRef = useRef(false);
+    const postSaveSyncTimeoutRef = useRef(null);
+    const syncRealtimeGuardRef = useRef(false);
 
     const saveToLocalStorage = () => {
         saveToLocalStorageFn(boardDataRef);
@@ -444,6 +446,17 @@ const App = () => {
             if (success) {
                 justSavedTimestampRef.current = Date.now();
                 saveSnapshot(boardDataRef.current, 'auto-save');
+                // Clear Realtime guard after synced data is saved
+                if (syncRealtimeGuardRef.current) {
+                    syncRealtimeGuardRef.current = false;
+                    setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
+                }
+                // Auto-trigger Trello sync after save (debounced 5s)
+                const board = boardDataRef.current?.boards?.find(b => b.id === currentBoardId);
+                if (board?.trelloSync?.syncEnabled && board?.trelloSync?.trelloBoardId) {
+                    if (postSaveSyncTimeoutRef.current) clearTimeout(postSaveSyncTimeoutRef.current);
+                    postSaveSyncTimeoutRef.current = setTimeout(() => { handleTrelloSync(); }, 5000);
+                }
             }
             setTimeout(() => setSavingStatus(null), 2000);
         };
@@ -792,6 +805,9 @@ const App = () => {
     };
 
     const handleAddCategory = (newCat) => {
+        const now = new Date().toISOString();
+        if (!newCat.createdAt) newCat.createdAt = now;
+        if (!newCat.updatedAt) newCat.updatedAt = now;
         setCategories(prev => [...prev, newCat]);
         // Auto-create default action for card-as-task boards so directTasks works
         if (currentBoard?.trelloSync?.syncMode === 'card-as-task') {
@@ -958,7 +974,10 @@ const App = () => {
                 ...prev,
                 boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b)
             }));
-            setTimeout(() => { isReceivingRealtimeRef.current = false; }, 3000);
+            // Guard stays active until auto-save completes for synced data (see syncRealtimeGuardRef)
+            syncRealtimeGuardRef.current = true;
+            // Fallback: if auto-save doesn't fire within 8s, clear guard anyway
+            setTimeout(() => { if (syncRealtimeGuardRef.current) { syncRealtimeGuardRef.current = false; isReceivingRealtimeRef.current = false; } }, 8000);
             setTrelloSyncStatus(result.errors > 0 ? 'error' : 'synced');
             const msg = [];
             if (result.created) msg.push(`${result.created} new`);
@@ -1032,7 +1051,7 @@ const App = () => {
         }
         // Start polling if current board has Trello sync enabled
         if (currentBoard?.trelloSync?.syncEnabled && currentBoard?.trelloSync?.trelloBoardId) {
-            const intervalMs = currentBoard.trelloSync.pollIntervalMs || 120000;
+            const intervalMs = currentBoard.trelloSync.pollIntervalMs || 60000;
             console.log(`Trello polling started (${intervalMs / 1000}s)`);
             trelloSyncIntervalRef.current = setInterval(handleTrelloSync, intervalMs);
         }

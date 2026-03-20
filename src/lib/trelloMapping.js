@@ -2,6 +2,9 @@
 
 import { CONFIG, TRELLO_COLORS } from '../config.js';
 
+// Statuses that have no Trello equivalent — never overwrite from dueComplete/item.state
+const TRELLO_PROTECTED_STATUSES = new Set(['creating', 'review', 'paused']);
+
 // --- ID generation (crypto.randomUUID for collision-free IDs) ---
 const genId = (prefix) => `${prefix}-${crypto.randomUUID()}`;
 
@@ -583,7 +586,7 @@ export const mergeCardIntoAction = (existingAction, card, listToCat, mappingConf
         name: card.name,
         description: card.desc || existingAction.description || '',
         categoryId: listToCat?.[card.idList] || existingAction.categoryId,
-        status: card.dueComplete ? 'completed' : (existingAction.status || 'inprogress'),
+        status: TRELLO_PROTECTED_STATUSES.has(existingAction.status) ? existingAction.status : (card.dueComplete ? 'completed' : (existingAction.status || 'inprogress')),
         assignees: card.idMembers || existingAction.assignees || [],
         startDate: card.start ? card.start.split('T')[0] : existingAction.startDate,
         dueDate: card.due ? card.due.split('T')[0] : existingAction.dueDate,
@@ -614,7 +617,7 @@ export const mergeCheckItemIntoTask = (existingTask, item, card) => {
     return {
         ...existingTask,
         title: item.name,
-        status: item.state === 'complete' ? 'completed' : (existingTask.status === 'completed' ? 'todo' : existingTask.status),
+        status: TRELLO_PROTECTED_STATUSES.has(existingTask.status) ? existingTask.status : (item.state === 'complete' ? 'completed' : (existingTask.status === 'completed' ? 'todo' : existingTask.status)),
         dueDate: dueDate || existingTask.dueDate,
         startDate,
         month,
@@ -649,6 +652,7 @@ export const mapActionToTrelloCardUpdate = (action, listId) => {
 export const mapTaskToTrelloCardUpdate = (task, listId) => {
     const updates = { name: task.title };
     if (task.description != null) updates.desc = task.description;
+    if (task.startDate) updates.start = task.startDate;
     if (task.dueDate) updates.due = task.dueDate;
     updates.dueComplete = (task.status === 'completed').toString();
     if (listId) updates.idList = listId;
@@ -920,8 +924,9 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
         ...existingTask,
         title: card.name,
         description: card.desc || existingTask.description,
+        startDate: card.start ? card.start.split('T')[0] : existingTask.startDate,
         dueDate: card.due ? card.due.split('T')[0] : existingTask.dueDate,
-        status: card.dueComplete ? 'completed' : existingTask.status,
+        status: TRELLO_PROTECTED_STATUSES.has(existingTask.status) ? existingTask.status : (card.dueComplete ? 'completed' : existingTask.status),
         checklists: mergedChecklists,
         attachments: mergedAttachments,
         comments: mergedComments,
