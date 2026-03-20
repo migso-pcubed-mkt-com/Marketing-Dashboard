@@ -3,7 +3,7 @@ import { CONFIG } from '../config.js';
 import { Icon, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 
-const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAddCategory, initialValues}) => {
+const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAddCategory, initialValues, isCardAsTask=false}) => {
     const [form, setForm] = useState({title:'',actionId:initialValues?.actionId||actions[0]?.id||'',startDate:initialValues?.startDate||new Date().toISOString().split('T')[0],dueDate:initialValues?.dueDate||'',priority:initialValues?.priority||'medium',status:initialValues?.status||'todo',description:'',budget:0,countries:initialValues?.countries||[]});
     const [showInlineCreate, setShowInlineCreate] = useState(false);
     const [newActionName, setNewActionName] = useState('');
@@ -85,9 +85,9 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
                             {!showInlineCreate ? (
                                 <>
                                     <select value={form.actionId} onChange={e => setForm({...form, actionId: e.target.value})} className="v11-input">{actions.map(a => { const cat = categories.find(c => c.id === a.categoryId); return <option key={a.id} value={a.id}>{a.name} ({cat?.name})</option>; })}</select>
-                                    <button onClick={() => setShowInlineCreate(true)} className="mt-1.5 text-xs flex items-center gap-1" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0}}>
+                                    {!isCardAsTask && <button onClick={() => setShowInlineCreate(true)} className="mt-1.5 text-xs flex items-center gap-1" style={{color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0}}>
                                         <Icon.Plus size={11}/> Create a new action
-                                    </button>
+                                    </button>}
                                 </>
                             ) : (
                                 <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',padding:12,background:'var(--bg-secondary)'}}>
