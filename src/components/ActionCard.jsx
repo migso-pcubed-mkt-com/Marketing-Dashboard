@@ -54,7 +54,6 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
             onClick={(e) => { if (!e.defaultPrevented) onOpen(action); }}
             className={`action-card ${dragOverPosition === 'before' ? 'drop-indicator-before' : dragOverPosition === 'after' ? 'drop-indicator-after' : ''}`}>
             <div className="card-header">
-                {action.status === 'completed' && <span style={{width:18,height:18,borderRadius:'50%',background:'#22c55e',display:'inline-flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg></span>}
                 <div className="card-title" style={action.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : {}}>{action.name}</div>
                 <div className={`card-priority ${action.priority || 'medium'}`}/>
             </div>

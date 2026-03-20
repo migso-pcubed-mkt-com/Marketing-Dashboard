@@ -56,6 +56,39 @@ export const matchLabelToChannel = (label) => {
     return channel ? channel.id : null;
 };
 
+// --- Trello Label → Country match ---
+// Matches label names to countries using abbreviations, ISO codes, and French translations
+const COUNTRY_ALIASES = {
+    'fr': 'france', 'france': 'france',
+    'uk': 'uk', 'united kingdom': 'uk', 'gb': 'uk', 'royaume-uni': 'uk', 'royaume uni': 'uk',
+    'us': 'usa', 'usa': 'usa', 'united states': 'usa', 'états-unis': 'usa', 'etats-unis': 'usa', 'etats unis': 'usa',
+    'de': 'germany', 'germany': 'germany', 'allemagne': 'germany',
+    'es': 'spain', 'spain': 'spain', 'espagne': 'spain',
+    'it': 'italy', 'italy': 'italy', 'italie': 'italy',
+    'nl': 'netherlands', 'netherlands': 'netherlands', 'pays-bas': 'netherlands', 'pays bas': 'netherlands',
+    'pt': 'portugal', 'portugal': 'portugal',
+    'ro': 'romania', 'romania': 'romania', 'roumanie': 'romania',
+    'ch': 'switzerland', 'switzerland': 'switzerland', 'suisse': 'switzerland',
+    'ca': 'canada', 'canada': 'canada',
+    'mx': 'mexico', 'mexico': 'mexico', 'mexique': 'mexico',
+    'in': 'india', 'india': 'india', 'inde': 'india',
+    'au': 'australia', 'australia': 'australia', 'australie': 'australia',
+    'sea': 'southeast-asia', 'south east asia': 'southeast-asia', 'southeast asia': 'southeast-asia', 'asie du sud-est': 'southeast-asia',
+    'global': 'global', 'world': 'global', 'monde': 'global', 'gl': 'global'
+};
+
+export const matchLabelToCountry = (label) => {
+    if (!label.name) return null;
+    const name = label.name.toLowerCase().trim();
+    // Direct match
+    if (COUNTRY_ALIASES[name]) return COUNTRY_ALIASES[name];
+    // Try substring matching against country names
+    const country = CONFIG.COUNTRIES.find(c =>
+        name.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(name)
+    );
+    return country ? country.id : null;
+};
+
 // --- Trello Card → Dashboard Task ---
 export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) => {
     const now = new Date();

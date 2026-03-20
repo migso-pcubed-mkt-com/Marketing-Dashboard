@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
@@ -23,13 +23,27 @@ const NewActionModal = ({categories, onClose, onAdd, onAddCategory}) => {
         onAdd({...form, id: `a${Date.now()}`});
         onClose();
     };
+
+    // Context-aware Escape handler: close sub-forms first, then modal
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                if (showInlineCreateCategory) { setShowInlineCreateCategory(false); setNewCategoryName(''); return; }
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onClose, showInlineCreateCategory]);
+
     return (
         <div className="v11-modal-overlay" onClick={onClose}>
             <div className="v11-modal animate-slide-up" style={{maxWidth:512}} onClick={e => e.stopPropagation()}>
                 <div style={{height:3,background:'var(--accent)',borderRadius:'var(--radius-lg) var(--radius-lg) 0 0'}}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold">📁 New Action</h2>
+                        <h2 className="text-xl font-bold flex items-center gap-2"><Icon.List size={18}/> New Action</h2>
                         <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">
