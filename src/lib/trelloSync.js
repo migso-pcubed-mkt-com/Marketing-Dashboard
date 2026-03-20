@@ -851,9 +851,38 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         avatarUrl: m.avatarUrl ? `${m.avatarUrl}/50.png` : null
     }));
 
+    // 5b. Sync list positions bidirectionally
+    const updatedCategories = [...board.categories];
+    const trelloLists = lists.filter(l => !l.closed).sort((a, b) => a.pos - b.pos);
+    if (!readOnly) {
+        for (let i = 0; i < updatedCategories.length; i++) {
+            const cat = updatedCategories[i];
+            if (!cat.trelloListId) continue;
+            const trelloList = trelloLists.find(l => l.id === cat.trelloListId);
+            if (!trelloList) continue;
+            // Pull: update local order from Trello pos
+            updatedCategories[i] = { ...cat, trelloListPos: trelloList.pos, order: trelloLists.indexOf(trelloList) };
+        }
+        // Push local order → Trello pos for categories that have been reordered locally
+        const posUpdates = [];
+        for (const cat of updatedCategories) {
+            if (!cat.trelloListId) continue;
+            const expectedPos = (cat.order + 1) * 16384;
+            const trelloList = trelloLists.find(l => l.id === cat.trelloListId);
+            if (trelloList && Math.abs(trelloList.pos - expectedPos) > 100) {
+                posUpdates.push(updateTrelloList(cat.trelloListId, { pos: expectedPos }));
+            }
+        }
+        if (posUpdates.length > 0) {
+            await Promise.all(posUpdates).catch(err => console.warn('List position sync error:', err));
+        }
+        updatedCategories.sort((a, b) => (a.trelloListPos || 0) - (b.trelloListPos || 0));
+    }
+
     // 6. Build updated board
     const syncedBoard = {
         ...board,
+        categories: updatedCategories,
         tasks: [...updatedTasks, ...newTasks],
         members: members.length ? members : (board.members || []),
         trelloSync: {

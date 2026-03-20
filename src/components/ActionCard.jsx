@@ -41,7 +41,7 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
 
     // Collect unique assignees from all tasks of this action
     const actionAssignees = action.assignees || [];
-    const allAssignees = [...new Set([...actionAssignees, ...actionTasks.flatMap(t => t.assignees || [])])];
+    const allAssignees = [...new Set([...actionAssignees, ...actionTasks.flatMap(t => t.assignees || [])])].filter(id => boardMembers.some(mb => mb.id === id));
     const totalBudget = (action.budget||0) + actionTasks.reduce((s, t) => s + (t.budget || 0), 0);
 
     return (
