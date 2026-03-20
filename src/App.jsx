@@ -142,7 +142,7 @@ const App = () => {
     // --- Board management functions ---
     const handleCreateBoard = useCallback((name) => {
         const newBoard = {
-            id: `board-${Date.now()}`,
+            id: `board-${crypto.randomUUID()}`,
             name: name || 'New Board',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -245,7 +245,7 @@ const App = () => {
 
     const addCustomCountry = (name, flag, color, region) => {
         const newCountry = {
-            id: `custom-${Date.now()}`,
+            id: `custom-${crypto.randomUUID()}`,
             name,
             flag: flag || '🌍',
             color: color || '#6366f1',
@@ -627,10 +627,10 @@ const App = () => {
             const u = updates.find(u => u.id === t.id);
             if (!u) return t;
             const newTask = {...t, ...u.changes, updatedAt: new Date().toISOString()};
-            if (u.changes.startDate) {
-                newTask.month = new Date(u.changes.startDate).getMonth();
-            } else if (u.changes.dueDate) {
+            if (u.changes.dueDate) {
                 newTask.month = new Date(u.changes.dueDate).getMonth();
+            } else if (u.changes.startDate) {
+                newTask.month = new Date(u.changes.startDate).getMonth();
             }
             return newTask;
         }));
@@ -661,7 +661,7 @@ const App = () => {
         }
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
-        const newTask = { id: `t${Date.now()}`, actionId, month, startDate, title: 'New task', description: '', status: 'todo', priority: 'medium', dueDate, budget: 0, channels: action?.tags || [], checklist: [], comments: [], attachments: [], order: maxOrder, createdAt: now };
+        const newTask = { id: `t-${crypto.randomUUID()}`, actionId, month, startDate, title: 'New task', description: '', status: 'todo', priority: 'medium', dueDate, budget: 0, channels: action?.tags || [], checklist: [], comments: [], attachments: [], order: maxOrder, createdAt: now };
         setTasks(prev => [...prev, newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Task created');
@@ -898,7 +898,7 @@ const App = () => {
     // --- Trello import ---
     const handleTrelloImport = useCallback((importData, boardName) => {
         const newBoard = {
-            id: `board-${Date.now()}`,
+            id: `board-${crypto.randomUUID()}`,
             name: boardName || 'Trello Import',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),

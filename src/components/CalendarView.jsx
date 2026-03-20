@@ -118,7 +118,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
         oneWeekLater.setDate(oneWeekLater.getDate() + 7);
         const action = actions[0];
         const newTask = {
-            id: `t${Date.now()}`,
+            id: `t-${crypto.randomUUID()}`,
             title: 'New task',
             actionId: action?.id || '',
             month: date.getMonth(),

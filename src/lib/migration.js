@@ -12,7 +12,7 @@ export function normalizeTaskChecklists(task) {
     }
     if (task.checklist && Array.isArray(task.checklist) && task.checklist.length > 0) {
         return [{
-            id: `cl-migrated-${Date.now()}`,
+            id: `cl-migrated-${crypto.randomUUID()}`,
             name: 'Checklist',
             items: task.checklist
         }];

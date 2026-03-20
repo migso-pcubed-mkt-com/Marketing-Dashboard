@@ -11,7 +11,7 @@ const NewActionModal = ({categories, onClose, onAdd, onAddCategory}) => {
 
     const handleInlineCreateCategory = () => {
         if (!newCategoryName.trim() || !onAddCategory) return;
-        const nc = {id:`cat${Date.now()}`, name:newCategoryName.trim(), color:'#6366f1', gradient:'from-indigo-500 to-purple-500'};
+        const nc = {id:`cat-${crypto.randomUUID()}`, name:newCategoryName.trim(), color:'#6366f1', gradient:'from-indigo-500 to-purple-500', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()};
         onAddCategory(nc);
         setForm({...form, categoryId: nc.id});
         setNewCategoryName('');
@@ -20,7 +20,8 @@ const NewActionModal = ({categories, onClose, onAdd, onAddCategory}) => {
 
     const handleAdd = () => {
         if (!form.name.trim() || !form.categoryId) return;
-        onAdd({...form, id: `a${Date.now()}`});
+        const now = new Date().toISOString();
+        onAdd({...form, id: `a-${crypto.randomUUID()}`, createdAt: now, updatedAt: now});
         onClose();
     };
 

@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-20 | Full audit: replace all Date.now() IDs with crypto.randomUUID(), fix handleBatchUpdateTasks date priority, add missing timestamps/gradient to inline entity creation, hide Action section in NewTaskModal for card-as-task | 30+ ID collisions risk eliminated, batch reorder month mismatch fixed, inline-created entities now sync-ready with timestamps, Action UI fully hidden in card-as-task mode |
 | 2026-03-20 | Audit fix: protect statuses from Trello overwrite, sync startDate, auto-sync after save, robust Realtime guard, add gradient/timestamps to new categories, hide Action dropdown in card-as-task | Comprehensive sync audit — TRELLO_PROTECTED_STATUSES prevents status reversal, post-save debounced sync replaces manual clicks, syncRealtimeGuardRef ties guard to save cycle, missing fields on new Trello categories caused visual bugs |
 | 2026-03-20 | Fix month/quarter column assignment to use dueDate first, add list sync to card-as-task, auto-create default actions, hide all action creation UI, fix checklist reorder DnD | Multiple card-as-task bugs: month used startDate, new lists didn't sync, new categories had no default action, inline "Create action" was still visible, checklist drag events bubbled incorrectly |
 | 2026-03-20 | Fix "Add" button in category view to create task (not action) for card-as-task boards + hide "New Action" in header | Creating actions in card-as-task mode breaks `allDefault` invariant — "Add" now opens NewTaskModal with default action pre-filled |
