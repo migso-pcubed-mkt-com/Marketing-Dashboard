@@ -34,21 +34,21 @@ export const CONFIG = {
     ],
     COUNTRIES: [
         { id: 'global', name: 'Global', region: 'World', color: '#6366f1', flag: 'GL' },
+        { id: 'australia', name: 'Australia', region: 'Oceania', color: '#10b981', flag: '🇦🇺' },
+        { id: 'canada', name: 'Canada', region: 'America', color: '#dc2626', flag: '🇨🇦' },
         { id: 'france', name: 'France', region: 'Europe', color: '#3b82f6', flag: '🇫🇷' },
         { id: 'germany', name: 'Germany', region: 'Europe', color: '#ef4444', flag: '🇩🇪' },
+        { id: 'india', name: 'India', region: 'Asia', color: '#f97316', flag: '🇮🇳' },
         { id: 'italy', name: 'Italy', region: 'Europe', color: '#10b981', flag: '🇮🇹' },
+        { id: 'mexico', name: 'Mexico', region: 'America', color: '#10b981', flag: '🇲🇽' },
         { id: 'netherlands', name: 'Netherlands', region: 'Europe', color: '#f97316', flag: '🇳🇱' },
         { id: 'portugal', name: 'Portugal', region: 'Europe', color: '#14b8a6', flag: '🇵🇹' },
         { id: 'romania', name: 'Romania', region: 'Europe', color: '#f59e0b', flag: '🇷🇴' },
+        { id: 'southeast-asia', name: 'South East Asia', region: 'Asia', color: '#8b5cf6', flag: 'SEA' },
         { id: 'spain', name: 'Spain', region: 'Europe', color: '#eab308', flag: '🇪🇸' },
         { id: 'switzerland', name: 'Switzerland', region: 'Europe', color: '#dc2626', flag: '🇨🇭' },
         { id: 'uk', name: 'United Kingdom', region: 'Europe', color: '#6366f1', flag: '🇬🇧' },
-        { id: 'canada', name: 'Canada', region: 'America', color: '#dc2626', flag: '🇨🇦' },
-        { id: 'mexico', name: 'Mexico', region: 'America', color: '#10b981', flag: '🇲🇽' },
-        { id: 'usa', name: 'United States', region: 'America', color: '#3b82f6', flag: '🇺🇸' },
-        { id: 'india', name: 'India', region: 'Asia', color: '#f97316', flag: '🇮🇳' },
-        { id: 'southeast-asia', name: 'South East Asia', region: 'Asia', color: '#8b5cf6', flag: 'SEA' },
-        { id: 'australia', name: 'Australia', region: 'Oceania', color: '#10b981', flag: '🇦🇺' }
+        { id: 'usa', name: 'United States', region: 'America', color: '#3b82f6', flag: '🇺🇸' }
     ],
     PRIORITIES: [
         { id: 'high', name: 'High', color: '#ef4444', icon: '⬤' },

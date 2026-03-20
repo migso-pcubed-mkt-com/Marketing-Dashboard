@@ -9,7 +9,7 @@ import CountryTags from './CountryTags.jsx';
 
 const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask})=>{
     const { trelloUser } = useApp();
-    const[form,setForm]=useState({...action});
+    const[form,setForm]=useState({...action, comments: action.comments || [], attachments: action.attachments || []});
     const[showConfirmDelete,setShowConfirmDelete]=useState(false);
     const[descriptionDraft,setDescriptionDraft]=useState(action.description||'');
     const[descriptionEditing,setDescriptionEditing]=useState(false);
@@ -61,6 +61,15 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     pendingGroups.forEach(gName=>{
         if(!groupMap[gName]){taskGroups.push({name:gName,tasks:[]});}
     });
+
+    // Re-sync comments/attachments when action prop updates (e.g. after Trello sync)
+    useEffect(()=>{
+        setForm(prev=>({
+            ...prev,
+            comments: action.comments || [],
+            attachments: action.attachments || []
+        }));
+    },[action.comments, action.attachments]);
 
     useEffect(()=>{
         if(descriptionEditing&&descEditableRef.current){
@@ -455,22 +464,21 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         <div className="flex items-center justify-between mb-3">
                             <span style={sectionLabel}>Tasks ({actionTasks.length})</span>
                             <div style={{display:'flex',gap:6}}>
-                                {!isReadOnly&&<button onClick={()=>setShowAddGroup(true)} className="px-3 py-1 rounded-lg text-xs flex items-center space-x-1" style={{background:'var(--bg-primary)',border:'1px solid var(--border)',color:'var(--text-secondary)'}}><Icon.Plus size={10}/><span>Group</span></button>}
-                                {!isReadOnly&&<button onClick={handleAddTaskClick} className="px-3 py-1 text-white rounded-lg text-xs flex items-center space-x-1" style={{background:'#d97706'}}><Icon.Plus size={10}/><span>Add task</span></button>}
+                                {!isReadOnly&&<button onClick={()=>setShowAddGroup(true)} className="px-3 py-1 rounded-lg text-xs flex items-center space-x-1" style={{background:'var(--bg-primary)',border:'1px solid var(--border)',color:'var(--text-secondary)'}}><Icon.Plus size={10}/><span>Task group</span></button>}
                             </div>
                         </div>
                         {/* Group picker for "Add task" when multiple groups exist */}
                         {addTaskPickerGroup==='__picker__'&&!isReadOnly&&<div style={{marginBottom:8,padding:8,background:'var(--bg-primary)',borderRadius:6,border:'1px solid var(--border)'}}>
-                            <div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>Select group:</div>
+                            <div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',marginBottom:6}}>Select task group:</div>
                             <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
                                 {taskGroups.map(g=>(
                                     <button key={g.name} onClick={()=>{setAddTaskPickerGroup(null);setAddingTaskGroup(g.name);}} style={{padding:'4px 10px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11,color:'var(--text-secondary)'}} onMouseEnter={e=>e.currentTarget.style.borderColor='#d97706'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border)'}>{g.name}</button>
                                 ))}
-                                <button onClick={()=>{setAddTaskPickerGroup(null);setShowAddGroup(true);}} style={{padding:'4px 10px',borderRadius:4,background:'none',border:'1px dashed var(--border)',cursor:'pointer',fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3}}><Icon.Plus size={9}/> New group</button>
+                                <button onClick={()=>{setAddTaskPickerGroup(null);setShowAddGroup(true);}} style={{padding:'4px 10px',borderRadius:4,background:'none',border:'1px dashed var(--border)',cursor:'pointer',fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3}}><Icon.Plus size={9}/> New task group</button>
                             </div>
                         </div>}
                         {showAddGroup&&!isReadOnly&&<div style={{marginBottom:8,display:'flex',gap:4,alignItems:'center'}}>
-                            <input type="text" value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="New group name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newGroupName.trim()){const gn=newGroupName.trim();if(onRenameChecklistGroup)onRenameChecklistGroup(null,gn);setPendingGroups(prev=>[...prev,gn]);setNewGroupName('');setShowAddGroup(false);setAddingTaskGroup(gn);}if(e.key==='Escape'){setShowAddGroup(false);setNewGroupName('');}}} style={{flex:1,padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}/>
+                            <input type="text" value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="New task group name..." autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newGroupName.trim()){const gn=newGroupName.trim();if(onRenameChecklistGroup)onRenameChecklistGroup(null,gn);setPendingGroups(prev=>[...prev,gn]);setNewGroupName('');setShowAddGroup(false);setAddingTaskGroup(gn);}if(e.key==='Escape'){setShowAddGroup(false);setNewGroupName('');}}} style={{flex:1,padding:'4px 8px',borderRadius:4,border:'1px solid var(--border)',fontSize:12}}/>
                             <button onClick={()=>{if(newGroupName.trim()){const gn=newGroupName.trim();if(onRenameChecklistGroup)onRenameChecklistGroup(null,gn);setPendingGroups(prev=>[...prev,gn]);setNewGroupName('');setShowAddGroup(false);setAddingTaskGroup(gn);}}} style={{padding:'4px 10px',borderRadius:4,background:'#d97706',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Create</button>
                             <button onClick={()=>{setShowAddGroup(false);setNewGroupName('');}} style={{padding:'4px 10px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11}}>Cancel</button>
                         </div>}
@@ -514,7 +522,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                         {!isReadOnly&&<span style={{cursor:'grab',opacity:0.3,fontSize:10,flexShrink:0}}>⋮⋮</span>}
                                                         <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:110,flexShrink:0}} disabled={isReadOnly}/>
                                                         <div className="flex-1 min-w-0" style={{cursor:'pointer'}} onClick={()=>handleOpenTask(task)}>
-                                                            <p className="font-medium text-sm truncate" style={{color:'var(--accent)'}} onMouseEnter={e=>e.target.style.textDecoration='underline'} onMouseLeave={e=>e.target.style.textDecoration='none'}>{task.title}</p>
+                                                            <p className="font-medium text-sm truncate" style={{color:task.status==='completed'?'var(--text-muted)':'var(--accent)',textDecoration:task.status==='completed'?'line-through':'none'}} onMouseEnter={e=>{if(task.status!=='completed')e.target.style.textDecoration='underline';}} onMouseLeave={e=>{e.target.style.textDecoration=task.status==='completed'?'line-through':'none';}}>{task.title}</p>
                                                         </div>
                                                         <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
                                                             {/* Inline due date — click opens calendar directly */}
@@ -577,7 +585,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                     </div>}
                                 </div>
                             );
-                        }):<p className="text-center py-4 text-sm" style={{color:'var(--text-muted)'}}>No tasks yet. Create a group to get started.</p>}
+                        }):<p className="text-center py-4 text-sm" style={{color:'var(--text-muted)'}}>No tasks yet. Create a task group to get started.</p>}
                     </div>
 
                     {/* Comments */}

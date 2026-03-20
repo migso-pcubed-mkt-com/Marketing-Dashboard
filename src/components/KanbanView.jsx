@@ -79,7 +79,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 
         const getTaskMonth=(t)=>{
             const refDate=t.startDate||t.dueDate;
-            if(!refDate)return t.month;
+            if(!refDate)return t.month!=null?t.month:0;
             const sy=new Date(refDate).getFullYear();
             if(sy<selectedYear)return 0;
             if(sy>selectedYear)return 11;
@@ -118,6 +118,8 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     const catTaskIds = new Set(catActions.map(a=>a.id));
                     return {key:cat.id,name:cat.name,gradient:cat.gradient,items:sortItems(filteredTasks.filter(t=>catTaskIds.has(t.actionId))),directTasks:true};
                 }
+                // Sort completed actions to bottom
+                catActions.sort((a,b)=>(a.status==='completed'?1:0)-(b.status==='completed'?1:0));
                 return {key:cat.id,name:cat.name,gradient:cat.gradient,items:catActions};
             });
         }
@@ -287,6 +289,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         const startD=new Date(year,monthIdx,1);
                                         const endD=durationDays>0?new Date(startD.getTime()+durationDays*86400000):new Date(year,monthIdx+1,0);
                                         const dueDate=endD.getFullYear()+'-'+String(endD.getMonth()+1).padStart(2,'0')+'-'+String(endD.getDate()).padStart(2,'0');
+                                        // Always set startDate so getTaskMonth anchors correctly (fixes null-date tasks from Trello)
                                         onUpdateTask(taskId,{startDate,dueDate,month:monthIdx});
                                     }
                                 }else if(viewMode==='quarter'){
@@ -296,6 +299,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         const year=Number(selectedYear)||new Date().getFullYear();
                                         const firstMonth=quarterIdx*3;
                                         const lastMonth=quarterIdx*3+2;
+                                        // Always set startDate to anchor task in target quarter
                                         const startDate=year+'-'+String(firstMonth+1).padStart(2,'0')+'-01';
                                         const lastDay=new Date(year,lastMonth+1,0).getDate();
                                         const dueDate=year+'-'+String(lastMonth+1).padStart(2,'0')+'-'+lastDay;

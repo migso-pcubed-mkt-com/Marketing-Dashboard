@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from './Icons.jsx';
 import { CONFIG, TRELLO_COLORS, TRELLO_SYNC_MODES } from '../config.js';
 import { fetchTrelloBoards, fetchTrelloBoardFull, checkTrelloConnection } from '../lib/trello.js';
-import { buildImportData, buildImportDataCardAsAction, matchLabelToChannel } from '../lib/trelloMapping.js';
+import { buildImportData, buildImportDataCardAsAction, matchLabelToChannel, matchLabelToCountry } from '../lib/trelloMapping.js';
 
 // mappingOnly mode: skip board selection, load linked board directly, show mapping step
 // existingMappings: pre-populate label mappings from board.trelloSync.labelMappings
@@ -37,9 +37,12 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
                     for (const label of data.labels) {
                         if (!mappings[label.id]) {
                             const channelMatch = matchLabelToChannel(label);
+                            const countryMatch = matchLabelToCountry(label);
                             const labelColor = TRELLO_COLORS[label.color]?.hex || '#6b7280';
                             if (channelMatch) {
                                 mappings[label.id] = { type: 'channel', channelId: channelMatch, labelName: label.name || '', labelColor };
+                            } else if (countryMatch) {
+                                mappings[label.id] = { type: 'country', countryId: countryMatch, labelName: label.name || '', labelColor };
                             } else if (label.name) {
                                 mappings[label.id] = { type: 'action', categoryId: null, labelName: label.name || '', labelColor };
                             } else {
@@ -81,9 +84,12 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
         const mappings = {};
         for (const label of trelloData.labels) {
             const channelMatch = matchLabelToChannel(label);
+            const countryMatch = matchLabelToCountry(label);
             const labelColor = TRELLO_COLORS[label.color]?.hex || '#6b7280';
             if (channelMatch) {
                 mappings[label.id] = { type: 'channel', channelId: channelMatch, labelName: label.name || '', labelColor };
+            } else if (countryMatch) {
+                mappings[label.id] = { type: 'country', countryId: countryMatch, labelName: label.name || '', labelColor };
             } else if (label.name && mode === 'card-as-task') {
                 // In card-as-task mode, named labels default to Action
                 mappings[label.id] = { type: 'action', categoryId: null, labelName: label.name || '', labelColor };
