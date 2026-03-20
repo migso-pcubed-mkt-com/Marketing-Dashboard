@@ -47,7 +47,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     const completedTasks=actionTasks.filter(t=>t.status==='completed').length;
     const progressPct=actionTasks.length>0?Math.round((completedTasks/actionTasks.length)*100):0;
     const category=categories?.find(c=>c.id===form.categoryId);
-    const totalBudget=actionTasks.reduce((s,t)=>s+(t.budget||0),0);
+    const totalBudget=(form.budget||0)+actionTasks.reduce((s,t)=>s+(t.budget||0),0);
 
     // Group tasks by trelloChecklistName
     const taskGroups=[];
@@ -57,6 +57,8 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         if(!groupMap[gName]){groupMap[gName]={name:gName,tasks:[]};taskGroups.push(groupMap[gName]);}
         groupMap[gName].tasks.push(t);
     });
+    // Sort tasks within each group by order
+    taskGroups.forEach(g=>g.tasks.sort((a,b)=>(a.order||0)-(b.order||0)));
     // Include pending (empty) groups that have no tasks yet
     pendingGroups.forEach(gName=>{
         if(!groupMap[gName]){taskGroups.push({name:gName,tasks:[]});}
@@ -230,10 +232,17 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         if(dragTaskId&&!dragGroupName){
             const srcTask=actionTasks.find(t=>t.id===dragTaskId);
             if(srcTask){
+                const targetGroup=taskGroups.find(g=>g.name===targetGroupName);
+                const updates={};
                 const currentGroup=srcTask.trelloChecklistName||'Tasks';
                 if(currentGroup!==targetGroupName){
-                    onUpdateTask(dragTaskId,{trelloChecklistName:targetGroupName});
+                    updates.trelloChecklistName=targetGroupName;
                 }
+                // Append task to end of target group with proper order
+                const targetTasks=targetGroup?targetGroup.tasks.filter(t=>t.id!==dragTaskId):[];
+                const maxOrder=targetTasks.reduce((m,t)=>Math.max(m,t.order||0),0);
+                updates.order=maxOrder+1;
+                onUpdateTask(dragTaskId,updates);
             }
             setDragTaskId(null);
             setDragOverTaskId(null);

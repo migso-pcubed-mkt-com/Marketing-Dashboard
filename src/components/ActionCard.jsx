@@ -62,7 +62,7 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
                 <div className="action-progress-bar"><div className={`action-progress-fill ${pct >= 70 ? 'high' : pct >= 40 ? 'medium' : 'low'}`} style={{width:`${pct}%`}}/></div>
                 <div className="action-progress-label"><span className="action-task-count"><strong>{completed}</strong>/{actionTasks.length} tasks</span><span className="action-progress-percent">{pct}%</span></div>
             </div>
-            {(action.dueDate || action.startDate || allAssignees.length > 0 || actionTasks.reduce((s, t) => s + (t.budget || 0), 0) > 0) && <div className="card-footer">
+            {(action.dueDate || action.startDate || allAssignees.length > 0 || (action.budget||0) + actionTasks.reduce((s, t) => s + (t.budget || 0), 0) > 0) && <div className="card-footer">
                 {(action.dueDate || action.startDate) && <span className={`card-date ${action.dueDate && new Date(action.dueDate+'T00:00:00') < new Date() && action.status !== 'completed' ? 'overdue' : ''}`}>{action.dueDate ? new Date(action.dueDate+'T00:00:00').toLocaleDateString('en-US',{day:'numeric',month:'short'}) : new Date(action.startDate+'T00:00:00').toLocaleDateString('en-US',{day:'numeric',month:'short'})}</span>}
                 <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto'}}>
                     {allAssignees.slice(0,4).map((mId,idx) => {
@@ -74,7 +74,7 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
                     })}
                     {allAssignees.length > 4 && <span style={{fontSize:10,color:'var(--text-muted)',marginLeft:4}}>+{allAssignees.length-4}</span>}
                 </div>
-                {actionTasks.reduce((s, t) => s + (t.budget || 0), 0) > 0 && <span className="card-budget">{actionTasks.reduce((s, t) => s + (t.budget || 0), 0).toLocaleString()}€</span>}
+                {(action.budget||0) + actionTasks.reduce((s, t) => s + (t.budget || 0), 0) > 0 && <span className="card-budget">{((action.budget||0) + actionTasks.reduce((s, t) => s + (t.budget || 0), 0)).toLocaleString()}€</span>}
             </div>}
         </div>
     );

@@ -350,14 +350,52 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 // Prevent column drag when dragging cards
                                 e.stopPropagation();
                             }}>
-                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?(viewMode==='country'?((draggedId,targetId,position)=>{
-                                    const targetCountry=col.key==='_unassigned'?[]:[col.key];
-                                    onUpdateTask(draggedId,{countries:targetCountry});
+                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):[...col.items].sort((a,b)=>(a.status==='completed')-(b.status==='completed')).map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?((viewMode==='country'||viewMode==='month'||viewMode==='quarter')?((draggedId,targetId,position)=>{
+                                    // Custom reorder for country/month/quarter views
+                                    if(viewMode==='country'){
+                                        const targetCountry=col.key==='_unassigned'?[]:[col.key];
+                                        onUpdateTask(draggedId,{countries:targetCountry});
+                                    }else if(viewMode==='month'){
+                                        // Move task to target month if from a different column
+                                        const draggedTask=tasks.find(t=>t.id===draggedId);
+                                        if(draggedTask){
+                                            const draggedMonth=getTaskMonth(draggedTask);
+                                            if(draggedMonth!==col.key){
+                                                const monthIdx=col.key;
+                                                const year=Number(selectedYear)||new Date().getFullYear();
+                                                const oldStart=draggedTask.startDate?new Date(draggedTask.startDate+'T00:00:00'):null;
+                                                const oldEnd=draggedTask.dueDate?new Date(draggedTask.dueDate+'T00:00:00'):null;
+                                                const lastDay=new Date(year,monthIdx+1,0).getDate();
+                                                const startDay=oldStart?Math.min(oldStart.getDate(),lastDay):1;
+                                                const endDay=oldEnd?Math.min(oldEnd.getDate(),lastDay):lastDay;
+                                                const startDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(startDay).padStart(2,'0');
+                                                const dueDate=year+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(endDay).padStart(2,'0');
+                                                onUpdateTask(draggedId,{startDate,dueDate,month:monthIdx});
+                                            }
+                                        }
+                                    }else if(viewMode==='quarter'){
+                                        const draggedTask=tasks.find(t=>t.id===draggedId);
+                                        if(draggedTask){
+                                            const draggedMonth=getTaskMonth(draggedTask);
+                                            const draggedQuarter=Math.floor(draggedMonth/3);
+                                            if(draggedQuarter!==col.key){
+                                                const quarterIdx=col.key;
+                                                const year=Number(selectedYear)||new Date().getFullYear();
+                                                const firstMonth=quarterIdx*3;
+                                                const lastMonth=quarterIdx*3+2;
+                                                const startDate=year+'-'+String(firstMonth+1).padStart(2,'0')+'-01';
+                                                const lastDay=new Date(year,lastMonth+1,0).getDate();
+                                                const dueDate=year+'-'+String(lastMonth+1).padStart(2,'0')+'-'+lastDay;
+                                                onUpdateTask(draggedId,{startDate,dueDate,month:firstMonth});
+                                            }
+                                        }
+                                    }
+                                    // Reorder within column
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
                                     const dragIdx=colItems.findIndex(t=>t.id===draggedId);
                                     const targetIdx=colItems.findIndex(t=>t.id===targetId);
                                     if(targetIdx===-1)return;
-                                    const reordered=dragIdx>=0?[...colItems]:[...colItems];
+                                    const reordered=[...colItems];
                                     if(dragIdx>=0)reordered.splice(dragIdx,1);
                                     const insertAt=position==='before'?targetIdx:(dragIdx>=0&&dragIdx<targetIdx?targetIdx:targetIdx+1);
                                     const draggedTask=tasks.find(t=>t.id===draggedId);
