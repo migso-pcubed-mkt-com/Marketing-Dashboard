@@ -58,7 +58,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     };
 
     const getTaskMonth=(t)=>{
-        const refDate=t.startDate||t.dueDate;
+        const refDate=t.dueDate||t.startDate;
         if(!refDate)return t.month!=null?t.month:0;
         // Parse as local time to avoid UTC month shift
         const d=new Date(refDate+'T00:00:00');

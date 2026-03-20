@@ -168,6 +168,8 @@ Props still drilled for view-specific data.
 - Use `Date.now() + Math.random()` for IDs
 - Default-import from `config.js`
 - Map Trello labels to "Action" in card-as-task mode (creates mixed `isDefault` conflict in Kanban)
+- Allow action creation UI in card-as-task mode (no "New Action" button, no inline "Create a new action" in modals)
+- Use `startDate` for month/quarter column assignment in Kanban — `getTaskMonth` uses `dueDate||startDate` (dueDate first)
 
 ---
 
@@ -188,7 +190,7 @@ Props still drilled for view-specific data.
 
 **Guard**: never delete Trello checklists from a task that has no local checklists (`localChecklistIds.size === 0`).
 
-**card-as-task mode**: No action mapping allowed — labels map to channel/country/other only. All actions per category are `isDefault: true`, tasks shown directly under categories in Kanban. Mixing default + non-default actions in one category breaks the Kanban `allDefault` check.
+**card-as-task mode**: No action mapping allowed — labels map to channel/country/other only. All actions per category are `isDefault: true`, tasks shown directly under categories in Kanban. Mixing default + non-default actions in one category breaks the Kanban `allDefault` check. New categories auto-create a default action (`handleAddCategory` in App.jsx). List sync is bidirectional: new local categories → Trello lists, new Trello lists → local categories with default actions.
 
 ### Sync robustness
 

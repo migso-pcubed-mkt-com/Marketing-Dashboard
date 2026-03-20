@@ -148,6 +148,15 @@ const pushTaskExtrasToTrello = async (task, card) => {
                 cl.trelloChecklistId = existing.id;
                 taskModified = true;
             }
+            // Push checklist name change if different
+            if (cl.trelloChecklistId && existing.name && cl.name !== existing.name) {
+                try {
+                    await updateTrelloChecklist(cl.trelloChecklistId, { name: cl.name });
+                    taskModified = true;
+                } catch (e) {
+                    console.error(`Failed to rename checklist "${existing.name}" → "${cl.name}":`, e.message);
+                }
+            }
             // Push only truly new items (no trelloCheckItemId AND name not on Trello)
             const newItems = (cl.items || []).filter(item => item.text && !item.trelloCheckItemId && !existing.itemNames.has(item.text));
             console.log(`[Trello sync] Checklist "${cl.name}" — ${cl.items?.length || 0} local items, ${existing.itemNames.size} on Trello, ${newItems.length} new to push`);
@@ -885,10 +894,76 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     }
     updatedCategories.sort((a, b) => (a.trelloListPos || 0) - (b.trelloListPos || 0));
 
+    // 5c. Push new local categories (no trelloListId) to Trello as lists
+    const updatedActions = [...board.actions];
+    if (!readOnly) {
+        for (let i = 0; i < updatedCategories.length; i++) {
+            const cat = updatedCategories[i];
+            if (cat.trelloListId) continue; // Already linked
+            const pos = (i + 1) * 16384;
+            try {
+                const created = await createTrelloList(trelloSync.trelloBoardId, cat.name, pos);
+                if (created?.id) {
+                    updatedCategories[i] = { ...cat, trelloListId: created.id, trelloListPos: created.pos || pos, trelloLastModified: new Date().toISOString() };
+                    catToListId[cat.id] = created.id;
+                    listToCatId[created.id] = cat.id;
+                    // Ensure a default action exists for this category
+                    const hasAction = updatedActions.some(a => a.categoryId === cat.id);
+                    if (!hasAction) {
+                        updatedActions.push({
+                            id: `a-${crypto.randomUUID()}`,
+                            name: cat.name,
+                            categoryId: cat.id,
+                            isDefault: true,
+                            budget: 0, priority: 'medium', tags: [], status: 'active',
+                            createdAt: new Date().toISOString()
+                        });
+                    }
+                    result.pushed++;
+                }
+            } catch (err) {
+                console.error(`Failed to create Trello list for "${cat.name}":`, err);
+                result.errors++;
+            }
+        }
+    }
+
+    // 5d. Pull new Trello lists (not yet mapped) as local categories
+    const existingListIds = new Set(updatedCategories.map(c => c.trelloListId).filter(Boolean));
+    for (const list of trelloLists) {
+        if (existingListIds.has(list.id)) continue;
+        const newCatId = `cat-${crypto.randomUUID()}`;
+        const newCat = {
+            id: newCatId,
+            name: list.name,
+            color: CONFIG.CATEGORIES[updatedCategories.length % CONFIG.CATEGORIES.length]?.color || '#6366f1',
+            trelloListId: list.id,
+            trelloListPos: list.pos,
+            order: updatedCategories.length,
+            trelloLastModified: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+        };
+        updatedCategories.push(newCat);
+        catToListId[newCatId] = list.id;
+        listToCatId[list.id] = newCatId;
+        // Create default action for new category
+        updatedActions.push({
+            id: `a-${crypto.randomUUID()}`,
+            name: list.name,
+            categoryId: newCatId,
+            isDefault: true,
+            budget: 0, priority: 'medium', tags: [], status: 'active',
+            createdAt: new Date().toISOString()
+        });
+        result.created++;
+    }
+    updatedCategories.sort((a, b) => (a.trelloListPos || 0) - (b.trelloListPos || 0));
+
     // 6. Build updated board
     const syncedBoard = {
         ...board,
         categories: updatedCategories,
+        actions: updatedActions,
         tasks: [...updatedTasks, ...newTasks],
         members: members.length ? members : (board.members || []),
         trelloSync: {
