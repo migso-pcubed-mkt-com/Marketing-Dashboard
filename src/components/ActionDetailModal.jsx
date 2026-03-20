@@ -59,6 +59,12 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     });
     // Sort tasks within each group by order
     taskGroups.forEach(g=>g.tasks.sort((a,b)=>(a.order||0)-(b.order||0)));
+    // Sort groups themselves by the minimum order of their tasks
+    taskGroups.sort((a,b)=>{
+        const aMin=a.tasks.length>0?Math.min(...a.tasks.map(t=>t.order||0)):Infinity;
+        const bMin=b.tasks.length>0?Math.min(...b.tasks.map(t=>t.order||0)):Infinity;
+        return aMin-bMin;
+    });
     // Include pending (empty) groups that have no tasks yet
     pendingGroups.forEach(gName=>{
         if(!groupMap[gName]){taskGroups.push({name:gName,tasks:[]});}
@@ -411,6 +417,21 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                     </div>}
                                     {(form.assignees||[]).length===0&&<span style={{fontSize:12,color:'var(--text-muted)',marginLeft:4}}>No members assigned</span>}
                                 </div>
+                                {/* Show unique members from tasks that aren't already on the action */}
+                                {(()=>{
+                                    const taskMemberIds=[...new Set(actionTasks.flatMap(t=>t.assignees||[]))].filter(id=>!(form.assignees||[]).includes(id));
+                                    if(taskMemberIds.length===0)return null;
+                                    return <div style={{marginTop:6,display:'flex',alignItems:'center',gap:4,flexWrap:'wrap'}}>
+                                        <span style={{fontSize:10,color:'var(--text-muted)',marginRight:2}}>From tasks:</span>
+                                        {taskMemberIds.map(mId=>{
+                                            const m=members.find(mb=>mb.id===mId);
+                                            if(!m)return null;
+                                            return m.avatarUrl
+                                                ?<img key={mId} src={m.avatarUrl} alt={m.fullName||''} title={m.fullName||m.username} style={{width:24,height:24,borderRadius:'50%',border:'1.5px solid var(--border)',opacity:0.8}}/>
+                                                :<span key={mId} title={m.fullName||m.username} style={{width:24,height:24,borderRadius:'50%',background:'var(--text-muted)',color:'white',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,opacity:0.8}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>;
+                                        })}
+                                    </div>;
+                                })()}
                             </div>
                         )}
                         {/* Other Labels */}

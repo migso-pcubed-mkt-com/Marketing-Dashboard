@@ -101,6 +101,7 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
             {(task.startDate || task.dueDate || task.budget > 0 || (task.assignees||[]).length > 0) && <div className="card-footer">
                 <span className={`card-date ${task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed' ? 'overdue' : ''}`}>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}) : task.startDate ? new Date(task.startDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}) : ''}</span>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginLeft:'auto'}}>
+                    {task.budget > 0 && <span className="card-budget">{task.budget.toLocaleString()}€</span>}
                     {(task.assignees||[]).length > 0 && <div style={{display:'flex',alignItems:'center'}}>
                         {task.assignees.slice(0,3).map((mId,idx) => {
                             const m = boardMembers.find(mb => mb.id === mId);
@@ -111,7 +112,6 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
                         })}
                         {task.assignees.length > 3 && <span style={{fontSize:10,color:'var(--text-muted)',marginLeft:4}}>+{task.assignees.length-3}</span>}
                     </div>}
-                    {task.budget > 0 && <span className="card-budget">{task.budget.toLocaleString()}€</span>}
                 </div>
             </div>}
         </div>

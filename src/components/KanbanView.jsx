@@ -393,11 +393,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     // Reorder within column
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
                                     const dragIdx=colItems.findIndex(t=>t.id===draggedId);
-                                    const targetIdx=colItems.findIndex(t=>t.id===targetId);
-                                    if(targetIdx===-1)return;
                                     const reordered=[...colItems];
                                     if(dragIdx>=0)reordered.splice(dragIdx,1);
-                                    const insertAt=position==='before'?targetIdx:(dragIdx>=0&&dragIdx<targetIdx?targetIdx:targetIdx+1);
+                                    // Recalculate target index AFTER removal (indices shifted)
+                                    const adjustedTargetIdx=reordered.findIndex(t=>t.id===targetId);
+                                    if(adjustedTargetIdx===-1)return;
+                                    const insertAt=position==='before'?adjustedTargetIdx:adjustedTargetIdx+1;
                                     const draggedTask=tasks.find(t=>t.id===draggedId);
                                     if(draggedTask)reordered.splice(insertAt,0,draggedTask);
                                     reordered.forEach((t,i)=>onUpdateTask(t.id,{order:i}));
