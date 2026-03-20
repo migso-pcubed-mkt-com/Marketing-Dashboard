@@ -4,7 +4,7 @@ import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
 import TaskCard from './TaskCard.jsx';
 
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onBatchUpdateTasks,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask,onUpdateCategory,onAddCategory,onDeleteCategory})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onBatchUpdateTasks,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask,onUpdateCategory,onAddCategory,onDeleteCategory,isCardAsTask})=>{
     const[viewMode,setViewMode]=useState('category');
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
@@ -120,7 +120,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             // If so, show tasks directly under category instead of action cards
             return cats.map(cat=>{
                 const catActions = actions.filter(a=>a.categoryId===cat.id);
-                const allDefault = catActions.length > 0 && catActions.every(a=>a.isDefault);
+                const allDefault = (catActions.length > 0 && catActions.every(a=>a.isDefault)) || (catActions.length === 0 && isCardAsTask);
                 if(allDefault){
                     // Show tasks directly under category
                     const catTaskIds = new Set(catActions.map(a=>a.id));
@@ -225,6 +225,52 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         setDropColIdx(null);
     };
 
+    // Touch drag for column reorder
+    const colTouchRef = useRef({idx:null,timeout:null,startPos:null});
+    const handleColTouchStart = useCallback((e, colIdx) => {
+        if (!canDragColumns) return;
+        // Only from header area, not from cards
+        if (e.target.closest('.kanban-cards')) return;
+        const touch = e.touches[0];
+        colTouchRef.current = {idx:null,timeout:setTimeout(()=>{
+            colTouchRef.current.idx = colIdx;
+            setDragColIdx(colIdx);
+            if (navigator.vibrate) navigator.vibrate(50);
+        },300),startPos:{x:touch.clientX,y:touch.clientY}};
+    }, [canDragColumns]);
+    const handleColTouchMove = useCallback((e) => {
+        const ref = colTouchRef.current;
+        if (ref.idx === null) {
+            if (ref.timeout && ref.startPos) {
+                const t = e.touches[0];
+                if (Math.abs(t.clientX - ref.startPos.x) > 10 || Math.abs(t.clientY - ref.startPos.y) > 10) {
+                    clearTimeout(ref.timeout); ref.timeout = null;
+                }
+            }
+            return;
+        }
+        e.preventDefault();
+        const touch = e.touches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (!el) return;
+        const colEl = el.closest('[data-col-idx]');
+        if (colEl) {
+            const targetIdx = parseInt(colEl.getAttribute('data-col-idx'));
+            if (!isNaN(targetIdx) && targetIdx !== ref.idx) setDropColIdx(targetIdx);
+        }
+    }, []);
+    const handleColTouchEnd = useCallback((e) => {
+        const ref = colTouchRef.current;
+        if (ref.timeout) clearTimeout(ref.timeout);
+        if (ref.idx !== null && dropColIdx !== null && ref.idx !== dropColIdx) {
+            const cols = getColumns();
+            handleColumnDrop({ preventDefault: () => {} }, dropColIdx, cols);
+        }
+        setDragColIdx(null);
+        setDropColIdx(null);
+        colTouchRef.current = {idx:null,timeout:null,startPos:null};
+    }, [dropColIdx, getColumns, handleColumnDrop]);
+
     const columns = getColumns();
 
     return(
@@ -259,7 +305,11 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     {columns.map((col, colIdx)=>(
                         <div
                             key={col.key}
+                            data-col-idx={colIdx}
                             draggable={canDragColumns && col.key !== '_unassigned'}
+                            onTouchStart={canDragColumns && col.key !== '_unassigned' ? (e) => handleColTouchStart(e, colIdx) : undefined}
+                            onTouchMove={canDragColumns ? handleColTouchMove : undefined}
+                            onTouchEnd={canDragColumns ? handleColTouchEnd : undefined}
                             onDragStart={canDragColumns ? (e) => {
                                 // Only handle column drag if started from header area
                                 if (e.target.closest('.kanban-cards')) return;
@@ -489,8 +539,13 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     }else if(viewMode==='category'){
                                         if(col.directTasks){
                                             // card-as-task mode: create a task under the default action
-                                            const defaultAction=actions.find(a=>a.categoryId===col.key&&a.isDefault);
-                                            if(defaultAction&&onRequestNewTask) onRequestNewTask({actionId:defaultAction.id});
+                                            let defaultAction=actions.find(a=>a.categoryId===col.key&&a.isDefault);
+                                            if(!defaultAction){
+                                                const now=new Date().toISOString();
+                                                defaultAction={id:`a-${crypto.randomUUID()}`,name:col.name,categoryId:col.key,isDefault:true,budget:0,priority:'medium',tags:[],status:'active',createdAt:now,updatedAt:now};
+                                                onAddAction(defaultAction);
+                                            }
+                                            if(onRequestNewTask) onRequestNewTask({actionId:defaultAction.id});
                                         }else{
                                             const now=new Date().toISOString();const newAction={id:`a-${crypto.randomUUID()}`,name:'New action',categoryId:col.key,budget:0,priority:'medium',tags:[],status:'active',createdAt:now,updatedAt:now};
                                             onAddAction(newAction);

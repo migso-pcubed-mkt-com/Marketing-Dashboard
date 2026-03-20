@@ -1501,17 +1501,40 @@ select:disabled {
     .filter-sidebar {
         width: 100%;
     }
-    
+
     .btn-secondary span {
         display: none;
     }
-    
+
     .kanban-board {
         gap: var(--space-3);
         padding: var(--space-3);
     }
-    
+
     .kanban-column {
-        min-width: var(--kanban-column-width);
+        min-width: min(var(--kanban-column-width), 85vw);
+    }
+
+    /* Responsive modals on mobile */
+    .v11-modal {
+        max-width: 95vw !important;
+        margin: 0 auto;
+    }
+
+    .v11-modal .p-6,
+    .v11-modal .p-5 {
+        padding: var(--space-3) !important;
+    }
+}
+
+/* Touch device enhancements */
+@media (hover: none) and (pointer: coarse) {
+    .btn-primary, .btn-secondary, .dropdown-item {
+        min-height: 44px;
+    }
+
+    .touch-drag-over {
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
     }
 }

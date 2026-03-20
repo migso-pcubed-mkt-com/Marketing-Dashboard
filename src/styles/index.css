@@ -64,6 +64,11 @@ body.resizing *{cursor:col-resize!important}
     .card-hover{transition:transform 0.1s}
     .card-hover:active{transform:scale(0.98)}
     .timeline-bar{padding:0 14px!important}
+    /* Touch targets — minimum 44px for WCAG */
+    .v11-btn-primary,.v11-btn-secondary,.dropdown-item,.add-card-btn,.calendar-add-btn,.toolbar-select{min-height:44px}
+    .action-card,.task-card{touch-action:pan-y}
+    /* Touch drag visual feedback */
+    .touch-drag-over{outline:2px solid var(--accent);outline-offset:-2px;border-radius:var(--radius-md)}
 }
 /* ===== V11 DESIGN SYSTEM ===== */
 .v11-header{background:var(--bg-primary);border-bottom:1px solid var(--border);padding:0 var(--space-6);position:sticky;top:0;z-index:100;height:var(--header-height)}
@@ -260,7 +265,13 @@ body.resizing *{cursor:col-resize!important}
 *:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(max-width:1200px){.kanban-column{min-width:260px;max-width:260px}:root{--sidebar-width:180px}}
 @media(max-width:768px){.v11-view-tabs{display:none}.stats-pills{display:none}:root{--sidebar-width:150px}.timeline-cell{min-width:80px}}
-@media(max-width:480px){.filter-sidebar{width:100%}.v11-btn-secondary span{display:none}.kanban-board{gap:12px;padding:12px}.kanban-column{min-width:280px}}
+@media(max-width:480px){.filter-sidebar{width:100%}.v11-btn-secondary span{display:none}.kanban-board{gap:12px;padding:12px}.kanban-column{min-width:min(280px,85vw)}
+    /* Responsive modals */
+    .v11-modal{max-width:95vw!important;width:95vw!important;padding:16px!important}
+    .v11-modal-overlay>div[style]{max-width:95vw!important}
+    .calendar-title{min-width:auto;font-size:14px}
+    .calendar-toolbar{flex-wrap:wrap;gap:8px}
+}
 /* Calendar View */
 .calendar-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:16px}
 .calendar-toolbar-left,.calendar-toolbar-right{flex:1}

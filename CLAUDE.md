@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-18
+> Last updated: 2026-03-20
 
 ---
 
@@ -78,6 +78,8 @@ src/
 │   ├── trelloMapping.js # Trello ↔ Dashboard entity conversion
 │   ├── trelloSync.js    # Bidirectional sync engine
 │   └── migration.js     # v1→v2 data migration
+├── hooks/
+│   └── useTouchDrag.js  # Reusable touch DnD hook (long-press 300ms, elementFromPoint)
 api/
 ├── github.js            # Serverless: GitHub API proxy (keeps GITHUB_TOKEN server-side)
 └── trello.js            # Serverless: Trello API proxy (keeps TRELLO_API_KEY server-side)
