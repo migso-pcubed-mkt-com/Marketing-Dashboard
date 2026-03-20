@@ -23,7 +23,7 @@ const CategoriesManagementModal = ({categories, onClose, onUpdate, onAdd, onDele
     const saveEdit = () => { onUpdate(editingId, form); cancelEdit(); };
     const handleAdd = () => {
         if (!newCategory.name.trim()) return;
-        onAdd({...newCategory, id: `cat${Date.now()}`});
+        onAdd({...newCategory, id: `cat-${crypto.randomUUID()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()});
         setNewCategory({name:'',color:'#6366f1',gradient:'from-indigo-500 to-purple-600'});
         setIsAdding(false);
     };

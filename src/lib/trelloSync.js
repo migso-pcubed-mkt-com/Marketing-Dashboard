@@ -937,6 +937,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             id: newCatId,
             name: list.name,
             color: CONFIG.CATEGORIES[updatedCategories.length % CONFIG.CATEGORIES.length]?.color || '#6366f1',
+            gradient: CONFIG.CATEGORIES[updatedCategories.length % CONFIG.CATEGORIES.length]?.gradient || 'from-indigo-500 to-purple-600',
             trelloListId: list.id,
             trelloListPos: list.pos,
             order: updatedCategories.length,
@@ -1082,8 +1083,11 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             id: `cat-${crypto.randomUUID()}`,
             name: list.name,
             color: CONFIG.CATEGORIES[updatedCategories.length % CONFIG.CATEGORIES.length]?.color || '#6366f1',
+            gradient: CONFIG.CATEGORIES[updatedCategories.length % CONFIG.CATEGORIES.length]?.gradient || 'from-indigo-500 to-purple-600',
+            order: updatedCategories.length,
             trelloListId: list.id,
             trelloListPos: list.pos,
+            createdAt: new Date().toISOString(),
             trelloLastModified: new Date().toISOString()
         };
         updatedCategories.push(newCat);

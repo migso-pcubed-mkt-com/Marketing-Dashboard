@@ -120,7 +120,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         }
         if(!text&&commentAttachments.length===0)return;
         const comment={
-            id:`cmt${Date.now()}`,
+            id:`cm-${crypto.randomUUID()}`,
             author:trelloUser?.fullName||'User',
             text,
             date:new Date().toISOString(),
@@ -129,7 +129,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         const updatedForm={...form,comments:[...(form.comments||[]),comment]};
         if(commentAttachments.length>0){
             updatedForm.attachments=[...(form.attachments||[]),...commentAttachments.map(att=>({
-                id:att.id||`att${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+                id:att.id||`att-${crypto.randomUUID()}`,
                 name:att.name,type:att.type,size:att.size,data:att.data,url:att.url,date:att.date
             }))];
         }
@@ -145,7 +145,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
             const reader=new FileReader();
             reader.onload=(ev)=>{
                 setCommentAttachments(prev=>[...prev,{
-                    id:`att${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+                    id:`att-${crypto.randomUUID()}`,
                     name:file.name,type:file.type,size:file.size,
                     data:ev.target.result,date:new Date().toISOString()
                 }]);
@@ -161,7 +161,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
             const reader=new FileReader();
             reader.onload=(ev)=>{
                 setForm(prev=>({...prev,attachments:[...(prev.attachments||[]),{
-                    id:`att${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+                    id:`att-${crypto.randomUUID()}`,
                     name:file.name,type:file.type,size:file.size,
                     data:ev.target.result,date:new Date().toISOString()
                 }]}));
@@ -478,11 +478,11 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                 ):(
                                                     <div style={{padding:'6px 8px'}}>
                                                         <div style={{display:'flex',gap:4,alignItems:'center',marginBottom:6}}>
-                                                            <input type="text" value={newOtherLabelName} onChange={e=>setNewOtherLabelName(e.target.value)} placeholder="Label name" autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newOtherLabelName.trim()){const nl={id:'ol-'+Date.now(),name:newOtherLabelName.trim(),color:newOtherLabelColor};setForm({...form,otherLabels:[...(form.otherLabels||[]),nl]});setNewOtherLabelName('');setShowAddOtherLabel(false);setShowCreateOtherLabel(false);}if(e.key==='Escape'){setShowCreateOtherLabel(false);setNewOtherLabelName('');}}} style={{flex:1,padding:'4px 6px',borderRadius:4,border:'1px solid var(--border)',fontSize:11}}/>
+                                                            <input type="text" value={newOtherLabelName} onChange={e=>setNewOtherLabelName(e.target.value)} placeholder="Label name" autoFocus onKeyDown={e=>{if(e.key==='Enter'&&newOtherLabelName.trim()){const nl={id:'ol-'+crypto.randomUUID(),name:newOtherLabelName.trim(),color:newOtherLabelColor};setForm({...form,otherLabels:[...(form.otherLabels||[]),nl]});setNewOtherLabelName('');setShowAddOtherLabel(false);setShowCreateOtherLabel(false);}if(e.key==='Escape'){setShowCreateOtherLabel(false);setNewOtherLabelName('');}}} style={{flex:1,padding:'4px 6px',borderRadius:4,border:'1px solid var(--border)',fontSize:11}}/>
                                                             <input type="color" value={newOtherLabelColor} onChange={e=>setNewOtherLabelColor(e.target.value)} style={{width:24,height:24,border:'none',padding:0,cursor:'pointer',borderRadius:4}}/>
                                                         </div>
                                                         <div style={{display:'flex',gap:4}}>
-                                                            <button onClick={()=>{if(newOtherLabelName.trim()){const nl={id:'ol-'+Date.now(),name:newOtherLabelName.trim(),color:newOtherLabelColor};setForm({...form,otherLabels:[...(form.otherLabels||[]),nl]});setNewOtherLabelName('');setShowAddOtherLabel(false);setShowCreateOtherLabel(false);}}} style={{padding:'3px 8px',borderRadius:4,background:'var(--accent)',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Create</button>
+                                                            <button onClick={()=>{if(newOtherLabelName.trim()){const nl={id:'ol-'+crypto.randomUUID(),name:newOtherLabelName.trim(),color:newOtherLabelColor};setForm({...form,otherLabels:[...(form.otherLabels||[]),nl]});setNewOtherLabelName('');setShowAddOtherLabel(false);setShowCreateOtherLabel(false);}}} style={{padding:'3px 8px',borderRadius:4,background:'var(--accent)',color:'white',border:'none',cursor:'pointer',fontSize:11}}>Create</button>
                                                             <button onClick={()=>{setShowCreateOtherLabel(false);setNewOtherLabelName('');}} style={{padding:'3px 8px',borderRadius:4,background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer',fontSize:11}}>Cancel</button>
                                                         </div>
                                                     </div>

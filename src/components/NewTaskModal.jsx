@@ -18,7 +18,7 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
 
     const handleInlineCreateCategory = () => {
         if (!newCategoryName.trim() || !onAddCategory) return;
-        const nc = {id:`cat${Date.now()}`, name:newCategoryName.trim(), color:'#6366f1', gradient:'from-indigo-500 to-purple-500'};
+        const nc = {id:`cat-${crypto.randomUUID()}`, name:newCategoryName.trim(), color:'#6366f1', gradient:'from-indigo-500 to-purple-500', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()};
         onAddCategory(nc);
         setNewActionCategoryId(nc.id);
         setNewCategoryName('');
@@ -29,12 +29,15 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
         const name = newActionName.trim();
         if (!name || !newActionCategoryId) return;
         const newAction = {
-            id: `a${Date.now()}`,
+            id: `a-${crypto.randomUUID()}`,
             name,
             categoryId: newActionCategoryId,
             budget: 0,
             priority: 'medium',
-            tags: []
+            tags: [],
+            status: 'active',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         };
         if (typeof onCreateAction === 'function') {
             onCreateAction(newAction);
@@ -50,7 +53,8 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
         if (!form.title.trim() || !form.actionId) return;
         const action = actions.find(a => a.id === form.actionId);
         const month = form.startDate ? new Date(form.startDate).getMonth() : new Date().getMonth();
-        onAdd({...form, id: `t${Date.now()}`, month, channels: action?.tags || [], checklist: [], comments: [], attachments: [], countries: form.countries || []});
+        const now = new Date().toISOString();
+        onAdd({...form, id: `t-${crypto.randomUUID()}`, month, channels: action?.tags || [], checklist: [], comments: [], attachments: [], countries: form.countries || [], createdAt: now, updatedAt: now});
         onClose();
     };
     const selectedAction = actions.find(a => a.id === form.actionId);
@@ -80,7 +84,7 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
                     </div>
                     <div className="space-y-4">
                         <div><label className="v11-label">Title</label><input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="E.g. LinkedIn Post January" className="v11-input" autoFocus/></div>
-                        <div>
+                        {!isCardAsTask && <div>
                             <label className="v11-label">Action</label>
                             {!showInlineCreate ? (
                                 <>
@@ -126,7 +130,7 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
                                     </div>
                                 </div>
                             )}
-                        </div>
+                        </div>}
                         <div className="flex gap-4">
                             <div className="flex-1"><label className="v11-label">Start date</label><input type="date" value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="v11-input"/></div>
                             <div className="flex-1"><label className="v11-label">End date</label><input type="date" value={form.dueDate} onChange={e => setForm({...form, dueDate: e.target.value})} className="v11-input"/></div>
