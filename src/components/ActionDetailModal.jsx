@@ -97,7 +97,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         if(!isReadOnly)onUpdateAction(action.id,finalForm);
         onClose();
     };
-    const handleDelete=()=>{if(onDeleteAction){onDeleteAction(action.id);onClose();}};
+    const handleDelete=()=>{if(onDeleteAction&&window.confirm('Are you sure you want to delete this action?')){onDeleteAction(action.id);onClose();}};
     const handleStatusChange=(taskId,newStatus)=>{onUpdateTask(taskId,{status:newStatus});};
     const addChannel=(id)=>setForm({...form,tags:[...(form.tags||[]),id]});
     const removeChannel=(id)=>setForm({...form,tags:(form.tags||[]).filter(c=>c!==id)});

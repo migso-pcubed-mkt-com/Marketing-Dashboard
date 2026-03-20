@@ -373,8 +373,43 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     // Reorder within column — atomic batch update
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
                                     const dragIdx=colItems.findIndex(t=>t.id===draggedId);
+                                    // Cross-column drag: task is not in target column's items
+                                    if(dragIdx<0){
+                                        const draggedTask=tasks.find(t=>t.id===draggedId);
+                                        if(!draggedTask)return;
+                                        const changes={};
+                                        const targetIdx=colItems.findIndex(t=>t.id===targetId);
+                                        if(targetIdx>=0){
+                                            changes.order=position==='before'?(colItems[targetIdx].order||0)-0.5:(colItems[targetIdx].order||0)+0.5;
+                                        }else{changes.order=colItems.length;}
+                                        if(viewMode==='category'){
+                                            const defaultAction=actions.find(a=>a.categoryId===col.key&&a.isDefault);
+                                            if(defaultAction)changes.actionId=defaultAction.id;
+                                        }else if(viewMode==='month'){
+                                            const mi=col.key;const yr=Number(selectedYear)||new Date().getFullYear();
+                                            const os=draggedTask.startDate?new Date(draggedTask.startDate+'T00:00:00'):null;
+                                            const oe=draggedTask.dueDate?new Date(draggedTask.dueDate+'T00:00:00'):null;
+                                            const ld=new Date(yr,mi+1,0).getDate();
+                                            const sd=os?Math.min(os.getDate(),ld):1;
+                                            const ed=oe?Math.min(oe.getDate(),ld):ld;
+                                            changes.startDate=yr+'-'+String(mi+1).padStart(2,'0')+'-'+String(sd).padStart(2,'0');
+                                            changes.dueDate=yr+'-'+String(mi+1).padStart(2,'0')+'-'+String(ed).padStart(2,'0');
+                                            changes.month=mi;
+                                        }else if(viewMode==='quarter'){
+                                            const qi=col.key;const yr=Number(selectedYear)||new Date().getFullYear();
+                                            const fm=qi*3;const lm=qi*3+2;
+                                            changes.startDate=yr+'-'+String(fm+1).padStart(2,'0')+'-01';
+                                            const ld2=new Date(yr,lm+1,0).getDate();
+                                            changes.dueDate=yr+'-'+String(lm+1).padStart(2,'0')+'-'+ld2;
+                                            changes.month=fm;
+                                        }else if(viewMode==='country'){
+                                            changes.countries=col.key==='_unassigned'?[]:[col.key];
+                                        }
+                                        onUpdateTask(draggedId,changes);
+                                        return;
+                                    }
                                     const reordered=[...colItems];
-                                    if(dragIdx>=0)reordered.splice(dragIdx,1);
+                                    reordered.splice(dragIdx,1);
                                     const adjustedTargetIdx=reordered.findIndex(t=>t.id===targetId);
                                     if(adjustedTargetIdx===-1)return;
                                     const insertAt=position==='before'?adjustedTargetIdx:adjustedTargetIdx+1;

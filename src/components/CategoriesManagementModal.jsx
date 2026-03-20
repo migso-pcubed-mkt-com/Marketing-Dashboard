@@ -93,7 +93,7 @@ const CategoriesManagementModal = ({categories, onClose, onUpdate, onAdd, onDele
                                 ) : (
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center space-x-3"><div className="cursor-move" style={{color:'var(--text-muted)'}} title="Drag to reorder">⋮⋮</div><div className={`w-12 h-8 rounded-lg bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium">{cat.name}</span></div>
-                                        <div className="flex gap-2"><button onClick={() => startEdit(cat)} className="px-3 py-1 text-sm text-secondary hover:bg-secondary/10 rounded-lg">Edit</button><button onClick={() => onDelete(cat.id)} className="px-3 py-1 text-sm text-accent-red hover:bg-red-50 rounded-lg">Delete</button></div>
+                                        <div className="flex gap-2"><button onClick={() => startEdit(cat)} className="px-3 py-1 text-sm text-secondary hover:bg-secondary/10 rounded-lg">Edit</button><button onClick={() => {if(window.confirm('Are you sure you want to delete this category?'))onDelete(cat.id);}} className="px-3 py-1 text-sm text-accent-red hover:bg-red-50 rounded-lg">Delete</button></div>
                                     </div>
                                 )}
                             </div>

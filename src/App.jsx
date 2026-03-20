@@ -163,7 +163,7 @@ const App = () => {
     const handleSwitchBoard = useCallback((boardId) => {
         setCurrentBoardId(boardId);
         setBoardData(prev => ({ ...prev, currentBoardId: boardId }));
-        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
         setSelectedTask(null);
         setSelectedAction(null);
     }, []);
@@ -208,6 +208,17 @@ const App = () => {
                 id: `t-${crypto.randomUUID()}`,
                 actionId: actionIdMap[t.actionId] || t.actionId
             }));
+            // Strip Trello metadata — duplicated board must not sync to the same Trello board
+            delete cloned.trelloSync;
+            delete cloned.trelloBoardId;
+            delete cloned.trelloBoardName;
+            cloned.categories.forEach(c => { delete c.trelloListId; });
+            cloned.actions.forEach(a => { delete a.trelloCardId; delete a.trelloListId; });
+            cloned.tasks.forEach(t => {
+                delete t.trelloCardId; delete t.trelloCheckItemId;
+                delete t.trelloChecklistName; delete t.trelloLastModified;
+                delete t.trelloArchived;
+            });
             const newBoard = {
                 ...cloned,
                 id: newId,
@@ -216,7 +227,7 @@ const App = () => {
                 updatedAt: new Date().toISOString()
             };
             setCurrentBoardId(newId);
-            setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
+            setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
             return { ...prev, currentBoardId: newId, boards: [...prev.boards, newBoard] };
         });
         showNotification('✅ Board duplicated');
