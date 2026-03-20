@@ -121,6 +121,13 @@ const BoardSelector = () => {
                                     }}>
                                         {board.name}
                                     </span>
+                                    {board.trelloSync?.trelloBoardId && (
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{flexShrink:0,opacity:0.5}} title="Synced with Trello">
+                                            <rect x="1" y="1" width="22" height="22" rx="3" fill="#0079BF"/>
+                                            <rect x="4" y="4" width="7" height="14" rx="1.5" fill="white"/>
+                                            <rect x="13" y="4" width="7" height="9" rx="1.5" fill="white"/>
+                                        </svg>
+                                    )}
                                     <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
                                         {board.tasks?.length || 0}
                                     </span>

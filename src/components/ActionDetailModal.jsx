@@ -238,17 +238,27 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         if(dragTaskId&&!dragGroupName){
             const srcTask=actionTasks.find(t=>t.id===dragTaskId);
             if(srcTask){
-                const targetGroup=taskGroups.find(g=>g.name===targetGroupName);
                 const updates={};
                 const currentGroup=srcTask.trelloChecklistName||'Tasks';
                 if(currentGroup!==targetGroupName){
                     updates.trelloChecklistName=targetGroupName;
                 }
-                // Append task to end of target group with proper order
-                const targetTasks=targetGroup?targetGroup.tasks.filter(t=>t.id!==dragTaskId):[];
-                const maxOrder=targetTasks.reduce((m,t)=>Math.max(m,t.order||0),0);
-                updates.order=maxOrder+1;
-                onUpdateTask(dragTaskId,updates);
+                // Renumber ALL tasks across ALL groups to preserve group order
+                const batchUpdates=[];
+                let globalOrder=0;
+                for(const g of taskGroups){
+                    const isTarget=g.name===targetGroupName;
+                    const groupTasks=g.tasks.filter(t=>t.id!==dragTaskId);
+                    for(const t of groupTasks){
+                        batchUpdates.push({id:t.id,changes:{order:globalOrder++}});
+                    }
+                    // Append dragged task at end of target group
+                    if(isTarget){
+                        batchUpdates.push({id:dragTaskId,changes:{...updates,order:globalOrder++}});
+                    }
+                }
+                if(onBatchUpdateTasks)onBatchUpdateTasks(batchUpdates);
+                else batchUpdates.forEach(u=>onUpdateTask(u.id,u.changes));
             }
             setDragTaskId(null);
             setDragOverTaskId(null);
@@ -294,9 +304,9 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         setDragOverTaskPos(e.clientY<mid?'before':'after');
     };
     const handleTaskDrop=(e,targetTaskId,groupName)=>{
+        if(!dragTaskId||dragTaskId===targetTaskId)return; // Let non-task drags bubble to group handler
         e.preventDefault();
         e.stopPropagation();
-        if(!dragTaskId||dragTaskId===targetTaskId)return;
         const group=taskGroups.find(g=>g.name===groupName);
         if(!group)return;
         const srcTask=actionTasks.find(t=>t.id===dragTaskId);
@@ -307,19 +317,25 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
             updates.trelloChecklistName=groupName;
         }
         // Reorder within group
-        const groupTasks=[...group.tasks];
-        const srcInGroup=groupTasks.findIndex(t=>t.id===dragTaskId);
-        if(srcInGroup>=0)groupTasks.splice(srcInGroup,1);
-        const tgtIdx=groupTasks.findIndex(t=>t.id===targetTaskId);
+        const reorderedGroupTasks=[...group.tasks];
+        const srcInGroup=reorderedGroupTasks.findIndex(t=>t.id===dragTaskId);
+        if(srcInGroup>=0)reorderedGroupTasks.splice(srcInGroup,1);
+        const tgtIdx=reorderedGroupTasks.findIndex(t=>t.id===targetTaskId);
         if(tgtIdx>=0){
-            groupTasks.splice(dragOverTaskPos==='before'?tgtIdx:tgtIdx+1,0,srcTask);
+            reorderedGroupTasks.splice(dragOverTaskPos==='before'?tgtIdx:tgtIdx+1,0,srcTask);
         }else{
-            groupTasks.push(srcTask);
+            reorderedGroupTasks.push(srcTask);
         }
-        const batchUpdates=groupTasks.map((t,i)=>({
-            id:t.id,
-            changes:t.id===dragTaskId?{...updates,order:i}:{order:i}
-        }));
+        // Renumber ALL tasks across ALL groups to preserve group order
+        const batchUpdates=[];
+        let globalOrder=0;
+        for(const g of taskGroups){
+            const tasks=g.name===groupName?reorderedGroupTasks:g.tasks;
+            for(const t of tasks){
+                batchUpdates.push({id:t.id,changes:t.id===dragTaskId?{...updates,order:globalOrder}:{order:globalOrder}});
+                globalOrder++;
+            }
+        }
         if(onBatchUpdateTasks)onBatchUpdateTasks(batchUpdates);
         else batchUpdates.forEach(u=>onUpdateTask(u.id,u.changes));
         setDragTaskId(null);
