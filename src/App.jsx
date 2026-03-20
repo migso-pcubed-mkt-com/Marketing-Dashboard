@@ -608,6 +608,21 @@ const App = () => {
         showNotification('✅ Task updated');
     };
 
+    const handleBatchUpdateTasks = (updates) => {
+        // updates: [{id, changes}, ...] — apply all in one atomic setTasks call
+        setTasks(prev => prev.map(t => {
+            const u = updates.find(u => u.id === t.id);
+            if (!u) return t;
+            const newTask = {...t, ...u.changes, updatedAt: new Date().toISOString()};
+            if (u.changes.startDate) {
+                newTask.month = new Date(u.changes.startDate).getMonth();
+            } else if (u.changes.dueDate) {
+                newTask.month = new Date(u.changes.dueDate).getMonth();
+            }
+            return newTask;
+        }));
+    };
+
     const handleUpdateAction = (actionId, updates) => {
         setActions(prev => prev.map(a => a.id === actionId ? {...a, ...updates, updatedAt: new Date().toISOString()} : a));
         showNotification('✅ Action updated');
@@ -1180,7 +1195,7 @@ const App = () => {
                             <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
                         </div>
                     )}
-                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory}/>}
+                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={visibleTasks} members={currentBoard?.members || []}/>}

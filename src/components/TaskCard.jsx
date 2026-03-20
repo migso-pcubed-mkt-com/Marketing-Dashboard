@@ -102,16 +102,15 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
                 <span className={`card-date ${task.dueDate && new Date(task.dueDate) < new Date() && task.status !== 'completed' ? 'overdue' : ''}`}>{task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}) : task.startDate ? new Date(task.startDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}) : ''}</span>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginLeft:'auto'}}>
                     {task.budget > 0 && <span className="card-budget">{task.budget.toLocaleString()}€</span>}
-                    {(task.assignees||[]).length > 0 && <div style={{display:'flex',alignItems:'center'}}>
-                        {task.assignees.slice(0,3).map((mId,idx) => {
+                    {(()=>{const resolved=(task.assignees||[]).filter(id=>boardMembers.some(mb=>mb.id===id));return resolved.length>0&&<div style={{display:'flex',alignItems:'center'}}>
+                        {resolved.slice(0,3).map((mId,idx) => {
                             const m = boardMembers.find(mb => mb.id === mId);
-                            if (!m) return null;
                             return m.avatarUrl
                                 ? <img key={mId} src={m.avatarUrl} alt={m.fullName||''} title={m.fullName||m.username} style={{width:22,height:22,borderRadius:'50%',border:'2px solid var(--bg-primary)',marginLeft:idx>0?-6:0}}/>
                                 : <span key={mId} title={m.fullName||m.username} style={{width:22,height:22,borderRadius:'50%',background:'var(--accent)',color:'white',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:600,border:'2px solid var(--bg-primary)',marginLeft:idx>0?-6:0}}>{(m.fullName||m.username||'?')[0].toUpperCase()}</span>;
                         })}
-                        {task.assignees.length > 3 && <span style={{fontSize:10,color:'var(--text-muted)',marginLeft:4}}>+{task.assignees.length-3}</span>}
-                    </div>}
+                        {resolved.length > 3 && <span style={{fontSize:10,color:'var(--text-muted)',marginLeft:4}}>+{resolved.length-3}</span>}
+                    </div>})()}
                 </div>
             </div>}
         </div>
