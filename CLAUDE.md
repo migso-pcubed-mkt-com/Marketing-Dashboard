@@ -167,6 +167,7 @@ Props still drilled for view-specific data.
 - Trigger auto-save during drag/resize (`isDragging`/`isResizing` flags must block saves)
 - Use `Date.now() + Math.random()` for IDs
 - Default-import from `config.js`
+- Map Trello labels to "Action" in card-as-task mode (creates mixed `isDefault` conflict in Kanban)
 
 ---
 
@@ -186,6 +187,8 @@ Props still drilled for view-specific data.
 | `card-as-action` | Actions | Tasks |
 
 **Guard**: never delete Trello checklists from a task that has no local checklists (`localChecklistIds.size === 0`).
+
+**card-as-task mode**: No action mapping allowed — labels map to channel/country/other only. All actions per category are `isDefault: true`, tasks shown directly under categories in Kanban. Mixing default + non-default actions in one category breaks the Kanban `allDefault` check.
 
 ### Sync robustness
 

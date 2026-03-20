@@ -91,8 +91,8 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
             } else if (channelMatch) {
                 mappings[label.id] = { type: 'channel', channelId: channelMatch, labelName: label.name || '', labelColor };
             } else if (label.name && mode === 'card-as-task') {
-                // In card-as-task mode, named labels default to Action
-                mappings[label.id] = { type: 'action', categoryId: null, labelName: label.name || '', labelColor };
+                // In card-as-task mode, named labels default to Other (no action mapping)
+                mappings[label.id] = { type: 'other', labelName: label.name || '', labelColor };
             } else if (label.name) {
                 // In card-as-action mode, named labels default to Other (no "action" option)
                 mappings[label.id] = { type: 'other', labelName: label.name || '', labelColor };
@@ -352,7 +352,6 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
                                                         color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer'
                                                     }}
                                                 >
-                                                    {syncMode !== 'card-as-action' && <option value="action">Action</option>}
                                                     <option value="channel">Channel</option>
                                                     <option value="country">Country</option>
                                                     <option value="other">Other Label</option>

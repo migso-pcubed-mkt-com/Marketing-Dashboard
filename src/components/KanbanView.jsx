@@ -320,8 +320,15 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         onUpdateTask(taskId,{startDate,dueDate,month:firstMonth});
                                     }
                                 }else if(viewMode==='category'){
+                                    const taskId=e.dataTransfer.getData('taskId');
                                     const actionId=e.dataTransfer.getData('actionId');
-                                    if(actionId&&onUpdateAction){
+                                    if(taskId){
+                                        // directTasks mode — move task to default action in target category
+                                        const defaultAction=actions.find(a=>a.categoryId===col.key&&a.isDefault);
+                                        if(defaultAction){
+                                            onUpdateTask(taskId,{actionId:defaultAction.id});
+                                        }
+                                    }else if(actionId&&onUpdateAction){
                                         onUpdateAction(actionId,{categoryId:col.key});
                                     }
                                 }else if(viewMode==='action'){
@@ -362,7 +369,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 // Prevent column drag when dragging cards
                                 e.stopPropagation();
                             }}>
-                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?((viewMode==='country'||viewMode==='month'||viewMode==='quarter')?((draggedId,targetId,position)=>{
+                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?((viewMode==='country'||viewMode==='month'||viewMode==='quarter'||(viewMode==='category'&&col.directTasks))?((draggedId,targetId,position)=>{
                                     // Reorder within column — atomic batch update
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
                                     const dragIdx=colItems.findIndex(t=>t.id===draggedId);
@@ -411,6 +418,16 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                         const targetCountry=col.key==='_unassigned'?[]:[col.key];
                                         const bu=batchUpdates.find(u=>u.id===draggedId);
                                         if(bu)bu.changes.countries=targetCountry;
+                                    }else if(viewMode==='category'){
+                                        // Cross-category move: update actionId to target category's default action
+                                        const dt=tasks.find(t=>t.id===draggedId);
+                                        if(dt){
+                                            const defaultAction=actions.find(a=>a.categoryId===col.key&&a.isDefault);
+                                            if(defaultAction&&dt.actionId!==defaultAction.id){
+                                                const bu=batchUpdates.find(u=>u.id===draggedId);
+                                                if(bu)bu.changes.actionId=defaultAction.id;
+                                            }
+                                        }
                                     }
                                     onBatchUpdateTasks(batchUpdates);
                                 }):onReorderTask):null)} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries} isReadOnly={isReadOnly}/>)}

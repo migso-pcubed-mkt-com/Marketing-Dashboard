@@ -22,6 +22,8 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-20 | Remove "Action" label mapping option for card-as-task sync mode | Mixing default + non-default actions in one category breaks Kanban `allDefault` check — users wanting action-level organization should use card-as-action mode instead |
+| 2026-03-20 | Fix Kanban card drag for directTasks category view + add Trello icon in board selector | card-as-task boards showed TaskCards but drop handler only checked `actionId`; inline batch reorder excluded category view |
 | 2026-03-20 | Move getTaskMonth out of getColumns() to component scope | Root cause of persistent month/quarter reorder failure — function was unreachable from inline handler, causing silent ReferenceError |
 | 2026-03-20 | Add handleBatchUpdateTasks for all multi-task reorder operations | N separate onUpdateTask calls caused React state batching to lose intermediate order updates |
 | 2026-03-20 | Category column reorder now updates category.order field | Column drag only saved to localStorage, Trello sync couldn't detect position changes |
