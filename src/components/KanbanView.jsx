@@ -279,10 +279,11 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             <div className="kanban-toolbar">
                 <div className="kanban-toolbar-left">
                     <div className="view-btn-group">
-                        {[{id:'category',label:'By Category'},{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
+                        {[{id:'category',label:isCardAsTask?'By Category':'Actions'},{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
                             <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
                         ))}
                     </div>
+                    <span className="kanban-context-label">{viewMode==='category'?(columns.some(c=>c.directTasks)?`${columns.reduce((s,c)=>s+c.items.length,0)} tasks`:`${columns.reduce((s,c)=>s+c.items.length,0)} actions`):`${columns.reduce((s,c)=>s+c.items.length,0)} tasks`}</span>
                 </div>
                 <div className="kanban-toolbar-right">
                     {viewMode!=='category'&&<><span className="toolbar-label">Sort:</span>
