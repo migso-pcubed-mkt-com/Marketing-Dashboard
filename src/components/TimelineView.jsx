@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon, PriorityIcon } from './Icons.jsx';
 
-const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef,isReadOnly,onRequestNewTask})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef,isReadOnly,onRequestNewTask,isCardAsTask})=>{
     const timelineRef=useRef(null);
     const dragGhostRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -1212,7 +1212,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                             </div>
                         )}
                         <div className={`flex border-b border-[var(--border)] ${(zoom==='week'||zoom==='day')?'sticky top-[37px] z-30':'sticky top-0 z-40'} bg-[var(--bg-primary)]`}>
-                            <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 bg-[var(--bg-primary)] border-r border-[var(--border)]`}>Actions</div>
+                            <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 bg-[var(--bg-primary)] border-r border-[var(--border)]`}>{isCardAsTask?'Tasks':'Actions'}</div>
                             {zoom==='quarter'?headers.map(h=>(
                                 <div key={h.q} className={`flex-shrink-0 p-3 text-center font-semibold border-l border-[var(--border)]`} style={{width:colWidth}}>
                                     <div>{h.label}</div>
@@ -1233,7 +1233,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                         <div style={{width:4,alignSelf:'stretch',background:category.color,flexShrink:0}}/>
                                         <div className="timeline-category-sidebar">
                                             <div className="timeline-category-name">{category.name}</div>
-                                            <div className="timeline-category-count">{catActions.length} actions</div>
+                                            <div className="timeline-category-count">{catActions.length} {isCardAsTask?'tasks':'actions'}</div>
                                         </div>
                                     </div>
                                     <div className="flex-1" style={{background:'var(--bg-secondary)'}}/>
