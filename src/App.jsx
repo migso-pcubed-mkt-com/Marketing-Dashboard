@@ -11,7 +11,7 @@ import {
     saveSnapshot,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
-import { syncWithTrello } from './lib/trelloSync.js';
+import { syncWithTrello, isSyncInProgress } from './lib/trelloSync.js';
 import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
@@ -446,8 +446,8 @@ const App = () => {
         if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); }
         const delay = useSupabase ? 1000 : 2000;
         const doSave = async () => {
-            if (isUserInteractingRef.current) {
-                console.log('⏳ User interacting, delaying save...');
+            if (isUserInteractingRef.current || isSyncInProgress()) {
+                console.log('⏳ User interacting or sync in progress, delaying save...');
                 autoSaveTimeoutRef.current = setTimeout(doSave, 500);
                 return;
             }
@@ -961,6 +961,7 @@ const App = () => {
     // --- Trello sync ---
     const handleTrelloSync = useCallback(async () => {
         if (!currentBoard?.trelloSync?.trelloBoardId) return;
+        if (!navigator.onLine) return; // Skip sync when offline
         if (trelloSyncStatus === 'syncing') return; // Prevent concurrent syncs
         setTrelloSyncStatus('syncing');
         try {
@@ -1266,7 +1267,7 @@ const App = () => {
                             <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
                         </div>
                     )}
-                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
+                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={visibleTasks} members={currentBoard?.members || []}/>}

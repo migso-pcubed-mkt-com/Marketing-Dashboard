@@ -207,12 +207,28 @@ Props still drilled for view-specific data.
 
 **Helper functions** in `trello.js`: `archiveTrelloList(listId)`, `archiveTrelloCard(cardId)` — both wrap `updateXxx(id, { closed: 'true' })`.
 
+### Card movement sync (card-as-task)
+
+When a card is moved between lists on Trello, `mergeCardIntoTask()` detects the list change via `listToCatId` and updates `actionId` to the default action of the new category. Prevents ping-pong between Trello and local category assignment.
+
+### Category name sync (card-as-task)
+
+Category names are synced bidirectionally in both modes. Push: local rename → Trello list renamed. Pull: Trello list renamed → local category renamed. Uses timestamp-based "last write wins" like all other fields.
+
 ### Sync robustness
 
-- **Sync lock**: module-level `syncInProgress` flag + 60s auto-timeout in `trelloSync.js`
+- **Sync lock**: module-level `syncInProgress` flag + 60s auto-timeout in `trelloSync.js`. Exported via `isSyncInProgress()` — auto-save defers while sync is running.
+- **Offline guard**: `handleTrelloSync` skips if `!navigator.onLine` — prevents snapshot restore from overwriting offline edits.
+- **Drag guard**: `isUserInteractingRef` blocks auto-save during Kanban/Timeline drag (passed to KanbanView + TimelineView).
 - **Pre-sync snapshot**: board saved to `localStorage('trello_sync_snapshot')` before each sync; auto-restored on failure (24h validity)
 - **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors — backoff 1s, 2s, 4s
 - **Post-sync**: `validateBoardIntegrity()` checks orphan refs + duplicate IDs. Light Supabase fetch 4s after sync to recover ignored Realtime events.
+
+### Sync boundaries (by design)
+
+- `budget`, `priority` are local-only fields (no Trello equivalent). Preserved via `...existingTask` spread during merge.
+- Task `order` is independent of Trello card `pos` (Kanban reorder is local). Only checklist item positions sync in card-as-action mode.
+- `createCard` supports `start`, `pos`, `idMembers`, `dueComplete` for full field creation.
 
 ---
 

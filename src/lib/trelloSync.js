@@ -6,6 +6,7 @@ import { CONFIG } from '../config.js';
 
 // Sync lock — prevents concurrent sync operations
 let syncInProgress = false;
+export const isSyncInProgress = () => syncInProgress;
 let syncStartedAt = 0;
 const SYNC_LOCK_TIMEOUT_MS = 60000; // 60s max — auto-reset if sync hangs
 
@@ -606,7 +607,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
 
         if (trelloModified && !locallyModified) {
             // Only Trello changed → update local task
-            updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig);
+            updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
             result.updated++;
         } else if (locallyModified && !trelloModified) {
             // Only dashboard changed → push to Trello (skip if readOnly / guest mode)
@@ -659,7 +660,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     result.errorDetails.push({ name: task.title, op: 'push', error: err.message });
                 }
             } else {
-                updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig);
+                updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
                 result.updated++;
             }
         } else {
@@ -827,6 +828,9 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         try {
             const cardData = { name: task.title, desc: task.description || '' };
             if (task.dueDate) cardData.due = task.dueDate;
+            if (task.startDate) cardData.start = task.startDate;
+            if (task.assignees?.length > 0) cardData.idMembers = task.assignees.join(',');
+            if (task.status === 'completed') cardData.dueComplete = 'true';
             // Include label IDs if the action has a Trello label (comma-separated string)
             if (action.trelloLabelId) cardData.idLabels = [action.trelloLabelId].join(',');
 
@@ -887,22 +891,29 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         const catLocallyModified = catUpdatedAt > catSyncTime;
         const trelloSortedIdx = trelloLists.indexOf(trelloList);
         if (catLocallyModified && !readOnly) {
-            // Push local order to Trello
-            if (cat.order !== undefined) {
-                const expectedPos = (cat.order + 1) * 16384;
-                if (Math.abs((trelloList.pos || 0) - expectedPos) > 100) {
-                    try {
-                        await updateTrelloList(cat.trelloListId, { pos: String(expectedPos) });
-                        updatedCategories[i] = { ...cat, trelloListPos: expectedPos, trelloLastModified: new Date().toISOString() };
-                    } catch (e) {
-                        console.warn('List position push error:', e);
+            // Push local changes to Trello (name + position)
+            try {
+                const updates = {};
+                if (cat.name !== trelloList.name) updates.name = cat.name;
+                if (cat.order !== undefined) {
+                    const expectedPos = (cat.order + 1) * 16384;
+                    if (Math.abs((trelloList.pos || 0) - expectedPos) > 100) {
+                        updates.pos = String(expectedPos);
                     }
                 }
+                if (Object.keys(updates).length > 0) {
+                    await updateTrelloList(cat.trelloListId, updates);
+                    updatedCategories[i] = { ...cat, trelloListPos: updates.pos ? Number(updates.pos) : trelloList.pos, trelloLastModified: new Date().toISOString() };
+                    result.pushed++;
+                }
+            } catch (e) {
+                console.warn('List push error:', e);
             }
         } else {
-            // Pull from Trello
-            if (cat.trelloListPos !== trelloList.pos || cat.order !== trelloSortedIdx) {
-                updatedCategories[i] = { ...cat, trelloListPos: trelloList.pos, order: trelloSortedIdx, trelloLastModified: new Date().toISOString() };
+            // Pull from Trello (name + position)
+            if (cat.name !== trelloList.name || cat.trelloListPos !== trelloList.pos || cat.order !== trelloSortedIdx) {
+                updatedCategories[i] = { ...cat, name: trelloList.name, trelloListPos: trelloList.pos, order: trelloSortedIdx, trelloLastModified: new Date().toISOString() };
+                result.updated++;
             }
         }
     }
@@ -1449,6 +1460,10 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
 
             try {
                 const cardData = { name: action.name, desc: action.description || '' };
+                if (action.startDate) cardData.start = action.startDate;
+                if (action.dueDate) cardData.due = action.dueDate;
+                if (action.assignees?.length > 0) cardData.idMembers = action.assignees.join(',');
+                if (action.status === 'completed') cardData.dueComplete = 'true';
                 const created = await createTrelloCard(listId, cardData);
                 updatedActions[i] = {
                     ...action,
