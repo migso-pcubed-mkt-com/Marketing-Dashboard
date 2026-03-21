@@ -169,6 +169,10 @@ export const updateTrelloList = (listId, updates) =>
         body: JSON.stringify({ listId, updates })
     });
 
+// Archive a Trello list (set closed=true)
+export const archiveTrelloList = (listId) =>
+    updateTrelloList(listId, { closed: 'true' });
+
 // Create a new list on a Trello board
 export const createTrelloList = (boardId, name, pos) =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=createList`, {

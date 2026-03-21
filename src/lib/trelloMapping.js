@@ -315,6 +315,7 @@ export const buildImportData = (trelloData, mappingConfig) => {
             lastSyncAt: new Date().toISOString(),
             syncEnabled: true,
             pollIntervalMs: 120000,
+            syncMode: 'card-as-task',
             labelMappings: mappingConfig.labelMappings // Persist for future syncs
         }
     };

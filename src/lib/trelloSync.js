@@ -863,6 +863,20 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     // 5b. Sync list positions bidirectionally
     const updatedCategories = [...board.categories];
     const trelloLists = lists.filter(l => !l.closed).sort((a, b) => a.pos - b.pos);
+
+    // 5b-pre. Remove categories whose Trello list was archived or deleted
+    const activeListIds = new Set(trelloLists.map(l => l.id));
+    const removedCatIds = new Set();
+    for (let i = updatedCategories.length - 1; i >= 0; i--) {
+        const cat = updatedCategories[i];
+        if (cat.trelloListId && !activeListIds.has(cat.trelloListId)) {
+            console.warn(`[Sync] Removing category "${cat.name}" — Trello list archived/deleted`);
+            removedCatIds.add(cat.id);
+            updatedCategories.splice(i, 1);
+            result.deleted = (result.deleted || 0) + 1;
+        }
+    }
+
     for (let i = 0; i < updatedCategories.length; i++) {
         const cat = updatedCategories[i];
         if (!cat.trelloListId) continue;
@@ -960,12 +974,23 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     }
     updatedCategories.sort((a, b) => (a.trelloListPos || 0) - (b.trelloListPos || 0));
 
-    // 6. Build updated board
+    // 6. Filter out actions/tasks of removed categories, then build updated board
+    const finalActions = removedCatIds.size > 0
+        ? updatedActions.filter(a => !removedCatIds.has(a.categoryId))
+        : updatedActions;
+    const removedActionIds = removedCatIds.size > 0
+        ? new Set(updatedActions.filter(a => removedCatIds.has(a.categoryId)).map(a => a.id))
+        : new Set();
+    const allTasks = [...updatedTasks, ...newTasks];
+    const finalTasks = removedActionIds.size > 0
+        ? allTasks.filter(t => !removedActionIds.has(t.actionId))
+        : allTasks;
+
     const syncedBoard = {
         ...board,
         categories: updatedCategories,
-        actions: updatedActions,
-        tasks: [...updatedTasks, ...newTasks],
+        actions: finalActions,
+        tasks: finalTasks,
         members: members.length ? members : (board.members || []),
         trelloSync: {
             ...board.trelloSync,
@@ -1010,6 +1035,20 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     // 1b. Sync lists ↔ categories (name, position, creation)
     const updatedCategories = [...board.categories];
     const trelloListMap = new Map(lists.map(l => [l.id, l]));
+    const activeListsCA = lists.filter(l => !l.closed);
+    const activeListIdsCA = new Set(activeListsCA.map(l => l.id));
+
+    // Remove categories whose Trello list was archived or deleted
+    const removedCatIdsCA = new Set();
+    for (let i = updatedCategories.length - 1; i >= 0; i--) {
+        const cat = updatedCategories[i];
+        if (cat.trelloListId && !activeListIdsCA.has(cat.trelloListId)) {
+            console.warn(`[Sync] Removing category "${cat.name}" — Trello list archived/deleted`);
+            removedCatIdsCA.add(cat.id);
+            updatedCategories.splice(i, 1);
+            result.deleted = (result.deleted || 0) + 1;
+        }
+    }
 
     // Pull: update category names/positions from Trello lists
     for (let i = 0; i < updatedCategories.length; i++) {
@@ -1532,12 +1571,24 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         avatarUrl: m.avatarUrl ? `${m.avatarUrl}/50.png` : null
     }));
 
-    // 6. Build updated board
+    // 6. Filter out actions/tasks of removed categories, then build updated board
+    const allActionsCA = [...updatedActions, ...newActions];
+    const finalActionsCA = removedCatIdsCA.size > 0
+        ? allActionsCA.filter(a => !removedCatIdsCA.has(a.categoryId))
+        : allActionsCA;
+    const removedActionIdsCA = removedCatIdsCA.size > 0
+        ? new Set(allActionsCA.filter(a => removedCatIdsCA.has(a.categoryId)).map(a => a.id))
+        : new Set();
+    const allTasksCA = [...updatedTasks, ...newTasks];
+    const finalTasksCA = removedActionIdsCA.size > 0
+        ? allTasksCA.filter(t => !removedActionIdsCA.has(t.actionId))
+        : allTasksCA;
+
     const syncedBoard = {
         ...board,
         categories: updatedCategories,
-        actions: [...updatedActions, ...newActions],
-        tasks: [...updatedTasks, ...newTasks],
+        actions: finalActionsCA,
+        tasks: finalTasksCA,
         members: members.length ? members : (board.members || []),
         trelloSync: {
             ...board.trelloSync,

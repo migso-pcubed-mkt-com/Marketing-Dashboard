@@ -12,6 +12,7 @@ import {
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
 import { syncWithTrello } from './lib/trelloSync.js';
+import { archiveTrelloList } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
 import TrelloImportModal from './components/TrelloImportModal.jsx';
@@ -540,17 +541,18 @@ const App = () => {
                                 boards: incoming.boards.map(incomingBoard => {
                                     const localBoard = prev.boards.find(b => b.id === incomingBoard.id);
                                     if (!localBoard?.trelloSync) return incomingBoard;
-                                    // Preserve local syncMode/syncEnabled if incoming is missing them
+                                    // Merge trelloSync: local as base, incoming on top — preserves fields missing from incoming
                                     const localSync = localBoard.trelloSync;
                                     const incomingSync = incomingBoard.trelloSync;
-                                    if (localSync.syncMode && (!incomingSync || !incomingSync.syncMode)) {
-                                        console.warn('[Realtime] Preserving local trelloSync.syncMode — incoming data missing it');
-                                        return {
-                                            ...incomingBoard,
-                                            trelloSync: { ...incomingSync, syncMode: localSync.syncMode }
-                                        };
+                                    const mergedSync = { ...localSync, ...(incomingSync || {}) };
+                                    // Always preserve local syncMode if incoming doesn't have one (incoming may be stale)
+                                    if (localSync.syncMode && !incomingSync?.syncMode) {
+                                        mergedSync.syncMode = localSync.syncMode;
                                     }
-                                    return incomingBoard;
+                                    return {
+                                        ...incomingBoard,
+                                        trelloSync: mergedSync
+                                    };
                                 })
                             };
                             return merged;
@@ -836,15 +838,23 @@ const App = () => {
         showNotification('✅ Category created');
     };
 
-    const handleDeleteCategory = (catId) => {
+    const handleDeleteCategory = async (catId) => {
         const category = categories.find(c => c.id === catId);
-        const affectedActions = actions.filter(a => a.categoryId === catId).length;
-        const confirmMessage = affectedActions > 0
-            ? `Are you sure you want to delete the category "${category?.name}" ?\n\nThis will also delete ${affectedActions} associated action(s).`
+        const catActions = actions.filter(a => a.categoryId === catId);
+        const affectedTaskCount = tasks.filter(t => catActions.some(a => a.id === t.actionId)).length;
+        const confirmMessage = catActions.length > 0
+            ? `Are you sure you want to delete the category "${category?.name}" ?\n\nThis will also delete ${catActions.length} associated action(s) and ${affectedTaskCount} task(s).`
             : `Are you sure you want to delete the category "${category?.name}" ?`;
         if (!confirm(confirmMessage)) return;
+        // Archive linked Trello list (if not guest/read-only)
+        if (category?.trelloListId && !isReadOnly) {
+            try { await archiveTrelloList(category.trelloListId); }
+            catch(e) { console.warn('Failed to archive Trello list:', e); }
+        }
+        const actionIds = new Set(catActions.map(a => a.id));
         setCategories(prev => prev.filter(c => c.id !== catId));
         setActions(prev => prev.filter(a => a.categoryId !== catId));
+        setTasks(prev => prev.filter(t => !actionIds.has(t.actionId)));
         showNotification('🗑️ Category deleted');
     };
 
