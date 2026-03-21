@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-21 | Add bidirectional deletion sync for tasks/actions: archive Trello cards on local delete, delete checklist items on task delete (card-as-action) | Tasks/actions deleted locally left orphaned cards on Trello that were re-imported on next sync; archiving (not hard delete) keeps reversibility |
 | 2026-03-21 | Add missing syncMode to card-as-task import, add bidirectional list deletion sync, fix Realtime merge to preserve all trelloSync fields | syncMode was never set causing "New action" button to show, list deletion was one-way only, Realtime merge could lose trelloSync fields when incoming was undefined |
 | 2026-03-20 | Fix card-as-task "New Action" bug, add touch DnD to all draggable components, CSS responsive mobile | allDefault now handles empty categories in card-as-task mode, useTouchDrag hook + inline touch on ActionCard/CalendarView/ActionDetailModal/TaskDetailModal/KanbanView columns, modals responsive at 480px, touch targets 44px on coarse pointer |
 | 2026-03-20 | Strip Trello metadata on board duplication, fix showArchived reset on board switch, fix Kanban cross-column card drag disappearance, add delete confirmations on task/action/category | Duplicated Trello boards no longer sync to same source, filters fully reset on switch, cross-column drag now uses single onUpdateTask instead of broken batch reorder, accidental deletes prevented |

@@ -12,7 +12,7 @@ import {
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
 import { syncWithTrello } from './lib/trelloSync.js';
-import { archiveTrelloList } from './lib/trello.js';
+import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
 import TrelloImportModal from './components/TrelloImportModal.jsx';
@@ -654,8 +654,14 @@ const App = () => {
         showNotification('✅ Action updated');
     };
 
-    const handleDeleteAction = (actionId) => {
+    const handleDeleteAction = async (actionId) => {
         // No confirm() here — caller (ActionDetailModal) handles confirmation popup
+        const action = actions.find(a => a.id === actionId);
+        // Archive linked Trello card in card-as-action mode
+        if (action?.trelloCardId && !isReadOnly && currentBoard?.trelloSync?.syncMode === 'card-as-action') {
+            try { await archiveTrelloCard(action.trelloCardId); }
+            catch(e) { console.warn('Failed to archive Trello card:', e); }
+        }
         setActions(prev => prev.filter(a => a.id !== actionId));
         setTasks(prev => prev.filter(t => t.actionId !== actionId));
         showNotification('🗑️ Action deleted');
@@ -805,7 +811,19 @@ const App = () => {
         }
     };
 
-    const handleDeleteTask = (taskId) => {
+    const handleDeleteTask = async (taskId) => {
+        const task = tasks.find(t => t.id === taskId);
+        // Archive linked Trello card (card-as-task) or delete checklist item (card-as-action)
+        if (task && !isReadOnly) {
+            const syncMode = currentBoard?.trelloSync?.syncMode;
+            if (syncMode === 'card-as-task' && task.trelloCardId) {
+                try { await archiveTrelloCard(task.trelloCardId); }
+                catch(e) { console.warn('Failed to archive Trello card:', e); }
+            } else if (syncMode === 'card-as-action' && task.trelloCheckItemId && task.trelloChecklistId) {
+                try { await deleteTrelloChecklistItem(task.trelloChecklistId, task.trelloCheckItemId); }
+                catch(e) { console.warn('Failed to delete Trello checklist item:', e); }
+            }
+        }
         setTasks(prev => prev.filter(t => t.id !== taskId));
         showNotification('🗑️ Task deleted');
     };

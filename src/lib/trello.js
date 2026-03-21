@@ -173,6 +173,10 @@ export const updateTrelloList = (listId, updates) =>
 export const archiveTrelloList = (listId) =>
     updateTrelloList(listId, { closed: 'true' });
 
+// Archive a Trello card (set closed=true) — reversible, unlike deleteTrelloCard
+export const archiveTrelloCard = (cardId) =>
+    updateTrelloCard(cardId, { closed: 'true' });
+
 // Create a new list on a Trello board
 export const createTrelloList = (boardId, name, pos) =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=createList`, {
