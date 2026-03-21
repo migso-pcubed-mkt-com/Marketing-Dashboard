@@ -315,6 +315,7 @@ export const buildImportData = (trelloData, mappingConfig) => {
             lastSyncAt: new Date().toISOString(),
             syncEnabled: true,
             pollIntervalMs: 120000,
+            syncMode: 'card-as-task',
             labelMappings: mappingConfig.labelMappings // Persist for future syncs
         }
     };
@@ -798,7 +799,7 @@ export const mergeTrelloExtrasIntoTask = (task, card) => {
 };
 
 // --- Merge Trello card changes into existing task (merge-by-ID, preserves local-only items) ---
-export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
+export const mergeCardIntoTask = (existingTask, card, mappingConfig, listToCatId, boardActions) => {
     // --- Checklists: merge by trelloChecklistId ---
     const existingCLMap = new Map();
     for (const cl of (existingTask.checklists || [])) {
@@ -920,8 +921,24 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig) => {
         }
     }
 
+    // Detect card moved between lists → update actionId to default action of new category
+    let actionId = existingTask.actionId;
+    if (listToCatId && boardActions && card.idList) {
+        const newCatId = listToCatId[card.idList];
+        if (newCatId) {
+            const currentAction = boardActions.find(a => a.id === existingTask.actionId);
+            if (currentAction && currentAction.categoryId !== newCatId) {
+                // Card moved to a different list — find default action in new category
+                const newAction = boardActions.find(a => a.categoryId === newCatId && a.isDefault) ||
+                                  boardActions.find(a => a.categoryId === newCatId);
+                if (newAction) actionId = newAction.id;
+            }
+        }
+    }
+
     return {
         ...existingTask,
+        actionId,
         title: card.name,
         description: card.desc || existingTask.description,
         startDate: card.start ? card.start.split('T')[0] : existingTask.startDate,

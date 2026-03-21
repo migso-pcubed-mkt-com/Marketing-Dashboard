@@ -4,7 +4,7 @@ import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
 import TaskCard from './TaskCard.jsx';
 
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onBatchUpdateTasks,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask,onUpdateCategory,onAddCategory,onDeleteCategory,isCardAsTask})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onBatchUpdateTasks,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask,onUpdateCategory,onAddCategory,onDeleteCategory,isCardAsTask,isUserInteractingRef})=>{
     const[viewMode,setViewMode]=useState('category');
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
@@ -178,6 +178,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     const handleColumnDragStart = (e, idx) => {
         if (!canDragColumns) return;
         setDragColIdx(idx);
+        if (isUserInteractingRef) isUserInteractingRef.current = true;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('columnDrag', 'true');
         e.currentTarget.style.opacity = '0.5';
@@ -187,6 +188,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         e.currentTarget.style.opacity = '1';
         setDragColIdx(null);
         setDropColIdx(null);
+        if (isUserInteractingRef) isUserInteractingRef.current = false;
     };
 
     const handleColumnDragOver = (e, idx) => {
@@ -279,7 +281,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             <div className="kanban-toolbar">
                 <div className="kanban-toolbar-left">
                     <div className="view-btn-group">
-                        {[{id:'category',label:isCardAsTask?'By Category':'Actions'},{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
+                        {[{id:'category',label:isCardAsTask?'Categories (tasks)':'Categories (actions)'},{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
                             <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
                         ))}
                     </div>
@@ -419,6 +421,9 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                             <div className="kanban-cards" onDragStart={(e) => {
                                 // Prevent column drag when dragging cards
                                 e.stopPropagation();
+                                if (isUserInteractingRef) isUserInteractingRef.current = true;
+                            }} onDragEnd={() => {
+                                if (isUserInteractingRef) isUserInteractingRef.current = false;
                             }}>
                                 {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?((viewMode==='country'||viewMode==='month'||viewMode==='quarter'||(viewMode==='category'&&col.directTasks))?((draggedId,targetId,position)=>{
                                     // Reorder within column — atomic batch update

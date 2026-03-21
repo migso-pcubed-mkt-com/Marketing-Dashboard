@@ -171,13 +171,17 @@ export default async function handler(req, res) {
 
         // POST /api/trello?action=createCard — Create a card
         if (req.method === 'POST' && action === 'createCard') {
-            const { listId: lid, name, desc, due, idLabels } = req.body;
+            const { listId: lid, name, desc, due, start, pos, idLabels, idMembers, dueComplete } = req.body;
             if (!lid || !name) return res.status(400).json({ error: 'listId and name required' });
             console.log(`Creating Trello card in list ${lid}...`);
 
             const body = { idList: lid, name, desc: desc || '', key: TRELLO_API_KEY, token: TRELLO_TOKEN };
             if (due) body.due = due;
+            if (start) body.start = start;
+            if (pos != null) body.pos = pos;
             if (idLabels) body.idLabels = idLabels;
+            if (idMembers) body.idMembers = idMembers;
+            if (dueComplete) body.dueComplete = dueComplete;
 
             const response = await fetch(`${TRELLO_BASE}/cards`, {
                 method: 'POST',

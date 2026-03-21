@@ -11,7 +11,8 @@ import {
     saveSnapshot,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
-import { syncWithTrello } from './lib/trelloSync.js';
+import { syncWithTrello, isSyncInProgress } from './lib/trelloSync.js';
+import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
 import TrelloImportModal from './components/TrelloImportModal.jsx';
@@ -445,8 +446,8 @@ const App = () => {
         if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); }
         const delay = useSupabase ? 1000 : 2000;
         const doSave = async () => {
-            if (isUserInteractingRef.current) {
-                console.log('⏳ User interacting, delaying save...');
+            if (isUserInteractingRef.current || isSyncInProgress()) {
+                console.log('⏳ User interacting or sync in progress, delaying save...');
                 autoSaveTimeoutRef.current = setTimeout(doSave, 500);
                 return;
             }
@@ -540,17 +541,18 @@ const App = () => {
                                 boards: incoming.boards.map(incomingBoard => {
                                     const localBoard = prev.boards.find(b => b.id === incomingBoard.id);
                                     if (!localBoard?.trelloSync) return incomingBoard;
-                                    // Preserve local syncMode/syncEnabled if incoming is missing them
+                                    // Merge trelloSync: local as base, incoming on top — preserves fields missing from incoming
                                     const localSync = localBoard.trelloSync;
                                     const incomingSync = incomingBoard.trelloSync;
-                                    if (localSync.syncMode && (!incomingSync || !incomingSync.syncMode)) {
-                                        console.warn('[Realtime] Preserving local trelloSync.syncMode — incoming data missing it');
-                                        return {
-                                            ...incomingBoard,
-                                            trelloSync: { ...incomingSync, syncMode: localSync.syncMode }
-                                        };
+                                    const mergedSync = { ...localSync, ...(incomingSync || {}) };
+                                    // Always preserve local syncMode if incoming doesn't have one (incoming may be stale)
+                                    if (localSync.syncMode && !incomingSync?.syncMode) {
+                                        mergedSync.syncMode = localSync.syncMode;
                                     }
-                                    return incomingBoard;
+                                    return {
+                                        ...incomingBoard,
+                                        trelloSync: mergedSync
+                                    };
                                 })
                             };
                             return merged;
@@ -652,8 +654,14 @@ const App = () => {
         showNotification('✅ Action updated');
     };
 
-    const handleDeleteAction = (actionId) => {
+    const handleDeleteAction = async (actionId) => {
         // No confirm() here — caller (ActionDetailModal) handles confirmation popup
+        const action = actions.find(a => a.id === actionId);
+        // Archive linked Trello card in card-as-action mode
+        if (action?.trelloCardId && !isReadOnly && currentBoard?.trelloSync?.syncMode === 'card-as-action') {
+            try { await archiveTrelloCard(action.trelloCardId); }
+            catch(e) { console.warn('Failed to archive Trello card:', e); }
+        }
         setActions(prev => prev.filter(a => a.id !== actionId));
         setTasks(prev => prev.filter(t => t.actionId !== actionId));
         showNotification('🗑️ Action deleted');
@@ -803,7 +811,19 @@ const App = () => {
         }
     };
 
-    const handleDeleteTask = (taskId) => {
+    const handleDeleteTask = async (taskId) => {
+        const task = tasks.find(t => t.id === taskId);
+        // Archive linked Trello card (card-as-task) or delete checklist item (card-as-action)
+        if (task && !isReadOnly) {
+            const syncMode = currentBoard?.trelloSync?.syncMode;
+            if (syncMode === 'card-as-task' && task.trelloCardId) {
+                try { await archiveTrelloCard(task.trelloCardId); }
+                catch(e) { console.warn('Failed to archive Trello card:', e); }
+            } else if (syncMode === 'card-as-action' && task.trelloCheckItemId && task.trelloChecklistId) {
+                try { await deleteTrelloChecklistItem(task.trelloChecklistId, task.trelloCheckItemId); }
+                catch(e) { console.warn('Failed to delete Trello checklist item:', e); }
+            }
+        }
         setTasks(prev => prev.filter(t => t.id !== taskId));
         showNotification('🗑️ Task deleted');
     };
@@ -836,15 +856,23 @@ const App = () => {
         showNotification('✅ Category created');
     };
 
-    const handleDeleteCategory = (catId) => {
+    const handleDeleteCategory = async (catId) => {
         const category = categories.find(c => c.id === catId);
-        const affectedActions = actions.filter(a => a.categoryId === catId).length;
-        const confirmMessage = affectedActions > 0
-            ? `Are you sure you want to delete the category "${category?.name}" ?\n\nThis will also delete ${affectedActions} associated action(s).`
+        const catActions = actions.filter(a => a.categoryId === catId);
+        const affectedTaskCount = tasks.filter(t => catActions.some(a => a.id === t.actionId)).length;
+        const confirmMessage = catActions.length > 0
+            ? `Are you sure you want to delete the category "${category?.name}" ?\n\nThis will also delete ${catActions.length} associated action(s) and ${affectedTaskCount} task(s).`
             : `Are you sure you want to delete the category "${category?.name}" ?`;
         if (!confirm(confirmMessage)) return;
+        // Archive linked Trello list (if not guest/read-only)
+        if (category?.trelloListId && !isReadOnly) {
+            try { await archiveTrelloList(category.trelloListId); }
+            catch(e) { console.warn('Failed to archive Trello list:', e); }
+        }
+        const actionIds = new Set(catActions.map(a => a.id));
         setCategories(prev => prev.filter(c => c.id !== catId));
         setActions(prev => prev.filter(a => a.categoryId !== catId));
+        setTasks(prev => prev.filter(t => !actionIds.has(t.actionId)));
         showNotification('🗑️ Category deleted');
     };
 
@@ -933,6 +961,7 @@ const App = () => {
     // --- Trello sync ---
     const handleTrelloSync = useCallback(async () => {
         if (!currentBoard?.trelloSync?.trelloBoardId) return;
+        if (!navigator.onLine) return; // Skip sync when offline
         if (trelloSyncStatus === 'syncing') return; // Prevent concurrent syncs
         setTrelloSyncStatus('syncing');
         try {
@@ -1207,7 +1236,7 @@ const App = () => {
                             {showCreateDropdown && <div className="dropdown-menu open">
                                 <button className="dropdown-item default" onClick={() => {setShowCreateDropdown(false);handleCreateNewTask();}}>
                                     <div className="dropdown-item-icon task"><Icon.Check/></div>
-                                    <div className="dropdown-item-content"><div className="dropdown-item-title">New task</div><div className="dropdown-item-desc">Add a task to an action</div></div>
+                                    <div className="dropdown-item-content"><div className="dropdown-item-title">New task</div><div className="dropdown-item-desc">{currentBoard?.trelloSync?.syncMode === 'card-as-task' ? 'Add a task to a category' : 'Add a task to an action'}</div></div>
                                     <span className="dropdown-item-shortcut">N</span>
                                 </button>
                                 {currentBoard?.trelloSync?.syncMode !== 'card-as-task' && <button className="dropdown-item" onClick={() => {setShowCreateDropdown(false);setShowNewActionModal(true);}}>
@@ -1238,8 +1267,8 @@ const App = () => {
                             <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
                         </div>
                     )}
-                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
-                    {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
+                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef}/>}
+                    {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={visibleTasks} members={currentBoard?.members || []}/>}
                 </main>

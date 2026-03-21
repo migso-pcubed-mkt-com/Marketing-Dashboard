@@ -6,6 +6,7 @@ import { CONFIG } from '../config.js';
 
 // Sync lock — prevents concurrent sync operations
 let syncInProgress = false;
+export const isSyncInProgress = () => syncInProgress;
 let syncStartedAt = 0;
 const SYNC_LOCK_TIMEOUT_MS = 60000; // 60s max — auto-reset if sync hangs
 
@@ -606,7 +607,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
 
         if (trelloModified && !locallyModified) {
             // Only Trello changed → update local task
-            updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig);
+            updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
             result.updated++;
         } else if (locallyModified && !trelloModified) {
             // Only dashboard changed → push to Trello (skip if readOnly / guest mode)
@@ -659,7 +660,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     result.errorDetails.push({ name: task.title, op: 'push', error: err.message });
                 }
             } else {
-                updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig);
+                updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
                 result.updated++;
             }
         } else {
@@ -827,6 +828,9 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         try {
             const cardData = { name: task.title, desc: task.description || '' };
             if (task.dueDate) cardData.due = task.dueDate;
+            if (task.startDate) cardData.start = task.startDate;
+            if (task.assignees?.length > 0) cardData.idMembers = task.assignees.join(',');
+            if (task.status === 'completed') cardData.dueComplete = 'true';
             // Include label IDs if the action has a Trello label (comma-separated string)
             if (action.trelloLabelId) cardData.idLabels = [action.trelloLabelId].join(',');
 
@@ -863,6 +867,20 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     // 5b. Sync list positions bidirectionally
     const updatedCategories = [...board.categories];
     const trelloLists = lists.filter(l => !l.closed).sort((a, b) => a.pos - b.pos);
+
+    // 5b-pre. Remove categories whose Trello list was archived or deleted
+    const activeListIds = new Set(trelloLists.map(l => l.id));
+    const removedCatIds = new Set();
+    for (let i = updatedCategories.length - 1; i >= 0; i--) {
+        const cat = updatedCategories[i];
+        if (cat.trelloListId && !activeListIds.has(cat.trelloListId)) {
+            console.warn(`[Sync] Removing category "${cat.name}" — Trello list archived/deleted`);
+            removedCatIds.add(cat.id);
+            updatedCategories.splice(i, 1);
+            result.deleted = (result.deleted || 0) + 1;
+        }
+    }
+
     for (let i = 0; i < updatedCategories.length; i++) {
         const cat = updatedCategories[i];
         if (!cat.trelloListId) continue;
@@ -873,22 +891,29 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         const catLocallyModified = catUpdatedAt > catSyncTime;
         const trelloSortedIdx = trelloLists.indexOf(trelloList);
         if (catLocallyModified && !readOnly) {
-            // Push local order to Trello
-            if (cat.order !== undefined) {
-                const expectedPos = (cat.order + 1) * 16384;
-                if (Math.abs((trelloList.pos || 0) - expectedPos) > 100) {
-                    try {
-                        await updateTrelloList(cat.trelloListId, { pos: String(expectedPos) });
-                        updatedCategories[i] = { ...cat, trelloListPos: expectedPos, trelloLastModified: new Date().toISOString() };
-                    } catch (e) {
-                        console.warn('List position push error:', e);
+            // Push local changes to Trello (name + position)
+            try {
+                const updates = {};
+                if (cat.name !== trelloList.name) updates.name = cat.name;
+                if (cat.order !== undefined) {
+                    const expectedPos = (cat.order + 1) * 16384;
+                    if (Math.abs((trelloList.pos || 0) - expectedPos) > 100) {
+                        updates.pos = String(expectedPos);
                     }
                 }
+                if (Object.keys(updates).length > 0) {
+                    await updateTrelloList(cat.trelloListId, updates);
+                    updatedCategories[i] = { ...cat, trelloListPos: updates.pos ? Number(updates.pos) : trelloList.pos, trelloLastModified: new Date().toISOString() };
+                    result.pushed++;
+                }
+            } catch (e) {
+                console.warn('List push error:', e);
             }
         } else {
-            // Pull from Trello
-            if (cat.trelloListPos !== trelloList.pos || cat.order !== trelloSortedIdx) {
-                updatedCategories[i] = { ...cat, trelloListPos: trelloList.pos, order: trelloSortedIdx, trelloLastModified: new Date().toISOString() };
+            // Pull from Trello (name + position)
+            if (cat.name !== trelloList.name || cat.trelloListPos !== trelloList.pos || cat.order !== trelloSortedIdx) {
+                updatedCategories[i] = { ...cat, name: trelloList.name, trelloListPos: trelloList.pos, order: trelloSortedIdx, trelloLastModified: new Date().toISOString() };
+                result.updated++;
             }
         }
     }
@@ -960,12 +985,23 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     }
     updatedCategories.sort((a, b) => (a.trelloListPos || 0) - (b.trelloListPos || 0));
 
-    // 6. Build updated board
+    // 6. Filter out actions/tasks of removed categories, then build updated board
+    const finalActions = removedCatIds.size > 0
+        ? updatedActions.filter(a => !removedCatIds.has(a.categoryId))
+        : updatedActions;
+    const removedActionIds = removedCatIds.size > 0
+        ? new Set(updatedActions.filter(a => removedCatIds.has(a.categoryId)).map(a => a.id))
+        : new Set();
+    const allTasks = [...updatedTasks, ...newTasks];
+    const finalTasks = removedActionIds.size > 0
+        ? allTasks.filter(t => !removedActionIds.has(t.actionId))
+        : allTasks;
+
     const syncedBoard = {
         ...board,
         categories: updatedCategories,
-        actions: updatedActions,
-        tasks: [...updatedTasks, ...newTasks],
+        actions: finalActions,
+        tasks: finalTasks,
         members: members.length ? members : (board.members || []),
         trelloSync: {
             ...board.trelloSync,
@@ -1010,6 +1046,20 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     // 1b. Sync lists ↔ categories (name, position, creation)
     const updatedCategories = [...board.categories];
     const trelloListMap = new Map(lists.map(l => [l.id, l]));
+    const activeListsCA = lists.filter(l => !l.closed);
+    const activeListIdsCA = new Set(activeListsCA.map(l => l.id));
+
+    // Remove categories whose Trello list was archived or deleted
+    const removedCatIdsCA = new Set();
+    for (let i = updatedCategories.length - 1; i >= 0; i--) {
+        const cat = updatedCategories[i];
+        if (cat.trelloListId && !activeListIdsCA.has(cat.trelloListId)) {
+            console.warn(`[Sync] Removing category "${cat.name}" — Trello list archived/deleted`);
+            removedCatIdsCA.add(cat.id);
+            updatedCategories.splice(i, 1);
+            result.deleted = (result.deleted || 0) + 1;
+        }
+    }
 
     // Pull: update category names/positions from Trello lists
     for (let i = 0; i < updatedCategories.length; i++) {
@@ -1410,6 +1460,10 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
 
             try {
                 const cardData = { name: action.name, desc: action.description || '' };
+                if (action.startDate) cardData.start = action.startDate;
+                if (action.dueDate) cardData.due = action.dueDate;
+                if (action.assignees?.length > 0) cardData.idMembers = action.assignees.join(',');
+                if (action.status === 'completed') cardData.dueComplete = 'true';
                 const created = await createTrelloCard(listId, cardData);
                 updatedActions[i] = {
                     ...action,
@@ -1532,12 +1586,24 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         avatarUrl: m.avatarUrl ? `${m.avatarUrl}/50.png` : null
     }));
 
-    // 6. Build updated board
+    // 6. Filter out actions/tasks of removed categories, then build updated board
+    const allActionsCA = [...updatedActions, ...newActions];
+    const finalActionsCA = removedCatIdsCA.size > 0
+        ? allActionsCA.filter(a => !removedCatIdsCA.has(a.categoryId))
+        : allActionsCA;
+    const removedActionIdsCA = removedCatIdsCA.size > 0
+        ? new Set(allActionsCA.filter(a => removedCatIdsCA.has(a.categoryId)).map(a => a.id))
+        : new Set();
+    const allTasksCA = [...updatedTasks, ...newTasks];
+    const finalTasksCA = removedActionIdsCA.size > 0
+        ? allTasksCA.filter(t => !removedActionIdsCA.has(t.actionId))
+        : allTasksCA;
+
     const syncedBoard = {
         ...board,
         categories: updatedCategories,
-        actions: [...updatedActions, ...newActions],
-        tasks: [...updatedTasks, ...newTasks],
+        actions: finalActionsCA,
+        tasks: finalTasksCA,
         members: members.length ? members : (board.members || []),
         trelloSync: {
             ...board.trelloSync,
