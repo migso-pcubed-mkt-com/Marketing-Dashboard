@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 
@@ -8,6 +8,75 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
     const [mode, setMode] = useState('month');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [expandedDay, setExpandedDay] = useState(null); // dateStr of day showing all tasks
+    // Touch drag state for calendar task pills
+    const touchDragRef = useRef({ taskId: null, timeout: null });
+    const [touchDragging, setTouchDragging] = useState(false);
+    const calendarTouchStart = useCallback((e, taskId) => {
+        if (isReadOnly) return;
+        const touch = e.touches[0];
+        touchDragRef.current.startPos = { x: touch.clientX, y: touch.clientY };
+        touchDragRef.current.timeout = setTimeout(() => {
+            touchDragRef.current.taskId = taskId;
+            setTouchDragging(true);
+            if (navigator.vibrate) navigator.vibrate(50);
+        }, 300);
+    }, [isReadOnly]);
+    const calendarTouchMove = useCallback((e) => {
+        if (!touchDragRef.current.taskId) {
+            // Cancel if moved too far before activation
+            if (touchDragRef.current.timeout) {
+                const touch = e.touches[0];
+                const sp = touchDragRef.current.startPos;
+                if (sp && (Math.abs(touch.clientX - sp.x) > 10 || Math.abs(touch.clientY - sp.y) > 10)) {
+                    clearTimeout(touchDragRef.current.timeout);
+                    touchDragRef.current.timeout = null;
+                }
+            }
+            return;
+        }
+        e.preventDefault();
+        const touch = e.touches[0];
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (!el) return;
+        document.querySelectorAll('.calendar-day-dragover').forEach(n => n.classList.remove('calendar-day-dragover'));
+        const dayCell = el.closest('[data-calendar-date]');
+        if (dayCell) dayCell.classList.add('calendar-day-dragover');
+    }, []);
+    const calendarTouchEnd = useCallback((e) => {
+        const taskId = touchDragRef.current.taskId;
+        if (touchDragRef.current.timeout) clearTimeout(touchDragRef.current.timeout);
+        if (taskId && onUpdateTask) {
+            const touch = e.changedTouches[0];
+            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (el) {
+                const dayCell = el.closest('[data-calendar-date]');
+                if (dayCell) {
+                    const dateStr = dayCell.getAttribute('data-calendar-date');
+                    const date = new Date(dateStr + 'T00:00:00');
+                    const task = tasks.find(t => t.id === taskId);
+                    if (task && dateStr) {
+                        if (task.startDate && task.dueDate) {
+                            const start = new Date(task.startDate);
+                            const end = new Date(task.dueDate);
+                            const duration = Math.round((end - start) / (1000 * 60 * 60 * 24));
+                            const newEnd = new Date(date);
+                            newEnd.setDate(newEnd.getDate() + duration);
+                            onUpdateTask(taskId, { startDate: dateStr, dueDate: formatDate(newEnd), month: date.getMonth() });
+                        } else {
+                            onUpdateTask(taskId, { startDate: dateStr, dueDate: dateStr, month: date.getMonth() });
+                        }
+                    }
+                }
+            }
+        }
+        document.querySelectorAll('.calendar-day-dragover').forEach(n => n.classList.remove('calendar-day-dragover'));
+        // Restore opacity
+        if (taskId) {
+            document.querySelectorAll(`[data-cal-task="${taskId}"]`).forEach(n => { n.style.opacity = ''; });
+        }
+        touchDragRef.current = { taskId: null, timeout: null };
+        setTouchDragging(false);
+    }, [tasks, onUpdateTask]);
 
     const filteredTasks = useMemo(() => tasks.filter(t => {
         const action = actions.find(a => a.id === t.actionId);
@@ -219,7 +288,11 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                     e.currentTarget.style.opacity = '0.5';
                 }}
                 onDragEnd={(e) => { e.currentTarget.style.opacity = '1'; }}
+                onTouchStart={isReadOnly ? undefined : (e) => calendarTouchStart(e, task.id)}
+                onTouchMove={isReadOnly ? undefined : calendarTouchMove}
+                onTouchEnd={isReadOnly ? undefined : calendarTouchEnd}
                 onClick={(e) => { e.stopPropagation(); onOpenTask(task); }}
+                data-cal-task={task.id}
                 className="calendar-bar"
                 style={{
                     position: 'absolute',
@@ -282,6 +355,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                         key={dateStr}
                                         className={`calendar-day-cell${!isCurrentMonth ? ' other-month' : ''}${isToday ? ' today' : ''}`}
                                         style={{ minHeight: 36 + barAreaHeight + (hiddenByDay[dayIdx] > 0 ? 18 : 0) }}
+                                        data-calendar-date={dateStr}
                                         onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('calendar-day-dragover'); }}
                                         onDragLeave={(e) => e.currentTarget.classList.remove('calendar-day-dragover')}
                                         onDrop={(e) => handleDrop(e, date)}
@@ -361,6 +435,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                         background: isToday ? 'rgba(99,102,241,0.03)' : undefined,
                                         position: 'relative'
                                     }}
+                                    data-calendar-date={dateStr}
                                     onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.background = 'rgba(99,102,241,0.08)'; }}
                                     onDragLeave={(e) => { e.currentTarget.style.background = isToday ? 'rgba(99,102,241,0.03)' : ''; }}
                                     onDrop={(e) => { e.currentTarget.style.background = isToday ? 'rgba(99,102,241,0.03)' : ''; handleDrop(e, date); }}
@@ -399,6 +474,10 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                     e.currentTarget.style.opacity = '0.5';
                                 }}
                                 onDragEnd={(e) => { e.currentTarget.style.opacity = '1'; }}
+                                onTouchStart={isReadOnly ? undefined : (e) => calendarTouchStart(e, task.id)}
+                                onTouchMove={isReadOnly ? undefined : calendarTouchMove}
+                                onTouchEnd={isReadOnly ? undefined : calendarTouchEnd}
+                                data-cal-task={task.id}
                                 onClick={(e) => { e.stopPropagation(); onOpenTask(task); }}
                                 className="calendar-bar"
                                 style={{

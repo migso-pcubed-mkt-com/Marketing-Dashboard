@@ -120,6 +120,70 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const renameChecklistItem=(checklistId,itemId,newText)=>{if(!newText.trim())return;setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,text:newText.trim()}:i)}:cl)});setEditingItemId(null);};
     const reorderChecklists=(fromIdx,toIdx)=>{setForm(prev=>{const cls=[...(prev.checklists||[])];const[moved]=cls.splice(fromIdx,1);cls.splice(toIdx,0,moved);return{...prev,checklists:cls};});};
     const reorderChecklistItems=(checklistId,fromItemId,toItemId)=>{setForm(prev=>({...prev,checklists:(prev.checklists||[]).map(cl=>{if(cl.id!==checklistId)return cl;const items=[...cl.items];const fromIdx=items.findIndex(i=>i.id===fromItemId);const toIdx=items.findIndex(i=>i.id===toItemId);if(fromIdx<0||toIdx<0||fromIdx===toIdx)return cl;const[moved]=items.splice(fromIdx,1);items.splice(toIdx,0,moved);return{...cl,items};})}));};
+    // Touch drag for checklists and items
+    const clTouchRef=useRef({type:null,clIdx:null,itemKey:null,timeout:null,startPos:null});
+    const handleClTouchStart=useCallback((e,clIdx)=>{
+        if(isReadOnly)return;
+        const touch=e.touches[0];
+        clTouchRef.current={type:'checklist',clIdx,itemKey:null,timeout:setTimeout(()=>{
+            setDraggingChecklistIdx(clIdx);
+            if(navigator.vibrate)navigator.vibrate(50);
+        },300),startPos:{x:touch.clientX,y:touch.clientY}};
+    },[isReadOnly]);
+    const handleItemTouchStart=useCallback((e,clId,itemId)=>{
+        if(isReadOnly)return;
+        e.stopPropagation();
+        const touch=e.touches[0];
+        const key=`${clId}:${itemId}`;
+        clTouchRef.current={type:'item',clIdx:null,itemKey:key,clId,timeout:setTimeout(()=>{
+            setDraggingItemKey(key);
+            if(navigator.vibrate)navigator.vibrate(50);
+        },300),startPos:{x:touch.clientX,y:touch.clientY}};
+    },[isReadOnly]);
+    const handleClTouchMove=useCallback((e)=>{
+        const ref=clTouchRef.current;
+        if(!ref.type){
+            if(ref.timeout&&ref.startPos){
+                const t=e.touches[0];
+                if(Math.abs(t.clientX-ref.startPos.x)>10||Math.abs(t.clientY-ref.startPos.y)>10){
+                    clearTimeout(ref.timeout);ref.timeout=null;
+                }
+            }
+            return;
+        }
+        if(draggingChecklistIdx===null&&!draggingItemKey)return;
+        e.preventDefault();
+        const touch=e.touches[0];
+        const el=document.elementFromPoint(touch.clientX,touch.clientY);
+        if(!el)return;
+        if(ref.type==='checklist'){
+            const target=el.closest('[data-cl-idx]');
+            if(target){
+                const idx=parseInt(target.getAttribute('data-cl-idx'));
+                if(!isNaN(idx)&&idx!==draggingChecklistIdx)setDragOverChecklistIdx(idx);
+            }
+        }else if(ref.type==='item'){
+            const target=el.closest('[data-item-key]');
+            if(target){
+                const key=target.getAttribute('data-item-key');
+                if(key&&key!==draggingItemKey&&key.startsWith(ref.clId+':'))setDragOverItemKey(key);
+            }
+        }
+    },[draggingChecklistIdx,draggingItemKey]);
+    const handleClTouchEnd=useCallback(()=>{
+        const ref=clTouchRef.current;
+        if(ref.timeout)clearTimeout(ref.timeout);
+        if(ref.type==='checklist'&&draggingChecklistIdx!==null&&dragOverChecklistIdx!==null&&draggingChecklistIdx!==dragOverChecklistIdx){
+            reorderChecklists(draggingChecklistIdx,dragOverChecklistIdx);
+        }else if(ref.type==='item'&&draggingItemKey&&dragOverItemKey){
+            const[fromClId,fromItemId]=draggingItemKey.split(':');
+            const[toClId,toItemId]=dragOverItemKey.split(':');
+            if(fromClId===toClId&&fromItemId!==toItemId)reorderChecklistItems(fromClId,fromItemId,toItemId);
+        }
+        setDraggingChecklistIdx(null);setDragOverChecklistIdx(null);
+        setDraggingItemKey(null);setDragOverItemKey(null);
+        clTouchRef.current={type:null,clIdx:null,itemKey:null,timeout:null,startPos:null};
+    },[draggingChecklistIdx,dragOverChecklistIdx,draggingItemKey,dragOverItemKey]);
     const updateChecklistItemAssignee=(checklistId,itemId,assignee)=>{setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,assignee}:i)}:cl)});setShowItemMemberPicker(null);};
     const updateChecklistItemDue=(checklistId,itemId,due)=>{setForm({...form,checklists:(form.checklists||[]).map(cl=>cl.id===checklistId?{...cl,items:cl.items.map(i=>i.id===itemId?{...i,due}:i)}:cl)});};
     const addChannel=(id)=>setForm({...form,channels:[...(form.channels||[]),id]});
@@ -314,7 +378,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         {allChecklistItems.length>0&&<div className="v11-progress-bar" style={{height:8,marginBottom:12}}><div className={`v11-progress-fill ${checklistPct>=70?'high':checklistPct>=40?'medium':'low'}`} style={{width:`${checklistPct}%`}}/></div>}
                         {showAddChecklist&&<div className="flex space-x-2 mb-3"><input type="text" value={newChecklistName} onChange={e=>setNewChecklistName(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addNewChecklist();if(e.key==='Escape'){setShowAddChecklist(false);setNewChecklistName('');}}} placeholder="Checklist name..." className="v11-input" style={{flex:1}} autoFocus/><button onClick={addNewChecklist} className="px-3 py-2 bg-secondary text-white rounded-lg text-sm">Add</button><button onClick={()=>{setShowAddChecklist(false);setNewChecklistName('');}} className="px-2 py-2 rounded-lg text-sm" style={{border:'1px solid var(--border)'}}>Cancel</button></div>}
                         {(form.checklists||[]).map((cl,clIdx)=>{const clPct=cl.items.length>0?Math.round((cl.items.filter(i=>i.done).length/cl.items.length)*100):0;return(
-                            <div key={cl.id} className="mb-3" style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)',overflow:'hidden',opacity:draggingChecklistIdx===clIdx?0.5:1}} draggable={!isReadOnly} onDragStart={e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','checklist');setDraggingChecklistIdx(clIdx);}} onDragEnd={()=>{if(draggingChecklistIdx!==null&&dragOverChecklistIdx!==null&&draggingChecklistIdx!==dragOverChecklistIdx)reorderChecklists(draggingChecklistIdx,dragOverChecklistIdx);setDraggingChecklistIdx(null);setDragOverChecklistIdx(null);}} onDragOver={e=>{e.preventDefault();if(draggingChecklistIdx!==null&&e.dataTransfer.types.includes('text/plain'))setDragOverChecklistIdx(clIdx);}} onDragLeave={e=>{if(draggingChecklistIdx!==null&&!e.currentTarget.contains(e.relatedTarget))setDragOverChecklistIdx(null);}}>
+                            <div key={cl.id} className="mb-3" data-cl-idx={clIdx} style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)',overflow:'hidden',opacity:draggingChecklistIdx===clIdx?0.5:1}} draggable={!isReadOnly} onDragStart={e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','checklist');setDraggingChecklistIdx(clIdx);}} onDragEnd={()=>{if(draggingChecklistIdx!==null&&dragOverChecklistIdx!==null&&draggingChecklistIdx!==dragOverChecklistIdx)reorderChecklists(draggingChecklistIdx,dragOverChecklistIdx);setDraggingChecklistIdx(null);setDragOverChecklistIdx(null);}} onDragOver={e=>{e.preventDefault();if(draggingChecklistIdx!==null&&e.dataTransfer.types.includes('text/plain'))setDragOverChecklistIdx(clIdx);}} onDragLeave={e=>{if(draggingChecklistIdx!==null&&!e.currentTarget.contains(e.relatedTarget))setDragOverChecklistIdx(null);}} onTouchStart={isReadOnly?undefined:e=>handleClTouchStart(e,clIdx)} onTouchMove={isReadOnly?undefined:handleClTouchMove} onTouchEnd={isReadOnly?undefined:handleClTouchEnd}>
                                 {dragOverChecklistIdx===clIdx&&draggingChecklistIdx!==null&&draggingChecklistIdx!==clIdx&&<div style={{height:2,background:'var(--accent)',borderRadius:1}}/>}
                                 <div style={{padding:'8px 12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:8}}>
                                     {!isReadOnly&&<span style={{cursor:'grab',color:'var(--text-muted)',fontSize:12,flexShrink:0,userSelect:'none'}} title="Drag to reorder">⋮⋮</span>}
@@ -330,7 +394,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                 </div>
                                 {cl.items.length>0&&<div style={{padding:'0 12px'}}><div className="v11-progress-bar" style={{height:3,margin:'8px 0'}}><div className={`v11-progress-fill ${clPct>=70?'high':clPct>=40?'medium':'low'}`} style={{width:`${clPct}%`}}/></div></div>}
                                 <div style={{padding:'4px 8px'}}>{cl.items.map((item,itemIdx)=>{const itemKey=`${cl.id}:${item.id}`;const assigneeMember=item.assignee?members.find(m=>m.id===item.assignee):null;return(
-                                    <div key={item.id} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 4px',borderRadius:6,background:dragOverItemKey===itemKey?'var(--accent-light)':'transparent',opacity:draggingItemKey===itemKey?0.4:1,transition:'background 0.15s'}} draggable={!isReadOnly} onDragStart={e=>{e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','item');setDraggingItemKey(itemKey);}} onDragEnd={e=>{e.stopPropagation();if(draggingItemKey&&dragOverItemKey){const[fromClId,fromItemId]=draggingItemKey.split(':');const[toClId,toItemId]=dragOverItemKey.split(':');if(fromClId===toClId&&fromItemId!==toItemId)reorderChecklistItems(fromClId,fromItemId,toItemId);}setDraggingItemKey(null);setDragOverItemKey(null);}} onDragOver={e=>{e.preventDefault();if(draggingChecklistIdx!==null)return;e.stopPropagation();if(draggingItemKey&&draggingItemKey.startsWith(cl.id+':'))setDragOverItemKey(itemKey);}} onDragLeave={()=>dragOverItemKey===itemKey&&setDragOverItemKey(null)}>
+                                    <div key={item.id} data-item-key={itemKey} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 4px',borderRadius:6,background:dragOverItemKey===itemKey?'var(--accent-light)':'transparent',opacity:draggingItemKey===itemKey?0.4:1,transition:'background 0.15s'}} draggable={!isReadOnly} onDragStart={e=>{e.stopPropagation();e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','item');setDraggingItemKey(itemKey);}} onDragEnd={e=>{e.stopPropagation();if(draggingItemKey&&dragOverItemKey){const[fromClId,fromItemId]=draggingItemKey.split(':');const[toClId,toItemId]=dragOverItemKey.split(':');if(fromClId===toClId&&fromItemId!==toItemId)reorderChecklistItems(fromClId,fromItemId,toItemId);}setDraggingItemKey(null);setDragOverItemKey(null);}} onDragOver={e=>{e.preventDefault();if(draggingChecklistIdx!==null)return;e.stopPropagation();if(draggingItemKey&&draggingItemKey.startsWith(cl.id+':'))setDragOverItemKey(itemKey);}} onDragLeave={()=>dragOverItemKey===itemKey&&setDragOverItemKey(null)} onTouchStart={isReadOnly?undefined:e=>handleItemTouchStart(e,cl.id,item.id)} onTouchMove={isReadOnly?undefined:handleClTouchMove} onTouchEnd={isReadOnly?undefined:handleClTouchEnd}>
                                         {!isReadOnly&&<span style={{cursor:'grab',color:'var(--text-muted)',fontSize:10,flexShrink:0,userSelect:'none'}}>⋮⋮</span>}
                                         <button onClick={()=>!isReadOnly&&toggleChecklistItem(cl.id,item.id)} style={{width:18,height:18,borderRadius:4,border:item.done?'none':'2px solid var(--border-strong)',background:item.done?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:isReadOnly?'default':'pointer',flexShrink:0,transition:'all 0.2s'}}>{item.done&&<svg width="10" height="10" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}</button>
                                         {editingItemId===item.id?(
@@ -456,7 +520,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         </div>}
                     </div>
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
-                        {!isReadOnly && <button onClick={()=>{onDelete(task.id);onClose();}} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Delete</span></button>}
+                        {!isReadOnly && <button onClick={()=>{if(window.confirm('Are you sure you want to delete this task?')){onDelete(task.id);onClose();}}} className="px-4 py-2 text-accent-red hover:bg-red-50 rounded-lg text-sm flex items-center space-x-2"><Icon.Trash/><span>Delete</span></button>}
                         {isReadOnly && <span style={{fontSize:11,color:'var(--text-muted)',fontStyle:'italic'}}>Read-only (guest mode)</span>}
                         <button onClick={handleClose} className="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium">Close</button>
                     </div>

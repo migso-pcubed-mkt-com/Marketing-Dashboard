@@ -1,12 +1,18 @@
 import { useState, useRef } from 'react';
 import { CONFIG } from '../config.js';
 import { useApp } from '../context.js';
+import { useTouchDrag } from '../hooks/useTouchDrag.js';
 
 const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderAction, isReadOnly, onUpdateAction}) => {
     const { currentBoard } = useApp();
     const boardMembers = currentBoard?.members || [];
     const [dragOverPosition, setDragOverPosition] = useState(null);
     const cardRef = useRef(null);
+    const { touchHandlers } = useTouchDrag({
+        itemAttribute: 'data-action-id',
+        onReorder: onReorderAction,
+        disabled: isReadOnly || !onReorderAction,
+    });
 
     const handleDragOver = (e) => {
         if (!onReorderAction) return;
@@ -47,12 +53,14 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
     return (
         <div
             ref={cardRef}
+            data-action-id={action.id}
             draggable={!isReadOnly}
             onDragStart={(e) => { if(isReadOnly){e.preventDefault();return;} e.dataTransfer.setData('actionId', action.id); e.currentTarget.classList.add('dragging'); }}
             onDragEnd={(e) => { e.currentTarget.classList.remove('dragging'); setDragOverPosition(null); }}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
+            {...(isReadOnly ? {} : touchHandlers)}
             onClick={(e) => { if (!e.defaultPrevented) onOpen(action); }}
             className={`action-card ${dragOverPosition === 'before' ? 'drop-indicator-before' : dragOverPosition === 'after' ? 'drop-indicator-after' : ''}`}>
             <div className="card-header">

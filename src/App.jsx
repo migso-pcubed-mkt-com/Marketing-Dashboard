@@ -163,7 +163,7 @@ const App = () => {
     const handleSwitchBoard = useCallback((boardId) => {
         setCurrentBoardId(boardId);
         setBoardData(prev => ({ ...prev, currentBoardId: boardId }));
-        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
         setSelectedTask(null);
         setSelectedAction(null);
     }, []);
@@ -208,6 +208,17 @@ const App = () => {
                 id: `t-${crypto.randomUUID()}`,
                 actionId: actionIdMap[t.actionId] || t.actionId
             }));
+            // Strip Trello metadata — duplicated board must not sync to the same Trello board
+            delete cloned.trelloSync;
+            delete cloned.trelloBoardId;
+            delete cloned.trelloBoardName;
+            cloned.categories.forEach(c => { delete c.trelloListId; });
+            cloned.actions.forEach(a => { delete a.trelloCardId; delete a.trelloListId; });
+            cloned.tasks.forEach(t => {
+                delete t.trelloCardId; delete t.trelloCheckItemId;
+                delete t.trelloChecklistName; delete t.trelloLastModified;
+                delete t.trelloArchived;
+            });
             const newBoard = {
                 ...cloned,
                 id: newId,
@@ -216,7 +227,7 @@ const App = () => {
                 updatedAt: new Date().toISOString()
             };
             setCurrentBoardId(newId);
-            setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
+            setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
             return { ...prev, currentBoardId: newId, boards: [...prev.boards, newBoard] };
         });
         showNotification('✅ Board duplicated');
@@ -817,7 +828,8 @@ const App = () => {
                 categoryId: newCat.id,
                 isDefault: true,
                 budget: 0, priority: 'medium', tags: [], status: 'active',
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             };
             setActions(prev => [...prev, defaultAction]);
         }
@@ -1226,7 +1238,7 @@ const App = () => {
                             <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
                         </div>
                     )}
-                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory}/>}
+                    {currentView === 'kanban' && <KanbanView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={actions} tasks={visibleTasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={actions} tasks={visibleTasks} members={currentBoard?.members || []}/>}

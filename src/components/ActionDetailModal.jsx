@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { CONFIG } from '../config.js';
 import { markdownToHtml, htmlToMarkdown, WysiwygToolbar, SimpleMarkdown } from '../lib/markdown.jsx';
 import { useApp } from '../context.js';
@@ -97,7 +97,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         if(!isReadOnly)onUpdateAction(action.id,finalForm);
         onClose();
     };
-    const handleDelete=()=>{if(onDeleteAction){onDeleteAction(action.id);onClose();}};
+    const handleDelete=()=>{if(onDeleteAction&&window.confirm('Are you sure you want to delete this action?')){onDeleteAction(action.id);onClose();}};
     const handleStatusChange=(taskId,newStatus)=>{onUpdateTask(taskId,{status:newStatus});};
     const addChannel=(id)=>setForm({...form,tags:[...(form.tags||[]),id]});
     const removeChannel=(id)=>setForm({...form,tags:(form.tags||[]).filter(c=>c!==id)});
@@ -343,6 +343,92 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         setDragOverTaskPos(null);
     };
 
+    // Touch drag for groups and tasks
+    const touchDragRef=useRef({type:null,id:null,timeout:null,startPos:null});
+    const handleGroupTouchStart=useCallback((e,groupName)=>{
+        if(isReadOnly)return;
+        const touch=e.touches[0];
+        touchDragRef.current={type:'group',id:groupName,timeout:setTimeout(()=>{
+            setDragGroupName(groupName);
+            if(navigator.vibrate)navigator.vibrate(50);
+        },300),startPos:{x:touch.clientX,y:touch.clientY}};
+    },[isReadOnly]);
+    const handleTaskTouchStart=useCallback((e,taskId)=>{
+        if(isReadOnly)return;
+        const touch=e.touches[0];
+        touchDragRef.current={type:'task',id:taskId,timeout:setTimeout(()=>{
+            setDragTaskId(taskId);
+            if(navigator.vibrate)navigator.vibrate(50);
+        },300),startPos:{x:touch.clientX,y:touch.clientY}};
+    },[isReadOnly]);
+    const handleModalTouchMove=useCallback((e)=>{
+        const ref=touchDragRef.current;
+        if(!ref.type){
+            if(ref.timeout&&ref.startPos){
+                const t=e.touches[0];
+                if(Math.abs(t.clientX-ref.startPos.x)>10||Math.abs(t.clientY-ref.startPos.y)>10){
+                    clearTimeout(ref.timeout);ref.timeout=null;
+                }
+            }
+            return;
+        }
+        if(!dragGroupName&&!dragTaskId)return;
+        e.preventDefault();
+        const touch=e.touches[0];
+        const el=document.elementFromPoint(touch.clientX,touch.clientY);
+        if(!el)return;
+        if(ref.type==='group'){
+            const target=el.closest('[data-group-name]');
+            if(target){
+                const targetName=target.getAttribute('data-group-name');
+                if(targetName!==dragGroupName)setDragOverGroup(targetName);
+            }
+        }else if(ref.type==='task'){
+            const target=el.closest('[data-modal-task-id]');
+            if(target){
+                const targetId=target.getAttribute('data-modal-task-id');
+                if(targetId!==dragTaskId){
+                    const rect=target.getBoundingClientRect();
+                    const pos=touch.clientY<rect.top+rect.height/2?'before':'after';
+                    setDragOverTaskId(targetId);
+                    setDragOverTaskPos(pos);
+                }
+            }
+        }
+    },[dragGroupName,dragTaskId]);
+    const handleModalTouchEnd=useCallback((e)=>{
+        const ref=touchDragRef.current;
+        if(ref.timeout)clearTimeout(ref.timeout);
+        if(ref.type==='group'&&dragGroupName&&dragOverGroup&&dragGroupName!==dragOverGroup){
+            // Reorder groups
+            const fromIdx=taskGroups.findIndex(g=>g.name===dragGroupName);
+            const toIdx=taskGroups.findIndex(g=>g.name===dragOverGroup);
+            if(fromIdx>=0&&toIdx>=0){
+                const reordered=[...taskGroups];
+                const [moved]=reordered.splice(fromIdx,1);
+                reordered.splice(toIdx,0,moved);
+                let globalOrder=0;
+                const batchUpdates=[];
+                for(const g of reordered){
+                    for(const t of g.tasks){
+                        batchUpdates.push({id:t.id,changes:{order:globalOrder++}});
+                    }
+                }
+                if(onBatchUpdateTasks)onBatchUpdateTasks(batchUpdates);
+            }
+        }else if(ref.type==='task'&&dragTaskId&&dragOverTaskId&&dragTaskId!==dragOverTaskId){
+            // Find the group of the target task
+            const targetGroup=taskGroups.find(g=>g.tasks.some(t=>t.id===dragOverTaskId));
+            if(targetGroup){
+                const fakeEvent={preventDefault:()=>{},stopPropagation:()=>{},dataTransfer:{getData:()=>'true'}};
+                handleTaskDrop(fakeEvent,dragOverTaskId,targetGroup.name);
+            }
+        }
+        setDragGroupName(null);setDragOverGroup(null);
+        setDragTaskId(null);setDragOverTaskId(null);setDragOverTaskPos(null);
+        touchDragRef.current={type:null,id:null,timeout:null,startPos:null};
+    },[dragGroupName,dragOverGroup,dragTaskId,dragOverTaskId,taskGroups,onBatchUpdateTasks]);
+
     // Handle "Add task" with group picker when multiple groups exist
     const handleAddTaskClick=()=>{
         if(taskGroups.length>1){
@@ -550,6 +636,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                             const isCollapsed=collapsedGroups[group.name];
                             return(
                                 <div key={group.name} className="mb-3"
+                                    data-group-name={group.name}
                                     onDragOver={e=>handleGroupDragOver(e,group.name)}
                                     onDrop={e=>handleGroupDrop(e,group.name)}
                                     style={{opacity:dragGroupName===group.name?0.5:1,borderTop:dragOverGroup===group.name&&dragGroupName?'2px solid #d97706':'2px solid transparent'}}>
@@ -557,7 +644,10 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                     <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:'1px solid var(--border-light)',marginBottom:8}}
                                         draggable={!isReadOnly&&taskGroups.length>1}
                                         onDragStart={e=>handleGroupDragStart(e,group.name)}
-                                        onDragEnd={()=>{setDragGroupName(null);setDragOverGroup(null);}}>
+                                        onDragEnd={()=>{setDragGroupName(null);setDragOverGroup(null);}}
+                                        onTouchStart={isReadOnly?undefined:e=>handleGroupTouchStart(e,group.name)}
+                                        onTouchMove={isReadOnly?undefined:handleModalTouchMove}
+                                        onTouchEnd={isReadOnly?undefined:handleModalTouchEnd}>
                                         {!isReadOnly&&taskGroups.length>1&&<span style={{cursor:'grab',opacity:0.4,fontSize:10}}>⋮⋮</span>}
                                         {editingGroupName===group.name&&!isReadOnly?(
                                             <input type="text" value={editingGroupValue} onChange={e=>setEditingGroupValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'&&editingGroupValue.trim()){if(onRenameChecklistGroup)onRenameChecklistGroup(group.name,editingGroupValue.trim());setEditingGroupName(null);}if(e.key==='Escape')setEditingGroupName(null);}} onBlur={()=>{if(editingGroupValue.trim()&&editingGroupValue!==group.name&&onRenameChecklistGroup)onRenameChecklistGroup(group.name,editingGroupValue.trim());setEditingGroupName(null);}} style={{flex:1,padding:'2px 6px',borderRadius:4,border:'1px solid var(--accent)',fontSize:11,fontWeight:600,outline:'none'}}/>
@@ -574,12 +664,15 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                         {group.tasks.map(task=>{
                                             const boardMembers=members||[];
                                             return(
-                                                <div key={task.id} className="rounded-lg p-3" style={{background:'var(--bg-primary)',border:'1px solid var(--border-light)',borderTop:dragOverTaskId===task.id&&dragOverTaskPos==='before'?'2px solid #d97706':undefined,borderBottom:dragOverTaskId===task.id&&dragOverTaskPos==='after'?'2px solid #d97706':undefined,cursor:'default'}}
+                                                <div key={task.id} data-modal-task-id={task.id} className="rounded-lg p-3" style={{background:'var(--bg-primary)',border:'1px solid var(--border-light)',borderTop:dragOverTaskId===task.id&&dragOverTaskPos==='before'?'2px solid #d97706':undefined,borderBottom:dragOverTaskId===task.id&&dragOverTaskPos==='after'?'2px solid #d97706':undefined,cursor:'default'}}
                                                     draggable={!isReadOnly}
                                                     onDragStart={e=>handleTaskDragStart(e,task.id)}
                                                     onDragOver={e=>handleTaskDragOver(e,task.id)}
                                                     onDrop={e=>handleTaskDrop(e,task.id,group.name)}
-                                                    onDragEnd={()=>{setDragTaskId(null);setDragOverTaskId(null);setDragOverTaskPos(null);setDragOverGroup(null);}}>
+                                                    onDragEnd={()=>{setDragTaskId(null);setDragOverTaskId(null);setDragOverTaskPos(null);setDragOverGroup(null);}}
+                                                    onTouchStart={isReadOnly?undefined:e=>handleTaskTouchStart(e,task.id)}
+                                                    onTouchMove={isReadOnly?undefined:handleModalTouchMove}
+                                                    onTouchEnd={isReadOnly?undefined:handleModalTouchEnd}>
                                                     <div className="flex items-center gap-3">
                                                         {!isReadOnly&&<span style={{cursor:'grab',opacity:0.3,fontSize:10,flexShrink:0}}>⋮⋮</span>}
                                                         <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:110,flexShrink:0}} disabled={isReadOnly}/>
