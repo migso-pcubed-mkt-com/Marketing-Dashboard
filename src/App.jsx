@@ -1207,7 +1207,7 @@ const App = () => {
                             {showCreateDropdown && <div className="dropdown-menu open">
                                 <button className="dropdown-item default" onClick={() => {setShowCreateDropdown(false);handleCreateNewTask();}}>
                                     <div className="dropdown-item-icon task"><Icon.Check/></div>
-                                    <div className="dropdown-item-content"><div className="dropdown-item-title">New task</div><div className="dropdown-item-desc">Add a task to an action</div></div>
+                                    <div className="dropdown-item-content"><div className="dropdown-item-title">New task</div><div className="dropdown-item-desc">{currentBoard?.trelloSync?.syncMode === 'card-as-task' ? 'Add a task to a category' : 'Add a task to an action'}</div></div>
                                     <span className="dropdown-item-shortcut">N</span>
                                 </button>
                                 {currentBoard?.trelloSync?.syncMode !== 'card-as-task' && <button className="dropdown-item" onClick={() => {setShowCreateDropdown(false);setShowNewActionModal(true);}}>

@@ -279,7 +279,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             <div className="kanban-toolbar">
                 <div className="kanban-toolbar-left">
                     <div className="view-btn-group">
-                        {[{id:'category',label:isCardAsTask?'By Category':'Actions'},{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
+                        {[{id:'category',label:isCardAsTask?'Categories (tasks)':'Categories (actions)'},{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
                             <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
                         ))}
                     </div>

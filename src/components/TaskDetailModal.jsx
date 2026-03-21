@@ -229,7 +229,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                 <input type="text" value={form.title} onChange={e=>!isReadOnly&&setForm({...form,title:e.target.value})} className="v11-input" style={{fontSize:'1.25rem',fontWeight:700,textDecoration:form.status==='completed'?'line-through':'none'}} readOnly={isReadOnly}/>
                                 <div className="flex items-center gap-2 mt-1">
                                     <p className="text-sm" style={{color:'var(--text-muted)'}}>📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
-                                    {onBackToAction&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Back to action</button>}
+                                    {onBackToAction&&!isCardAsTask&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Back to action</button>}
                                 </div>
                             </div>
                         </div>
