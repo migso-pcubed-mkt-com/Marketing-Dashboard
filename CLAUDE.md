@@ -258,6 +258,12 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 ### Supabase Realtime infinite loop
 `isReceivingRealtimeRef` flag — set `true` when handling Realtime event; auto-save skips if true; resets after 2s. Realtime merge uses `{ ...localSync, ...(incomingSync || {}) }` — local trelloSync as base, incoming on top. Always preserves local `syncMode` when incoming doesn't have one.
 
+### Trello polling interval must use ref, not direct callback
+The polling `useEffect` must NOT include `handleTrelloSync` in its deps. `handleTrelloSync` depends on `currentBoard` + `trelloSyncStatus`, which change on every save/sync cycle. Including it resets the interval timer on every change → auto-sync never fires. Use `handleTrelloSyncRef` (ref always pointing to latest callback) + `setInterval(() => handleTrelloSyncRef.current(), intervalMs)`.
+
+### listToCatId must be cleaned after category removal
+After removing categories whose Trello lists are archived/deleted, `listToCatId` entries for those categories must be deleted. Otherwise cards on those lists map to non-existent categories during the same sync cycle.
+
 ### Stale closures in save functions
 `boardDataRef` updated synchronously before each save. Do not capture state directly in save callbacks.
 
