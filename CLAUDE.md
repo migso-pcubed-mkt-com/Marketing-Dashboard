@@ -63,6 +63,7 @@ Marketing Project Tracker for MIGSO-PCUBED. Single-page React app managing **Cat
 - **React 18** + **Vite 5** (ES Modules, no CDN/Babel/UMD)
 - **Tailwind CSS 3** via PostCSS (not CDN)
 - **Supabase JS SDK** (`@supabase/supabase-js`)
+- **Vitest** for unit tests (43 tests across 4 files)
 - No TypeScript, no ESLint
 
 ### Key Files
@@ -78,6 +79,10 @@ src/
 │   ├── trelloMapping.js # Trello ↔ Dashboard entity conversion
 │   ├── trelloSync.js    # Bidirectional sync engine
 │   └── migration.js     # v1→v2 data migration
+├── components/
+│   ├── ErrorBoundary.jsx # Error boundary wrapper for views
+│   └── OnboardingOverlay.jsx # First-run tour (4 steps, localStorage)
+├── __tests__/           # Vitest unit tests (migration, mapping, sync, markdown)
 ├── hooks/
 │   └── useTouchDrag.js  # Reusable touch DnD hook (long-press 300ms, elementFromPoint)
 api/
@@ -90,6 +95,8 @@ api/
 ```bash
 npm run dev       # Vite dev server — port 5173, proxies /api → localhost:3000
 npm run build     # Production build → dist/
+npm test          # Run Vitest tests (43 tests)
+npm run test:watch # Watch mode
 ```
 
 ---
@@ -132,6 +139,7 @@ Migration from v1 (flat) → v2 is automatic via `src/lib/migration.js`.
 | Primary | Supabase | Real-time via Supabase Realtime. Table: `app_data`, column `board_data` (JSONB). Auto-save debounce: 1s |
 | Secondary | GitHub API | `data.json` on `main` via `api/github.js` proxy. Auto-save debounce: 2s |
 | Fallback | localStorage | Key: `marketing_tracker_backup`. Snapshot ring buffer: 3 rotating keys `mkt_snapshot_0/1/2`, 48h TTL |
+| Attachments | Supabase Storage | Bucket: `attachments`. Falls back to base64 data URLs if Storage unavailable. `uploadAttachment()` / `deleteAttachment()` in `storage.js` |
 
 **Load order**: Supabase → GitHub → localStorage. `localStorage` is backup only — never primary.
 
@@ -148,9 +156,9 @@ Central state in `App.jsx`:
 - `categories`, `actions`, `tasks` — derived via `useMemo` from active board
 - Single `boardDataRef` (replaces old `categoriesRef`/`actionsRef`/`tasksRef`)
 
-`AppContext` (`useApp()`) exposes: `boards`, `currentBoardId`, `currentBoard`, `onSwitchBoard`, `onCreateBoard`, `onRenameBoard`, `onDeleteBoard`, `onDuplicateBoard`.
+`AppContext` (`useApp()`) exposes: `boards`, `currentBoardId`, `currentBoard`, `categories`, `actions`, `tasks`, `filters`, `setFilters`, `isReadOnly`, `allCountries`, `trelloUser`, board CRUD handlers, Trello sync handlers.
 
-Props still drilled for view-specific data.
+Props still drilled for view-specific handlers (`onUpdateTask`, `onOpenTask`, etc.).
 
 ---
 
@@ -217,11 +225,11 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 
 ### Sync robustness
 
-- **Sync lock**: module-level `syncInProgress` flag + 60s auto-timeout in `trelloSync.js`. Exported via `isSyncInProgress()` — auto-save defers while sync is running.
+- **Sync lock**: module-level `syncInProgress` flag + 15s auto-timeout in `trelloSync.js`. Exported via `isSyncInProgress()` — auto-save defers while sync is running.
 - **Offline guard**: `handleTrelloSync` skips if `!navigator.onLine` — prevents snapshot restore from overwriting offline edits.
 - **Drag guard**: `isUserInteractingRef` blocks auto-save during Kanban/Timeline drag (passed to KanbanView + TimelineView).
 - **Pre-sync snapshot**: board saved to `localStorage('trello_sync_snapshot')` before each sync; auto-restored on failure (24h validity)
-- **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors — backoff 1s, 2s, 4s
+- **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors/timeouts — backoff 1s, 2s, 4s. 8s AbortController timeout per request.
 - **Post-sync**: `validateBoardIntegrity()` checks orphan refs + duplicate IDs. Light Supabase fetch 4s after sync to recover ignored Realtime events.
 
 ### Sync boundaries (by design)
@@ -282,4 +290,4 @@ Any reorder that affects multiple tasks (kanban cards, action modal groups/tasks
 - ✅ Phase 1 — Multi-board
 - ✅ Phase 2 — Trello integration
 - ✅ Phase 3 — Auth + UI improvements
-- 🔲 Phase 4 — File attachments (`attachments: []` field exists, no upload UI yet)
+- ✅ Phase 4 — File attachments (Supabase Storage with base64 fallback, drag & drop UI)
