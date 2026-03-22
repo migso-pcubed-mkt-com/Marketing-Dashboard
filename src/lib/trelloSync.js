@@ -1445,6 +1445,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         }
 
         // Process existing tasks linked to this card's checklist items
+        let actionHadLocalPush = false;
         for (let j = 0; j < updatedTasks.length; j++) {
             const task = updatedTasks[j];
             if (task.actionId !== action.id || !task.trelloCheckItemId) continue;
@@ -1477,6 +1478,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                         const updates = mapTaskToCheckItemUpdate(task);
                         await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, updates);
                         updatedTasks[j] = { ...task, trelloLastModified: new Date().toISOString() };
+                        actionHadLocalPush = true;
                         result.pushed++;
                     } catch (e) {
                         console.error(`Failed to push task "${task.title}" to Trello checkItem:`, e);
@@ -1491,6 +1493,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                         const updates = mapTaskToCheckItemUpdate(task);
                         await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, updates);
                         updatedTasks[j] = { ...task, trelloLastModified: new Date().toISOString() };
+                        actionHadLocalPush = true;
                         result.pushed++;
                     } catch (e) {
                         console.error(`Failed to push task "${task.title}" to Trello checkItem:`, e);
@@ -1526,7 +1529,8 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         }
 
         // Sync checklist and item positions to Trello (card-as-action mode)
-        if (!readOnly) {
+        // Only push positions when local items were pushed — otherwise Trello reorder would be overwritten
+        if (!readOnly && actionHadLocalPush) {
             const positionUpdates = [];
             // Group tasks by checklistId, sorted by order
             const checklistGroups = new Map();
