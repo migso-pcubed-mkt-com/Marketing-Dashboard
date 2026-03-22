@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-21
+> Last updated: 2026-03-22 (exhaustive sync audit v2)
 
 ---
 
@@ -63,6 +63,7 @@ Marketing Project Tracker for MIGSO-PCUBED. Single-page React app managing **Cat
 - **React 18** + **Vite 5** (ES Modules, no CDN/Babel/UMD)
 - **Tailwind CSS 3** via PostCSS (not CDN)
 - **Supabase JS SDK** (`@supabase/supabase-js`)
+- **Vitest** for unit tests (43 tests across 4 files)
 - No TypeScript, no ESLint
 
 ### Key Files
@@ -78,6 +79,11 @@ src/
 │   ├── trelloMapping.js # Trello ↔ Dashboard entity conversion
 │   ├── trelloSync.js    # Bidirectional sync engine
 │   └── migration.js     # v1→v2 data migration
+├── components/
+│   ├── ErrorBoundary.jsx # Error boundary wrapper for views
+│   ├── MentionInput.jsx  # @mention autocomplete for comments (contentEditable + dropdown)
+│   └── OnboardingOverlay.jsx # First-run tour (4 steps, localStorage)
+├── __tests__/           # Vitest unit tests (migration, mapping, sync, markdown)
 ├── hooks/
 │   └── useTouchDrag.js  # Reusable touch DnD hook (long-press 300ms, elementFromPoint)
 api/
@@ -90,6 +96,8 @@ api/
 ```bash
 npm run dev       # Vite dev server — port 5173, proxies /api → localhost:3000
 npm run build     # Production build → dist/
+npm test          # Run Vitest tests (43 tests)
+npm run test:watch # Watch mode
 ```
 
 ---
@@ -132,6 +140,7 @@ Migration from v1 (flat) → v2 is automatic via `src/lib/migration.js`.
 | Primary | Supabase | Real-time via Supabase Realtime. Table: `app_data`, column `board_data` (JSONB). Auto-save debounce: 1s |
 | Secondary | GitHub API | `data.json` on `main` via `api/github.js` proxy. Auto-save debounce: 2s |
 | Fallback | localStorage | Key: `marketing_tracker_backup`. Snapshot ring buffer: 3 rotating keys `mkt_snapshot_0/1/2`, 48h TTL |
+| Attachments | Supabase Storage | Bucket: `attachments`. Falls back to base64 data URLs if Storage unavailable. `uploadAttachment()` / `deleteAttachment()` in `storage.js` |
 
 **Load order**: Supabase → GitHub → localStorage. `localStorage` is backup only — never primary.
 
@@ -148,9 +157,9 @@ Central state in `App.jsx`:
 - `categories`, `actions`, `tasks` — derived via `useMemo` from active board
 - Single `boardDataRef` (replaces old `categoriesRef`/`actionsRef`/`tasksRef`)
 
-`AppContext` (`useApp()`) exposes: `boards`, `currentBoardId`, `currentBoard`, `onSwitchBoard`, `onCreateBoard`, `onRenameBoard`, `onDeleteBoard`, `onDuplicateBoard`.
+`AppContext` (`useApp()`) exposes: `boards`, `currentBoardId`, `currentBoard`, `categories`, `actions`, `tasks`, `filters`, `setFilters`, `isReadOnly`, `allCountries`, `trelloUser`, board CRUD handlers, Trello sync handlers.
 
-Props still drilled for view-specific data.
+Props still drilled for view-specific handlers (`onUpdateTask`, `onOpenTask`, etc.).
 
 ---
 
@@ -217,22 +226,28 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 
 ### Sync robustness
 
-- **Sync lock**: module-level `syncInProgress` flag + 60s auto-timeout in `trelloSync.js`. Exported via `isSyncInProgress()` — auto-save defers while sync is running.
+- **Sync lock**: module-level `syncInProgress` flag + 15s auto-timeout in `trelloSync.js`. Exported via `isSyncInProgress()` — auto-save defers while sync is running.
 - **Offline guard**: `handleTrelloSync` skips if `!navigator.onLine` — prevents snapshot restore from overwriting offline edits.
 - **Drag guard**: `isUserInteractingRef` blocks auto-save during Kanban/Timeline drag (passed to KanbanView + TimelineView).
 - **Pre-sync snapshot**: board saved to `localStorage('trello_sync_snapshot')` before each sync; auto-restored on failure (24h validity)
-- **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors — backoff 1s, 2s, 4s
-- **Post-sync**: `validateBoardIntegrity()` checks orphan refs + duplicate IDs. Light Supabase fetch 4s after sync to recover ignored Realtime events.
+- **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors/timeouts — backoff 1s, 2s, 4s. 8s AbortController timeout per request.
+- **Post-sync**: `validateBoardIntegrity()` checks orphan refs + duplicate IDs + auto-repairs (removes orphans, deduplicates, creates missing default actions). Light Supabase fetch 4s after sync to recover ignored Realtime events.
+- **Realtime guard during sync**: Realtime handler checks `isSyncInProgress()` — prevents Realtime events from overwriting freshly synced data.
 
 ### Sync boundaries (by design)
 
 - `budget`, `priority` are local-only fields (no Trello equivalent). Preserved via `...existingTask` spread during merge.
-- Task `order` is independent of Trello card `pos` (Kanban reorder is local). Only checklist item positions sync in card-as-action mode.
+- Task `order` is independent of Trello card `pos` (Kanban reorder is local). Checklist/item positions sync bidirectionally (push when local wins, pull when Trello wins via `isPushWinner` flag in `pushTaskExtrasToTrello`).
+- `channels`, `countries`, `otherLabels` are synced bidirectionally via label mappings. `mergeTrelloExtrasIntoTask` re-pulls labels after push (union merge). `mergeCardIntoTask` preserves local-only channels/countries (those without a Trello label mapping) via union merge with mapped values. Action labels are pushed via `pushActionLabelsToTrello()` in card-as-action mode.
 - `createCard` supports `start`, `pos`, `idMembers`, `dueComplete` for full field creation.
+- **Action→Task tag inheritance**: `handleUpdateAction` propagates tag/country changes to linked tasks via batch update. Uses union merge: `(new action tags) ∪ (task-specific tags not from old action)`.
 
 ---
 
 ## Known Pitfalls
+
+### Checklist position sync direction
+`pushTaskExtrasToTrello(task, card, isPushWinner)` — positions are only pushed to Trello when `isPushWinner=true` (local won last-write-wins). When `isPushWinner=false`, local checklists/items are reordered to match Trello positions. Do NOT remove the `isPushWinner` parameter or always push positions — this causes Trello reorder to be overwritten.
 
 ### Supabase Realtime infinite loop
 `isReceivingRealtimeRef` flag — set `true` when handling Realtime event; auto-save skips if true; resets after 2s. Realtime merge uses `{ ...localSync, ...(incomingSync || {}) }` — local trelloSync as base, incoming on top. Always preserves local `syncMode` when incoming doesn't have one.
@@ -264,6 +279,33 @@ Any reorder that affects multiple tasks (kanban cards, action modal groups/tasks
 ### Kanban column drag vs card drag
 `onDragStart` inside `.kanban-cards` calls `e.stopPropagation()` — prevents column drag when dragging a card.
 
+### mergeCardIntoTask must set updatedAt and recalculate month
+When Trello wins last-write-wins, `mergeCardIntoTask` must set `updatedAt: card.dateLastActivity` and recalculate `month` from the new `dueDate`. Without this, next sync may incorrectly re-evaluate conflict direction, and Kanban month columns show stale data.
+
+### All CRUD handlers must set updatedAt
+`handleAddTask`, `handleAddAction`, `handleReorderTask` (cross-column) must set `updatedAt` — Trello sync uses `updatedAt > trelloLastModified` for conflict detection. Missing `updatedAt` causes local changes to be overwritten by Trello.
+
+### card-as-action: trelloItemDeleted flag prevents re-creation
+When a Trello checklist item is deleted, the local task gets `trelloItemDeleted: true`. Do NOT remove this flag — it prevents the task from being re-pushed as a new checklist item on next sync. Without it, deleted items get recreated in a loop.
+
+### card-as-action: pushActionLabelsToTrello for action label sync
+Action labels (tags/channels, countries, otherLabels) are pushed to Trello via `pushActionLabelsToTrello()`. Do NOT rely on `pushActionExtrasToTrello()` for labels — that function only handles comments and attachments.
+
+### Dedup guard on card import
+`syncWithTrelloCardAsTask` checks `updatedTasks.some(t => t.trelloCardId === card.id)` before importing new cards. Prevents duplicate tasks if sync runs twice in quick succession.
+
+### Default action deletion guard
+`handleDeleteAction` blocks deletion of `isDefault: true` actions in card-as-task mode. Without this, all tasks in the category become orphaned and Kanban breaks.
+
+### validateBoardIntegrity auto-repairs
+`validateBoardIntegrity()` now removes orphaned tasks/actions, deduplicates `trelloCardId`/`trelloCheckItemId`, and creates missing default actions. Returns `{ board: repairedBoard }` — callers must use `integrity.board`.
+
+### card-as-action: task move between actions
+When a task's `actionId` changes in card-as-action mode, the sync detects the `trelloCardId` mismatch, deletes the old checklist item, and clears IDs so the task is recreated under the new action's card. Do NOT skip this move detection — without it, moved tasks become zombies.
+
+### card-as-action: action move between categories
+`handleReorderAction` sets `updatedAt` on cross-category moves. The sync pushes `idList` via `mapActionToTrelloCardUpdate`. Without `updatedAt`, the timestamp comparison fails and the move is never pushed.
+
 ---
 
 ## Authentication
@@ -282,4 +324,4 @@ Any reorder that affects multiple tasks (kanban cards, action modal groups/tasks
 - ✅ Phase 1 — Multi-board
 - ✅ Phase 2 — Trello integration
 - ✅ Phase 3 — Auth + UI improvements
-- 🔲 Phase 4 — File attachments (`attachments: []` field exists, no upload UI yet)
+- ✅ Phase 4 — File attachments (Supabase Storage with base64 fallback, drag & drop UI)

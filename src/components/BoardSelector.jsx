@@ -68,6 +68,13 @@ const BoardSelector = () => {
                 }}>
                     {currentBoard?.name || 'Board'}
                 </span>
+                {currentBoard?.trelloSync?.trelloBoardId && (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{flexShrink:0,opacity:0.6}} title="Synced with Trello">
+                        <rect x="1" y="1" width="22" height="22" rx="3" fill="#0079BF"/>
+                        <rect x="4" y="4" width="7" height="14" rx="1.5" fill="white"/>
+                        <rect x="13" y="4" width="7" height="9" rx="1.5" fill="white"/>
+                    </svg>
+                )}
                 <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', opacity: 0.5 }}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/>
                 </svg>

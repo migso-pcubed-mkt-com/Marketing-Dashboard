@@ -1,11 +1,23 @@
 import React from 'react';
 
+// Escape HTML entities to prevent XSS via innerHTML
+const escapeHtml = (str) => str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 // Convert markdown to HTML for contentEditable
 export const markdownToHtml = (md) => {
     if (!md) return '';
-    let html = md;
-    // Code blocks (must be before inline processing)
-    html = html.replace(/```([^`]*?)```/gs, (_, code) => `<pre style="background:var(--bg-secondary);padding:8px;border-radius:4px;font-family:monospace;font-size:12px;overflow-x:auto"><code>${code.trim().replace(/</g,'&lt;')}</code></pre>`);
+    // Extract code blocks first (preserve raw content)
+    const codeBlocks = [];
+    let html = md.replace(/```([^`]*?)```/gs, (_, code) => {
+        codeBlocks.push(code.trim());
+        return `\x00CODEBLOCK${codeBlocks.length - 1}\x00`;
+    });
+    // Escape HTML in all non-code content
+    html = escapeHtml(html);
+    // Restore code blocks with their own escaping
+    html = html.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, idx) =>
+        `<pre style="background:var(--bg-secondary);padding:8px;border-radius:4px;font-family:monospace;font-size:12px;overflow-x:auto"><code>${escapeHtml(codeBlocks[idx])}</code></pre>`
+    );
     // Process line by line for block elements
     const lines = html.split('\n');
     const result = [];
@@ -131,7 +143,7 @@ export const SimpleMarkdown = ({ text }) => {
         const parts = [];
         let remaining = line;
         let k = 0;
-        const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|~~(.+?)~~|`(.+?)`|\[(.+?)\]\((.+?)\))/;
+        const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|~~(.+?)~~|`(.+?)`|\[(.+?)\]\((.+?)\)|@(\w[\w\s]{0,30}\w))/;
         while (remaining) {
             const match = remaining.match(inlineRegex);
             if (!match) { parts.push(remaining); break; }
@@ -141,6 +153,7 @@ export const SimpleMarkdown = ({ text }) => {
             else if (match[4]) parts.push(React.createElement('del', { key: k++, style: { color: 'var(--text-muted)' } }, match[4]));
             else if (match[5]) parts.push(React.createElement('code', { key: k++, style: { background: 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 3, fontSize: '0.88em', fontFamily: 'var(--font-mono, monospace)' } }, match[5]));
             else if (match[6] && match[7]) parts.push(React.createElement('a', { key: k++, href: match[7], target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--accent)', textDecoration: 'underline' } }, match[6]));
+            else if (match[8]) parts.push(React.createElement('span', { key: k++, style: { color: 'var(--accent)', fontWeight: 600, background: 'var(--accent-light)', borderRadius: 3, padding: '0 3px' } }, '@' + match[8]));
             remaining = remaining.slice(match.index + match[0].length);
         }
         return parts;

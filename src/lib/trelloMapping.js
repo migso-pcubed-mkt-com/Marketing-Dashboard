@@ -662,9 +662,10 @@ export const mapTaskToTrelloCardUpdate = (task, listId) => {
     return updates;
 };
 
-// --- After push: merge new Trello extras (checklists, attachments) into local task ---
+// --- After push: merge new Trello extras (checklists, attachments, labels) into local task ---
 // This ensures items added on Trello side are preserved even when "push wins".
-export const mergeTrelloExtrasIntoTask = (task, card) => {
+// mappingConfig is optional — if provided, also re-pulls channels/countries/otherLabels from card labels.
+export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
     if (!card) return task;
     const updated = { ...task };
 
@@ -795,6 +796,37 @@ export const mergeTrelloExtrasIntoTask = (task, card) => {
         }
     }
 
+    // Re-pull label-based fields (channels, countries, otherLabels) from Trello card
+    // Union merge: keep local tags + add any Trello-only tags
+    if (card.idLabels && mappingConfig?.labelMappings) {
+        const trelloChannels = [], trelloCountries = [], trelloOtherLabels = [];
+        for (const labelId of card.idLabels) {
+            const mapping = mappingConfig.labelMappings[labelId];
+            if (!mapping) continue;
+            if (mapping.type === 'channel' && mapping.channelId) trelloChannels.push(mapping.channelId);
+            else if (mapping.type === 'country' && mapping.countryId) trelloCountries.push(mapping.countryId);
+            else if (mapping.type === 'other') {
+                const hex = mapping.labelColor?.startsWith('#') ? mapping.labelColor : (trelloColorToHex(mapping.labelColor) || '#64748b');
+                trelloOtherLabels.push({ id: labelId, name: mapping.labelName || '', color: hex });
+            }
+        }
+        if (trelloChannels.length) {
+            const merged = new Set(updated.channels || []);
+            trelloChannels.forEach(c => merged.add(c));
+            updated.channels = [...merged];
+        }
+        if (trelloCountries.length) {
+            const merged = new Set(updated.countries || []);
+            trelloCountries.forEach(c => merged.add(c));
+            updated.countries = [...merged];
+        }
+        if (trelloOtherLabels.length) {
+            const existingIds = new Set((updated.otherLabels || []).map(l => l.id));
+            const newLabels = trelloOtherLabels.filter(l => !existingIds.has(l.id));
+            if (newLabels.length) updated.otherLabels = [...(updated.otherLabels || []), ...newLabels];
+        }
+    }
+
     return updated;
 };
 
@@ -921,6 +953,17 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig, listToCatId
         }
     }
 
+    // Merge channels from labels
+    const channels = [];
+    if (card.idLabels && mappingConfig?.labelMappings) {
+        for (const labelId of card.idLabels) {
+            const mapping = mappingConfig.labelMappings[labelId];
+            if (mapping?.type === 'channel' && mapping.channelId) {
+                channels.push(mapping.channelId);
+            }
+        }
+    }
+
     // Detect card moved between lists → update actionId to default action of new category
     let actionId = existingTask.actionId;
     if (listToCatId && boardActions && card.idList) {
@@ -936,20 +979,39 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig, listToCatId
         }
     }
 
+    // Build sets of mapped channel/country IDs to preserve local-only values
+    const mappedChannelIds = new Set();
+    const mappedCountryIds = new Set();
+    if (mappingConfig?.labelMappings) {
+        for (const mapping of Object.values(mappingConfig.labelMappings)) {
+            if (mapping.type === 'channel' && mapping.channelId) mappedChannelIds.add(mapping.channelId);
+            if (mapping.type === 'country' && mapping.countryId) mappedCountryIds.add(mapping.countryId);
+        }
+    }
+
+    const newDueDate = card.due ? card.due.split('T')[0] : existingTask.dueDate;
+
     return {
         ...existingTask,
         actionId,
         title: card.name,
         description: card.desc || existingTask.description,
         startDate: card.start ? card.start.split('T')[0] : existingTask.startDate,
-        dueDate: card.due ? card.due.split('T')[0] : existingTask.dueDate,
+        dueDate: newDueDate,
+        month: newDueDate ? new Date(newDueDate).getMonth() : existingTask.month,
         status: TRELLO_PROTECTED_STATUSES.has(existingTask.status) ? existingTask.status : (card.dueComplete ? 'completed' : existingTask.status),
         checklists: mergedChecklists,
         attachments: mergedAttachments,
         comments: mergedComments,
         assignees,
-        countries: countries.length ? countries : existingTask.countries,
+        channels: channels.length
+            ? [...new Set([...channels, ...(existingTask.channels || []).filter(c => !mappedChannelIds.has(c))])]
+            : existingTask.channels,
+        countries: countries.length
+            ? [...new Set([...countries, ...(existingTask.countries || []).filter(c => !mappedCountryIds.has(c))])]
+            : existingTask.countries,
         otherLabels: otherLabels.length ? otherLabels : (existingTask.otherLabels || []),
+        updatedAt: card.dateLastActivity,
         trelloLastModified: card.dateLastActivity
     };
 };

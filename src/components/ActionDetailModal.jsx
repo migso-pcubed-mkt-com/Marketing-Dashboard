@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { CONFIG } from '../config.js';
 import { markdownToHtml, htmlToMarkdown, WysiwygToolbar, SimpleMarkdown } from '../lib/markdown.jsx';
 import { useApp } from '../context.js';
+import MentionInput from './MentionInput.jsx';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
@@ -767,7 +768,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                 <div style={{padding:'4px 8px',borderBottom:'1px solid var(--border)'}}>
                                     <WysiwygToolbar editableRef={newCommentEditableRef} onAttach={()=>commentFileRef.current?.click()}/>
                                 </div>
-                                <div ref={newCommentEditableRef} contentEditable suppressContentEditableWarning style={{padding:'8px 12px',minHeight:48,fontSize:13,outline:'none',color:'var(--text-secondary)'}} placeholder="Write a comment..."/>
+                                <MentionInput editableRef={newCommentEditableRef} members={members} style={{padding:'8px 12px',minHeight:48}} placeholder="Write a comment..."/>
                             </div>
                             <input ref={commentFileRef} type="file" multiple style={{display:'none'}} onChange={handleCommentFileSelect}/>
                             {commentAttachments.length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>

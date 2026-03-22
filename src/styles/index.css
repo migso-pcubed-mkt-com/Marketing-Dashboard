@@ -178,7 +178,8 @@ body.resizing *{cursor:col-resize!important}
 .kanban-cards{display:flex;flex-direction:column;gap:8px;flex:1}
 .column-empty{flex:1;display:flex;align-items:center;justify-content:center;padding:24px 16px;color:var(--text-muted);font-size:12px;text-align:center;border:1px dashed var(--border);border-radius:var(--radius-md);background:transparent}
 /* Task Cards */
-.kanban-card{background:var(--bg-primary);border-radius:var(--radius-md);padding:12px;cursor:pointer;transition:var(--transition);border:1px solid var(--border-light)}
+.kanban-card{background:var(--bg-primary);border-radius:var(--radius-md);padding:12px;cursor:grab;transition:var(--transition);border:1px solid var(--border-light)}
+.kanban-card:active{cursor:grabbing}
 .kanban-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);border-color:var(--border)}
 .kanban-card.completed{opacity:0.7;background:var(--bg-primary);border:1px solid var(--border)}
 .kanban-card[draggable=true]{cursor:grab}
@@ -265,13 +266,34 @@ body.resizing *{cursor:col-resize!important}
 .v11-label{display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px}
 *:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media(max-width:1200px){.kanban-column{min-width:260px;max-width:260px}:root{--sidebar-width:180px}}
-@media(max-width:768px){.v11-view-tabs{display:none}.stats-pills{display:none}:root{--sidebar-width:150px}.timeline-cell{min-width:80px}}
-@media(max-width:480px){.filter-sidebar{width:100%}.v11-btn-secondary span{display:none}.kanban-board{gap:12px;padding:12px}.kanban-column{min-width:min(280px,85vw)}
+@media(max-width:768px){
+    .v11-view-tabs{display:none}
+    .stats-pills{display:none}
+    :root{--sidebar-width:150px}
+    .timeline-cell{min-width:80px}
+    .toolbar{flex-wrap:wrap;gap:8px;padding:8px 0}
+    .toolbar-spacer{display:none}
+    .new-btn-container{flex:1}
+    .v11-header-inner{padding:0 12px!important;gap:8px!important}
+    .kanban-board{padding:8px;gap:12px;scroll-snap-type:x mandatory}
+    .kanban-column{scroll-snap-align:start;min-width:min(300px,80vw)}
+    .active-filters{flex-wrap:wrap;gap:4px}
+    .filter-chip{font-size:10px;padding:2px 6px}
+}
+@media(max-width:480px){
+    .filter-sidebar{width:100%}
+    .v11-btn-secondary span{display:none}
+    .kanban-board{gap:8px;padding:4px}
+    .kanban-column{min-width:min(280px,90vw);max-width:90vw}
     /* Responsive modals */
-    .v11-modal{max-width:95vw!important;width:95vw!important;padding:16px!important}
-    .v11-modal-overlay>div[style]{max-width:95vw!important}
+    .v11-modal{max-width:95vw!important;width:95vw!important;padding:12px!important;max-height:90vh!important;overflow-y:auto}
+    .v11-modal-overlay>div[style]{max-width:95vw!important;max-height:90vh!important;overflow-y:auto}
     .calendar-title{min-width:auto;font-size:14px}
     .calendar-toolbar{flex-wrap:wrap;gap:8px}
+    .v11-header{height:48px!important}
+    .card-tags{display:none}
+    .card-footer{font-size:10px}
+    main{padding:8px 12px!important}
 }
 /* Calendar View */
 .calendar-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 0;gap:16px}

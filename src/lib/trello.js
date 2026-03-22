@@ -20,8 +20,11 @@ const trelloFetch = async (url, options = {}, retries = 3) => {
     }
 
     for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
         try {
-            const response = await fetch(url, { headers, ...options });
+            const response = await fetch(url, { headers, signal: controller.signal, ...options });
+            clearTimeout(timeoutId);
 
             // Retry on 429 (rate limit) or 502/503/504 (server overload)
             if ((response.status === 429 || response.status >= 502) && attempt < retries) {
@@ -38,13 +41,15 @@ const trelloFetch = async (url, options = {}, retries = 3) => {
             }
             return response.json();
         } catch (err) {
-            // Retry on network errors (TypeError: Failed to fetch)
-            if (err instanceof TypeError && attempt < retries) {
+            clearTimeout(timeoutId);
+            // Retry on network errors (TypeError: Failed to fetch) and timeouts (AbortError)
+            if ((err instanceof TypeError || err.name === 'AbortError') && attempt < retries) {
                 const delayMs = 1000 * Math.pow(2, attempt);
-                console.warn(`[Trello] Network error on attempt ${attempt + 1}/${retries + 1} — retrying in ${delayMs}ms`);
+                console.warn(`[Trello] ${err.name === 'AbortError' ? 'Timeout' : 'Network error'} on attempt ${attempt + 1}/${retries + 1} — retrying in ${delayMs}ms`);
                 await sleep(delayMs);
                 continue;
             }
+            if (err.name === 'AbortError') throw new Error('Trello request timed out after 8s');
             throw err;
         }
     }
