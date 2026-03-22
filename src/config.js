@@ -1,5 +1,5 @@
-export const SUPABASE_URL = 'https://egdeyycjyjccajvshwez.supabase.co';
-export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnZGV5eWNqeWpjY2FqdnNod2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDQxMzEsImV4cCI6MjA4ODAyMDEzMX0.VNiTMu1tfzAQVyROumB14AKcnk6GKSUnPM2y6_SsMjI';
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://egdeyycjyjccajvshwez.supabase.co';
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVnZGV5eWNqeWpjY2FqdnNod2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0NDQxMzEsImV4cCI6MjA4ODAyMDEzMX0.VNiTMu1tfzAQVyROumB14AKcnk6GKSUnPM2y6_SsMjI';
 
 export const CONFIG = {
     MONTHS: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],

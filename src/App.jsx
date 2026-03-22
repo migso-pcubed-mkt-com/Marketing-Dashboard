@@ -499,10 +499,12 @@ const App = () => {
         const goOnline = () => {
             setIsOffline(false);
             showNotification('✅ Back online — syncing...');
-            // Trigger a save to push any offline changes
-            if (boardDataRef.current && dataLoaded) {
-                saveData();
-            }
+            // Delay save to let Realtime reconnect and deliver pending events first
+            setTimeout(() => {
+                if (boardDataRef.current && dataLoaded) {
+                    saveData();
+                }
+            }, 2000);
         };
         window.addEventListener('offline', goOffline);
         window.addEventListener('online', goOnline);

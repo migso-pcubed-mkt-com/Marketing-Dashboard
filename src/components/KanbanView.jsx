@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
@@ -28,7 +28,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         try { const saved = localStorage.getItem('kanban_category_order'); return saved ? JSON.parse(saved) : null; } catch { return null; }
     });
 
-    const filteredTasks=tasks.filter(t=>{
+    const filteredTasks=useMemo(()=>tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
         if(selectedYear){
             const taskStartYear=t.startDate?new Date(t.startDate).getFullYear():null;
@@ -47,7 +47,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         if(filters.member&&filters.member.length>0&&!(t.assignees||[]).some(m=>filters.member.includes(m)))return false;
         if(actionFilters.length>0&&!actionFilters.includes(t.actionId))return false;
         return true;
-    });
+    }),[tasks,actions,selectedYear,filters,actionFilters]);
 
     const handleActionDrop=(e,categoryId)=>{
         e.preventDefault();e.currentTarget.classList.remove('drag-over');
@@ -68,6 +68,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         return d.getMonth();
     };
 
+    const columns=useMemo(()=>{
     const getColumns=()=>{
         const sortItems=(items)=>{
             const sorted=[...items];
@@ -172,6 +173,8 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         }
         return[];
     };
+    return getColumns();
+    },[viewMode,sortBy,filteredTasks,categories,actions,selectedAction,isCardAsTask,catOrder,allCountries,countryOrder,selectedYear]);
 
     const canDragColumns = (viewMode === 'category' || viewMode === 'country') && !isReadOnly;
 
@@ -265,15 +268,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         const ref = colTouchRef.current;
         if (ref.timeout) clearTimeout(ref.timeout);
         if (ref.idx !== null && dropColIdx !== null && ref.idx !== dropColIdx) {
-            const cols = getColumns();
-            handleColumnDrop({ preventDefault: () => {} }, dropColIdx, cols);
+            handleColumnDrop({ preventDefault: () => {} }, dropColIdx, columns);
         }
         setDragColIdx(null);
         setDropColIdx(null);
         colTouchRef.current = {idx:null,timeout:null,startPos:null};
-    }, [dropColIdx, getColumns, handleColumnDrop]);
-
-    const columns = getColumns();
+    }, [dropColIdx, columns, handleColumnDrop]);
 
     return(
         <div className="animate-slide-in">

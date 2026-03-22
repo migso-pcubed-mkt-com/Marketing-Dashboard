@@ -8,7 +8,7 @@ import { CONFIG } from '../config.js';
 let syncInProgress = false;
 export const isSyncInProgress = () => syncInProgress;
 let syncStartedAt = 0;
-const SYNC_LOCK_TIMEOUT_MS = 60000; // 60s max — auto-reset if sync hangs
+const SYNC_LOCK_TIMEOUT_MS = 15000; // 15s max — aligned with Vercel 10s timeout + margin
 
 // Validate board integrity after sync — detect orphans, duplicates, missing refs
 export const validateBoardIntegrity = (board) => {
