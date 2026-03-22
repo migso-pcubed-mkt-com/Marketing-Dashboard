@@ -297,6 +297,9 @@ Action labels (tags/channels, countries, otherLabels) are pushed to Trello via `
 ### Default action deletion guard
 `handleDeleteAction` blocks deletion of `isDefault: true` actions in card-as-task mode. Without this, all tasks in the category become orphaned and Kanban breaks.
 
+### validateBoardIntegrity trelloCardId dedup: card-as-task ONLY
+`validateBoardIntegrity()` deduplicates `trelloCardId` in card-as-task mode only. In card-as-action mode, multiple tasks legitimately share the same `trelloCardId` (checklist items on one card). Do NOT apply `trelloCardId` dedup in card-as-action mode — it deletes all but one task per action.
+
 ### validateBoardIntegrity auto-repairs
 `validateBoardIntegrity()` now removes orphaned tasks/actions, deduplicates `trelloCardId`/`trelloCheckItemId`, and creates missing default actions. Returns `{ board: repairedBoard }` — callers must use `integrity.board`.
 

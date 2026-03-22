@@ -1273,7 +1273,7 @@ const App = () => {
                         📡 Offline — changes saved locally. Will sync when back online.
                     </div>
                 )}
-                <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync} isOffline={isOffline} realtimeConnected={realtimeConnected} searchQuery={filters.search} onSearchChange={(q) => setFilters(f => ({...f, search: q}))}/>
+                <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync} isOffline={isOffline} realtimeConnected={realtimeConnected}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
                     <div className="toolbar">
                         <button className={`filter-btn ${showFilterSidebar ? 'active' : ''}`} onClick={() => setShowFilterSidebar(!showFilterSidebar)}>
