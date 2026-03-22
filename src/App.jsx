@@ -672,7 +672,35 @@ const App = () => {
     };
 
     const handleUpdateAction = (actionId, updates) => {
+        const oldAction = actions.find(a => a.id === actionId);
         setActions(prev => prev.map(a => a.id === actionId ? {...a, ...updates, updatedAt: new Date().toISOString()} : a));
+        // Propagate tag/country changes to linked tasks (union merge: keep task-specific tags)
+        if (oldAction && (updates.tags !== undefined || updates.countries !== undefined)) {
+            const oldTags = new Set(oldAction.tags || []);
+            const oldCountries = new Set(oldAction.countries || []);
+            const newTags = updates.tags !== undefined ? updates.tags : (oldAction.tags || []);
+            const newCountries = updates.countries !== undefined ? updates.countries : (oldAction.countries || []);
+            const tagsChanged = updates.tags !== undefined && JSON.stringify([...(oldAction.tags || [])].sort()) !== JSON.stringify([...newTags].sort());
+            const countriesChanged = updates.countries !== undefined && JSON.stringify([...(oldAction.countries || [])].sort()) !== JSON.stringify([...newCountries].sort());
+            if (tagsChanged || countriesChanged) {
+                const linkedTasks = tasks.filter(t => t.actionId === actionId);
+                if (linkedTasks.length > 0) {
+                    const batchUpdates = linkedTasks.map(task => {
+                        const changes = {};
+                        if (tagsChanged) {
+                            const taskSpecificTags = (task.channels || []).filter(c => !oldTags.has(c));
+                            changes.channels = [...new Set([...newTags, ...taskSpecificTags])];
+                        }
+                        if (countriesChanged) {
+                            const taskSpecificCountries = (task.countries || []).filter(c => !oldCountries.has(c));
+                            changes.countries = [...new Set([...newCountries, ...taskSpecificCountries])];
+                        }
+                        return { id: task.id, changes };
+                    });
+                    handleBatchUpdateTasks(batchUpdates);
+                }
+            }
+        }
         showNotification('✅ Action updated');
     };
 

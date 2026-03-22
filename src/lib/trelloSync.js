@@ -66,8 +66,9 @@ export const validateBoardIntegrity = (board) => {
 };
 
 // Push comments, checklists, attachments that don't already exist on Trello.
+// isPushWinner: true = local wins (push positions to Trello), false = pull Trello positions into local order.
 // Returns { pushed, taskModified, deletedChecklistIds } — deletedChecklistIds lists checklists deleted on Trello.
-const pushTaskExtrasToTrello = async (task, card) => {
+const pushTaskExtrasToTrello = async (task, card, isPushWinner = true) => {
     const pushed = { comments: 0, checklists: 0, attachments: 0 };
     let taskModified = false;
     const deletedChecklistIds = []; // Track checklists deleted on Trello (had ID but not found)
@@ -237,39 +238,61 @@ const pushTaskExtrasToTrello = async (task, card) => {
         }
     }
 
-    // Sync checklist and item positions to Trello (based on local array order)
-    // Collect all position updates and execute in parallel for speed
-    const positionUpdates = [];
-    for (let clIdx = 0; clIdx < taskChecklists.length; clIdx++) {
-        const cl = taskChecklists[clIdx];
-        if (!cl.trelloChecklistId) continue;
-        const trelloCl = card.checklists?.find(c => c.id === cl.trelloChecklistId);
-        // Sync checklist position (Trello uses pos as a float; use index * 16384)
-        const expectedPos = (clIdx + 1) * 16384;
-        if (trelloCl && Math.abs((trelloCl.pos || 0) - expectedPos) > 100) {
-            positionUpdates.push(
-                updateTrelloChecklist(cl.trelloChecklistId, { pos: expectedPos })
-                    .then(() => { taskModified = true; })
-                    .catch(e => console.error(`Failed to update checklist "${cl.name}" pos:`, e.message))
-            );
-        }
-        // Sync item positions within the checklist
-        for (let itemIdx = 0; itemIdx < (cl.items || []).length; itemIdx++) {
-            const item = cl.items[itemIdx];
-            if (!item.trelloCheckItemId) continue;
-            const expectedItemPos = (itemIdx + 1) * 16384;
-            const trelloItem = trelloCl?.checkItems?.find(ci => ci.id === item.trelloCheckItemId);
-            const currentPos = trelloItem?.pos || 0;
-            if (Math.abs(currentPos - expectedItemPos) > 100) {
+    // Sync checklist and item positions — direction depends on who won last-write-wins
+    if (isPushWinner) {
+        // Local wins → push local array order as positions to Trello
+        const positionUpdates = [];
+        for (let clIdx = 0; clIdx < taskChecklists.length; clIdx++) {
+            const cl = taskChecklists[clIdx];
+            if (!cl.trelloChecklistId) continue;
+            const trelloCl = card.checklists?.find(c => c.id === cl.trelloChecklistId);
+            const expectedPos = (clIdx + 1) * 16384;
+            if (trelloCl && Math.abs((trelloCl.pos || 0) - expectedPos) > 100) {
                 positionUpdates.push(
-                    updateTrelloChecklistItem(task.trelloCardId, item.trelloCheckItemId, { pos: expectedItemPos })
+                    updateTrelloChecklist(cl.trelloChecklistId, { pos: expectedPos })
                         .then(() => { taskModified = true; })
-                        .catch(e => console.error(`Failed to update item "${item.text}" pos:`, e.message))
+                        .catch(e => console.error(`Failed to update checklist "${cl.name}" pos:`, e.message))
                 );
             }
+            for (let itemIdx = 0; itemIdx < (cl.items || []).length; itemIdx++) {
+                const item = cl.items[itemIdx];
+                if (!item.trelloCheckItemId) continue;
+                const expectedItemPos = (itemIdx + 1) * 16384;
+                const trelloItem = trelloCl?.checkItems?.find(ci => ci.id === item.trelloCheckItemId);
+                const currentPos = trelloItem?.pos || 0;
+                if (Math.abs(currentPos - expectedItemPos) > 100) {
+                    positionUpdates.push(
+                        updateTrelloChecklistItem(task.trelloCardId, item.trelloCheckItemId, { pos: expectedItemPos })
+                            .then(() => { taskModified = true; })
+                            .catch(e => console.error(`Failed to update item "${item.text}" pos:`, e.message))
+                    );
+                }
+            }
         }
+        if (positionUpdates.length > 0) await Promise.all(positionUpdates);
+    } else {
+        // Trello wins → reorder local checklists/items to match Trello positions
+        const trelloClMap = new Map((card.checklists || []).map(c => [c.id, c]));
+        taskChecklists.sort((a, b) => {
+            const posA = a.trelloChecklistId ? (trelloClMap.get(a.trelloChecklistId)?.pos || 0) : Infinity;
+            const posB = b.trelloChecklistId ? (trelloClMap.get(b.trelloChecklistId)?.pos || 0) : Infinity;
+            return posA - posB;
+        });
+        for (const cl of taskChecklists) {
+            if (!cl.trelloChecklistId || !cl.items?.length) continue;
+            const trelloCl = trelloClMap.get(cl.trelloChecklistId);
+            if (!trelloCl?.checkItems) continue;
+            const itemPosMap = new Map(trelloCl.checkItems.map(i => [i.id, i.pos || 0]));
+            cl.items.sort((a, b) => {
+                const posA = a.trelloCheckItemId ? (itemPosMap.get(a.trelloCheckItemId) || 0) : Infinity;
+                const posB = b.trelloCheckItemId ? (itemPosMap.get(b.trelloCheckItemId) || 0) : Infinity;
+                return posA - posB;
+            });
+        }
+        // Update the task's checklists array to reflect new order
+        task.checklists = taskChecklists;
+        taskModified = true;
     }
-    if (positionUpdates.length > 0) await Promise.all(positionUpdates);
 
     // Push attachments not yet on Trello (URL-based or file uploads)
     const trelloAttUrls = new Set((card.attachments || []).map(a => a.url));
@@ -618,7 +641,8 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     const updates = mapTaskToTrelloCardUpdate(task, listId);
                     await updateTrelloCard(task.trelloCardId, updates);
                     // Also push comments, checklists, attachments — capture Trello IDs
-                    const { taskModified, deletedChecklistIds } = await pushTaskExtrasToTrello(task, card);
+                    // isPushWinner=true: local wins, push positions to Trello
+                    const { taskModified, deletedChecklistIds } = await pushTaskExtrasToTrello(task, card, true);
                     // Remove checklists that were deleted on Trello
                     if (deletedChecklistIds.length > 0) {
                         const delSet = new Set(deletedChecklistIds);
@@ -627,7 +651,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     // Push labels (channels, countries, otherLabels)
                     await pushTaskLabelsToTrello(task, card, board, mappingConfig);
                     // After push, also pull any new Trello extras (checklists, items) into local task
-                    const mergedTask = mergeTrelloExtrasIntoTask(task, card);
+                    const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig);
                     updatedTasks[i] = { ...mergedTask, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
                     result.pushed++;
                 } catch (err) {
@@ -644,14 +668,15 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     const listId = action ? catToListId[action.categoryId] : null;
                     const updates = mapTaskToTrelloCardUpdate(task, listId);
                     await updateTrelloCard(task.trelloCardId, updates);
-                    const { taskModified, deletedChecklistIds } = await pushTaskExtrasToTrello(task, card);
+                    // isPushWinner=true: local wins the conflict
+                    const { taskModified, deletedChecklistIds } = await pushTaskExtrasToTrello(task, card, true);
                     if (deletedChecklistIds.length > 0) {
                         const delSet = new Set(deletedChecklistIds);
                         task.checklists = (task.checklists || []).filter(cl => !delSet.has(cl.id));
                     }
                     await pushTaskLabelsToTrello(task, card, board, mappingConfig);
                     // After push, also pull any new Trello extras (checklists, items) into local task
-                    const mergedTask = mergeTrelloExtrasIntoTask(task, card);
+                    const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig);
                     updatedTasks[i] = { ...mergedTask, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
                     result.pushed++;
                 } catch (err) {
@@ -666,7 +691,9 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         } else {
             // Neither side has timestamp changes — still merge extras
             // (positions, new checklist items, comments that don't affect dateLastActivity)
-            const mergedTask = mergeTrelloExtrasIntoTask(task, card);
+            // isPushWinner=false: pull Trello positions into local order
+            await pushTaskExtrasToTrello(task, card, false).catch(() => {});
+            const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig);
             // Check if anything actually changed
             const extrasChanged = JSON.stringify(mergedTask.checklists) !== JSON.stringify(task.checklists) ||
                 JSON.stringify(mergedTask.comments) !== JSON.stringify(task.comments) ||

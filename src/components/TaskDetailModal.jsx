@@ -6,6 +6,7 @@ import { normalizeTaskChecklists } from '../lib/migration.js';
 import { uploadAttachment, deleteAttachment } from '../lib/storage.js';
 import { markdownToHtml, htmlToMarkdown, WysiwygToolbar, SimpleMarkdown } from '../lib/markdown.jsx';
 import { useApp } from '../context.js';
+import MentionInput from './MentionInput.jsx';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
@@ -477,11 +478,10 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         {!isReadOnly && <div>
                             {commentEditing ? (<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)',overflow:'hidden'}}>
                                 <WysiwygToolbar editableRef={commentEditableRef} onAttach={()=>document.getElementById('comment-attach-input')?.click()}/>
-                                <div ref={commentEditableRef} contentEditable suppressContentEditableWarning
+                                <MentionInput editableRef={commentEditableRef} members={members}
                                     onDragOver={e=>{e.preventDefault();e.currentTarget.style.background='var(--accent-light)';}}
                                     onDragLeave={e=>{e.currentTarget.style.background='transparent';}}
-                                    onDrop={e=>{e.preventDefault();e.currentTarget.style.background='transparent';const files=Array.from(e.dataTransfer.files);files.forEach(file=>{if(file.size>5*1024*1024)return;const reader=new FileReader();reader.onload=ev=>{setCommentAttachments(prev=>[...prev,{id:`catt-${crypto.randomUUID()}`,name:file.name,type:file.type,size:file.size,data:ev.target.result,date:new Date().toISOString()}]);};reader.readAsDataURL(file);});}}
-                                    style={{minHeight:60,maxHeight:200,overflowY:'auto',padding:'8px 12px',outline:'none',fontSize:13,lineHeight:1.6,whiteSpace:'pre-wrap',wordBreak:'break-word',color:'var(--text-secondary)'}}/>
+                                    onDrop={e=>{e.preventDefault();e.currentTarget.style.background='transparent';const files=Array.from(e.dataTransfer.files);files.forEach(file=>{if(file.size>5*1024*1024)return;const reader=new FileReader();reader.onload=ev=>{setCommentAttachments(prev=>[...prev,{id:`catt-${crypto.randomUUID()}`,name:file.name,type:file.type,size:file.size,data:ev.target.result,date:new Date().toISOString()}]);};reader.readAsDataURL(file);});}}/>
                                 {commentAttachments.length>0&&<div style={{padding:'4px 12px 8px',display:'flex',flexWrap:'wrap',gap:4}}>{commentAttachments.map((att,i)=>(<span key={i} style={{fontSize:11,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',color:'var(--accent)',display:'inline-flex',alignItems:'center',gap:3}}>📎 {att.name}<button onClick={()=>setCommentAttachments(prev=>prev.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--accent)',fontSize:10,padding:0}}>&times;</button></span>))}</div>}
                                 <div style={{padding:'6px 12px 10px',display:'flex',gap:6,alignItems:'center',borderTop:'1px solid var(--border)'}}>
                                     <button onClick={addComment} className="px-4 py-1.5 bg-secondary text-white rounded-lg text-sm">Send</button>

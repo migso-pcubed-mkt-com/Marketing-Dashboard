@@ -143,7 +143,7 @@ export const SimpleMarkdown = ({ text }) => {
         const parts = [];
         let remaining = line;
         let k = 0;
-        const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|~~(.+?)~~|`(.+?)`|\[(.+?)\]\((.+?)\))/;
+        const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|~~(.+?)~~|`(.+?)`|\[(.+?)\]\((.+?)\)|@(\w[\w\s]{0,30}\w))/;
         while (remaining) {
             const match = remaining.match(inlineRegex);
             if (!match) { parts.push(remaining); break; }
@@ -153,6 +153,7 @@ export const SimpleMarkdown = ({ text }) => {
             else if (match[4]) parts.push(React.createElement('del', { key: k++, style: { color: 'var(--text-muted)' } }, match[4]));
             else if (match[5]) parts.push(React.createElement('code', { key: k++, style: { background: 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 3, fontSize: '0.88em', fontFamily: 'var(--font-mono, monospace)' } }, match[5]));
             else if (match[6] && match[7]) parts.push(React.createElement('a', { key: k++, href: match[7], target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--accent)', textDecoration: 'underline' } }, match[6]));
+            else if (match[8]) parts.push(React.createElement('span', { key: k++, style: { color: 'var(--accent)', fontWeight: 600, background: 'var(--accent-light)', borderRadius: 3, padding: '0 3px' } }, '@' + match[8]));
             remaining = remaining.slice(match.index + match[0].length);
         }
         return parts;

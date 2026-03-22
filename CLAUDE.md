@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-21
+> Last updated: 2026-03-22
 
 ---
 
@@ -81,6 +81,7 @@ src/
 │   └── migration.js     # v1→v2 data migration
 ├── components/
 │   ├── ErrorBoundary.jsx # Error boundary wrapper for views
+│   ├── MentionInput.jsx  # @mention autocomplete for comments (contentEditable + dropdown)
 │   └── OnboardingOverlay.jsx # First-run tour (4 steps, localStorage)
 ├── __tests__/           # Vitest unit tests (migration, mapping, sync, markdown)
 ├── hooks/
@@ -235,12 +236,17 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 ### Sync boundaries (by design)
 
 - `budget`, `priority` are local-only fields (no Trello equivalent). Preserved via `...existingTask` spread during merge.
-- Task `order` is independent of Trello card `pos` (Kanban reorder is local). Only checklist item positions sync in card-as-action mode.
+- Task `order` is independent of Trello card `pos` (Kanban reorder is local). Checklist/item positions sync bidirectionally (push when local wins, pull when Trello wins via `isPushWinner` flag in `pushTaskExtrasToTrello`).
+- `channels`, `countries`, `otherLabels` are synced bidirectionally via label mappings. `mergeTrelloExtrasIntoTask` re-pulls labels after push (union merge). `mergeCardIntoTask` pulls all label types including channels.
 - `createCard` supports `start`, `pos`, `idMembers`, `dueComplete` for full field creation.
+- **Action→Task tag inheritance**: `handleUpdateAction` propagates tag/country changes to linked tasks via batch update. Uses union merge: `(new action tags) ∪ (task-specific tags not from old action)`.
 
 ---
 
 ## Known Pitfalls
+
+### Checklist position sync direction
+`pushTaskExtrasToTrello(task, card, isPushWinner)` — positions are only pushed to Trello when `isPushWinner=true` (local won last-write-wins). When `isPushWinner=false`, local checklists/items are reordered to match Trello positions. Do NOT remove the `isPushWinner` parameter or always push positions — this causes Trello reorder to be overwritten.
 
 ### Supabase Realtime infinite loop
 `isReceivingRealtimeRef` flag — set `true` when handling Realtime event; auto-save skips if true; resets after 2s. Realtime merge uses `{ ...localSync, ...(incomingSync || {}) }` — local trelloSync as base, incoming on top. Always preserves local `syncMode` when incoming doesn't have one.
