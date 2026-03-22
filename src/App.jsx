@@ -526,7 +526,7 @@ const App = () => {
             console.log('🔄 Supabase Realtime subscription enabled');
             const channel = supabaseClient.channel('app_data_changes')
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data', filter: 'id=eq.default' }, (payload) => {
-                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
+                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || Date.now() - justSavedTimestampRef.current < 3000) return;
                     console.log('🔄 Realtime update received from Supabase');
                     isReceivingRealtimeRef.current = true;
                     const d = payload.new;
@@ -707,6 +707,11 @@ const App = () => {
     const handleDeleteAction = async (actionId) => {
         // No confirm() here — caller (ActionDetailModal) handles confirmation popup
         const action = actions.find(a => a.id === actionId);
+        // Prevent deletion of default action in card-as-task mode (would orphan all tasks)
+        if (action?.isDefault && currentBoard?.trelloSync?.syncMode !== 'card-as-action') {
+            showNotification('Cannot delete the default action — tasks depend on it');
+            return;
+        }
         // Archive linked Trello card in card-as-action mode
         if (action?.trelloCardId && !isReadOnly && currentBoard?.trelloSync?.syncMode === 'card-as-action') {
             try { await archiveTrelloCard(action.trelloCardId); }
@@ -835,7 +840,7 @@ const App = () => {
                 const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
                 const oldCategoryActions = actions.filter(a => a.categoryId === draggedAction.categoryId && a.id !== draggedId).sort((a, b) => (a.order || 0) - (b.order || 0));
                 const oldUpdates = oldCategoryActions.map((a, idx) => ({...a, order: idx}));
-                targetActions.splice(insertIndex, 0, {...draggedAction, categoryId: targetAction.categoryId});
+                targetActions.splice(insertIndex, 0, {...draggedAction, categoryId: targetAction.categoryId, updatedAt: new Date().toISOString()});
                 const newUpdates = targetActions.map((a, idx) => ({...a, order: idx, categoryId: targetAction.categoryId}));
                 setActions(prev => prev.map(a => {
                     const updated = [...oldUpdates, ...newUpdates].find(ua => ua.id === a.id);

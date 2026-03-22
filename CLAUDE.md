@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-22 (sync audit fix)
+> Last updated: 2026-03-22 (exhaustive sync audit v2)
 
 ---
 
@@ -231,7 +231,8 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 - **Drag guard**: `isUserInteractingRef` blocks auto-save during Kanban/Timeline drag (passed to KanbanView + TimelineView).
 - **Pre-sync snapshot**: board saved to `localStorage('trello_sync_snapshot')` before each sync; auto-restored on failure (24h validity)
 - **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors/timeouts — backoff 1s, 2s, 4s. 8s AbortController timeout per request.
-- **Post-sync**: `validateBoardIntegrity()` checks orphan refs + duplicate IDs. Light Supabase fetch 4s after sync to recover ignored Realtime events.
+- **Post-sync**: `validateBoardIntegrity()` checks orphan refs + duplicate IDs + auto-repairs (removes orphans, deduplicates, creates missing default actions). Light Supabase fetch 4s after sync to recover ignored Realtime events.
+- **Realtime guard during sync**: Realtime handler checks `isSyncInProgress()` — prevents Realtime events from overwriting freshly synced data.
 
 ### Sync boundaries (by design)
 
@@ -292,6 +293,18 @@ Action labels (tags/channels, countries, otherLabels) are pushed to Trello via `
 
 ### Dedup guard on card import
 `syncWithTrelloCardAsTask` checks `updatedTasks.some(t => t.trelloCardId === card.id)` before importing new cards. Prevents duplicate tasks if sync runs twice in quick succession.
+
+### Default action deletion guard
+`handleDeleteAction` blocks deletion of `isDefault: true` actions in card-as-task mode. Without this, all tasks in the category become orphaned and Kanban breaks.
+
+### validateBoardIntegrity auto-repairs
+`validateBoardIntegrity()` now removes orphaned tasks/actions, deduplicates `trelloCardId`/`trelloCheckItemId`, and creates missing default actions. Returns `{ board: repairedBoard }` — callers must use `integrity.board`.
+
+### card-as-action: task move between actions
+When a task's `actionId` changes in card-as-action mode, the sync detects the `trelloCardId` mismatch, deletes the old checklist item, and clears IDs so the task is recreated under the new action's card. Do NOT skip this move detection — without it, moved tasks become zombies.
+
+### card-as-action: action move between categories
+`handleReorderAction` sets `updatedAt` on cross-category moves. The sync pushes `idList` via `mapActionToTrelloCardUpdate`. Without `updatedAt`, the timestamp comparison fails and the move is never pushed.
 
 ---
 

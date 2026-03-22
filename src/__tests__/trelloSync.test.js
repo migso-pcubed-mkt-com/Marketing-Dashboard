@@ -5,7 +5,7 @@ describe('validateBoardIntegrity', () => {
     it('returns no warnings for valid board', () => {
         const board = {
             categories: [{ id: 'c1' }],
-            actions: [{ id: 'a1', categoryId: 'c1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
             tasks: [{ id: 't1', title: 'Task', actionId: 'a1' }]
         };
         const result = validateBoardIntegrity(board);

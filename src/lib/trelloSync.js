@@ -1,6 +1,6 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
-import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList } from './trello.js';
+import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, deleteTrelloChecklistItem, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex, mergeCardIntoAction, mergeCheckItemIntoTask, mapTaskToCheckItemUpdate, mapActionToTrelloCardUpdate, mapTrelloCardToAction, mapTrelloCheckItemToTask } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
 
@@ -13,43 +13,74 @@ const SYNC_LOCK_TIMEOUT_MS = 15000; // 15s max — aligned with Vercel 10s timeo
 // Validate board integrity after sync — detect orphans, duplicates, missing refs
 export const validateBoardIntegrity = (board) => {
     const warnings = [];
+    const repairs = [];
     const actionIds = new Set((board.actions || []).map(a => a.id));
     const categoryIds = new Set((board.categories || []).map(c => c.id));
 
-    // Check tasks reference valid actions
-    for (const task of (board.tasks || [])) {
+    // Repair: remove tasks referencing missing actions
+    const validTasks = (board.tasks || []).filter(task => {
         if (task.actionId && !actionIds.has(task.actionId)) {
             warnings.push(`Task "${task.title}" references missing action ${task.actionId}`);
+            repairs.push(`Removed orphan task "${task.title}"`);
+            return false;
         }
-    }
+        return true;
+    });
 
-    // Check actions reference valid categories
-    for (const action of (board.actions || [])) {
+    // Repair: remove actions referencing missing categories
+    const validActions = (board.actions || []).filter(action => {
         if (action.categoryId && !categoryIds.has(action.categoryId)) {
             warnings.push(`Action "${action.name}" references missing category ${action.categoryId}`);
+            repairs.push(`Removed orphan action "${action.name}"`);
+            return false;
         }
-    }
+        return true;
+    });
 
-    // Check for duplicate trelloCardId
+    // Repair: remove duplicate trelloCardId (keep first, remove duplicates)
     const cardIds = new Map();
-    for (const task of (board.tasks || [])) {
+    const dedupedTasks = validTasks.filter(task => {
         if (task.trelloCardId) {
             if (cardIds.has(task.trelloCardId)) {
                 warnings.push(`Duplicate trelloCardId ${task.trelloCardId}: "${task.title}" and "${cardIds.get(task.trelloCardId)}"`);
-            } else {
-                cardIds.set(task.trelloCardId, task.title);
+                repairs.push(`Removed duplicate-linked task "${task.title}"`);
+                return false;
             }
+            cardIds.set(task.trelloCardId, task.title);
         }
-    }
+        return true;
+    });
 
-    // Check for duplicate trelloCheckItemId
+    // Repair: remove duplicate trelloCheckItemId (keep first)
     const checkItemIds = new Map();
-    for (const task of (board.tasks || [])) {
+    const finalTasks = dedupedTasks.filter(task => {
         if (task.trelloCheckItemId) {
             if (checkItemIds.has(task.trelloCheckItemId)) {
                 warnings.push(`Duplicate trelloCheckItemId ${task.trelloCheckItemId}: "${task.title}" and "${checkItemIds.get(task.trelloCheckItemId)}"`);
-            } else {
-                checkItemIds.set(task.trelloCheckItemId, task.title);
+                repairs.push(`Removed duplicate check-item task "${task.title}"`);
+                return false;
+            }
+            checkItemIds.set(task.trelloCheckItemId, task.title);
+        }
+        return true;
+    });
+
+    // Repair: ensure default actions exist for each category in card-as-task mode
+    if (board.trelloSync?.syncMode !== 'card-as-action') {
+        for (const cat of (board.categories || [])) {
+            const hasDefault = validActions.some(a => a.categoryId === cat.id && a.isDefault);
+            if (!hasDefault) {
+                const now = new Date().toISOString();
+                validActions.push({
+                    id: `a-${crypto.randomUUID()}`,
+                    name: cat.name,
+                    categoryId: cat.id,
+                    isDefault: true,
+                    budget: 0, priority: 'medium', tags: [], status: 'active',
+                    createdAt: now, updatedAt: now
+                });
+                warnings.push(`Category "${cat.name}" missing default action — auto-created`);
+                repairs.push(`Created missing default action for "${cat.name}"`);
             }
         }
     }
@@ -62,7 +93,15 @@ export const validateBoardIntegrity = (board) => {
     if (warnings.length > 0) {
         console.warn(`[Board integrity] ${warnings.length} warning(s):`, warnings);
     }
-    return { valid: warnings.length === 0, warnings };
+    if (repairs.length > 0) {
+        console.warn(`[Board integrity] ${repairs.length} auto-repair(s):`, repairs);
+    }
+
+    // Return repaired board
+    const repairedBoard = repairs.length > 0
+        ? { ...board, actions: validActions, tasks: finalTasks }
+        : board;
+    return { valid: warnings.length === 0, warnings, repairs, board: repairedBoard };
 };
 
 // Push comments, checklists, attachments that don't already exist on Trello.
@@ -1066,13 +1105,14 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     // Ensure a default action exists for this category
                     const hasAction = updatedActions.some(a => a.categoryId === cat.id);
                     if (!hasAction) {
+                        const now = new Date().toISOString();
                         updatedActions.push({
                             id: `a-${crypto.randomUUID()}`,
                             name: cat.name,
                             categoryId: cat.id,
                             isDefault: true,
                             budget: 0, priority: 'medium', tags: [], status: 'active',
-                            createdAt: new Date().toISOString()
+                            createdAt: now, updatedAt: now
                         });
                     }
                     result.pushed++;
@@ -1104,13 +1144,14 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         catToListId[newCatId] = list.id;
         listToCatId[list.id] = newCatId;
         // Create default action for new category
+        const actionNow = new Date().toISOString();
         updatedActions.push({
             id: `a-${crypto.randomUUID()}`,
             name: list.name,
             categoryId: newCatId,
             isDefault: true,
             budget: 0, priority: 'medium', tags: [], status: 'active',
-            createdAt: new Date().toISOString()
+            createdAt: actionNow, updatedAt: actionNow
         });
         result.created++;
     }
@@ -1141,13 +1182,13 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         updatedAt: new Date().toISOString()
     };
 
-    // Post-sync integrity check
+    // Post-sync integrity check + auto-repair
     const integrity = validateBoardIntegrity(syncedBoard);
     if (!integrity.valid) {
         result.integrityWarnings = integrity.warnings;
     }
 
-    return { board: syncedBoard, result };
+    return { board: integrity.board || syncedBoard, result };
 };
 
 // ============================================================
@@ -1638,6 +1679,28 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             }
         }
 
+        // Detect tasks moved between actions (actionId changed but old trelloCheckItemId remains)
+        // Delete old checklist item and clear IDs so task gets recreated under new action
+        if (!readOnly) {
+            for (let i = 0; i < updatedTasks.length; i++) {
+                const task = updatedTasks[i];
+                if (!task.trelloCheckItemId || task.trelloItemDeleted) continue;
+                const taskAction = updatedActions.find(a => a.id === task.actionId);
+                // Task's action card doesn't match the card the item was on
+                if (taskAction?.trelloCardId && task.trelloCardId && taskAction.trelloCardId !== task.trelloCardId) {
+                    // Delete old item from old card
+                    try {
+                        await deleteTrelloChecklistItem(task.trelloChecklistId, task.trelloCheckItemId);
+                    } catch (e) {
+                        console.warn(`Failed to delete moved checklist item:`, e.message);
+                    }
+                    // Clear IDs so task is recreated under new action's card
+                    updatedTasks[i] = { ...task, trelloCheckItemId: null, trelloChecklistId: null, trelloCardId: taskAction.trelloCardId, trelloItemDeleted: false };
+                    result.updated++;
+                }
+            }
+        }
+
         // Push new local tasks (no trelloCheckItemId) to Trello as checklist items
         // Group by trelloChecklistName to recreate proper checklist structure
         const tasksByCard = new Map();
@@ -1750,11 +1813,11 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         updatedAt: new Date().toISOString()
     };
 
-    // Post-sync integrity check
+    // Post-sync integrity check + auto-repair
     const integrity = validateBoardIntegrity(syncedBoard);
     if (!integrity.valid) {
         result.integrityWarnings = integrity.warnings;
     }
 
-    return { board: syncedBoard, result };
+    return { board: integrity.board || syncedBoard, result };
 };
