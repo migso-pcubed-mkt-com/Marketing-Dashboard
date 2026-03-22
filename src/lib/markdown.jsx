@@ -143,7 +143,7 @@ export const SimpleMarkdown = ({ text }) => {
         const parts = [];
         let remaining = line;
         let k = 0;
-        const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|~~(.+?)~~|`(.+?)`|\[(.+?)\]\((.+?)\)|@(\w[\w\s]{0,30}\w))/;
+        const inlineRegex = /(\*\*(.+?)\*\*|\*(.+?)\*|~~(.+?)~~|`(.+?)`|\[(.+?)\]\((.+?)\)|@([\w\u00C0-\u024F][\w\u00C0-\u024F\s]{0,30}[\w\u00C0-\u024F]))/;
         while (remaining) {
             const match = remaining.match(inlineRegex);
             if (!match) { parts.push(remaining); break; }

@@ -622,6 +622,7 @@ export const mergeCheckItemIntoTask = (existingTask, item, card) => {
         dueDate: dueDate || existingTask.dueDate,
         startDate,
         month,
+        order: item.pos != null ? item.pos : existingTask.order,
         assignees: item.idMember ? [item.idMember] : existingTask.assignees,
         trelloLastModified: card.dateLastActivity
     };

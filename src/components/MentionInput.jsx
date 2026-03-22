@@ -37,7 +37,7 @@ const MentionInput = ({ editableRef, members = [], style = {}, placeholder, ...r
         const atIdx = text.lastIndexOf('@');
         if (atIdx < 0) { setMentionQuery(null); return; }
         // @ must be at start or after a space/newline
-        if (atIdx > 0 && /\w/.test(text[atIdx - 1])) { setMentionQuery(null); return; }
+        if (atIdx > 0 && /[\w\u00C0-\u024F]/.test(text[atIdx - 1])) { setMentionQuery(null); return; }
         const query = text.substring(atIdx + 1);
         // Cancel if query contains space (mention completed or cancelled)
         if (query.length > 20) { setMentionQuery(null); return; }

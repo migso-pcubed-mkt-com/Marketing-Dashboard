@@ -249,6 +249,12 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 ### Checklist position sync direction
 `pushTaskExtrasToTrello(task, card, isPushWinner)` — positions are only pushed to Trello when `isPushWinner=true` (local won last-write-wins). When `isPushWinner=false`, local checklists/items are reordered to match Trello positions. Do NOT remove the `isPushWinner` parameter or always push positions — this causes Trello reorder to be overwritten.
 
+### card-as-action: checklist/item position sync
+`mergeCheckItemIntoTask` sets `order: item.pos` when Trello wins — pulls position into local task. The position push block in `syncWithTrelloCardAsAction` is guarded by `actionHadLocalPush` — only pushes positions when at least one local item was pushed. Without this guard, Trello reorders get overwritten on next sync.
+
+### Mention regex must support Unicode accented characters
+`SimpleMarkdown` inline regex and `MentionInput` detection use `[\w\u00C0-\u024F]` instead of `\w` — `\w` is ASCII-only and truncates accented names (e.g., `@Fabien Carrié` → `@Fabien Carri` + orphaned `é`). Do NOT replace with plain `\w`.
+
 ### Supabase Realtime infinite loop
 `isReceivingRealtimeRef` flag — set `true` when handling Realtime event; auto-save skips if true; resets after 2s. Realtime merge uses `{ ...localSync, ...(incomingSync || {}) }` — local trelloSync as base, incoming on top. Always preserves local `syncMode` when incoming doesn't have one.
 
