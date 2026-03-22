@@ -400,6 +400,106 @@ const pushActionExtrasToTrello = async (action, card) => {
     return { actionModified };
 };
 
+// Push action labels (tags/channels, countries, otherLabels) to Trello card
+// Reuses same logic as pushTaskLabelsToTrello but adapted for actions (tags field, no parent action label)
+const pushActionLabelsToTrello = async (action, card, board, mappingConfig) => {
+    if (!action.trelloCardId || !mappingConfig?.labelMappings) return { labelsModified: false };
+    let modified = false;
+
+    const channelToLabel = {};
+    const countryToLabel = {};
+    const otherToLabel = {};
+    for (const [labelId, mapping] of Object.entries(mappingConfig.labelMappings)) {
+        if (mapping.type === 'channel' && mapping.channelId) channelToLabel[mapping.channelId] = labelId;
+        if (mapping.type === 'country' && mapping.countryId) countryToLabel[mapping.countryId] = labelId;
+        if (mapping.type === 'other') otherToLabel[labelId] = labelId;
+    }
+
+    const expectedLabelIds = new Set();
+
+    // Channel labels (actions use "tags" for channels)
+    for (const channelId of (action.tags || [])) {
+        if (channelToLabel[channelId]) {
+            expectedLabelIds.add(channelToLabel[channelId]);
+        } else {
+            const channelConfig = CONFIG.CHANNELS.find(c => c.id === channelId);
+            if (channelConfig) {
+                try {
+                    const label = await createTrelloBoardLabel(board.trelloSync.trelloBoardId, channelConfig.name, hexToTrelloColor(channelConfig.color));
+                    if (label?.id) {
+                        channelToLabel[channelId] = label.id;
+                        mappingConfig.labelMappings[label.id] = { type: 'channel', channelId, labelName: channelConfig.name, labelColor: channelConfig.color };
+                        expectedLabelIds.add(label.id);
+                        modified = true;
+                    }
+                } catch (e) {
+                    console.error(`Failed to create label for channel "${channelConfig.name}":`, e.message);
+                }
+            }
+        }
+    }
+
+    // Country labels
+    for (const countryId of (action.countries || [])) {
+        if (countryToLabel[countryId]) {
+            expectedLabelIds.add(countryToLabel[countryId]);
+        }
+    }
+
+    // Other labels
+    for (const label of (action.otherLabels || [])) {
+        if (otherToLabel[label.id]) {
+            expectedLabelIds.add(label.id);
+        } else {
+            const existingEntry = Object.entries(mappingConfig.labelMappings).find(([, m]) => m.type === 'other' && m.labelName === label.name);
+            if (existingEntry) {
+                expectedLabelIds.add(existingEntry[0]);
+            } else {
+                try {
+                    const trelloLabel = await createTrelloBoardLabel(board.trelloSync.trelloBoardId, label.name, hexToTrelloColor(label.color));
+                    if (trelloLabel?.id) {
+                        mappingConfig.labelMappings[trelloLabel.id] = { type: 'other', labelName: label.name, labelColor: label.color };
+                        otherToLabel[trelloLabel.id] = trelloLabel.id;
+                        expectedLabelIds.add(trelloLabel.id);
+                        modified = true;
+                    }
+                } catch (e) {
+                    console.error(`Failed to create label "${label.name}":`, e.message);
+                }
+            }
+        }
+    }
+
+    // Add missing labels to card
+    const currentLabelIds = new Set(card.idLabels || []);
+    for (const labelId of expectedLabelIds) {
+        if (!currentLabelIds.has(labelId)) {
+            try {
+                await addTrelloCardLabel(action.trelloCardId, labelId);
+                modified = true;
+            } catch (e) {
+                console.error(`Failed to add label ${labelId} to action card:`, e.message);
+            }
+        }
+    }
+
+    // Remove labels no longer expected (only known mapped labels)
+    for (const labelId of currentLabelIds) {
+        if (!expectedLabelIds.has(labelId)) {
+            if (mappingConfig.labelMappings[labelId]) {
+                try {
+                    await removeTrelloCardLabel(action.trelloCardId, labelId);
+                    modified = true;
+                } catch (e) {
+                    console.error(`Failed to remove label ${labelId} from action card:`, e.message);
+                }
+            }
+        }
+    }
+
+    return { labelsModified: modified };
+};
+
 // Map hex color to nearest Trello named color
 const hexToTrelloColor = (hex) => {
     if (!hex) return null;
@@ -710,6 +810,9 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         // Skip archived cards — don't import them as new tasks
         if (card.closed) continue;
 
+        // Dedup: skip if card already imported (race condition protection)
+        if (updatedTasks.some(t => t.trelloCardId === card.id) || newTasks.some(t => t.trelloCardId === card.id)) continue;
+
         const categoryId = listToCatId[card.idList];
         if (!categoryId) continue; // Card in unknown list, skip
 
@@ -832,6 +935,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             otherLabels,
             order: card.pos || 0,
             createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
             trelloCardId: card.id,
             trelloLastModified: card.dateLastActivity
         };
@@ -1274,6 +1378,13 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 result.errors++;
                 result.errorDetails.push({ name: action.name, op: 'push extras', error: e.message });
             }
+            // Push action labels (channels/tags, countries, otherLabels)
+            try {
+                const { labelsModified } = await pushActionLabelsToTrello(updatedActions[i], card, board, mappingConfig);
+                if (labelsModified) result.updated++;
+            } catch (e) {
+                console.error(`Failed to push labels for action "${action.name}":`, e);
+            }
         }
 
         // Sync checklist items ↔ tasks
@@ -1292,8 +1403,8 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
 
             const itemData = trelloItems.get(task.trelloCheckItemId);
             if (!itemData) {
-                // Item deleted on Trello — clear trelloCheckItemId so it can be recreated
-                updatedTasks[j] = { ...task, trelloCheckItemId: null, trelloChecklistId: null };
+                // Item deleted on Trello — mark as deleted to prevent auto-recreation
+                updatedTasks[j] = { ...task, trelloCheckItemId: null, trelloChecklistId: null, trelloItemDeleted: true };
                 result.updated++;
                 continue;
             }
@@ -1532,7 +1643,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         const tasksByCard = new Map();
         for (let i = 0; i < updatedTasks.length; i++) {
             const task = updatedTasks[i];
-            if (task.trelloCheckItemId || !task.trelloCardId) continue;
+            if (task.trelloCheckItemId || !task.trelloCardId || task.trelloItemDeleted) continue;
             const taskAction = updatedActions.find(a => a.id === task.actionId);
             if (!taskAction?.trelloCardId) continue;
             if (!tasksByCard.has(taskAction.trelloCardId)) tasksByCard.set(taskAction.trelloCardId, []);

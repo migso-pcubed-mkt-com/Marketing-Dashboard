@@ -730,7 +730,7 @@ const App = () => {
         }
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
-        const newTask = { id: `t-${crypto.randomUUID()}`, actionId, month, startDate, title: 'New task', description: '', status: 'todo', priority: 'medium', dueDate, budget: 0, channels: action?.tags || [], checklist: [], comments: [], attachments: [], order: maxOrder, createdAt: now };
+        const newTask = { id: `t-${crypto.randomUUID()}`, actionId, month, startDate, title: 'New task', description: '', status: 'todo', priority: 'medium', dueDate, budget: 0, channels: action?.tags || [], checklist: [], comments: [], attachments: [], order: maxOrder, createdAt: now, updatedAt: now };
         setTasks(prev => [...prev, newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Task created');
@@ -780,6 +780,7 @@ const App = () => {
             if (isDifferentStatus) {
                 updatedDraggedTask.status = targetTask.status;
             }
+            updatedDraggedTask.updatedAt = new Date().toISOString();
         }
         const targetColumnTasks = tasks.filter(t => {
             if (t.id === draggedId) return true;
@@ -933,7 +934,8 @@ const App = () => {
     };
 
     const handleAddAction = (newAction) => {
-        setActions(prev => [...prev, newAction]);
+        const now = new Date().toISOString();
+        setActions(prev => [...prev, { ...newAction, createdAt: newAction.createdAt || now, updatedAt: newAction.updatedAt || now }]);
         showNotification('✅ Action created');
     };
 

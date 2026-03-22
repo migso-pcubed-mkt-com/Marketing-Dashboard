@@ -979,21 +979,39 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig, listToCatId
         }
     }
 
+    // Build sets of mapped channel/country IDs to preserve local-only values
+    const mappedChannelIds = new Set();
+    const mappedCountryIds = new Set();
+    if (mappingConfig?.labelMappings) {
+        for (const mapping of Object.values(mappingConfig.labelMappings)) {
+            if (mapping.type === 'channel' && mapping.channelId) mappedChannelIds.add(mapping.channelId);
+            if (mapping.type === 'country' && mapping.countryId) mappedCountryIds.add(mapping.countryId);
+        }
+    }
+
+    const newDueDate = card.due ? card.due.split('T')[0] : existingTask.dueDate;
+
     return {
         ...existingTask,
         actionId,
         title: card.name,
         description: card.desc || existingTask.description,
         startDate: card.start ? card.start.split('T')[0] : existingTask.startDate,
-        dueDate: card.due ? card.due.split('T')[0] : existingTask.dueDate,
+        dueDate: newDueDate,
+        month: newDueDate ? new Date(newDueDate).getMonth() : existingTask.month,
         status: TRELLO_PROTECTED_STATUSES.has(existingTask.status) ? existingTask.status : (card.dueComplete ? 'completed' : existingTask.status),
         checklists: mergedChecklists,
         attachments: mergedAttachments,
         comments: mergedComments,
         assignees,
-        channels: channels.length ? channels : existingTask.channels,
-        countries: countries.length ? countries : existingTask.countries,
+        channels: channels.length
+            ? [...new Set([...channels, ...(existingTask.channels || []).filter(c => !mappedChannelIds.has(c))])]
+            : existingTask.channels,
+        countries: countries.length
+            ? [...new Set([...countries, ...(existingTask.countries || []).filter(c => !mappedCountryIds.has(c))])]
+            : existingTask.countries,
         otherLabels: otherLabels.length ? otherLabels : (existingTask.otherLabels || []),
+        updatedAt: card.dateLastActivity,
         trelloLastModified: card.dateLastActivity
     };
 };

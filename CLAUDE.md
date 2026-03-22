@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-22
+> Last updated: 2026-03-22 (sync audit fix)
 
 ---
 
@@ -237,7 +237,7 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 
 - `budget`, `priority` are local-only fields (no Trello equivalent). Preserved via `...existingTask` spread during merge.
 - Task `order` is independent of Trello card `pos` (Kanban reorder is local). Checklist/item positions sync bidirectionally (push when local wins, pull when Trello wins via `isPushWinner` flag in `pushTaskExtrasToTrello`).
-- `channels`, `countries`, `otherLabels` are synced bidirectionally via label mappings. `mergeTrelloExtrasIntoTask` re-pulls labels after push (union merge). `mergeCardIntoTask` pulls all label types including channels.
+- `channels`, `countries`, `otherLabels` are synced bidirectionally via label mappings. `mergeTrelloExtrasIntoTask` re-pulls labels after push (union merge). `mergeCardIntoTask` preserves local-only channels/countries (those without a Trello label mapping) via union merge with mapped values. Action labels are pushed via `pushActionLabelsToTrello()` in card-as-action mode.
 - `createCard` supports `start`, `pos`, `idMembers`, `dueComplete` for full field creation.
 - **Action→Task tag inheritance**: `handleUpdateAction` propagates tag/country changes to linked tasks via batch update. Uses union merge: `(new action tags) ∪ (task-specific tags not from old action)`.
 
@@ -277,6 +277,21 @@ Any reorder that affects multiple tasks (kanban cards, action modal groups/tasks
 
 ### Kanban column drag vs card drag
 `onDragStart` inside `.kanban-cards` calls `e.stopPropagation()` — prevents column drag when dragging a card.
+
+### mergeCardIntoTask must set updatedAt and recalculate month
+When Trello wins last-write-wins, `mergeCardIntoTask` must set `updatedAt: card.dateLastActivity` and recalculate `month` from the new `dueDate`. Without this, next sync may incorrectly re-evaluate conflict direction, and Kanban month columns show stale data.
+
+### All CRUD handlers must set updatedAt
+`handleAddTask`, `handleAddAction`, `handleReorderTask` (cross-column) must set `updatedAt` — Trello sync uses `updatedAt > trelloLastModified` for conflict detection. Missing `updatedAt` causes local changes to be overwritten by Trello.
+
+### card-as-action: trelloItemDeleted flag prevents re-creation
+When a Trello checklist item is deleted, the local task gets `trelloItemDeleted: true`. Do NOT remove this flag — it prevents the task from being re-pushed as a new checklist item on next sync. Without it, deleted items get recreated in a loop.
+
+### card-as-action: pushActionLabelsToTrello for action label sync
+Action labels (tags/channels, countries, otherLabels) are pushed to Trello via `pushActionLabelsToTrello()`. Do NOT rely on `pushActionExtrasToTrello()` for labels — that function only handles comments and attachments.
+
+### Dedup guard on card import
+`syncWithTrelloCardAsTask` checks `updatedTasks.some(t => t.trelloCardId === card.id)` before importing new cards. Prevents duplicate tasks if sync runs twice in quick succession.
 
 ---
 
