@@ -3,11 +3,10 @@ import { useApp } from '../context.js';
 import { Icon } from './Icons.jsx';
 import BoardSelector from './BoardSelector.jsx';
 
-const Header = ({currentView, setCurrentView, onSync, syncing, githubConnected, savingStatus, trelloSync, trelloSyncStatus, onTrelloSync, isOffline, realtimeConnected, searchQuery, onSearchChange}) => {
+const Header = ({currentView, setCurrentView, onSync, syncing, githubConnected, savingStatus, trelloSync, trelloSyncStatus, onTrelloSync, isOffline, realtimeConnected}) => {
     const { trelloUser, onTrelloLogin, onTrelloLogout } = useApp();
     const [mobileMenu, setMobileMenu] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
-    const [showSearch, setShowSearch] = useState(false);
     const navItems = [{id:'kanban',icon:Icon.Kanban,label:'Kanban'},{id:'timeline',icon:Icon.Timeline,label:'Timeline'},{id:'calendar',icon:Icon.Calendar,label:'Calendar'},{id:'dashboard',icon:Icon.Dashboard,label:'KPIs'}];
     return (
         <header className="v11-header" style={{background:'var(--bg-primary)',borderBottom:'1px solid var(--border)'}}>
@@ -21,10 +20,6 @@ const Header = ({currentView, setCurrentView, onSync, syncing, githubConnected, 
                     ))}
                 </nav>
                 <div className="flex items-center gap-1.5" style={{flex:1,justifyContent:'flex-end'}}>
-                    {onSearchChange && <div style={{position:'relative',display:'flex',alignItems:'center'}}>
-                        {showSearch ? <input type="text" value={searchQuery||''} onChange={e=>onSearchChange(e.target.value)} onBlur={()=>{if(!searchQuery)setShowSearch(false);}} onKeyDown={e=>{if(e.key==='Escape'){onSearchChange('');setShowSearch(false);}}} autoFocus placeholder="Search tasks..." style={{fontSize:12,padding:'4px 8px 4px 26px',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',background:'var(--bg-secondary)',color:'var(--text-primary)',width:180,outline:'none'}}/> : null}
-                        <button onClick={()=>{if(showSearch&&searchQuery){onSearchChange('');setShowSearch(false);}else setShowSearch(!showSearch);}} className="v11-icon-btn" style={showSearch?{position:'absolute',left:2,pointerEvents:'none',opacity:0.5}:{}} title="Search"><Icon.Search size={14}/></button>
-                    </div>}
                     <span className="text-xs px-2 py-1 rounded-full flex items-center gap-1" style={{background:isOffline?'#fef3c7':savingStatus==='error'?'var(--error-light)':savingStatus==='saving'?'var(--accent-light)':'transparent',color:isOffline?'#92400e':savingStatus==='error'?'var(--error)':savingStatus==='saving'?'var(--accent)':'var(--text-muted)',transition:'all 0.3s'}} title={isOffline?'Offline — saving locally':realtimeConnected===false?'Realtime disconnected':savingStatus==='error'?'Save failed':savingStatus==='saving'?'Saving...':'Connected'}>
                         <span style={{width:6,height:6,borderRadius:'50%',background:isOffline?'#f59e0b':savingStatus==='error'?'var(--error)':savingStatus==='saving'?'var(--accent)':realtimeConnected===false?'#f59e0b':'#22c55e',flexShrink:0}}/>
                         {isOffline?'Offline':savingStatus==='saving'?'Saving...':savingStatus==='error'?'Error':savingStatus==='saved'?'Saved':''}

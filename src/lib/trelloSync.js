@@ -37,19 +37,26 @@ export const validateBoardIntegrity = (board) => {
         return true;
     });
 
-    // Repair: remove duplicate trelloCardId (keep first, remove duplicates)
-    const cardIds = new Map();
-    const dedupedTasks = validTasks.filter(task => {
-        if (task.trelloCardId) {
-            if (cardIds.has(task.trelloCardId)) {
-                warnings.push(`Duplicate trelloCardId ${task.trelloCardId}: "${task.title}" and "${cardIds.get(task.trelloCardId)}"`);
-                repairs.push(`Removed duplicate-linked task "${task.title}"`);
-                return false;
+    // Repair: remove duplicate trelloCardId (card-as-task mode ONLY)
+    // In card-as-action mode, multiple tasks share the same trelloCardId (checklist items on same card)
+    const isCardAsAction = board.trelloSync?.syncMode === 'card-as-action';
+    let dedupedTasks;
+    if (isCardAsAction) {
+        dedupedTasks = validTasks; // Skip trelloCardId dedup — multiple tasks per card is normal
+    } else {
+        const cardIds = new Map();
+        dedupedTasks = validTasks.filter(task => {
+            if (task.trelloCardId) {
+                if (cardIds.has(task.trelloCardId)) {
+                    warnings.push(`Duplicate trelloCardId ${task.trelloCardId}: "${task.title}" and "${cardIds.get(task.trelloCardId)}"`);
+                    repairs.push(`Removed duplicate-linked task "${task.title}"`);
+                    return false;
+                }
+                cardIds.set(task.trelloCardId, task.title);
             }
-            cardIds.set(task.trelloCardId, task.title);
-        }
-        return true;
-    });
+            return true;
+        });
+    }
 
     // Repair: remove duplicate trelloCheckItemId (keep first)
     const checkItemIds = new Map();
