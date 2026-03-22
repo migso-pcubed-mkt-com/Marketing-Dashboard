@@ -1,11 +1,23 @@
 import React from 'react';
 
+// Escape HTML entities to prevent XSS via innerHTML
+const escapeHtml = (str) => str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 // Convert markdown to HTML for contentEditable
 export const markdownToHtml = (md) => {
     if (!md) return '';
-    let html = md;
-    // Code blocks (must be before inline processing)
-    html = html.replace(/```([^`]*?)```/gs, (_, code) => `<pre style="background:var(--bg-secondary);padding:8px;border-radius:4px;font-family:monospace;font-size:12px;overflow-x:auto"><code>${code.trim().replace(/</g,'&lt;')}</code></pre>`);
+    // Extract code blocks first (preserve raw content)
+    const codeBlocks = [];
+    let html = md.replace(/```([^`]*?)```/gs, (_, code) => {
+        codeBlocks.push(code.trim());
+        return `\x00CODEBLOCK${codeBlocks.length - 1}\x00`;
+    });
+    // Escape HTML in all non-code content
+    html = escapeHtml(html);
+    // Restore code blocks with their own escaping
+    html = html.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, idx) =>
+        `<pre style="background:var(--bg-secondary);padding:8px;border-radius:4px;font-family:monospace;font-size:12px;overflow-x:auto"><code>${escapeHtml(codeBlocks[idx])}</code></pre>`
+    );
     // Process line by line for block elements
     const lines = html.split('\n');
     const result = [];

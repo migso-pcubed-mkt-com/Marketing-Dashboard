@@ -522,7 +522,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     }
                                     onBatchUpdateTasks(batchUpdates);
                                 }):onReorderTask):null)} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries} isReadOnly={isReadOnly}/>)}
-                                {col.items.length===0&&<div className="column-empty">No tasks</div>}
+                                {col.items.length===0&&<div className="column-empty">{!isReadOnly&&onAddTask?<button onClick={()=>onAddTask(col.key)} style={{background:'none',border:'1px dashed var(--border)',borderRadius:'var(--radius-sm)',padding:'8px 12px',cursor:'pointer',color:'var(--text-muted)',fontSize:12,width:'100%'}}>+ Add a task</button>:'No tasks'}</div>}
                                 <button onClick={()=>{
                                     const today=new Date().toISOString().split('T')[0];
                                     const oneWeekLater=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
