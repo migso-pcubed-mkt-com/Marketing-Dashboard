@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-22 | Tier 1 audit quick wins: memoize KanbanView getColumns/filteredTasks, reduce sync lock 60s→15s, env vars for Supabase, CSP headers, DnD cursor affordance, goOnline 2s delay | Comprehensive audit revealed perf waste (recalc every render), stale lock exceeding Vercel timeout, hardcoded credentials, missing security headers, invisible drag capability, and Realtime race on reconnect |
 | 2026-03-21 | Comprehensive sync audit: fix card list-move detection, category name sync (card-as-task), createCard missing fields, offline guard, drag guard for Kanban, auto-save sync lock | Card moves between Trello lists left tasks in wrong category; category names never synced in card-as-task; new cards created without start/pos/members; offline sync could overwrite local edits; Kanban drag didn't block auto-save; auto-save could write mid-sync data |
 | 2026-03-21 | Add bidirectional deletion sync for tasks/actions: archive Trello cards on local delete, delete checklist items on task delete (card-as-action) | Tasks/actions deleted locally left orphaned cards on Trello that were re-imported on next sync; archiving (not hard delete) keeps reversibility |
 | 2026-03-21 | Add missing syncMode to card-as-task import, add bidirectional list deletion sync, fix Realtime merge to preserve all trelloSync fields | syncMode was never set causing "New action" button to show, list deletion was one-way only, Realtime merge could lose trelloSync fields when incoming was undefined |
