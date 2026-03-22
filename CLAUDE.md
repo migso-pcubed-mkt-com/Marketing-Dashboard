@@ -247,7 +247,7 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 ## Known Pitfalls
 
 ### Checklist position sync direction
-`pushTaskExtrasToTrello(task, card, isPushWinner)` — positions are only pushed to Trello when `isPushWinner=true` (local won last-write-wins). When `isPushWinner=false`, local checklists/items are reordered to match Trello positions. Do NOT remove the `isPushWinner` parameter or always push positions — this causes Trello reorder to be overwritten.
+`pushTaskExtrasToTrello(task, card, isPushWinner)` — positions are only pushed to Trello when `isPushWinner=true` (local won last-write-wins). When `isPushWinner=false`, local checklists/items are reordered to match Trello positions. Do NOT remove the `isPushWinner` parameter or always push positions — this causes Trello reorder to be overwritten. `mergeTrelloExtrasIntoTask` must also capture `order` from Trello `pos` on both checklist and item objects, and sort arrays by `order` — without this, the position pull from `pushTaskExtrasToTrello` gets overwritten.
 
 ### card-as-action: checklist/item position sync
 `mergeCheckItemIntoTask` sets `order: item.pos` when Trello wins — pulls position into local task. The position push block in `syncWithTrelloCardAsAction` is guarded by `actionHadLocalPush` — only pushes positions when at least one local item was pushed. Without this guard, Trello reorders get overwritten on next sync.
@@ -269,6 +269,9 @@ Always fetch latest SHA before PUT. Auto-resolve on 409/sha-mismatch: re-fetch t
 
 ### UTF-8 on GitHub API
 Explicitly encode/decode UTF-8 in `api/github.js` load and save functions.
+
+### KanbanView filter/search for action cards (card-as-action)
+In category view when `allDefault=false` (card-as-action mode), `ActionCard` receives `filteredTasks` (not raw `tasks`) so task counts reflect active filters. Actions with zero matching tasks are hidden when any filter is active. Search also matches action names. `filters` and `actionFilters` are in the `columns` useMemo deps.
 
 ### Kanban month/quarter/country view reorder
 Uses inline batch reorder in `KanbanView` via `onBatchUpdateTasks` — not `App.jsx`'s `handleReorderTask`. `getTaskMonth()` is defined at component level (NOT inside `getColumns()`) so it's accessible from the inline handler. **Cross-column drags** (dragIdx < 0) use a single `onUpdateTask` call instead of batch — the dragged task is not in the target column's items array, so batch reorder would corrupt order.

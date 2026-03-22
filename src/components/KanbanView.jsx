@@ -129,9 +129,12 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     const catTaskIds = new Set(catActions.map(a=>a.id));
                     return {key:cat.id,name:cat.name,gradient:cat.gradient,items:sortItems(filteredTasks.filter(t=>catTaskIds.has(t.actionId))),directTasks:true};
                 }
+                // Filter actions: only show actions that have at least one matching task (when filters active)
+                const hasActiveFilter = filters.search || filters.status.length > 0 || filters.priority.length > 0 || (filters.channel && filters.channel.length > 0) || (filters.country && filters.country.length > 0) || (filters.member && filters.member.length > 0) || (filters.otherLabel && filters.otherLabel.length > 0) || actionFilters.length > 0;
+                const visibleActions = hasActiveFilter ? catActions.filter(a => filteredTasks.some(t => t.actionId === a.id) || (filters.search && a.name.toLowerCase().includes(filters.search.toLowerCase()))) : catActions;
                 // Sort completed actions to bottom
-                catActions.sort((a,b)=>(a.status==='completed'?1:0)-(b.status==='completed'?1:0));
-                return {key:cat.id,name:cat.name,gradient:cat.gradient,items:catActions};
+                visibleActions.sort((a,b)=>(a.status==='completed'?1:0)-(b.status==='completed'?1:0));
+                return {key:cat.id,name:cat.name,gradient:cat.gradient,items:visibleActions};
             });
         }
         if(viewMode==='action'){
@@ -176,7 +179,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         return[];
     };
     return getColumns();
-    },[viewMode,sortBy,filteredTasks,categories,actions,selectedAction,isCardAsTask,catOrder,allCountries,countryOrder,selectedYear]);
+    },[viewMode,sortBy,filteredTasks,categories,actions,selectedAction,isCardAsTask,catOrder,allCountries,countryOrder,selectedYear,filters,actionFilters]);
 
     const canDragColumns = (viewMode === 'category' || viewMode === 'country') && !isReadOnly;
 
@@ -427,7 +430,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                             }} onDragEnd={() => {
                                 if (isUserInteractingRef) isUserInteractingRef.current = false;
                             }}>
-                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={tasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?((viewMode==='country'||viewMode==='month'||viewMode==='quarter'||(viewMode==='category'&&col.directTasks))?((draggedId,targetId,position)=>{
+                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={filteredTasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?((viewMode==='country'||viewMode==='month'||viewMode==='quarter'||(viewMode==='category'&&col.directTasks))?((draggedId,targetId,position)=>{
                                     // Reorder within column — atomic batch update
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
                                     const dragIdx=colItems.findIndex(t=>t.id===draggedId);

@@ -679,7 +679,7 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
             .map(cl => {
             if (!cl.trelloChecklistId) return cl;
             const trelloCl = card.checklists.find(tc => tc.id === cl.trelloChecklistId);
-            if (!trelloCl || !trelloCl.checkItems) return cl;
+            if (!trelloCl || !trelloCl.checkItems) return { ...cl, order: trelloCl?.pos != null ? trelloCl.pos : cl.order };
             // Find items on Trello that don't exist locally (by trelloCheckItemId first, then by name)
             const localItemIds = new Set((cl.items || []).filter(i => i.trelloCheckItemId).map(i => i.trelloCheckItemId));
             const localItemNames = new Set((cl.items || []).map(i => i.text));
@@ -692,7 +692,8 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
                     done: ti.state === 'complete',
                     trelloCheckItemId: ti.id,
                     due: ti.due ? ti.due.split('T')[0] : null,
-                    assignee: ti.idMember || null
+                    assignee: ti.idMember || null,
+                    order: ti.pos != null ? ti.pos : undefined
                 }));
             // Also update state/metadata of existing items from Trello
             // Remove local items whose trelloCheckItemId no longer exists on Trello (deleted on Trello)
@@ -704,12 +705,16 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
                     ? trelloCl.checkItems.find(ti => ti.id === item.trelloCheckItemId)
                     : trelloCl.checkItems.find(ti => ti.name === item.text);
                 if (trelloItem) {
-                    return { ...item, done: trelloItem.state === 'complete', trelloCheckItemId: trelloItem.id, due: trelloItem.due ? trelloItem.due.split('T')[0] : item.due, assignee: trelloItem.idMember || item.assignee };
+                    return { ...item, done: trelloItem.state === 'complete', trelloCheckItemId: trelloItem.id, due: trelloItem.due ? trelloItem.due.split('T')[0] : item.due, assignee: trelloItem.idMember || item.assignee, order: trelloItem.pos != null ? trelloItem.pos : item.order };
                 }
                 return item;
             });
-            if (newItems.length === 0 && mergedItems.every((item, i) => item.done === (cl.items || [])[i]?.done)) return cl;
-            return { ...cl, items: [...mergedItems, ...newItems] };
+            const allItems = [...mergedItems, ...newItems];
+            // Sort items by Trello position when available
+            allItems.sort((a, b) => (a.order || 0) - (b.order || 0));
+            const clOrder = trelloCl.pos != null ? trelloCl.pos : cl.order;
+            if (newItems.length === 0 && clOrder === cl.order && mergedItems.every((item, i) => item.done === (cl.items || [])[i]?.done) && mergedItems.every((item, i) => item.order === (cl.items || [])[i]?.order)) return cl;
+            return { ...cl, order: clOrder, items: allItems };
         });
         // Also add entirely new Trello checklists not present locally
         const localTrelloClIds = new Set(updated.checklists.map(cl => cl.trelloChecklistId).filter(Boolean));
@@ -719,31 +724,40 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
                 id: genId('cl'),
                 name: tc.name || 'Checklist',
                 trelloChecklistId: tc.id,
-                items: (tc.checkItems || []).map(ti => ({
+                order: tc.pos != null ? tc.pos : undefined,
+                items: (tc.checkItems || []).sort((a, b) => (a.pos || 0) - (b.pos || 0)).map(ti => ({
                     id: genId('cli'),
                     text: ti.name,
                     done: ti.state === 'complete',
                     trelloCheckItemId: ti.id,
                     due: ti.due ? ti.due.split('T')[0] : null,
-                    assignee: ti.idMember || null
+                    assignee: ti.idMember || null,
+                    order: ti.pos != null ? ti.pos : undefined
                 }))
             }));
-        updated.checklists = [...updatedChecklists, ...newChecklists];
+        // Sort all checklists by Trello position
+        const allChecklists = [...updatedChecklists, ...newChecklists];
+        allChecklists.sort((a, b) => (a.order || 0) - (b.order || 0));
+        updated.checklists = allChecklists;
     } else if (card.checklists && !updated.checklists?.length) {
         // No local checklists but Trello has some — pull them all
-        updated.checklists = card.checklists.map(tc => ({
-            id: genId('cl'),
-            name: tc.name || 'Checklist',
-            trelloChecklistId: tc.id,
-            items: (tc.checkItems || []).map(ti => ({
-                id: genId('cli'),
-                text: ti.name,
-                done: ti.state === 'complete',
-                trelloCheckItemId: ti.id,
-                due: ti.due ? ti.due.split('T')[0] : null,
-                assignee: ti.idMember || null
-            }))
-        }));
+        updated.checklists = card.checklists
+            .sort((a, b) => (a.pos || 0) - (b.pos || 0))
+            .map(tc => ({
+                id: genId('cl'),
+                name: tc.name || 'Checklist',
+                trelloChecklistId: tc.id,
+                order: tc.pos != null ? tc.pos : undefined,
+                items: (tc.checkItems || []).sort((a, b) => (a.pos || 0) - (b.pos || 0)).map(ti => ({
+                    id: genId('cli'),
+                    text: ti.name,
+                    done: ti.state === 'complete',
+                    trelloCheckItemId: ti.id,
+                    due: ti.due ? ti.due.split('T')[0] : null,
+                    assignee: ti.idMember || null,
+                    order: ti.pos != null ? ti.pos : undefined
+                }))
+            }));
     }
 
     // Merge comments from Trello into local (same pattern as checklists: by trelloCommentId)
