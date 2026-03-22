@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { CONFIG } from '../config.js';
 import { normalizeTaskChecklists } from '../lib/migration.js';
+import { uploadAttachment, deleteAttachment } from '../lib/storage.js';
 import { markdownToHtml, htmlToMarkdown, WysiwygToolbar, SimpleMarkdown } from '../lib/markdown.jsx';
 import { useApp } from '../context.js';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
@@ -36,6 +37,36 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[showMemberPicker,setShowMemberPicker]=useState(false);
     const[editingChecklistId,setEditingChecklistId]=useState(null);
     const[editingChecklistName,setEditingChecklistName]=useState('');
+    const[uploading,setUploading]=useState(false);
+
+    const handleFileUpload = async (file) => {
+        if (file.size > 10 * 1024 * 1024) return; // 10MB limit
+        setUploading(true);
+        try {
+            // Try Supabase Storage first
+            const result = await uploadAttachment(file, task.id);
+            if (result) {
+                setForm(prev => ({...prev, attachments: [...(prev.attachments || []), {
+                    id: `att-${crypto.randomUUID()}`, name: file.name, type: file.type,
+                    size: file.size, url: result.url, storagePath: result.path,
+                    date: new Date().toISOString()
+                }]}));
+                return;
+            }
+        } catch (e) { /* fall through to base64 */ }
+        // Fallback: base64 (5MB limit for inline storage)
+        if (file.size > 5 * 1024 * 1024) { setUploading(false); return; }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            setForm(prev => ({...prev, attachments: [...(prev.attachments || []), {
+                id: `att-${crypto.randomUUID()}`, name: file.name, type: file.type,
+                size: file.size, data: ev.target.result, date: new Date().toISOString()
+            }]}));
+            setUploading(false);
+        };
+        reader.readAsDataURL(file);
+        return; // uploading set to false in onload
+    };
     const[editingItemId,setEditingItemId]=useState(null);
     const[editingItemText,setEditingItemText]=useState('');
     const[draggingChecklistIdx,setDraggingChecklistIdx]=useState(null);
@@ -479,7 +510,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                         <div style={{fontSize:11,color:'var(--text-muted)'}}>{att.size?`${(att.size/1024).toFixed(1)} KB`:''}{att.date?` • ${new Date(att.date).toLocaleDateString('en-US')}`:''}</div>
                                     </div>
                                     {(att.data||att.url)&&<a href={att.data||att.url} download={att.data?att.name:undefined} target={att.url?'_blank':undefined} rel={att.url?'noopener noreferrer':undefined} onClick={e=>e.stopPropagation()} style={{color:'var(--accent)',fontSize:12,fontWeight:500,flexShrink:0,cursor:'pointer'}} title={att.url?'Open':'Download'}>{att.url?'↗':'↓'}</a>}
-                                    {!isReadOnly && <button onClick={(e)=>{e.stopPropagation();setForm({...form,attachments:(form.attachments||[]).filter(a=>a.id!==att.id)});}} style={{color:'var(--text-muted)',cursor:'pointer',flexShrink:0,background:'none',border:'none',fontSize:14}} title="Delete">✕</button>}
+                                    {!isReadOnly && <button onClick={(e)=>{e.stopPropagation();if(att.storagePath)deleteAttachment(att.storagePath);setForm({...form,attachments:(form.attachments||[]).filter(a=>a.id!==att.id)});}} style={{color:'var(--text-muted)',cursor:'pointer',flexShrink:0,background:'none',border:'none',fontSize:14}} title="Delete">✕</button>}
                                 </div>
                             );})}
                         </div>}
@@ -491,31 +522,16 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                 e.currentTarget.style.borderColor='var(--border)';
                                 e.currentTarget.style.background='transparent';
                                 const files=Array.from(e.dataTransfer.files);
-                                files.forEach(file=>{
-                                    if(file.size>5*1024*1024)return; // 5MB limit
-                                    const reader=new FileReader();
-                                    reader.onload=(ev)=>{
-                                        setForm(prev=>({...prev,attachments:[...(prev.attachments||[]),{id:`att-${crypto.randomUUID()}`,name:file.name,type:file.type,size:file.size,data:ev.target.result,date:new Date().toISOString()}]}));
-                                    };
-                                    reader.readAsDataURL(file);
-                                });
+                                files.forEach(file => handleFileUpload(file));
                             }}
                             className="border-2 border-dashed rounded-lg p-4 text-center" style={{borderColor:'var(--border)',cursor:'pointer',transition:'all 0.2s'}}
                             onClick={()=>document.getElementById('file-upload-input')?.click()}
                         >
                             <input id="file-upload-input" type="file" multiple style={{display:'none'}} onChange={e=>{
-                                const files=Array.from(e.target.files||[]);
-                                files.forEach(file=>{
-                                    if(file.size>5*1024*1024)return;
-                                    const reader=new FileReader();
-                                    reader.onload=(ev)=>{
-                                        setForm(prev=>({...prev,attachments:[...(prev.attachments||[]),{id:`att-${crypto.randomUUID()}`,name:file.name,type:file.type,size:file.size,data:ev.target.result,date:new Date().toISOString()}]}));
-                                    };
-                                    reader.readAsDataURL(file);
-                                });
+                                Array.from(e.target.files||[]).forEach(file => handleFileUpload(file));
                                 e.target.value='';
                             }}/>
-                            <p style={{fontSize:13,color:'var(--text-muted)'}}>Drag files here or click to browse</p>
+                            <p style={{fontSize:13,color:'var(--text-muted)'}}>{uploading?'Uploading...':'Drag files here or click to browse'}</p>
                             <p style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>Max 5 MB per file</p>
                         </div>}
                     </div>
@@ -530,19 +546,19 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         {previewAttachment&&(
             <div onClick={()=>setPreviewAttachment(null)} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(0,0,0,0.85)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'zoom-out',padding:24}}>
                 <div style={{position:'absolute',top:16,right:16,display:'flex',gap:8}}>
-                    {previewAttachment.data&&<a href={previewAttachment.data} download={previewAttachment.name} onClick={e=>e.stopPropagation()} style={{padding:'8px 16px',background:'rgba(255,255,255,0.15)',color:'white',borderRadius:'var(--radius-sm)',fontSize:13,fontWeight:500,textDecoration:'none',cursor:'pointer',backdropFilter:'blur(8px)'}}>↓ Download</a>}
+                    {(previewAttachment.url||previewAttachment.data)&&<a href={(previewAttachment.url||previewAttachment.data)} download={previewAttachment.name} onClick={e=>e.stopPropagation()} style={{padding:'8px 16px',background:'rgba(255,255,255,0.15)',color:'white',borderRadius:'var(--radius-sm)',fontSize:13,fontWeight:500,textDecoration:'none',cursor:'pointer',backdropFilter:'blur(8px)'}}>↓ Download</a>}
                     <button onClick={()=>setPreviewAttachment(null)} style={{padding:'8px 16px',background:'rgba(255,255,255,0.15)',color:'white',borderRadius:'var(--radius-sm)',fontSize:13,fontWeight:500,border:'none',cursor:'pointer',backdropFilter:'blur(8px)'}}>✕ Close</button>
                 </div>
                 {previewAttachment.type?.startsWith('image/')?
-                    <img src={previewAttachment.data} alt={previewAttachment.name} onClick={e=>e.stopPropagation()} style={{maxWidth:'90vw',maxHeight:'85vh',objectFit:'contain',borderRadius:'var(--radius-lg)',boxShadow:'0 20px 60px rgba(0,0,0,0.5)',cursor:'default'}}/>:
+                    <img src={(previewAttachment.url||previewAttachment.data)} alt={previewAttachment.name} onClick={e=>e.stopPropagation()} style={{maxWidth:'90vw',maxHeight:'85vh',objectFit:'contain',borderRadius:'var(--radius-lg)',boxShadow:'0 20px 60px rgba(0,0,0,0.5)',cursor:'default'}}/>:
                     previewAttachment.type==='application/pdf'?
-                    <iframe src={previewAttachment.data} onClick={e=>e.stopPropagation()} style={{width:'80vw',height:'85vh',borderRadius:'var(--radius-lg)',border:'none',background:'white',cursor:'default'}}/>:
+                    <iframe src={(previewAttachment.url||previewAttachment.data)} onClick={e=>e.stopPropagation()} style={{width:'80vw',height:'85vh',borderRadius:'var(--radius-lg)',border:'none',background:'white',cursor:'default'}}/>:
                     <div onClick={e=>e.stopPropagation()} style={{background:'var(--bg-primary)',borderRadius:'var(--radius-lg)',padding:40,textAlign:'center',cursor:'default',maxWidth:400}}>
                         <div style={{fontSize:48,marginBottom:16}}>📄</div>
                         <div style={{fontSize:16,fontWeight:600,marginBottom:8}}>{previewAttachment.name}</div>
                         <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16}}>{previewAttachment.size?`${(previewAttachment.size/1024).toFixed(1)} KB`:''}</div>
                         <p style={{fontSize:12,color:'var(--text-muted)'}}>Preview not available for this file type</p>
-                        {previewAttachment.data&&<a href={previewAttachment.data} download={previewAttachment.name} style={{display:'inline-block',marginTop:16,padding:'10px 20px',background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',fontSize:13,fontWeight:600,textDecoration:'none'}}>Download</a>}
+                        {(previewAttachment.url||previewAttachment.data)&&<a href={(previewAttachment.url||previewAttachment.data)} download={previewAttachment.name} style={{display:'inline-block',marginTop:16,padding:'10px 20px',background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',fontSize:13,fontWeight:600,textDecoration:'none'}}>Download</a>}
                     </div>
                 }
                 <div style={{color:'rgba(255,255,255,0.7)',fontSize:12,marginTop:12}}>{previewAttachment.name}</div>

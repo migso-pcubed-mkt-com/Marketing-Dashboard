@@ -1204,6 +1204,13 @@ const App = () => {
         boards,
         currentBoardId,
         currentBoard,
+        categories,
+        actions,
+        tasks,
+        filters,
+        setFilters,
+        isReadOnly,
+        allCountries,
         onSwitchBoard: handleSwitchBoard,
         onCreateBoard: handleCreateBoard,
         onRenameBoard: handleRenameBoard,
@@ -1217,7 +1224,7 @@ const App = () => {
         trelloUser,
         onTrelloLogin: handleTrelloLogin,
         onTrelloLogout: handleTrelloLogout
-    }), [boards, currentBoardId, currentBoard, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
+    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, filters, isReadOnly, allCountries, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
 
     if (!authenticated) return <AuthGate onTrelloLogin={handleTrelloLogin} onValidateToken={handleValidateToken} onGuestLogin={handleGuestLogin}/>;
 

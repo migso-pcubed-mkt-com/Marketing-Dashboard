@@ -15,6 +15,30 @@ if (isSupabaseConfigured) {
 export { supabaseClient, isSupabaseConfigured };
 export const useSupabase = isSupabaseConfigured && supabaseClient;
 
+// --- Supabase Storage (attachments) ---
+const STORAGE_BUCKET = 'attachments';
+
+export const uploadAttachment = async (file, taskId) => {
+    if (!supabaseClient) return null;
+    const ext = file.name.split('.').pop();
+    const path = `${taskId}/${crypto.randomUUID()}.${ext}`;
+    const { data, error } = await supabaseClient.storage.from(STORAGE_BUCKET).upload(path, file, {
+        cacheControl: '3600',
+        upsert: false
+    });
+    if (error) {
+        console.warn('[Storage] Upload failed, falling back to base64:', error.message);
+        return null; // Caller falls back to FileReader base64
+    }
+    const { data: urlData } = supabaseClient.storage.from(STORAGE_BUCKET).getPublicUrl(data.path);
+    return { path: data.path, url: urlData.publicUrl };
+};
+
+export const deleteAttachment = async (path) => {
+    if (!supabaseClient || !path) return;
+    await supabaseClient.storage.from(STORAGE_BUCKET).remove([path]).catch(() => {});
+};
+
 const API_BASE_URL = typeof window !== 'undefined'
     ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
     : '';

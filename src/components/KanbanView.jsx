@@ -17,6 +17,8 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     const[editingCategoryId,setEditingCategoryId]=useState(null);
     const[editingCategoryValue,setEditingCategoryValue]=useState('');
     const[showAddCategory,setShowAddCategory]=useState(false);
+    const[quickAddCol,setQuickAddCol]=useState(null);
+    const[quickAddTitle,setQuickAddTitle]=useState('');
     const[newCategoryName,setNewCategoryName]=useState('');
 
     // Persisted column orders (category and country)
@@ -522,7 +524,18 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     }
                                     onBatchUpdateTasks(batchUpdates);
                                 }):onReorderTask):null)} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries} isReadOnly={isReadOnly}/>)}
-                                {col.items.length===0&&<div className="column-empty">{!isReadOnly&&onAddTask?<button onClick={()=>onAddTask(col.key)} style={{background:'none',border:'1px dashed var(--border)',borderRadius:'var(--radius-sm)',padding:'8px 12px',cursor:'pointer',color:'var(--text-muted)',fontSize:12,width:'100%'}}>+ Add a task</button>:'No tasks'}</div>}
+                                {col.items.length===0&&<div className="column-empty" style={{color:'var(--text-muted)',fontSize:12}}>No tasks yet</div>}
+                                {!isReadOnly&&quickAddCol===col.key?<form onSubmit={e=>{e.preventDefault();const title=quickAddTitle.trim();if(!title)return;
+                                    if(viewMode==='category'&&col.directTasks){let defAct=actions.find(a=>a.categoryId===col.key&&a.isDefault);if(!defAct){const now=new Date().toISOString();defAct={id:`a-${crypto.randomUUID()}`,name:col.name,categoryId:col.key,isDefault:true,budget:0,priority:'medium',tags:[],status:'active',createdAt:now,updatedAt:now};onAddAction(defAct);}onAddTask({title,actionId:defAct.id,status:'todo'});}
+                                    else if(viewMode==='action'){onAddTask({title,actionId:selectedAction||actions[0]?.id||'',status:col.key});}
+                                    else if(viewMode==='month'){const y=selectedYear,m=col.key;const sd=y+'-'+String(m+1).padStart(2,'0')+'-01';const ld=new Date(y,m+1,0).getDate();onAddTask({title,startDate:sd,dueDate:y+'-'+String(m+1).padStart(2,'0')+'-'+ld});}
+                                    else if(viewMode==='country'){onAddTask({title,countries:col.key==='_unassigned'?[]:[col.key]});}
+                                    else{onAddTask({title});}
+                                    setQuickAddTitle('');setQuickAddCol(null);
+                                }} style={{padding:'4px 0'}}>
+                                    <input type="text" value={quickAddTitle} onChange={e=>setQuickAddTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Escape'){setQuickAddCol(null);setQuickAddTitle('');}}} autoFocus placeholder="Task title..." style={{width:'100%',padding:'6px 8px',borderRadius:4,border:'1px solid var(--accent)',fontSize:12,outline:'none',background:'var(--bg-primary)',color:'var(--text-primary)'}}/>
+                                </form>:null}
+                                <button onClick={()=>{if(isReadOnly)return;setQuickAddCol(quickAddCol===col.key?null:col.key);setQuickAddTitle('');}} className="add-card-btn" style={isReadOnly?{display:'none'}:{}}>{quickAddCol===col.key?'Cancel':'+ Quick add'}</button>
                                 <button onClick={()=>{
                                     const today=new Date().toISOString().split('T')[0];
                                     const oneWeekLater=new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
