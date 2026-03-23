@@ -1057,6 +1057,10 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             result.deleted = (result.deleted || 0) + 1;
         }
     }
+    // Clean stale listToCatId entries — prevents cards from mapping to removed categories
+    for (const [listId, catId] of Object.entries(listToCatId)) {
+        if (removedCatIds.has(catId)) delete listToCatId[listId];
+    }
 
     for (let i = 0; i < updatedCategories.length; i++) {
         const cat = updatedCategories[i];
@@ -1238,6 +1242,10 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             updatedCategories.splice(i, 1);
             result.deleted = (result.deleted || 0) + 1;
         }
+    }
+    // Clean stale listToCatId entries — prevents actions from mapping to removed categories
+    for (const [listId, catId] of Object.entries(listToCatId)) {
+        if (removedCatIdsCA.has(catId)) delete listToCatId[listId];
     }
 
     // Pull: update category names/positions from Trello lists
@@ -1577,6 +1585,16 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             if (positionUpdates.length > 0) {
                 await Promise.all(positionUpdates);
                 result.pushed += positionUpdates.length;
+                // Prevent feedback loop: position push updates card.dateLastActivity on Trello,
+                // which would make next sync falsely detect "Trello changed" on all items.
+                // By updating trelloLastModified to NOW, we ensure trelloTime <= taskSyncTime.
+                const positionPushTime = new Date().toISOString();
+                for (let j = 0; j < updatedTasks.length; j++) {
+                    if (updatedTasks[j].actionId === action.id && updatedTasks[j].trelloCheckItemId) {
+                        updatedTasks[j] = { ...updatedTasks[j], trelloLastModified: positionPushTime };
+                    }
+                }
+                updatedActions[i] = { ...updatedActions[i], trelloLastModified: positionPushTime };
             }
         }
 

@@ -77,6 +77,7 @@ const App = () => {
     const [realtimeConnected, setRealtimeConnected] = useState(null); // null = not applicable, true = connected, false = disconnected
     const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_done'));
     const trelloSyncIntervalRef = useRef(null);
+    const handleTrelloSyncRef = useRef(null);
 
     const saveQueueRef = useRef([]);
     const isSavingRef = useRef(false);
@@ -1140,7 +1141,13 @@ const App = () => {
         }
     }, [currentBoard, trelloSyncStatus]);
 
+    // Keep ref pointing to latest handleTrelloSync (avoids stale closure in setInterval)
+    useEffect(() => { handleTrelloSyncRef.current = handleTrelloSync; }, [handleTrelloSync]);
+
     // --- Trello polling lifecycle ---
+    // IMPORTANT: Does NOT depend on handleTrelloSync — uses ref instead.
+    // Without this, every board change or sync status change would recreate
+    // handleTrelloSync → reset the interval timer → auto-sync never fires.
     useEffect(() => {
         // Clear previous interval
         if (trelloSyncIntervalRef.current) {
@@ -1151,12 +1158,12 @@ const App = () => {
         if (currentBoard?.trelloSync?.syncEnabled && currentBoard?.trelloSync?.trelloBoardId) {
             const intervalMs = currentBoard.trelloSync.pollIntervalMs || 60000;
             console.log(`Trello polling started (${intervalMs / 1000}s)`);
-            trelloSyncIntervalRef.current = setInterval(handleTrelloSync, intervalMs);
+            trelloSyncIntervalRef.current = setInterval(() => handleTrelloSyncRef.current(), intervalMs);
         }
         return () => {
             if (trelloSyncIntervalRef.current) clearInterval(trelloSyncIntervalRef.current);
         };
-    }, [currentBoard?.trelloSync?.syncEnabled, currentBoard?.trelloSync?.pollIntervalMs, currentBoard?.id, handleTrelloSync]);
+    }, [currentBoard?.trelloSync?.syncEnabled, currentBoard?.trelloSync?.pollIntervalMs, currentBoard?.id]);
 
     const handleUpdateTrelloSyncSettings = useCallback((updates) => {
         updateCurrentBoard(b => ({

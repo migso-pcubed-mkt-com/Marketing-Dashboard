@@ -600,6 +600,7 @@ export const mergeCardIntoAction = (existingAction, card, listToCat, mappingConf
         _inheritCountries: countries.length ? countries : (existingAction._inheritCountries || []),
         _inheritOtherLabels: otherLabels.length ? otherLabels : (existingAction._inheritOtherLabels || []),
         _inheritAssignees: card.idMembers || existingAction._inheritAssignees || [],
+        updatedAt: card.dateLastActivity,
         trelloLastModified: card.dateLastActivity
     };
 };
