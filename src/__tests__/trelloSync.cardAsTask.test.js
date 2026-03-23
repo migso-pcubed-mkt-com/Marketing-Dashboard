@@ -1002,4 +1002,228 @@ describe('syncWithTrello — card-as-task', () => {
             idList: 'list-2'
         }));
     });
+
+    // ════════════════════════════════════════════════════════
+    // H4: Multi-cycle idempotence — sync twice without changes
+    // Second sync must produce no updates/pushes
+    // ════════════════════════════════════════════════════════
+    it('is idempotent: re-sync without changes produces no updates', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Stable', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD,
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+            }]
+        });
+        const trelloResponse = makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', dateLastActivity: T.NEW })]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(trelloResponse);
+
+        // Sync 1: pulls Trello changes
+        const { board: after1 } = await syncWithTrello(board, { labelMappings: {} });
+        expect(after1.tasks[0].title).toBe('Card'); // Pulled from Trello
+
+        // Reset mocks and sync again — Trello unchanged, board now matches
+        vi.clearAllMocks();
+        fetchTrelloBoardFull.mockResolvedValue(trelloResponse);
+
+        const { result: result2 } = await syncWithTrello(after1, { labelMappings: {} });
+
+        // No updates, no pushes on second sync
+        expect(result2.updated).toBe(0);
+        expect(result2.pushed).toBe(0);
+        expect(result2.created).toBe(0);
+        expect(updateTrelloCard).not.toHaveBeenCalled();
+    });
+
+    // ════════════════════════════════════════════════════════
+    // M1: Push failure recovery — updateTrelloCard throws
+    // Task should not be corrupted, errors should be counted
+    // ════════════════════════════════════════════════════════
+    it('counts errors and preserves task when push fails', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Will Fail Push', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.NEW, // Local changed → push attempt
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+            }]
+        });
+        // Make push fail
+        updateTrelloCard.mockRejectedValue(new Error('Network error'));
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', dateLastActivity: T.MID })]
+        }));
+
+        const { board: synced, result } = await syncWithTrello(board, { labelMappings: {} });
+
+        // Error should be counted
+        expect(result.errors).toBeGreaterThanOrEqual(1);
+        expect(result.errorDetails.length).toBeGreaterThanOrEqual(1);
+        expect(result.errorDetails[0].error).toContain('Network error');
+        // Task should still exist and not be corrupted
+        expect(synced.tasks[0].title).toBe('Will Fail Push');
+        expect(synced.tasks[0].trelloCardId).toBe('card-1');
+    });
+
+    // ════════════════════════════════════════════════════════
+    // M3: Card moved to different list + fields changed
+    // simultaneously on Trello — both should be pulled
+    // ════════════════════════════════════════════════════════
+    it('pulls both list move and field changes when card moved and modified', async () => {
+        const board = makeBoard({
+            categories: [
+                { id: 'c1', trelloListId: 'list-1' },
+                { id: 'c2', trelloListId: 'list-2' }
+            ],
+            actions: [
+                { id: 'a1', categoryId: 'c1', isDefault: true },
+                { id: 'a2', categoryId: 'c2', isDefault: true }
+            ],
+            tasks: [{
+                id: 't1', title: 'Old Title', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, // Not locally modified
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: 'Old desc', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [
+                makeList({ id: 'list-1' }),
+                makeList({ id: 'list-2', pos: 32768 })
+            ],
+            cards: [makeCard({
+                id: 'card-1',
+                idList: 'list-2', // Moved to different list
+                name: 'New Title', // And renamed
+                desc: 'New desc', // And description changed
+                dateLastActivity: T.NEW
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // Both move and field changes should be pulled
+        expect(synced.tasks[0].actionId).toBe('a2'); // Moved to category 2
+        expect(synced.tasks[0].title).toBe('New Title'); // Title updated
+        expect(synced.tasks[0].description).toBe('New desc'); // Description updated
+    });
+
+    // ════════════════════════════════════════════════════════
+    // M4: "Neither changed" path — checklists should be
+    // reordered exactly once (not double-applied)
+    // ════════════════════════════════════════════════════════
+    it('applies checklist reorder exactly once in neither-changed path', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Task', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, // Neither changed (MID > OLD but MID = MID)
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0,
+                checklists: [
+                    { id: 'cl-1', name: 'First', trelloChecklistId: 'tcl-1', items: [
+                        { id: 'i1', text: 'A', done: false, trelloCheckItemId: 'tci-1' },
+                        { id: 'i2', text: 'B', done: false, trelloCheckItemId: 'tci-2' }
+                    ]},
+                    { id: 'cl-2', name: 'Second', trelloChecklistId: 'tcl-2', items: [] }
+                ]
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1',
+                dateLastActivity: T.MID, // Same as trelloLastModified → neither changed
+                checklists: [
+                    { id: 'tcl-2', name: 'Second', pos: 100, checkItems: [] }, // Second first
+                    { id: 'tcl-1', name: 'First', pos: 200, checkItems: [
+                        { id: 'tci-2', name: 'B', state: 'incomplete', pos: 100 }, // B first
+                        { id: 'tci-1', name: 'A', state: 'incomplete', pos: 200 }
+                    ]}
+                ]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        const task = synced.tasks[0];
+        // Checklists should be correctly reordered (Second before First)
+        expect(task.checklists[0].trelloChecklistId).toBe('tcl-2');
+        expect(task.checklists[1].trelloChecklistId).toBe('tcl-1');
+        // Items within First should be reordered (B before A)
+        expect(task.checklists[1].items[0].trelloCheckItemId).toBe('tci-2');
+        expect(task.checklists[1].items[1].trelloCheckItemId).toBe('tci-1');
+        // Should NOT push anything (neither changed)
+        expect(updateTrelloCard).not.toHaveBeenCalled();
+    });
+
+    // ════════════════════════════════════════════════════════
+    // M6: Position update fails midway — one succeeds, one
+    // fails in Promise.all. State should remain usable.
+    // ════════════════════════════════════════════════════════
+    it('handles partial position push failure gracefully', async () => {
+        let callCount = 0;
+        updateTrelloChecklistItem.mockImplementation(() => {
+            callCount++;
+            if (callCount === 2) return Promise.reject(new Error('pos update failed'));
+            return Promise.resolve({});
+        });
+
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Task', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.NEW, // Local wins → push
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0,
+                checklists: [{
+                    id: 'cl-1', name: 'CL', trelloChecklistId: 'tcl-1', items: [
+                        { id: 'i1', text: 'A', done: false, trelloCheckItemId: 'tci-1' },
+                        { id: 'i2', text: 'B', done: false, trelloCheckItemId: 'tci-2' }
+                    ]
+                }]
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.MID,
+                checklists: [{
+                    id: 'tcl-1', name: 'CL', pos: 100,
+                    checkItems: [
+                        { id: 'tci-1', name: 'A', state: 'incomplete', pos: 99999 },
+                        { id: 'tci-2', name: 'B', state: 'incomplete', pos: 88888 }
+                    ]
+                }]
+            })]
+        }));
+
+        // Should not throw — errors caught per-item
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // Task should still exist and be valid
+        expect(synced.tasks[0].title).toBe('Task');
+        expect(synced.tasks[0].trelloCardId).toBe('card-1');
+    });
 });

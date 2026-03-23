@@ -982,4 +982,179 @@ describe('syncWithTrello — card-as-action', () => {
             idList: 'list-2'
         }));
     });
+
+    // ════════════════════════════════════════════════════════
+    // H3: Items count mismatch — addTrelloChecklistItems
+    // returns fewer items than requested. Only confirmed
+    // items should get trelloCheckItemId.
+    // ════════════════════════════════════════════════════════
+    it('handles addTrelloChecklistItems returning fewer items than expected', async () => {
+        addTrelloChecklistItems.mockResolvedValue({
+            itemsAdded: 1,
+            items: [{ id: 'ci-only-one' }] // Only 1 returned, but 3 were requested
+        });
+
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [
+                { id: 't1', title: 'Item 1', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: null, trelloChecklistId: null, trelloItemDeleted: false, trelloLastModified: null, updatedAt: T.NEW, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 },
+                { id: 't2', title: 'Item 2', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: null, trelloChecklistId: null, trelloItemDeleted: false, trelloLastModified: null, updatedAt: T.NEW, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 1 },
+                { id: 't3', title: 'Item 3', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: null, trelloChecklistId: null, trelloItemDeleted: false, trelloLastModified: null, updatedAt: T.NEW, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 2 }
+            ]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.MID,
+                checklists: [{ id: 'cl-1', name: 'Tasks', pos: 100, checkItems: [] }]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // Only the first task should have a trelloCheckItemId (confirmed by API)
+        const t1 = synced.tasks.find(t => t.id === 't1');
+        const t2 = synced.tasks.find(t => t.id === 't2');
+        const t3 = synced.tasks.find(t => t.id === 't3');
+        expect(t1?.trelloCheckItemId).toBe('ci-only-one');
+        // Items 2 and 3 should NOT have trelloCheckItemId (not returned by API)
+        expect(t2?.trelloCheckItemId).toBeFalsy();
+        expect(t3?.trelloCheckItemId).toBeFalsy();
+    });
+
+    // ════════════════════════════════════════════════════════
+    // H4: Multi-cycle idempotence — sync twice, second should
+    // produce no changes
+    // ════════════════════════════════════════════════════════
+    it('is idempotent: re-sync without changes produces no updates', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [{
+                id: 't1', title: 'Item', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1', trelloCheckItemId: 'ci-1', trelloChecklistId: 'cl-1',
+                trelloLastModified: T.MID, updatedAt: T.OLD,
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+            }]
+        });
+        const trelloResponse = makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.NEW,
+                checklists: [{
+                    id: 'cl-1', name: 'Tasks', pos: 100,
+                    checkItems: [{ id: 'ci-1', name: 'Renamed', state: 'complete', pos: 100 }]
+                }]
+            })]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(trelloResponse);
+
+        // Sync 1: pulls changes
+        const { board: after1 } = await syncWithTrello(board, { labelMappings: {} });
+
+        // Reset mocks, sync again with same Trello data
+        vi.clearAllMocks();
+        fetchTrelloBoardFull.mockResolvedValue(trelloResponse);
+
+        const { result: result2 } = await syncWithTrello(after1, { labelMappings: {} });
+
+        expect(result2.updated).toBe(0);
+        expect(result2.pushed).toBe(0);
+        expect(result2.created).toBe(0);
+    });
+
+    // ════════════════════════════════════════════════════════
+    // M5: Action on wrong list — action.categoryId points to
+    // category linked to list-2, but card is on list-1.
+    // Push should correct with idList.
+    // ════════════════════════════════════════════════════════
+    it('pushes correct idList when action category differs from card list', async () => {
+        const board = makeBoard({
+            categories: [
+                { id: 'c1', trelloListId: 'list-1' },
+                { id: 'c2', trelloListId: 'list-2' }
+            ],
+            actions: [{
+                id: 'a1', name: 'Action on C2', categoryId: 'c2', // Points to c2/list-2
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.NEW, // Locally modified → push
+                budget: 0, priority: 'medium', tags: [], countries: [],
+                otherLabels: [], assignees: [], comments: [], attachments: [],
+                description: '', status: 'active'
+            }],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [
+                makeList({ id: 'list-1' }),
+                makeList({ id: 'list-2', pos: 32768 })
+            ],
+            cards: [makeCard({
+                id: 'card-1', idList: 'list-1', // Card is on wrong list!
+                dateLastActivity: T.MID, checklists: []
+            })]
+        }));
+
+        await syncWithTrello(board, { labelMappings: {} });
+
+        // Push should send correct idList (list-2, matching categoryId → c2)
+        expect(updateTrelloCard).toHaveBeenCalledWith('card-1', expect.objectContaining({
+            idList: 'list-2'
+        }));
+    });
+
+    // ════════════════════════════════════════════════════════
+    // M2: Label mapping changed — old labels on card should
+    // be removed when no longer matching local tags
+    // ════════════════════════════════════════════════════════
+    it('removes stale labels when action tags no longer match old mapping', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.NEW, budget: 0, priority: 'medium',
+                tags: ['email'], // Only has 'email' now (removed 'social')
+                countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: []
+        });
+        const mappingConfig = {
+            labelMappings: {
+                'lbl-social': { type: 'channel', channelId: 'social' },
+                'lbl-email': { type: 'channel', channelId: 'email' }
+            }
+        };
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.MID,
+                idLabels: ['lbl-social', 'lbl-email'], // Card still has both labels
+                checklists: []
+            })]
+        }));
+
+        await syncWithTrello(board, mappingConfig);
+
+        // 'lbl-social' should be removed (action no longer has 'social' tag)
+        expect(removeTrelloCardLabel).toHaveBeenCalledWith('card-1', 'lbl-social');
+        // 'lbl-email' should remain (action still has 'email' tag)
+        expect(addTrelloCardLabel).not.toHaveBeenCalledWith('card-1', 'lbl-email');
+    });
 });
