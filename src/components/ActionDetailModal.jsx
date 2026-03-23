@@ -8,10 +8,12 @@ import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
 
-const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onBatchUpdateTasks,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask})=>{
+const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onBatchUpdateTasks,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask,onDeleteTaskGroup})=>{
     const { trelloUser } = useApp();
     const[form,setForm]=useState({...action, comments: action.comments || [], attachments: action.attachments || []});
     const[showConfirmDelete,setShowConfirmDelete]=useState(false);
+    const[confirmDeleteTask,setConfirmDeleteTask]=useState(null);
+    const[confirmDeleteGroup,setConfirmDeleteGroup]=useState(null);
     const[descriptionDraft,setDescriptionDraft]=useState(action.description||'');
     const[descriptionEditing,setDescriptionEditing]=useState(false);
     const descEditableRef=useRef(null);
@@ -659,6 +661,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                         <div style={{width:60,height:4,borderRadius:2,background:'var(--border-light)',overflow:'hidden'}}>
                                             <div style={{width:`${groupPct}%`,height:'100%',borderRadius:2,background:groupPct>=70?'#22c55e':groupPct>=40?'#f59e0b':'#ef4444'}}/>
                                         </div>
+                                        {!isReadOnly&&<button onClick={e=>{e.stopPropagation();setConfirmDeleteGroup(group.name);}} style={{color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:2}} className="hover:text-accent-red" title="Delete group"><Icon.Trash size={11}/></button>}
                                         <span onClick={()=>toggleGroup(group.name)} style={{fontSize:10,transform:isCollapsed?'rotate(-90deg)':'rotate(0)',transition:'transform 0.15s',color:'var(--text-muted)',cursor:'pointer'}}>▼</span>
                                     </div>
                                     {!isCollapsed&&<div className="space-y-2">
@@ -722,6 +725,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                                 </>)}
                                                             </div>}
                                                             {task.budget>0&&<span className="text-xs font-semibold text-secondary">{task.budget}€</span>}
+                                                            {!isReadOnly&&<button onClick={e=>{e.stopPropagation();setConfirmDeleteTask(task);}} style={{color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:2,flexShrink:0}} className="hover:text-accent-red" title="Delete task"><Icon.Trash size={12}/></button>}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -813,6 +817,42 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     </div>
                 </div>
             </div>
+            {/* Task delete confirmation popup */}
+            {confirmDeleteTask&&(
+                <div onClick={()=>setConfirmDeleteTask(null)} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <div onClick={e=>e.stopPropagation()} className="animate-slide-up" style={{background:'var(--bg-primary)',borderRadius:'var(--radius-lg)',padding:24,maxWidth:400,width:'90%',boxShadow:'var(--shadow-lg)'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+                            <div style={{width:36,height:36,borderRadius:'50%',background:'#fef2f2',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Icon.Trash size={16} style={{color:'#ef4444'}}/></div>
+                            <h3 style={{fontSize:16,fontWeight:700,color:'var(--text-primary)'}}>Delete task?</h3>
+                        </div>
+                        <p style={{fontSize:13,color:'var(--text-secondary)',marginBottom:16,lineHeight:1.6}}>
+                            The task <strong>"{confirmDeleteTask.title}"</strong> will be permanently deleted. This cannot be undone.
+                        </p>
+                        <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
+                            <button onClick={()=>setConfirmDeleteTask(null)} className="px-4 py-2 rounded-lg text-sm font-medium" style={{background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer'}}>Cancel</button>
+                            <button onClick={()=>{if(onDeleteTask)onDeleteTask(confirmDeleteTask.id);setConfirmDeleteTask(null);}} className="px-4 py-2 rounded-lg text-sm font-medium" style={{background:'#ef4444',color:'white',border:'none',cursor:'pointer'}}>Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Group delete confirmation popup */}
+            {confirmDeleteGroup&&(
+                <div onClick={()=>setConfirmDeleteGroup(null)} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <div onClick={e=>e.stopPropagation()} className="animate-slide-up" style={{background:'var(--bg-primary)',borderRadius:'var(--radius-lg)',padding:24,maxWidth:400,width:'90%',boxShadow:'var(--shadow-lg)'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+                            <div style={{width:36,height:36,borderRadius:'50%',background:'#fef2f2',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Icon.Trash size={16} style={{color:'#ef4444'}}/></div>
+                            <h3 style={{fontSize:16,fontWeight:700,color:'var(--text-primary)'}}>Delete group?</h3>
+                        </div>
+                        <p style={{fontSize:13,color:'var(--text-secondary)',marginBottom:16,lineHeight:1.6}}>
+                            The group <strong>"{confirmDeleteGroup}"</strong> and its <strong>{taskGroups.find(g=>g.name===confirmDeleteGroup)?.tasks.length||0} task(s)</strong> will be permanently deleted. This cannot be undone.
+                        </p>
+                        <div style={{display:'flex',justifyContent:'flex-end',gap:8}}>
+                            <button onClick={()=>setConfirmDeleteGroup(null)} className="px-4 py-2 rounded-lg text-sm font-medium" style={{background:'var(--bg-secondary)',border:'1px solid var(--border)',cursor:'pointer'}}>Cancel</button>
+                            <button onClick={()=>{if(onDeleteTaskGroup)onDeleteTaskGroup(action.id,confirmDeleteGroup);setConfirmDeleteGroup(null);}} className="px-4 py-2 rounded-lg text-sm font-medium" style={{background:'#ef4444',color:'white',border:'none',cursor:'pointer'}}>Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Delete confirmation popup */}
             {showConfirmDelete&&(
                 <div onClick={()=>setShowConfirmDelete(false)} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(0,0,0,0.5)',display:'flex',alignItems:'center',justifyContent:'center'}}>

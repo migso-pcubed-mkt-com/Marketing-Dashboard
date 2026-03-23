@@ -591,14 +591,14 @@ export const mergeCardIntoAction = (existingAction, card, listToCat, mappingConf
         assignees: card.idMembers || existingAction.assignees || [],
         startDate: card.start ? card.start.split('T')[0] : existingAction.startDate,
         dueDate: card.due ? card.due.split('T')[0] : existingAction.dueDate,
-        tags: channels.length ? channels : (existingAction.tags || []),
-        countries: countries.length ? countries : (existingAction.countries || []),
-        otherLabels: otherLabels.length ? otherLabels : (existingAction.otherLabels || []),
+        tags: mappingConfig?.labelMappings ? channels : (existingAction.tags || []),
+        countries: mappingConfig?.labelMappings ? countries : (existingAction.countries || []),
+        otherLabels: mappingConfig?.labelMappings ? otherLabels : (existingAction.otherLabels || []),
         comments: mergedComments,
         attachments: mergedAttachments,
-        _inheritChannels: channels.length ? channels : (existingAction._inheritChannels || []),
-        _inheritCountries: countries.length ? countries : (existingAction._inheritCountries || []),
-        _inheritOtherLabels: otherLabels.length ? otherLabels : (existingAction._inheritOtherLabels || []),
+        _inheritChannels: mappingConfig?.labelMappings ? channels : (existingAction._inheritChannels || []),
+        _inheritCountries: mappingConfig?.labelMappings ? countries : (existingAction._inheritCountries || []),
+        _inheritOtherLabels: mappingConfig?.labelMappings ? otherLabels : (existingAction._inheritOtherLabels || []),
         _inheritAssignees: card.idMembers || existingAction._inheritAssignees || [],
         updatedAt: card.dateLastActivity,
         trelloLastModified: card.dateLastActivity
@@ -616,6 +616,17 @@ export const mergeCheckItemIntoTask = (existingTask, item, card) => {
         const d = new Date(dueDate);
         startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
     }
+    // Composite order: incorporate checklist position so group order is preserved.
+    // When checklists are reordered on Trello, item.pos within each checklist doesn't
+    // change — only checklist.pos does. Without this, checklist reorder is ignored.
+    const parentCl = (card.checklists || []).find(c =>
+        (c.checkItems || []).some(ci => ci.id === item.id)
+    );
+    const clPos = parentCl?.pos;
+    const compositeOrder = (clPos != null && item.pos != null)
+        ? (clPos * 65536 + item.pos)
+        : (item.pos != null ? item.pos : existingTask.order);
+
     return {
         ...existingTask,
         title: item.name,
@@ -623,7 +634,7 @@ export const mergeCheckItemIntoTask = (existingTask, item, card) => {
         dueDate: dueDate || existingTask.dueDate,
         startDate,
         month,
-        order: item.pos != null ? item.pos : existingTask.order,
+        order: compositeOrder,
         assignees: item.idMember ? [item.idMember] : existingTask.assignees,
         trelloLastModified: card.dateLastActivity
     };
@@ -1020,13 +1031,13 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig, listToCatId
         attachments: mergedAttachments,
         comments: mergedComments,
         assignees,
-        channels: channels.length
+        channels: mappingConfig?.labelMappings
             ? [...new Set([...channels, ...(existingTask.channels || []).filter(c => !mappedChannelIds.has(c))])]
-            : existingTask.channels,
-        countries: countries.length
+            : (existingTask.channels || []),
+        countries: mappingConfig?.labelMappings
             ? [...new Set([...countries, ...(existingTask.countries || []).filter(c => !mappedCountryIds.has(c))])]
-            : existingTask.countries,
-        otherLabels: otherLabels.length ? otherLabels : (existingTask.otherLabels || []),
+            : (existingTask.countries || []),
+        otherLabels: mappingConfig?.labelMappings ? otherLabels : (existingTask.otherLabels || []),
         updatedAt: card.dateLastActivity,
         trelloLastModified: card.dateLastActivity
     };

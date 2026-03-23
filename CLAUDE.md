@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-22 (exhaustive sync audit v2)
+> Last updated: 2026-03-23 (task/group deletion in action modal)
 
 ---
 
@@ -212,6 +212,7 @@ Props still drilled for view-specific handlers (`onUpdateTask`, `onOpenTask`, et
 **Cards ↔ Tasks (card-as-task) / Actions (card-as-action):**
 - **App → Trello**: `handleDeleteTask` archives the linked Trello card via `archiveTrelloCard()`. `handleDeleteAction` does the same in card-as-action mode. Guest/read-only users skip the archive call.
 - **App → Trello (card-as-action tasks)**: `handleDeleteTask` deletes the linked Trello checklist item via `deleteTrelloChecklistItem()`.
+- **App → Trello (card-as-action groups)**: `handleDeleteTaskGroup` deletes all checklist items + the checklist itself via `deleteTrelloChecklistItem()` + `deleteTrelloChecklist()`.
 - **Trello → App**: During sync, tasks/actions whose `trelloCardId` points to a missing/deleted card are marked `status: 'paused'`. Archived cards (`closed: true`) are similarly paused with `trelloArchived: true`. Archived cards are NOT re-imported as new entities.
 
 **Helper functions** in `trello.js`: `archiveTrelloList(listId)`, `archiveTrelloCard(cardId)` — both wrap `updateXxx(id, { closed: 'true' })`.
@@ -250,7 +251,7 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 `pushTaskExtrasToTrello(task, card, isPushWinner)` — positions are only pushed to Trello when `isPushWinner=true` (local won last-write-wins). When `isPushWinner=false`, local checklists/items are reordered to match Trello positions. Do NOT remove the `isPushWinner` parameter or always push positions — this causes Trello reorder to be overwritten. `mergeTrelloExtrasIntoTask` must also capture `order` from Trello `pos` on both checklist and item objects, and sort arrays by `order` — without this, the position pull from `pushTaskExtrasToTrello` gets overwritten.
 
 ### card-as-action: checklist/item position sync
-`mergeCheckItemIntoTask` sets `order: item.pos` when Trello wins — pulls position into local task. The position push block in `syncWithTrelloCardAsAction` is guarded by `actionHadLocalPush` — only pushes positions when at least one local item was pushed. Without this guard, Trello reorders get overwritten on next sync. After the position push completes, `trelloLastModified` must be updated on all affected tasks AND the action — otherwise `card.dateLastActivity` (updated by the position API calls) appears newer than `task.trelloLastModified`, causing a false "Trello changed" detection on next sync that overwrites local `order` with renormalized Trello positions (feedback loop).
+`mergeCheckItemIntoTask` computes a **composite order**: `checklist.pos * 65536 + item.pos`. This is critical because when checklists are reordered on Trello, only `checklist.pos` changes — individual `item.pos` values stay the same. Without the composite, checklist reorder is ignored and groups revert on next pull. Do NOT use plain `item.pos` for order — it only encodes position within a single checklist, not across checklists. The position push block in `syncWithTrelloCardAsAction` is guarded by `actionHadLocalPush` — only pushes positions when at least one local item was pushed. Without this guard, Trello reorders get overwritten on next sync. After the position push completes, `trelloLastModified` must be updated on all affected tasks AND the action — otherwise `card.dateLastActivity` (updated by the position API calls) appears newer than `task.trelloLastModified`, causing a false "Trello changed" detection on next sync that overwrites local `order` with renormalized Trello positions (feedback loop).
 
 ### Mention regex must support Unicode accented characters
 `SimpleMarkdown` inline regex and `MentionInput` detection use `[\w\u00C0-\u024F]` instead of `\w` — `\w` is ASCII-only and truncates accented names (e.g., `@Fabien Carrié` → `@Fabien Carri` + orphaned `é`). Do NOT replace with plain `\w`.

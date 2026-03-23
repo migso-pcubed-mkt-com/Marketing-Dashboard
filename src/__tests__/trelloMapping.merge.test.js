@@ -382,6 +382,23 @@ describe('mergeCardIntoTask', () => {
         expect(result.countries).toContain('uk');
     });
 
+    // ── BUG FIX: Label removal sync ──
+    it('removes channels when Trello card has no labels (label removal sync)', () => {
+        const task = { ...baseTask, channels: ['social'], countries: ['france'], otherLabels: [{ name: 'Urgent', color: '#ef4444' }] };
+        const mappingConfig = {
+            labelMappings: {
+                'lbl-social': { type: 'channel', channelId: 'social' },
+                'lbl-fr': { type: 'country', countryId: 'france' },
+                'lbl-tag': { type: 'other', labelName: 'Urgent', labelColor: '#ef4444' }
+            }
+        };
+        const card = { ...baseCard, idLabels: [] }; // All labels removed on Trello
+        const result = mergeCardIntoTask(task, card, mappingConfig, {}, []);
+        expect(result.channels).toEqual([]);
+        expect(result.countries).toEqual([]);
+        expect(result.otherLabels).toEqual([]);
+    });
+
     // ── Card movement (list change → actionId update) ──
     it('updates actionId when card moves to a different list', () => {
         const task = { ...baseTask, actionId: 'act-old' };
@@ -810,5 +827,47 @@ describe('mergeCheckItemIntoTask', () => {
         expect(result.checklists).toEqual([]);
         expect(result.comments).toEqual([]);
         expect(result.attachments).toEqual([]);
+    });
+
+    // ── Composite order (checklist position + item position) ──
+    it('computes composite order from checklist pos and item pos', () => {
+        const cardWithChecklists = {
+            ...baseCard,
+            checklists: [
+                { id: 'cl-a', name: 'CL-A', pos: 200, checkItems: [
+                    { id: 'tci-1', name: 'New item name', state: 'incomplete', pos: 16384 }
+                ]},
+                { id: 'cl-b', name: 'CL-B', pos: 100, checkItems: [
+                    { id: 'tci-2', name: 'Other item', state: 'incomplete', pos: 16384 }
+                ]}
+            ]
+        };
+        const result = mergeCheckItemIntoTask(baseTask, baseItem, cardWithChecklists);
+        // item tci-1 is in CL-A (pos 200), item.pos = 32768
+        // composite = 200 * 65536 + 32768 = 13140992
+        expect(result.order).toBe(200 * 65536 + 32768);
+    });
+
+    it('ensures items in lower-pos checklist have lower composite order', () => {
+        const cardWithChecklists = {
+            ...baseCard,
+            checklists: [
+                { id: 'cl-a', name: 'CL-A', pos: 32768, checkItems: [
+                    { id: 'tci-1', name: 'New item name', state: 'incomplete', pos: 16384 }
+                ]},
+                { id: 'cl-b', name: 'CL-B', pos: 16384, checkItems: [
+                    { id: 'tci-other', name: 'Other', state: 'incomplete', pos: 16384 }
+                ]}
+            ]
+        };
+        const itemInA = { ...baseItem, id: 'tci-1', pos: 16384 };
+        const itemInB = { id: 'tci-other', name: 'Other', state: 'incomplete', pos: 16384 };
+        const taskB = { ...baseTask, id: 't2', trelloCheckItemId: 'tci-other', order: 0 };
+
+        const resultA = mergeCheckItemIntoTask(baseTask, itemInA, cardWithChecklists);
+        const resultB = mergeCheckItemIntoTask(taskB, itemInB, cardWithChecklists);
+
+        // CL-B (pos 16384) items should have lower order than CL-A (pos 32768) items
+        expect(resultB.order).toBeLessThan(resultA.order);
     });
 });

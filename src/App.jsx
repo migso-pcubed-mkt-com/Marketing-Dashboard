@@ -12,7 +12,7 @@ import {
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
 import { syncWithTrello, isSyncInProgress } from './lib/trelloSync.js';
-import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem } from './lib/trello.js';
+import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem, deleteTrelloChecklist } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
@@ -957,6 +957,28 @@ const App = () => {
         showNotification(`✅ Group renamed to "${newName}"`);
     };
 
+    // Delete an entire checklist group (all tasks in the group + Trello checklist)
+    const handleDeleteTaskGroup = async (actionId, groupName) => {
+        const groupTasks = tasks.filter(t => t.actionId === actionId && (t.trelloChecklistName || 'Tasks') === groupName);
+        const syncMode = currentBoard?.trelloSync?.syncMode;
+        if (syncMode === 'card-as-action' && !isReadOnly) {
+            for (const task of groupTasks) {
+                if (task.trelloChecklistId && task.trelloCheckItemId) {
+                    try { await deleteTrelloChecklistItem(task.trelloChecklistId, task.trelloCheckItemId); }
+                    catch(e) { console.warn('Failed to delete Trello checklist item:', e); }
+                }
+            }
+            const checklistId = groupTasks.find(t => t.trelloChecklistId)?.trelloChecklistId;
+            if (checklistId) {
+                try { await deleteTrelloChecklist(checklistId); }
+                catch(e) { console.warn('Failed to delete Trello checklist:', e); }
+            }
+        }
+        const groupTaskIds = new Set(groupTasks.map(t => t.id));
+        setTasks(prev => prev.filter(t => !groupTaskIds.has(t.id)));
+        showNotification(`🗑️ Group "${groupName}" deleted (${groupTasks.length} task(s))`);
+    };
+
     // Add a task within a specific checklist group in an action card
     const handleAddTaskInGroup = (actionId, groupName, title) => {
         const action = actions.find(a => a.id === actionId);
@@ -1347,7 +1369,7 @@ const App = () => {
                     </ErrorBoundary>
                 </main>
                 {selectedTask && <TaskDetailModal categories={categories} task={selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={currentBoard?.members || []} isReadOnly={isReadOnly} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()}/>}
-                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onOpenTask={t => { setSelectedTask(t); }} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={currentBoard?.members || []} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup}/>}
+                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onOpenTask={t => { setSelectedTask(t); }} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={currentBoard?.members || []} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup} onDeleteTaskGroup={handleDeleteTaskGroup}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction} onAddCategory={handleAddCategory}/>}
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
