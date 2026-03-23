@@ -1338,7 +1338,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
 
     // Clone actions and tasks for mutation
     const updatedActions = [...board.actions];
-    const updatedTasks = [...board.tasks];
+    let updatedTasks = [...board.tasks];
     const newActions = [];
     const newTasks = [];
 
@@ -1454,14 +1454,22 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
 
         // Process existing tasks linked to this card's checklist items
         let actionHadLocalPush = false;
+        let actionHadLocalOrderChange = false;
         for (let j = 0; j < updatedTasks.length; j++) {
             const task = updatedTasks[j];
             if (task.actionId !== action.id || !task.trelloCheckItemId) continue;
 
             const itemData = trelloItems.get(task.trelloCheckItemId);
             if (!itemData) {
-                // Item deleted on Trello — mark as deleted to prevent auto-recreation
-                updatedTasks[j] = { ...task, trelloCheckItemId: null, trelloChecklistId: null, trelloItemDeleted: true };
+                const checklistStillExists = card.checklists?.some(cl => cl.id === task.trelloChecklistId);
+                const taskBelongsToThisCard = task.trelloCardId === card.id;
+                if (!checklistStillExists && taskBelongsToThisCard) {
+                    // Entire checklist deleted on Trello → remove task locally
+                    updatedTasks[j] = null;
+                } else {
+                    // Individual item deleted (checklist still exists) → mark as disconnected
+                    updatedTasks[j] = { ...task, trelloCheckItemId: null, trelloChecklistId: null, trelloItemDeleted: true };
+                }
                 result.updated++;
                 continue;
             }
@@ -1475,6 +1483,15 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             const taskLocallyModified = taskUpdateTime > taskSyncTime;
             const trelloItemModified = trelloTime > taskSyncTime;
 
+            // Always compute Trello composite order for position sync
+            const parentClForOrder = card.checklists?.find(c => (c.checkItems || []).some(ci => ci.id === task.trelloCheckItemId));
+            const trelloCompositeOrder = parentClForOrder
+                ? (parentClForOrder.pos || 0) * 65536 + (item.pos || 0)
+                : null;
+            // Should we keep local order? Only if user explicitly reordered (orderUpdatedAt > original trelloLastModified)
+            const orderWasLocallyChanged = new Date(task.orderUpdatedAt || 0).getTime() > taskSyncTime;
+            if (orderWasLocallyChanged) actionHadLocalOrderChange = true;
+
             if (trelloItemModified && !taskLocallyModified) {
                 // Trello changed — pull
                 updatedTasks[j] = mergeCheckItemIntoTask(task, item, card);
@@ -1485,7 +1502,10 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     try {
                         const updates = mapTaskToCheckItemUpdate(task);
                         await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, updates);
-                        updatedTasks[j] = { ...task, trelloLastModified: new Date().toISOString() };
+                        const pushed = { ...task, trelloLastModified: new Date().toISOString() };
+                        // Sync position from Trello unless user explicitly reordered
+                        if (!orderWasLocallyChanged && trelloCompositeOrder !== null) pushed.order = trelloCompositeOrder;
+                        updatedTasks[j] = pushed;
                         actionHadLocalPush = true;
                         result.pushed++;
                     } catch (e) {
@@ -1500,7 +1520,10 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     try {
                         const updates = mapTaskToCheckItemUpdate(task);
                         await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, updates);
-                        updatedTasks[j] = { ...task, trelloLastModified: new Date().toISOString() };
+                        const pushed = { ...task, trelloLastModified: new Date().toISOString() };
+                        // Sync position from Trello unless user explicitly reordered
+                        if (!orderWasLocallyChanged && trelloCompositeOrder !== null) pushed.order = trelloCompositeOrder;
+                        updatedTasks[j] = pushed;
                         actionHadLocalPush = true;
                         result.pushed++;
                     } catch (e) {
@@ -1515,35 +1538,64 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             }
         }
 
-        // Sync checklist names: if local trelloChecklistName differs from Trello, push rename
+        // Move items between checklists when task was moved to a different group locally
         if (!readOnly) {
-            const localChecklistNames = new Map(); // checklistId → localName
-            for (const task of updatedTasks) {
-                if (task.actionId === action.id && task.trelloChecklistId && task.trelloChecklistName) {
-                    localChecklistNames.set(task.trelloChecklistId, task.trelloChecklistName);
-                }
-            }
-            for (const cl of (card.checklists || [])) {
-                const localName = localChecklistNames.get(cl.id);
-                if (localName && localName !== cl.name) {
+            for (let j = 0; j < updatedTasks.length; j++) {
+                const task = updatedTasks[j];
+                if (!task || task.actionId !== action.id || !task.trelloCheckItemId || !task.trelloChecklistName) continue;
+                // Find which checklist the item is actually in on Trello
+                const actualCl = card.checklists?.find(cl => (cl.checkItems || []).some(ci => ci.id === task.trelloCheckItemId));
+                if (!actualCl) continue;
+                // If task's trelloChecklistName points to a DIFFERENT checklist on Trello
+                const targetCl = card.checklists?.find(cl => cl.name === task.trelloChecklistName);
+                if (targetCl && targetCl.id !== actualCl.id) {
                     try {
-                        await updateTrelloChecklist(cl.id, { name: localName });
+                        await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, { idChecklist: targetCl.id });
+                        updatedTasks[j] = { ...task, trelloChecklistId: targetCl.id, trelloLastModified: new Date().toISOString() };
                         result.pushed++;
                     } catch (e) {
-                        console.error(`Failed to rename checklist "${cl.name}" → "${localName}":`, e);
+                        console.error(`Failed to move item "${task.title}" to checklist "${task.trelloChecklistName}":`, e);
                     }
                 }
             }
         }
 
+        // Sync checklist names: if local trelloChecklistName differs from Trello, push rename
+        // Only rename when ALL tasks with the same trelloChecklistId agree on the name
+        if (!readOnly) {
+            const localChecklistNames = new Map(); // checklistId → Set of names
+            for (const task of updatedTasks) {
+                if (!task || task.actionId !== action.id || !task.trelloChecklistId || !task.trelloChecklistName) continue;
+                if (!localChecklistNames.has(task.trelloChecklistId)) localChecklistNames.set(task.trelloChecklistId, new Set());
+                localChecklistNames.get(task.trelloChecklistId).add(task.trelloChecklistName);
+            }
+            for (const cl of (card.checklists || [])) {
+                const names = localChecklistNames.get(cl.id);
+                if (names && names.size === 1) {
+                    const localName = [...names][0];
+                    if (localName !== cl.name) {
+                        try {
+                            await updateTrelloChecklist(cl.id, { name: localName });
+                            result.pushed++;
+                        } catch (e) {
+                            console.error(`Failed to rename checklist "${cl.name}" → "${localName}":`, e);
+                        }
+                    }
+                }
+            }
+        }
+
+        // actionHadLocalOrderChange is set during the content push loop above
+        // by comparing orderUpdatedAt against the ORIGINAL trelloLastModified (taskSyncTime)
+
         // Sync checklist and item positions to Trello (card-as-action mode)
-        // Only push positions when local items were pushed — otherwise Trello reorder would be overwritten
-        if (!readOnly && actionHadLocalPush) {
+        // Only push positions when local ORDER actually differs from Trello — otherwise Trello reorder would be overwritten
+        if (!readOnly && actionHadLocalOrderChange) {
             const positionUpdates = [];
             // Group tasks by checklistId, sorted by order
             const checklistGroups = new Map();
             for (const task of updatedTasks) {
-                if (task.actionId !== action.id || !task.trelloChecklistId) continue;
+                if (!task || task.actionId !== action.id || !task.trelloChecklistId) continue;
                 if (!checklistGroups.has(task.trelloChecklistId)) checklistGroups.set(task.trelloChecklistId, []);
                 checklistGroups.get(task.trelloChecklistId).push(task);
             }
@@ -1590,7 +1642,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 // By updating trelloLastModified to NOW, we ensure trelloTime <= taskSyncTime.
                 const positionPushTime = new Date().toISOString();
                 for (let j = 0; j < updatedTasks.length; j++) {
-                    if (updatedTasks[j].actionId === action.id && updatedTasks[j].trelloCheckItemId) {
+                    if (updatedTasks[j] && updatedTasks[j].actionId === action.id && updatedTasks[j].trelloCheckItemId) {
                         updatedTasks[j] = { ...updatedTasks[j], trelloLastModified: positionPushTime };
                     }
                 }
@@ -1602,6 +1654,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         for (const cl of (card.checklists || [])) {
             for (let j = 0; j < updatedTasks.length; j++) {
                 const task = updatedTasks[j];
+                if (!task) continue;
                 if (task.trelloChecklistId === cl.id && task.trelloChecklistName !== cl.name) {
                     const taskUpdateTime = new Date(task.updatedAt || 0).getTime();
                     const lastSyncTime = new Date(task.trelloLastModified || 0).getTime();
@@ -1617,7 +1670,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         for (const [itemId, { item, checklistId, checklistName }] of trelloItems) {
             // Check for existing local task with same title under this action that lost its trelloCheckItemId
             const existingTask = updatedTasks.find(t =>
-                t.actionId === action.id && !t.trelloCheckItemId &&
+                t && t.actionId === action.id && !t.trelloCheckItemId &&
                 t.title === item.name && (t.trelloChecklistName || 'Tasks') === checklistName
             );
             if (existingTask) {
@@ -1632,6 +1685,9 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             }
         }
     }
+
+    // Filter out tasks removed due to Trello checklist deletion (marked null above)
+    updatedTasks = updatedTasks.filter(t => t !== null);
 
     // 3. New cards on Trello (not yet in dashboard) → create new actions + tasks
     for (const [cardId, card] of trelloCardMap) {

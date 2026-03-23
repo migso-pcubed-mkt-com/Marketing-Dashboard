@@ -816,7 +816,7 @@ describe('syncWithTrello — card-as-action', () => {
                 comments: [], attachments: [], description: '', status: 'active'
             }],
             tasks: [
-                { id: 't1', title: 'Local Push', actionId: 'a1', status: 'completed', trelloCardId: 'card-1', trelloCheckItemId: 'ci-1', trelloChecklistId: 'cl-1', trelloLastModified: T.MID, updatedAt: T.NEW, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 },
+                { id: 't1', title: 'Local Push', actionId: 'a1', status: 'completed', trelloCardId: 'card-1', trelloCheckItemId: 'ci-1', trelloChecklistId: 'cl-1', trelloLastModified: T.MID, updatedAt: T.NEW, orderUpdatedAt: T.NEW, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 },
                 { id: 't2', title: 'No Change', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-2', trelloChecklistId: 'cl-1', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 1 }
             ]
         });
@@ -841,7 +841,7 @@ describe('syncWithTrello — card-as-action', () => {
             name: 'Local Push', state: 'complete'
         }));
 
-        // Position push should have happened (actionHadLocalPush = true)
+        // Position push should have happened (orderUpdatedAt > trelloLastModified on t1)
         const positionCalls = updateTrelloChecklistItem.mock.calls.filter(
             call => call[2]?.pos !== undefined
         );
@@ -1311,5 +1311,172 @@ describe('syncWithTrello — card-as-action', () => {
         const actionTasks = synced.tasks.filter(t => t.actionId === 'a1');
         expect(actionTasks).toHaveLength(2);
         expect(actionTasks.every(t => t.trelloChecklistId === 'cl-a')).toBe(true);
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Bug 1: Trello checklist reorder must be preserved when
+    // only local CONTENT (not order) was pushed
+    // ════════════════════════════════════════════════════════
+    it('preserves Trello checklist reorder when only local content pushed', async () => {
+        // Task t1 has local content change (title). Trello also reordered: CL-B before CL-A.
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [
+                { id: 't1', title: 'Renamed Locally', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-a1', trelloChecklistId: 'cl-a', trelloChecklistName: 'CL-A', trelloLastModified: T.MID, updatedAt: T.NEW, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 },
+                { id: 't2', title: 'A-Item2', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-a2', trelloChecklistId: 'cl-a', trelloChecklistName: 'CL-A', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 1 },
+                { id: 't3', title: 'B-Item1', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-b1', trelloChecklistId: 'cl-b', trelloChecklistName: 'CL-B', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 2 },
+                { id: 't4', title: 'B-Item2', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-b2', trelloChecklistId: 'cl-b', trelloChecklistName: 'CL-B', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 3 }
+            ]
+        });
+
+        // Trello: CL-B (pos 100) BEFORE CL-A (pos 200). Content unchanged.
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.NEW,
+                checklists: [
+                    { id: 'cl-a', name: 'CL-A', pos: 200, checkItems: [
+                        { id: 'ci-a1', name: 'Old Name', state: 'incomplete', pos: 16384 },
+                        { id: 'ci-a2', name: 'A-Item2', state: 'incomplete', pos: 32768 }
+                    ]},
+                    { id: 'cl-b', name: 'CL-B', pos: 100, checkItems: [
+                        { id: 'ci-b1', name: 'B-Item1', state: 'incomplete', pos: 16384 },
+                        { id: 'ci-b2', name: 'B-Item2', state: 'incomplete', pos: 32768 }
+                    ]}
+                ]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // t1 content should have been pushed (local wins — title changed)
+        expect(updateTrelloChecklistItem).toHaveBeenCalledWith('card-1', 'ci-a1', expect.objectContaining({
+            name: 'Renamed Locally'
+        }));
+
+        // Checklist positions should NOT be pushed — Trello reorder must be preserved
+        const checklistPosCalls = updateTrelloChecklist.mock.calls.filter(
+            call => call[1]?.pos !== undefined
+        );
+        expect(checklistPosCalls).toHaveLength(0);
+
+        // Local order should reflect Trello reorder: CL-B (pos 100) < CL-A (pos 200)
+        const t3 = synced.tasks.find(t => t.id === 't3');
+        const t1 = synced.tasks.find(t => t.id === 't1');
+        expect(t3.order).toBeLessThan(t1.order);
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Bug 2: Moving a task between checklist groups must move
+    // the item on Trello (not create a duplicate checklist)
+    // ════════════════════════════════════════════════════════
+    it('moves checklist item to correct checklist when task moved between groups', async () => {
+        // Task t3 was moved locally from CL-Source to CL-Target group:
+        // trelloChecklistName changed to 'Target', trelloChecklistId still 'cl-source'
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [
+                { id: 't1', title: 'Source-Item', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-s1', trelloChecklistId: 'cl-source', trelloChecklistName: 'Source', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 },
+                { id: 't2', title: 'Target-Item', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-t1', trelloChecklistId: 'cl-target', trelloChecklistName: 'Target', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 1 },
+                // This task was moved: trelloChecklistName='Target' but trelloChecklistId still 'cl-source'
+                { id: 't3', title: 'Moved-Item', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-s2', trelloChecklistId: 'cl-source', trelloChecklistName: 'Target', trelloLastModified: T.MID, updatedAt: T.NEW, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 2 }
+            ]
+        });
+
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.MID,
+                checklists: [
+                    { id: 'cl-source', name: 'Source', pos: 100, checkItems: [
+                        { id: 'ci-s1', name: 'Source-Item', state: 'incomplete', pos: 16384 },
+                        { id: 'ci-s2', name: 'Moved-Item', state: 'incomplete', pos: 32768 }
+                    ]},
+                    { id: 'cl-target', name: 'Target', pos: 200, checkItems: [
+                        { id: 'ci-t1', name: 'Target-Item', state: 'incomplete', pos: 16384 }
+                    ]}
+                ]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // The item should be moved to cl-target via idChecklist param
+        expect(updateTrelloChecklistItem).toHaveBeenCalledWith('card-1', 'ci-s2', expect.objectContaining({
+            idChecklist: 'cl-target'
+        }));
+
+        // Task should have updated trelloChecklistId
+        const t3 = synced.tasks.find(t => t.id === 't3');
+        expect(t3.trelloChecklistId).toBe('cl-target');
+
+        // Source checklist should NOT be renamed to 'Target'
+        const renameCalls = updateTrelloChecklist.mock.calls.filter(
+            call => call[0] === 'cl-source' && call[1]?.name !== undefined
+        );
+        expect(renameCalls).toHaveLength(0);
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Bug 3: When an entire checklist is deleted on Trello,
+    // corresponding local tasks must be removed (not just marked)
+    // ════════════════════════════════════════════════════════
+    it('removes tasks when entire checklist deleted on Trello', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [
+                { id: 't1', title: 'A-Item1', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-a1', trelloChecklistId: 'cl-a', trelloChecklistName: 'CL-A', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 },
+                { id: 't2', title: 'A-Item2', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-a2', trelloChecklistId: 'cl-a', trelloChecklistName: 'CL-A', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 1 },
+                { id: 't3', title: 'B-Item1', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-b1', trelloChecklistId: 'cl-b', trelloChecklistName: 'CL-B', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 2 },
+                { id: 't4', title: 'B-Item2', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-b2', trelloChecklistId: 'cl-b', trelloChecklistName: 'CL-B', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 3 }
+            ]
+        });
+
+        // Trello: CL-B is completely gone (deleted). Only CL-A remains.
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.NEW,
+                checklists: [{
+                    id: 'cl-a', name: 'CL-A', pos: 16384,
+                    checkItems: [
+                        { id: 'ci-a1', name: 'A-Item1', state: 'incomplete', pos: 16384 },
+                        { id: 'ci-a2', name: 'A-Item2', state: 'incomplete', pos: 32768 }
+                    ]
+                }]
+                // CL-B is absent — entire checklist deleted on Trello
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // CL-B tasks should be REMOVED (not just marked trelloItemDeleted)
+        const allTasks = synced.tasks.filter(t => t.actionId === 'a1');
+        expect(allTasks).toHaveLength(2);
+        expect(allTasks.every(t => t.trelloChecklistId === 'cl-a')).toBe(true);
+        // No zombie t3/t4 tasks should exist
+        expect(synced.tasks.find(t => t.id === 't3')).toBeUndefined();
+        expect(synced.tasks.find(t => t.id === 't4')).toBeUndefined();
     });
 });
