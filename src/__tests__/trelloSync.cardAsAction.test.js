@@ -1205,4 +1205,62 @@ describe('syncWithTrello — card-as-action', () => {
         // Labels should NOT be re-pushed to Trello
         expect(addTrelloCardLabel).not.toHaveBeenCalled();
     });
+
+    // ════════════════════════════════════════════════════════
+    // Checklist reorder on Trello → local task group order
+    // must reflect the new checklist positions (PULL)
+    // ════════════════════════════════════════════════════════
+    it('pulls checklist reorder from Trello into task group order', async () => {
+        // Initial state: tasks in CL-A (order 0,1) then CL-B (order 2,3)
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [
+                { id: 't1', title: 'A-Item1', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-a1', trelloChecklistId: 'cl-a', trelloChecklistName: 'CL-A', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 },
+                { id: 't2', title: 'A-Item2', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-a2', trelloChecklistId: 'cl-a', trelloChecklistName: 'CL-A', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 1 },
+                { id: 't3', title: 'B-Item1', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-b1', trelloChecklistId: 'cl-b', trelloChecklistName: 'CL-B', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 2 },
+                { id: 't4', title: 'B-Item2', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-b2', trelloChecklistId: 'cl-b', trelloChecklistName: 'CL-B', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 3 }
+            ]
+        });
+
+        // Trello: checklists reordered — CL-B (pos 100) now BEFORE CL-A (pos 200)
+        // Item positions within each checklist are unchanged
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.NEW, // Trello changed
+                checklists: [
+                    { id: 'cl-a', name: 'CL-A', pos: 200, checkItems: [
+                        { id: 'ci-a1', name: 'A-Item1', state: 'incomplete', pos: 16384 },
+                        { id: 'ci-a2', name: 'A-Item2', state: 'incomplete', pos: 32768 }
+                    ]},
+                    { id: 'cl-b', name: 'CL-B', pos: 100, checkItems: [
+                        { id: 'ci-b1', name: 'B-Item1', state: 'incomplete', pos: 16384 },
+                        { id: 'ci-b2', name: 'B-Item2', state: 'incomplete', pos: 32768 }
+                    ]}
+                ]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        const t1 = synced.tasks.find(t => t.id === 't1'); // CL-A
+        const t2 = synced.tasks.find(t => t.id === 't2'); // CL-A
+        const t3 = synced.tasks.find(t => t.id === 't3'); // CL-B
+        const t4 = synced.tasks.find(t => t.id === 't4'); // CL-B
+
+        // CL-B (pos 100) should now have LOWER order than CL-A (pos 200)
+        // So t3,t4 should come before t1,t2
+        expect(t3.order).toBeLessThan(t1.order);
+        expect(t4.order).toBeLessThan(t1.order);
+        // Within each checklist, item order should be preserved
+        expect(t1.order).toBeLessThan(t2.order);
+        expect(t3.order).toBeLessThan(t4.order);
+    });
 });
