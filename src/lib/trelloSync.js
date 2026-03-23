@@ -731,7 +731,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
 
     // 2. For each existing task with trelloCardId, check for updates
     for (let i = 0; i < updatedTasks.length; i++) {
-        const task = updatedTasks[i];
+        let task = updatedTasks[i];
         if (!task.trelloCardId) continue;
         // Skip card-as-action tasks — they use trelloCheckItemId, not their own card
         // This guard prevents accidental processing if syncMode is lost/corrupted
