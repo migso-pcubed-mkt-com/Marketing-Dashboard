@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-23 | Add task/group deletion in ActionDetailModal (card-as-action): `handleDeleteTaskGroup` handler + delete buttons with confirmation popups | Tasks and task groups had no delete UI in the action modal — users could only delete the entire action |
 | 2026-03-23 | Fix card-as-action checklist reorder sync: use composite order (`checklist.pos * 65536 + item.pos`) in `mergeCheckItemIntoTask` | Plain `item.pos` ignored checklist-level position changes — reordering checklists on Trello had no effect on task group order, and App→Trello reorders reverted on next pull |
 | 2026-03-22 | Fix Trello polling interval reset: use ref pattern for handleTrelloSync in polling useEffect; clean listToCatId after category removal; add updatedAt to mergeCardIntoAction | Polling useEffect depended on handleTrelloSync callback which changed on every board/status update — interval timer reset constantly so auto-sync never fired; stale listToCatId entries caused cards to map to removed categories |
 | 2026-03-22 | Fix card-as-action position push feedback loop: update trelloLastModified on tasks/action after position push | Position push updated card.dateLastActivity on Trello without updating local trelloLastModified, causing next sync to falsely detect Trello changes and overwrite local order values — groups jumped randomly |

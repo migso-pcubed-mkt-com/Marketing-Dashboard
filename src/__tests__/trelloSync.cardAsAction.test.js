@@ -1263,4 +1263,53 @@ describe('syncWithTrello — card-as-action', () => {
         expect(t1.order).toBeLessThan(t2.order);
         expect(t3.order).toBeLessThan(t4.order);
     });
+
+    // ════════════════════════════════════════════════════════
+    // Group deletion: after deleting a task group locally
+    // (tasks removed + Trello checklist deleted), sync must
+    // NOT re-create the tasks from remaining checklist items
+    // ════════════════════════════════════════════════════════
+    it('does not re-create tasks after group deletion when checklist removed from Trello', async () => {
+        // Board has action with 2 groups. Group CL-B was deleted locally (tasks removed).
+        // Trello also no longer has CL-B (deleted via deleteTrelloChecklist).
+        // Only CL-A remains on both sides.
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [
+                // Only CL-A tasks remain locally (CL-B was deleted)
+                { id: 't1', title: 'A-Item1', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-a1', trelloChecklistId: 'cl-a', trelloChecklistName: 'CL-A', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 },
+                { id: 't2', title: 'A-Item2', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-a2', trelloChecklistId: 'cl-a', trelloChecklistName: 'CL-A', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 1 }
+            ]
+        });
+
+        // Trello: only CL-A exists (CL-B was deleted via API)
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.MID,
+                checklists: [{
+                    id: 'cl-a', name: 'CL-A', pos: 16384,
+                    checkItems: [
+                        { id: 'ci-a1', name: 'A-Item1', state: 'incomplete', pos: 16384 },
+                        { id: 'ci-a2', name: 'A-Item2', state: 'incomplete', pos: 32768 }
+                    ]
+                }]
+                // Note: CL-B is completely absent — it was deleted
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // Only the 2 CL-A tasks should remain — no CL-B zombie tasks re-created
+        const actionTasks = synced.tasks.filter(t => t.actionId === 'a1');
+        expect(actionTasks).toHaveLength(2);
+        expect(actionTasks.every(t => t.trelloChecklistId === 'cl-a')).toBe(true);
+    });
 });
