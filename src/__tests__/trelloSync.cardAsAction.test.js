@@ -1157,4 +1157,52 @@ describe('syncWithTrello — card-as-action', () => {
         // 'lbl-email' should remain (action still has 'email' tag)
         expect(addTrelloCardLabel).not.toHaveBeenCalledWith('card-1', 'lbl-email');
     });
+
+    // ════════════════════════════════════════════════════════
+    // BUG FIX: Label removal on Trello must not reappear after sync
+    // ════════════════════════════════════════════════════════
+    it('removes action tags/countries when Trello labels are removed (label removal sync)', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, // Not locally modified → Trello wins
+                budget: 0, priority: 'medium',
+                tags: ['social'], countries: ['france'],
+                otherLabels: [{ name: 'Urgent', color: '#ef4444' }],
+                _inheritChannels: ['social'], _inheritCountries: ['france'],
+                _inheritOtherLabels: [{ name: 'Urgent', color: '#ef4444' }],
+                assignees: [], _inheritAssignees: [],
+                comments: [], attachments: [],
+                description: '', status: 'inprogress'
+            }],
+            tasks: []
+        });
+        const mappingConfig = {
+            labelMappings: {
+                'lbl-social': { type: 'channel', channelId: 'social' },
+                'lbl-fr': { type: 'country', countryId: 'france' },
+                'lbl-tag': { type: 'other', labelName: 'Urgent', labelColor: '#ef4444' }
+            }
+        };
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', name: 'Action', dateLastActivity: T.NEW,
+                idLabels: [], // All labels removed on Trello
+                checklists: []
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, mappingConfig);
+
+        const action = synced.actions[0];
+        // Labels should be removed locally
+        expect(action.tags).toEqual([]);
+        expect(action.countries).toEqual([]);
+        expect(action.otherLabels).toEqual([]);
+        // Labels should NOT be re-pushed to Trello
+        expect(addTrelloCardLabel).not.toHaveBeenCalled();
+    });
 });

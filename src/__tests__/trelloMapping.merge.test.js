@@ -382,6 +382,23 @@ describe('mergeCardIntoTask', () => {
         expect(result.countries).toContain('uk');
     });
 
+    // ── BUG FIX: Label removal sync ──
+    it('removes channels when Trello card has no labels (label removal sync)', () => {
+        const task = { ...baseTask, channels: ['social'], countries: ['france'], otherLabels: [{ name: 'Urgent', color: '#ef4444' }] };
+        const mappingConfig = {
+            labelMappings: {
+                'lbl-social': { type: 'channel', channelId: 'social' },
+                'lbl-fr': { type: 'country', countryId: 'france' },
+                'lbl-tag': { type: 'other', labelName: 'Urgent', labelColor: '#ef4444' }
+            }
+        };
+        const card = { ...baseCard, idLabels: [] }; // All labels removed on Trello
+        const result = mergeCardIntoTask(task, card, mappingConfig, {}, []);
+        expect(result.channels).toEqual([]);
+        expect(result.countries).toEqual([]);
+        expect(result.otherLabels).toEqual([]);
+    });
+
     // ── Card movement (list change → actionId update) ──
     it('updates actionId when card moves to a different list', () => {
         const task = { ...baseTask, actionId: 'act-old' };
