@@ -662,7 +662,9 @@ const App = () => {
         setTasks(prev => prev.map(t => {
             const u = updates.find(u => u.id === t.id);
             if (!u) return t;
-            const newTask = {...t, ...u.changes, updatedAt: new Date().toISOString()};
+            const now = new Date().toISOString();
+            const newTask = {...t, ...u.changes, updatedAt: now};
+            if (u.changes.order !== undefined) newTask.orderUpdatedAt = now;
             if (u.changes.dueDate) {
                 newTask.month = new Date(u.changes.dueDate).getMonth();
             } else if (u.changes.startDate) {

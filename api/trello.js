@@ -287,7 +287,7 @@ export default async function handler(req, res) {
 
         // PUT /api/trello?action=updateCheckItem — Update a checklist item (state, name, due, idMember, pos)
         if (req.method === 'POST' && action === 'updateCheckItem') {
-            const { cardId: cid, checkItemId, state: itemState, name: itemName, due: itemDue, idMember: itemMember, pos: itemPos } = req.body;
+            const { cardId: cid, checkItemId, state: itemState, name: itemName, due: itemDue, idMember: itemMember, pos: itemPos, idChecklist } = req.body;
             if (!cid || !checkItemId) return res.status(400).json({ error: 'cardId and checkItemId required' });
             const params = new URLSearchParams();
             params.append('key', TRELLO_API_KEY);
@@ -297,6 +297,7 @@ export default async function handler(req, res) {
             if (itemDue !== undefined) params.append('due', itemDue === null ? '' : itemDue);
             if (itemMember !== undefined) params.append('idMember', itemMember === null ? '' : itemMember);
             if (itemPos !== undefined && itemPos !== null) params.append('pos', String(itemPos));
+            if (idChecklist) params.append('idChecklist', idChecklist);
             console.log(`Updating checkItem ${checkItemId} on card ${cid}...`);
             const resp = await fetch(`${TRELLO_BASE}/cards/${cid}/checkItem/${checkItemId}?${params.toString()}`, { method: 'PUT' });
             if (!resp.ok) {
