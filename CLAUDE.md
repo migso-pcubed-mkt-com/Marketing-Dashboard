@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-23 (card-as-action sync: position/move/deletion fixes)
+> Last updated: 2026-03-24 (card-as-action sync: label removal fix)
 
 ---
 
@@ -312,6 +312,9 @@ When a Trello checklist item is deleted, the local task gets `trelloItemDeleted:
 
 ### card-as-action: pushActionLabelsToTrello for action label sync
 Action labels (tags/channels, countries, otherLabels) are pushed to Trello via `pushActionLabelsToTrello()`. Do NOT rely on `pushActionExtrasToTrello()` for labels — that function only handles comments and attachments.
+
+### card-as-action: pushActionExtrasToTrello must use merged action, not original
+`pushActionExtrasToTrello(updatedActions[i], card)` must receive the **merged** action (`updatedActions[i]`), NOT the original `action` variable. The function mutates comments/attachments in-place. Do NOT spread `...action` over `updatedActions[i]` after extras push — this overwrites merged tags/countries/otherLabels (from Trello pull) with stale local values, causing `pushActionLabelsToTrello` to re-add labels that were removed on Trello.
 
 ### Dedup guard on card import
 `syncWithTrelloCardAsTask` checks `updatedTasks.some(t => t.trelloCardId === card.id)` before importing new cards. Prevents duplicate tasks if sync runs twice in quick succession.

@@ -1425,10 +1425,8 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         // Push action extras (comments, attachments only — NEVER touch checklists)
         if (!readOnly && action.trelloCardId) {
             try {
-                const { actionModified } = await pushActionExtrasToTrello(action, card);
-                if (actionModified) {
-                    updatedActions[i] = { ...updatedActions[i], ...action };
-                }
+                await pushActionExtrasToTrello(updatedActions[i], card);
+                // No re-assignment needed — extras (comments/attachments) are mutated in-place on updatedActions[i]
             } catch (e) {
                 console.error(`Failed to push extras for action "${action.name}":`, e);
                 result.errors++;

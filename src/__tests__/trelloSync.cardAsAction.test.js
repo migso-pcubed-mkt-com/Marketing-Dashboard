@@ -1206,6 +1206,54 @@ describe('syncWithTrello — card-as-action', () => {
         expect(addTrelloCardLabel).not.toHaveBeenCalled();
     });
 
+    it('does not re-add removed labels when extras are pushed (label removal with comments)', async () => {
+        // Action has a comment without trelloCommentId → triggers pushActionExtrasToTrello → actionModified=true
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, // Not locally modified → Trello wins
+                budget: 0, priority: 'medium',
+                tags: ['social'], countries: ['france'],
+                otherLabels: [{ name: 'Urgent', color: '#ef4444' }],
+                _inheritChannels: ['social'], _inheritCountries: ['france'],
+                _inheritOtherLabels: [{ name: 'Urgent', color: '#ef4444' }],
+                assignees: [], _inheritAssignees: [],
+                comments: [{ text: 'A local comment', trelloCommentId: null }],
+                attachments: [],
+                description: '', status: 'inprogress'
+            }],
+            tasks: []
+        });
+        const mappingConfig = {
+            labelMappings: {
+                'lbl-social': { type: 'channel', channelId: 'social' },
+                'lbl-fr': { type: 'country', countryId: 'france' },
+                'lbl-tag': { type: 'other', labelName: 'Urgent', labelColor: '#ef4444' }
+            }
+        };
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', name: 'Action', dateLastActivity: T.NEW,
+                idLabels: [], // All labels removed on Trello
+                checklists: [],
+                comments: [] // No comment on Trello yet
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, mappingConfig);
+
+        const action = synced.actions[0];
+        // Labels should be removed locally (Trello won the merge)
+        expect(action.tags).toEqual([]);
+        expect(action.countries).toEqual([]);
+        expect(action.otherLabels).toEqual([]);
+        // Labels should NOT be re-pushed to Trello despite extras being pushed
+        expect(addTrelloCardLabel).not.toHaveBeenCalled();
+    });
+
     // ════════════════════════════════════════════════════════
     // Checklist reorder on Trello → local task group order
     // must reflect the new checklist positions (PULL)
