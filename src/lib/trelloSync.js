@@ -111,6 +111,63 @@ export const validateBoardIntegrity = (board) => {
     return { valid: warnings.length === 0, warnings, repairs, board: repairedBoard };
 };
 
+// Build selective update for actions — only include fields that changed locally vs _trelloBaseline
+const buildSelectiveActionUpdate = (action, listId) => {
+    const baseline = action._trelloBaseline;
+    if (!baseline) return mapActionToTrelloCardUpdate(action, listId); // no baseline → push everything
+    const updates = {};
+    if (action.name !== baseline.name) updates.name = action.name;
+    if ((action.description || '') !== (baseline.description || '')) updates.desc = action.description || '';
+    if (action.startDate !== baseline.startDate) updates.start = action.startDate || null;
+    if (action.dueDate !== baseline.dueDate) updates.due = action.dueDate || null;
+    if ((action.status === 'completed') !== (baseline.status === 'completed')) updates.dueComplete = (action.status === 'completed').toString();
+    if (JSON.stringify(action.assignees || []) !== JSON.stringify(baseline.assignees || [])) {
+        updates.idMembers = (action.assignees || []).join(',');
+    }
+    if (listId) updates.idList = listId; // always include for category move
+    // If nothing changed, still need at least name for a valid Trello update
+    if (Object.keys(updates).length === 0 || (Object.keys(updates).length === 1 && updates.idList)) {
+        updates.name = action.name;
+    }
+    return updates;
+};
+
+// Build selective update for tasks (card-as-task) — only include fields that changed locally
+const buildSelectiveTaskUpdate = (task, listId) => {
+    const baseline = task._trelloBaseline;
+    if (!baseline) return mapTaskToTrelloCardUpdate(task, listId); // no baseline → push everything
+    const updates = {};
+    if (task.title !== baseline.title) updates.name = task.title;
+    if ((task.description || '') !== (baseline.description || '')) updates.desc = task.description || '';
+    if (task.startDate !== baseline.startDate) updates.start = task.startDate || null;
+    if (task.dueDate !== baseline.dueDate) updates.due = task.dueDate || null;
+    if ((task.status === 'completed') !== (baseline.status === 'completed')) updates.dueComplete = (task.status === 'completed').toString();
+    if (JSON.stringify(task.assignees || []) !== JSON.stringify(baseline.assignees || [])) {
+        updates.idMembers = (task.assignees || []).join(',');
+    }
+    if (listId) updates.idList = listId;
+    if (Object.keys(updates).length === 0 || (Object.keys(updates).length === 1 && updates.idList)) {
+        updates.name = task.title;
+    }
+    return updates;
+};
+
+// Build selective update for checklist items (card-as-action tasks)
+const buildSelectiveCheckItemUpdate = (task) => {
+    const baseline = task._trelloBaseline;
+    if (!baseline) return mapTaskToCheckItemUpdate(task); // no baseline → push everything
+    const updates = {};
+    if (task.title !== baseline.title) updates.name = task.title;
+    const localStatus = task.status === 'completed' ? 'completed' : 'todo';
+    if (localStatus !== baseline.status) updates.state = task.status === 'completed' ? 'complete' : 'incomplete';
+    if (task.dueDate !== baseline.dueDate) updates.due = task.dueDate || null;
+    if (JSON.stringify(task.assignees || []) !== JSON.stringify(baseline.assignees || [])) {
+        updates.idMember = task.assignees?.[0] || null;
+    }
+    if (Object.keys(updates).length === 0) updates.name = task.title;
+    return updates;
+};
+
 // Push comments, checklists, attachments that don't already exist on Trello.
 // isPushWinner: true = local wins (push positions to Trello), false = pull Trello positions into local order.
 // Returns { pushed, taskModified, deletedChecklistIds } — deletedChecklistIds lists checklists deleted on Trello.
@@ -797,8 +854,14 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     // Push labels (channels, countries, otherLabels)
                     await pushTaskLabelsToTrello(task, card, board, mappingConfig);
                     // After push, also pull any new Trello extras (checklists, items) into local task
+                    // Preserve pushed labels — mergeTrelloExtrasIntoTask unions stale card.idLabels
                     const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig);
-                    updatedTasks[i] = { ...mergedTask, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
+                    updatedTasks[i] = {
+                        ...mergedTask,
+                        channels: task.channels, countries: task.countries, otherLabels: task.otherLabels,
+                        _inheritChannels: task._inheritChannels, _inheritCountries: task._inheritCountries, _inheritOtherLabels: task._inheritOtherLabels,
+                        trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt
+                    };
                     result.pushed++;
                 } catch (err) {
                     console.error(`Failed to push task "${task.title}" to Trello:`, err);
@@ -812,7 +875,8 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 try {
                     const action = board.actions.find(a => a.id === task.actionId);
                     const listId = action ? catToListId[action.categoryId] : null;
-                    const updates = mapTaskToTrelloCardUpdate(task, listId);
+                    // Selective push: only push fields that changed locally vs baseline
+                    const updates = buildSelectiveTaskUpdate(task, listId);
                     await updateTrelloCard(task.trelloCardId, updates);
                     // isPushWinner=true: local wins the conflict
                     const { taskModified, deletedChecklistIds } = await pushTaskExtrasToTrello(task, card, true);
@@ -820,10 +884,46 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                         const delSet = new Set(deletedChecklistIds);
                         task.checklists = (task.checklists || []).filter(cl => !delSet.has(cl.id));
                     }
+                    // When both changed, check if labels were specifically changed locally
+                    // If not, pull Trello's label state instead of pushing stale labels
+                    if (trelloModified && mappingConfig?.labelMappings) {
+                        const labelsChangedLocally =
+                            JSON.stringify(task.channels || []) !== JSON.stringify(task._inheritChannels || []) ||
+                            JSON.stringify(task.countries || []) !== JSON.stringify(task._inheritCountries || []) ||
+                            JSON.stringify((task.otherLabels || []).map(l => l.name).sort()) !== JSON.stringify((task._inheritOtherLabels || []).map(l => l.name).sort());
+                        if (!labelsChangedLocally) {
+                            const mergedForLabels = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
+                            task.channels = mergedForLabels.channels;
+                            task.countries = mergedForLabels.countries;
+                            task.otherLabels = mergedForLabels.otherLabels;
+                            task._inheritChannels = mergedForLabels._inheritChannels;
+                            task._inheritCountries = mergedForLabels._inheritCountries;
+                            task._inheritOtherLabels = mergedForLabels._inheritOtherLabels;
+                        }
+                    }
                     await pushTaskLabelsToTrello(task, card, board, mappingConfig);
+                    // Merge non-pushed fields from Trello (selective push preserved Trello's changes for those fields)
+                    const mergedFromTrello = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
                     // After push, also pull any new Trello extras (checklists, items) into local task
+                    // Preserve pushed labels — mergeTrelloExtrasIntoTask unions stale card.idLabels
                     const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig);
-                    updatedTasks[i] = { ...mergedTask, trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt };
+                    // Build final task: start from merged Trello values, overlay locally-changed fields
+                    const baseline = task._trelloBaseline || {};
+                    const finalTask = { ...mergedTask };
+                    // Pull non-pushed content fields from Trello
+                    if (task.title === baseline.title) finalTask.title = mergedFromTrello.title;
+                    if ((task.description || '') === (baseline.description || '')) finalTask.description = mergedFromTrello.description;
+                    if (task.startDate === baseline.startDate) finalTask.startDate = mergedFromTrello.startDate;
+                    if (task.dueDate === baseline.dueDate) { finalTask.dueDate = mergedFromTrello.dueDate; finalTask.month = mergedFromTrello.month; }
+                    if ((task.status === 'completed') === (baseline.status === 'completed')) finalTask.status = mergedFromTrello.status;
+                    if (JSON.stringify(task.assignees || []) === JSON.stringify(baseline.assignees || [])) finalTask.assignees = mergedFromTrello.assignees;
+                    updatedTasks[i] = {
+                        ...finalTask,
+                        channels: task.channels, countries: task.countries, otherLabels: task.otherLabels,
+                        _inheritChannels: task._inheritChannels, _inheritCountries: task._inheritCountries, _inheritOtherLabels: task._inheritOtherLabels,
+                        _trelloBaseline: mergedFromTrello._trelloBaseline,
+                        trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt
+                    };
                     result.pushed++;
                 } catch (err) {
                     console.error(`Failed to push task "${task.title}" to Trello:`, err);
@@ -1400,13 +1500,26 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             // Trello changed — pull
             updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
         } else if (trelloCardModified && actionLocallyModified) {
-            // Both changed — last write wins
+            // Both changed — last write wins with selective push
             if (actionUpdateTime >= trelloTime && !readOnly) {
                 try {
                     const listId = catToListId[action.categoryId];
-                    const updates = mapActionToTrelloCardUpdate(action, listId);
+                    // Selective push: only push fields that changed locally vs baseline
+                    const updates = buildSelectiveActionUpdate(action, listId);
                     await updateTrelloCard(action.trelloCardId, updates);
-                    updatedActions[i] = { ...action, trelloLastModified: new Date().toISOString() };
+                    // Merge non-pushed fields from Trello
+                    const mergedFromTrello = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+                    const baseline = action._trelloBaseline || {};
+                    const merged = { ...action, trelloLastModified: new Date().toISOString() };
+                    // Pull non-pushed content fields from Trello
+                    if (action.name === baseline.name) merged.name = mergedFromTrello.name;
+                    if ((action.description || '') === (baseline.description || '')) merged.description = mergedFromTrello.description;
+                    if (action.startDate === baseline.startDate) merged.startDate = mergedFromTrello.startDate;
+                    if (action.dueDate === baseline.dueDate) merged.dueDate = mergedFromTrello.dueDate;
+                    if ((action.status === 'completed') === (baseline.status === 'completed')) merged.status = mergedFromTrello.status;
+                    if (JSON.stringify(action.assignees || []) === JSON.stringify(baseline.assignees || [])) merged.assignees = mergedFromTrello.assignees;
+                    merged._trelloBaseline = mergedFromTrello._trelloBaseline;
+                    updatedActions[i] = merged;
                     result.pushed++;
                 } catch (e) {
                     console.error(`Failed to push action "${action.name}" to Trello:`, e);
@@ -1420,6 +1533,28 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         } else {
             // Neither changed — just refresh metadata (comments, attachments)
             updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+        }
+
+        // When local won content but Trello also changed, check if labels were
+        // specifically changed locally. If not, pull Trello's label state to avoid
+        // re-pushing stale labels that were removed on Trello.
+        if (trelloCardModified && actionLocallyModified && !readOnly && mappingConfig?.labelMappings) {
+            const labelsChangedLocally =
+                JSON.stringify(action.tags || []) !== JSON.stringify(action._inheritChannels || []) ||
+                JSON.stringify(action.countries || []) !== JSON.stringify(action._inheritCountries || []) ||
+                JSON.stringify((action.otherLabels || []).map(l => l.name).sort()) !== JSON.stringify((action._inheritOtherLabels || []).map(l => l.name).sort());
+            if (!labelsChangedLocally) {
+                const mergedForLabels = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+                updatedActions[i] = {
+                    ...updatedActions[i],
+                    tags: mergedForLabels.tags,
+                    countries: mergedForLabels.countries,
+                    otherLabels: mergedForLabels.otherLabels,
+                    _inheritChannels: mergedForLabels._inheritChannels,
+                    _inheritCountries: mergedForLabels._inheritCountries,
+                    _inheritOtherLabels: mergedForLabels._inheritOtherLabels
+                };
+            }
         }
 
         // Push action extras (comments, attachments only — NEVER touch checklists)
@@ -1513,12 +1648,23 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     }
                 }
             } else if (trelloItemModified && taskLocallyModified) {
-                // Both changed — last write wins
+                // Both changed — last write wins with selective push
                 if (taskUpdateTime >= trelloTime && !readOnly) {
                     try {
-                        const updates = mapTaskToCheckItemUpdate(task);
+                        // Selective push: only push fields that changed locally vs baseline
+                        const updates = buildSelectiveCheckItemUpdate(task);
                         await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, updates);
+                        // Merge non-pushed fields from Trello
+                        const mergedFromTrello = mergeCheckItemIntoTask(task, item, card);
+                        const baseline = task._trelloBaseline || {};
                         const pushed = { ...task, trelloLastModified: new Date().toISOString() };
+                        // Pull non-pushed content fields from Trello
+                        if (task.title === baseline.title) pushed.title = mergedFromTrello.title;
+                        if (task.dueDate === baseline.dueDate) { pushed.dueDate = mergedFromTrello.dueDate; pushed.month = mergedFromTrello.month; pushed.startDate = mergedFromTrello.startDate; }
+                        const localStatus = task.status === 'completed' ? 'completed' : 'todo';
+                        if (localStatus === baseline.status) pushed.status = mergedFromTrello.status;
+                        if (JSON.stringify(task.assignees || []) === JSON.stringify(baseline.assignees || [])) pushed.assignees = mergedFromTrello.assignees;
+                        pushed._trelloBaseline = mergedFromTrello._trelloBaseline;
                         // Sync position from Trello unless user explicitly reordered
                         if (!orderWasLocallyChanged && trelloCompositeOrder !== null) pushed.order = trelloCompositeOrder;
                         updatedTasks[j] = pushed;
