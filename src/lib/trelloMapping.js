@@ -224,6 +224,17 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
         countries,
         assignees,
         otherLabels,
+        _inheritChannels: channels,
+        _inheritCountries: countries,
+        _inheritOtherLabels: otherLabels,
+        _trelloBaseline: {
+            title: card.name,
+            description: card.desc || '',
+            startDate: card.start ? card.start.split('T')[0] : null,
+            dueDate: card.due ? card.due.split('T')[0] : null,
+            status: card.dueComplete ? 'completed' : null,
+            assignees: card.idMembers || []
+        },
         order: card.pos || 0,
         createdAt: new Date().toISOString(),
         trelloCardId: card.id,
@@ -391,7 +402,15 @@ export const mapTrelloCardToAction = (card, categoryId, mappingConfig) => {
         _inheritChannels: channels,
         _inheritCountries: countries,
         _inheritOtherLabels: otherLabels,
-        _inheritAssignees: card.idMembers || []
+        _inheritAssignees: card.idMembers || [],
+        _trelloBaseline: {
+            name: card.name,
+            description: card.desc || '',
+            startDate: card.start ? card.start.split('T')[0] : null,
+            dueDate: card.due ? card.due.split('T')[0] : null,
+            status: card.dueComplete ? 'completed' : null,
+            assignees: card.idMembers || []
+        }
     };
 };
 
@@ -453,6 +472,12 @@ export const mapTrelloCheckItemToTask = (item, actionId, card, checklistId, chec
         otherLabels,
         order: item.pos || 0,
         createdAt: new Date().toISOString(),
+        _trelloBaseline: {
+            title: item.name,
+            dueDate: (item.due || card.due) ? (item.due || card.due).split('T')[0] : null,
+            status: item.state === 'complete' ? 'completed' : 'todo',
+            assignees: item.idMember ? [item.idMember] : []
+        },
         trelloCardId: card.id,          // Parent card (for API calls)
         trelloCheckItemId: item.id,     // The checklist item this task came from
         trelloChecklistId: checklistId, // Which checklist on the card
@@ -600,6 +625,14 @@ export const mergeCardIntoAction = (existingAction, card, listToCat, mappingConf
         _inheritCountries: mappingConfig?.labelMappings ? countries : (existingAction._inheritCountries || []),
         _inheritOtherLabels: mappingConfig?.labelMappings ? otherLabels : (existingAction._inheritOtherLabels || []),
         _inheritAssignees: card.idMembers || existingAction._inheritAssignees || [],
+        _trelloBaseline: {
+            name: card.name,
+            description: card.desc || '',
+            startDate: card.start ? card.start.split('T')[0] : null,
+            dueDate: card.due ? card.due.split('T')[0] : null,
+            status: card.dueComplete ? 'completed' : null,
+            assignees: card.idMembers || []
+        },
         updatedAt: card.dateLastActivity,
         trelloLastModified: card.dateLastActivity
     };
@@ -636,6 +669,12 @@ export const mergeCheckItemIntoTask = (existingTask, item, card) => {
         month,
         order: compositeOrder,
         assignees: item.idMember ? [item.idMember] : existingTask.assignees,
+        _trelloBaseline: {
+            title: item.name,
+            dueDate: (item.due || card.due) ? (item.due || card.due).split('T')[0] : null,
+            status: item.state === 'complete' ? 'completed' : 'todo',
+            assignees: item.idMember ? [item.idMember] : []
+        },
         trelloLastModified: card.dateLastActivity
     };
 };
@@ -1038,6 +1077,17 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig, listToCatId
             ? [...new Set([...countries, ...(existingTask.countries || []).filter(c => !mappedCountryIds.has(c))])]
             : (existingTask.countries || []),
         otherLabels: mappingConfig?.labelMappings ? otherLabels : (existingTask.otherLabels || []),
+        _inheritChannels: mappingConfig?.labelMappings ? channels : (existingTask._inheritChannels || []),
+        _inheritCountries: mappingConfig?.labelMappings ? countries : (existingTask._inheritCountries || []),
+        _inheritOtherLabels: mappingConfig?.labelMappings ? otherLabels : (existingTask._inheritOtherLabels || []),
+        _trelloBaseline: {
+            title: card.name,
+            description: card.desc || '',
+            startDate: card.start ? card.start.split('T')[0] : null,
+            dueDate: card.due ? card.due.split('T')[0] : null,
+            status: card.dueComplete ? 'completed' : null,
+            assignees: card.idMembers || []
+        },
         updatedAt: card.dateLastActivity,
         trelloLastModified: card.dateLastActivity
     };

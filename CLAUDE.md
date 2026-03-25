@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-25 (card-as-action sync: label removal — both-changed fix)
+> Last updated: 2026-03-25 (card-as-task label guard + selective push with _trelloBaseline)
 
 ---
 
@@ -316,8 +316,11 @@ Action labels (tags/channels, countries, otherLabels) are pushed to Trello via `
 ### card-as-action: pushActionExtrasToTrello must use merged action, not original
 `pushActionExtrasToTrello(updatedActions[i], card)` must receive the **merged** action (`updatedActions[i]`), NOT the original `action` variable. The function mutates comments/attachments in-place. Do NOT spread `...action` over `updatedActions[i]` after extras push — this overwrites merged tags/countries/otherLabels (from Trello pull) with stale local values, causing `pushActionLabelsToTrello` to re-add labels that were removed on Trello.
 
-### card-as-action: label sync is independent of content LWW
-When both sides changed and local wins content, labels must still be pulled from Trello if the user didn't explicitly change labels locally. Detection: compare `action.tags` with `action._inheritChannels` (baseline from last sync). If identical → user didn't change labels → merge labels from Trello card. This block runs after conflict resolution, before extras/label push. Without it, local content push causes stale labels to be re-pushed to Trello even though the user only changed description/name/dates.
+### Label sync is independent of content LWW (both modes)
+When both sides changed and local wins content, labels must still be pulled from Trello if the user didn't explicitly change labels locally. Detection: compare `action.tags`/`task.channels` with `_inheritChannels` (baseline from last sync). If identical → user didn't change labels → merge labels from Trello card. Applies to card-as-action (actions) and card-as-task (tasks). After `pushTaskLabelsToTrello`/`pushActionLabelsToTrello`, preserve pushed labels through `mergeTrelloExtrasIntoTask` — that function unions stale `card.idLabels`.
+
+### Selective push with _trelloBaseline (both modes)
+`_trelloBaseline` stores last-synced Trello values (name, description, dates, status, assignees) on each entity. When both sides changed and local wins, only locally-changed fields (differing from baseline) are pushed. Non-pushed fields are merged from Trello. This prevents overwriting Trello changes to fields the user didn't touch. Helper functions: `buildSelectiveActionUpdate`, `buildSelectiveTaskUpdate`, `buildSelectiveCheckItemUpdate` in trelloSync.js. Without baseline, falls back to full push.
 
 ### Dedup guard on card import
 `syncWithTrelloCardAsTask` checks `updatedTasks.some(t => t.trelloCardId === card.id)` before importing new cards. Prevents duplicate tasks if sync runs twice in quick succession.

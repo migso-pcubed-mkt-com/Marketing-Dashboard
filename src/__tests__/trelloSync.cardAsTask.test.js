@@ -1270,4 +1270,161 @@ describe('syncWithTrello — card-as-task', () => {
         // Labels should NOT be re-pushed to Trello
         expect(addTrelloCardLabel).not.toHaveBeenCalled();
     });
+
+    it('pulls Trello label removal when local wins content (both changed, labels unchanged locally)', async () => {
+        // Reset mock (a prior test sets mockRejectedValue)
+        updateTrelloCard.mockResolvedValue({});
+        // Scenario: user edits task title locally, someone removes labels on Trello
+        const mappingConfig = {
+            labelMappings: {
+                'lbl-social': { type: 'channel', channelId: 'social' },
+                'lbl-fr': { type: 'country', countryId: 'france' },
+                'lbl-tag': { type: 'other', labelName: 'Urgent', labelColor: '#ef4444' }
+            }
+        };
+        const board = makeBoard({
+            categories: [{ id: 'c1', name: 'Cat1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', name: 'Default', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Title Edited Locally', actionId: 'a1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.NEWER, // Local wins content (NEWER > NEW)
+                status: 'todo', dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: ['social'], countries: ['france'],
+                otherLabels: [{ name: 'Urgent', color: '#ef4444' }],
+                // _inherit* matches current — labels NOT changed locally
+                _inheritChannels: ['social'], _inheritCountries: ['france'],
+                _inheritOtherLabels: [{ name: 'Urgent', color: '#ef4444' }],
+                assignees: [], order: 0
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', name: 'Old Title',
+                dateLastActivity: T.NEW, // Trello changed (NEW > MID) but local is newer (NEWER > NEW)
+                idLabels: [], // Labels removed on Trello
+                checklists: []
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, mappingConfig);
+
+        const task = synced.tasks[0];
+        // Content should be pushed (local wins) — title stays local
+        expect(task.title).toBe('Title Edited Locally');
+        expect(updateTrelloCard).toHaveBeenCalled();
+        // But labels should be pulled from Trello (user didn't change labels)
+        expect(task.channels).toEqual([]);
+        expect(task.countries).toEqual([]);
+        expect(task.otherLabels).toEqual([]);
+        // Labels should NOT be re-added to Trello
+        expect(addTrelloCardLabel).not.toHaveBeenCalled();
+    });
+
+    it('pushes local labels when user actively changed them in card-as-task (both changed)', async () => {
+        // Reset mock (a prior test sets mockRejectedValue)
+        updateTrelloCard.mockResolvedValue({});
+        // Scenario: user changed channels from social→email, someone also changed card on Trello
+        const mappingConfig = {
+            labelMappings: {
+                'lbl-social': { type: 'channel', channelId: 'social' },
+                'lbl-email': { type: 'channel', channelId: 'email' },
+                'lbl-fr': { type: 'country', countryId: 'france' }
+            }
+        };
+        const board = makeBoard({
+            categories: [{ id: 'c1', name: 'Cat1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', name: 'Default', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Task', actionId: 'a1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.NEWER, // Local wins
+                status: 'todo', dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: ['email'], countries: [],
+                otherLabels: [],
+                // _inherit* differs from current — labels WERE changed locally
+                _inheritChannels: ['social'], _inheritCountries: ['france'],
+                _inheritOtherLabels: [],
+                assignees: [], order: 0
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', name: 'Task',
+                dateLastActivity: T.NEW, // Trello changed but local is newer
+                idLabels: ['lbl-social', 'lbl-fr'], // Still has old labels
+                checklists: []
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, mappingConfig);
+
+        const task = synced.tasks[0];
+        // Local labels should be pushed (user actively changed them)
+        expect(task.channels).toEqual(['email']);
+        // Should add the new label and remove old ones
+        expect(addTrelloCardLabel).toHaveBeenCalledWith('card-1', 'lbl-email');
+        expect(removeTrelloCardLabel).toHaveBeenCalledWith('card-1', 'lbl-social');
+        expect(removeTrelloCardLabel).toHaveBeenCalledWith('card-1', 'lbl-fr');
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Selective push: only push locally-changed fields
+    // ════════════════════════════════════════════════════════
+
+    it('preserves Trello assignee change when local only changed description (both changed)', async () => {
+        updateTrelloCard.mockResolvedValue({});
+        // Scenario: user changed description locally, someone changed assignees on Trello
+        // Expected: push description only, pull Trello's assignees
+        const board = makeBoard({
+            categories: [{ id: 'c1', name: 'Cat1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', name: 'Default', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Task', actionId: 'a1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.NEWER, // local wins
+                status: 'todo', dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: 'Updated description',
+                checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], otherLabels: [],
+                assignees: ['member-1'], order: 0,
+                _trelloBaseline: {
+                    title: 'Task',
+                    description: 'Old description',
+                    startDate: '2026-03-01',
+                    dueDate: '2026-03-31',
+                    status: null,
+                    assignees: ['member-1']
+                }
+            }]
+        });
+
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', name: 'Task',
+                desc: 'Old description', start: '2026-03-01', due: '2026-03-31T00:00:00.000Z',
+                dueComplete: false, idMembers: ['member-2'], // Trello changed assignee
+                dateLastActivity: T.NEW, // Trello also changed
+                checklists: []
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        const task = synced.tasks[0];
+        // Description should be local (pushed)
+        expect(task.description).toBe('Updated description');
+        // Assignees should be pulled from Trello (user didn't change them)
+        expect(task.assignees).toEqual(['member-2']);
+        // updateTrelloCard should push desc but NOT assignees
+        const pushCall = updateTrelloCard.mock.calls.find(c => c[0] === 'card-1');
+        expect(pushCall).toBeTruthy();
+        expect(pushCall[1].desc).toBe('Updated description');
+        expect(pushCall[1]).not.toHaveProperty('idMembers');
+    });
 });
