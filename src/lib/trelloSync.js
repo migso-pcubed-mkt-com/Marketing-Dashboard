@@ -1422,6 +1422,28 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             updatedActions[i] = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
         }
 
+        // When local won content but Trello also changed, check if labels were
+        // specifically changed locally. If not, pull Trello's label state to avoid
+        // re-pushing stale labels that were removed on Trello.
+        if (trelloCardModified && actionLocallyModified && !readOnly && mappingConfig?.labelMappings) {
+            const labelsChangedLocally =
+                JSON.stringify(action.tags || []) !== JSON.stringify(action._inheritChannels || []) ||
+                JSON.stringify(action.countries || []) !== JSON.stringify(action._inheritCountries || []) ||
+                JSON.stringify((action.otherLabels || []).map(l => l.name).sort()) !== JSON.stringify((action._inheritOtherLabels || []).map(l => l.name).sort());
+            if (!labelsChangedLocally) {
+                const mergedForLabels = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+                updatedActions[i] = {
+                    ...updatedActions[i],
+                    tags: mergedForLabels.tags,
+                    countries: mergedForLabels.countries,
+                    otherLabels: mergedForLabels.otherLabels,
+                    _inheritChannels: mergedForLabels._inheritChannels,
+                    _inheritCountries: mergedForLabels._inheritCountries,
+                    _inheritOtherLabels: mergedForLabels._inheritOtherLabels
+                };
+            }
+        }
+
         // Push action extras (comments, attachments only — NEVER touch checklists)
         if (!readOnly && action.trelloCardId) {
             try {
