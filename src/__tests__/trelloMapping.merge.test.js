@@ -870,4 +870,21 @@ describe('mergeCheckItemIntoTask', () => {
         // CL-B (pos 16384) items should have lower order than CL-A (pos 32768) items
         expect(resultB.order).toBeLessThan(resultA.order);
     });
+
+    it('updates trelloChecklistId and trelloChecklistName when item moved to different checklist', () => {
+        // Task was in CL-A, but item is now in CL-B on Trello
+        const task = { ...baseTask, trelloChecklistId: 'cl-a', trelloChecklistName: 'CL-A' };
+        const cardWithMove = {
+            ...baseCard,
+            checklists: [
+                { id: 'cl-a', name: 'CL-A', pos: 16384, checkItems: [] },
+                { id: 'cl-b', name: 'CL-B', pos: 32768, checkItems: [
+                    { id: 'tci-1', name: 'New item name', state: 'incomplete', pos: 16384 }
+                ]}
+            ]
+        };
+        const result = mergeCheckItemIntoTask(task, baseItem, cardWithMove);
+        expect(result.trelloChecklistId).toBe('cl-b');
+        expect(result.trelloChecklistName).toBe('CL-B');
+    });
 });
