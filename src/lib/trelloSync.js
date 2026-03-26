@@ -171,7 +171,7 @@ const buildSelectiveCheckItemUpdate = (task) => {
 // Push comments, checklists, attachments that don't already exist on Trello.
 // isPushWinner: true = local wins (push positions to Trello), false = pull Trello positions into local order.
 // Returns { pushed, taskModified, deletedChecklistIds } — deletedChecklistIds lists checklists deleted on Trello.
-const pushTaskExtrasToTrello = async (task, card, isPushWinner = true) => {
+const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDeletions = false) => {
     const pushed = { comments: 0, checklists: 0, attachments: 0 };
     let taskModified = false;
     const deletedChecklistIds = []; // Track checklists deleted on Trello (had ID but not found)
@@ -422,36 +422,39 @@ const pushTaskExtrasToTrello = async (task, card, isPushWinner = true) => {
         }
     }
 
-    // Delete checklists removed locally but still on Trello
-    // Safety: only delete if the task actually has local checklists (owns the card's checklists).
-    // Tasks with no local checklists should never trigger deletion — avoids wiping card-as-action checklists.
-    const localChecklistIds = new Set(taskChecklists.filter(cl => cl.trelloChecklistId).map(cl => cl.trelloChecklistId));
-    if (localChecklistIds.size > 0) {
-        for (const cl of (card.checklists || [])) {
-            if (!localChecklistIds.has(cl.id)) {
-                try {
-                    await deleteTrelloChecklist(cl.id);
-                    console.log(`[Trello sync] Deleted checklist "${cl.name}" from Trello`);
-                    pushed.checklists++;
-                    taskModified = true;
-                } catch (e) {
-                    console.error('Failed to delete checklist:', cl.name, e.message);
+    // Delete checklists/attachments removed locally but still on Trello.
+    // Skip when both sides changed (skipDeletions=true) — Trello-only items are preserved and merged later.
+    if (!skipDeletions) {
+        // Safety: only delete if the task actually has local checklists (owns the card's checklists).
+        // Tasks with no local checklists should never trigger deletion — avoids wiping card-as-action checklists.
+        const localChecklistIds = new Set(taskChecklists.filter(cl => cl.trelloChecklistId).map(cl => cl.trelloChecklistId));
+        if (localChecklistIds.size > 0) {
+            for (const cl of (card.checklists || [])) {
+                if (!localChecklistIds.has(cl.id)) {
+                    try {
+                        await deleteTrelloChecklist(cl.id);
+                        console.log(`[Trello sync] Deleted checklist "${cl.name}" from Trello`);
+                        pushed.checklists++;
+                        taskModified = true;
+                    } catch (e) {
+                        console.error('Failed to delete checklist:', cl.name, e.message);
+                    }
                 }
             }
         }
-    } // end: localChecklistIds.size > 0
 
-    // Delete attachments removed locally but still on Trello
-    const localAttIds = new Set((task.attachments || []).filter(a => a.trelloAttachmentId).map(a => a.trelloAttachmentId));
-    for (const att of (card.attachments || [])) {
-        if (!localAttIds.has(att.id)) {
-            try {
-                await deleteTrelloAttachment(task.trelloCardId, att.id);
-                console.log(`[Trello sync] Deleted attachment "${att.name}" from Trello`);
-                pushed.attachments++;
-                taskModified = true;
-            } catch (e) {
-                console.error('Failed to delete attachment:', att.name, e.message);
+        // Delete attachments removed locally but still on Trello
+        const localAttIds = new Set((task.attachments || []).filter(a => a.trelloAttachmentId).map(a => a.trelloAttachmentId));
+        for (const att of (card.attachments || [])) {
+            if (!localAttIds.has(att.id)) {
+                try {
+                    await deleteTrelloAttachment(task.trelloCardId, att.id);
+                    console.log(`[Trello sync] Deleted attachment "${att.name}" from Trello`);
+                    pushed.attachments++;
+                    taskModified = true;
+                } catch (e) {
+                    console.error('Failed to delete attachment:', att.name, e.message);
+                }
             }
         }
     }
@@ -878,8 +881,8 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     // Selective push: only push fields that changed locally vs baseline
                     const updates = buildSelectiveTaskUpdate(task, listId);
                     await updateTrelloCard(task.trelloCardId, updates);
-                    // isPushWinner=true: local wins the conflict
-                    const { taskModified, deletedChecklistIds } = await pushTaskExtrasToTrello(task, card, true);
+                    // isPushWinner=true: local wins the conflict. skipDeletions=true: preserve Trello-only checklists/attachments
+                    const { taskModified, deletedChecklistIds } = await pushTaskExtrasToTrello(task, card, true, true);
                     if (deletedChecklistIds.length > 0) {
                         const delSet = new Set(deletedChecklistIds);
                         task.checklists = (task.checklists || []).filter(cl => !delSet.has(cl.id));

@@ -29,7 +29,8 @@ vi.mock('../lib/trello.js', () => ({
 import { syncWithTrello, isSyncInProgress } from '../lib/trelloSync.js';
 import {
     fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, createTrelloList, updateTrelloList,
-    updateTrelloChecklist, updateTrelloChecklistItem, addTrelloCardLabel, removeTrelloCardLabel
+    updateTrelloChecklist, updateTrelloChecklistItem, addTrelloCardLabel, removeTrelloCardLabel,
+    deleteTrelloChecklist
 } from '../lib/trello.js';
 
 // ── Helpers ──
@@ -1426,5 +1427,61 @@ describe('syncWithTrello — card-as-task', () => {
         expect(pushCall).toBeTruthy();
         expect(pushCall[1].desc).toBe('Updated description');
         expect(pushCall[1]).not.toHaveProperty('idMembers');
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Preserve Trello-only checklists/attachments on push
+    // ════════════════════════════════════════════════════════
+
+    it('preserves Trello-only checklist when both sides changed and local wins', async () => {
+        updateTrelloCard.mockResolvedValue({});
+        // Scenario: task has 1 local checklist, someone added a new checklist on Trello
+        // Both sides changed, local wins → push should NOT delete the Trello-only checklist
+        const board = makeBoard({
+            categories: [{ id: 'c1', name: 'Cat1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', name: 'Default', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Task Edited', actionId: 'a1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.NEWER, // local wins
+                status: 'todo', dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', channels: [], countries: [], otherLabels: [],
+                assignees: [], order: 0,
+                checklists: [{
+                    id: 'cl-local-1', name: 'Existing CL', trelloChecklistId: 'cl-1',
+                    items: [{ id: 'cli-1', text: 'Item 1', done: false, trelloCheckItemId: 'ci-1' }]
+                }],
+                comments: [], attachments: []
+            }]
+        });
+
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', name: 'Old Title',
+                dateLastActivity: T.NEW, // Trello also changed (NEW > MID)
+                checklists: [
+                    { id: 'cl-1', name: 'Existing CL', pos: 100, checkItems: [
+                        { id: 'ci-1', name: 'Item 1', state: 'incomplete', pos: 100 }
+                    ]},
+                    { id: 'cl-new', name: 'New Trello CL', pos: 200, checkItems: [
+                        { id: 'ci-new', name: 'New Item', state: 'incomplete', pos: 100 }
+                    ]}
+                ]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        const task = synced.tasks[0];
+        // The Trello-only checklist should NOT have been deleted
+        expect(deleteTrelloChecklist).not.toHaveBeenCalled();
+        // The new checklist should be merged into the local task
+        expect(task.checklists).toHaveLength(2);
+        const newCl = task.checklists.find(cl => cl.trelloChecklistId === 'cl-new');
+        expect(newCl).toBeTruthy();
+        expect(newCl.name).toBe('New Trello CL');
+        expect(newCl.items).toHaveLength(1);
+        expect(newCl.items[0].text).toBe('New Item');
     });
 });
