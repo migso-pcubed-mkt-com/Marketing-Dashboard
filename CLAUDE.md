@@ -307,8 +307,8 @@ When Trello wins last-write-wins, `mergeCardIntoTask` must set `updatedAt: card.
 ### All CRUD handlers must set updatedAt
 `handleAddTask`, `handleAddAction`, `handleReorderTask` (cross-column) must set `updatedAt` — Trello sync uses `updatedAt > trelloLastModified` for conflict detection. Missing `updatedAt` causes local changes to be overwritten by Trello.
 
-### card-as-action: trelloItemDeleted flag prevents re-creation
-When a Trello checklist item is deleted, the local task gets `trelloItemDeleted: true`. Do NOT remove this flag — it prevents the task from being re-pushed as a new checklist item on next sync. Without it, deleted items get recreated in a loop.
+### card-as-action: Trello checklist item/checklist deletion removes tasks
+When a Trello checklist item or entire checklist is deleted, the local task is set to `null` and filtered out. The null guard at line 1596 (`!task ||`) prevents crashes when multiple actions are processed in the same sync cycle. Do NOT remove this guard — without it, a null task from one action's processing crashes the next action's loop.
 
 ### card-as-action: pushActionLabelsToTrello for action label sync
 Action labels (tags/channels, countries, otherLabels) are pushed to Trello via `pushActionLabelsToTrello()`. Do NOT rely on `pushActionExtrasToTrello()` for labels — that function only handles comments and attachments.

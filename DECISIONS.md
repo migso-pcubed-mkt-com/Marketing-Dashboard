@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-26 | Fix card-as-action: remove tasks when Trello checklist item/checklist is deleted; add null guard at line 1596 for multi-action sync | Item deletion set `trelloItemDeleted` flag but never removed the task; checklist deletion set task to null but crashed on next action's loop accessing `null.actionId` |
 | 2026-03-25 | Add selective push with `_trelloBaseline` for all content fields in both modes | Full push overwrote Trello changes to fields the user didn't touch (e.g., changing name locally overwrote Trello's date change); now only locally-modified fields are pushed, non-pushed fields are merged from Trello |
 | 2026-03-25 | Extend label sync decoupling to card-as-task mode with `_inherit*` fields + label guard | Same label re-addition bug as card-as-action also affected card-as-task; also fix `mergeTrelloExtrasIntoTask` union merge overwriting pushed labels |
 | 2026-03-25 | Fix card-as-action label sync: decouple label sync from content LWW — use `_inheritChannels`/`_inheritCountries`/`_inheritOtherLabels` baseline to detect local label changes; pull Trello labels when user only changed content (supersedes 2026-03-24) | When both sides changed and local won content, stale labels were re-pushed to Trello because `{ ...action }` preserved old tags; now labels from Trello are merged when user didn't explicitly change labels |

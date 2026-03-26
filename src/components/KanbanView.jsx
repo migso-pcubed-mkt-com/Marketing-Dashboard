@@ -81,7 +81,26 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                 if(sortBy==='name')return group.sort((a,b)=>a.title.localeCompare(b.title));
                 if(sortBy==='date')return group.sort((a,b)=>new Date(a.startDate||0)-new Date(b.startDate||0));
                 if(sortBy==='deadline')return group.sort((a,b)=>new Date(a.dueDate||'9999')-new Date(b.dueDate||'9999'));
-                if(sortBy==='created')return group.sort((a,b)=>new Date(a.createdAt||0)-new Date(b.createdAt||0));
+                if(sortBy==='created')return group.sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
+                if(sortBy==='priority'){
+                    const priorityOrder={high:0,medium:1,low:2};
+                    return group.sort((a,b)=>(priorityOrder[a.priority]||99)-(priorityOrder[b.priority]||99));
+                }
+                return group;
+            };
+            return[...sortGroup(notCompleted),...sortGroup(completed)];
+        };
+
+        const sortActionItems=(items)=>{
+            const sorted=[...items];
+            const completed=sorted.filter(a=>a.status==='completed');
+            const notCompleted=sorted.filter(a=>a.status!=='completed');
+            const sortGroup=(group)=>{
+                if(sortBy==='order')return group.sort((a,b)=>(a.order||0)-(b.order||0));
+                if(sortBy==='name')return group.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+                if(sortBy==='date')return group.sort((a,b)=>new Date(a.startDate||0)-new Date(b.startDate||0));
+                if(sortBy==='deadline')return group.sort((a,b)=>new Date(a.dueDate||'9999')-new Date(b.dueDate||'9999'));
+                if(sortBy==='created')return group.sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0));
                 if(sortBy==='priority'){
                     const priorityOrder={high:0,medium:1,low:2};
                     return group.sort((a,b)=>(priorityOrder[a.priority]||99)-(priorityOrder[b.priority]||99));
@@ -132,9 +151,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                 // Filter actions: only show actions that have at least one matching task (when filters active)
                 const hasActiveFilter = filters.search || filters.status.length > 0 || filters.priority.length > 0 || (filters.channel && filters.channel.length > 0) || (filters.country && filters.country.length > 0) || (filters.member && filters.member.length > 0) || (filters.otherLabel && filters.otherLabel.length > 0) || actionFilters.length > 0;
                 const visibleActions = hasActiveFilter ? catActions.filter(a => filteredTasks.some(t => t.actionId === a.id) || (filters.search && a.name.toLowerCase().includes(filters.search.toLowerCase()))) : catActions;
-                // Sort completed actions to bottom
-                visibleActions.sort((a,b)=>(a.status==='completed'?1:0)-(b.status==='completed'?1:0));
-                return {key:cat.id,name:cat.name,gradient:cat.gradient,items:visibleActions};
+                return {key:cat.id,name:cat.name,gradient:cat.gradient,items:sortActionItems(visibleActions)};
             });
         }
         if(viewMode==='action'){
@@ -293,7 +310,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     <span className="kanban-context-label">{viewMode==='category'?(columns.some(c=>c.directTasks)?`${columns.reduce((s,c)=>s+c.items.length,0)} tasks`:`${columns.reduce((s,c)=>s+c.items.length,0)} actions`):`${columns.reduce((s,c)=>s+c.items.length,0)} tasks`}</span>
                 </div>
                 <div className="kanban-toolbar-right">
-                    {viewMode!=='category'&&<><span className="toolbar-label">Sort:</span>
+                    {<><span className="toolbar-label">Sort:</span>
                     <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} className="toolbar-select">
                         <option value="order">Manual</option>
                         <option value="name">Name A→Z</option>
@@ -421,8 +438,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     )}
                                     <span className="column-count">{col.items.length}</span>
                                 </div>
-                                <button className="column-menu" onClick={(e)=>e.stopPropagation()}>⋮</button>
-                            </div>
+                                                            </div>
                             <div className="kanban-cards" onDragStart={(e) => {
                                 // Prevent column drag when dragging cards
                                 e.stopPropagation();
@@ -430,7 +446,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                             }} onDragEnd={() => {
                                 if (isUserInteractingRef) isUserInteractingRef.current = false;
                             }}>
-                                {(viewMode==='category'&&!col.directTasks)?col.items.sort((a,b)=>(a.order||0)-(b.order||0)).map(action=><ActionCard key={action.id} action={action} tasks={filteredTasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:onMoveAction} onReorderAction={isReadOnly?null:onReorderAction} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?((viewMode==='country'||viewMode==='month'||viewMode==='quarter'||(viewMode==='category'&&col.directTasks))?((draggedId,targetId,position)=>{
+                                {(viewMode==='category'&&!col.directTasks)?col.items.map(action=><ActionCard key={action.id} action={action} tasks={filteredTasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:(sortBy==='order'?onMoveAction:null)} onReorderAction={isReadOnly?null:(sortBy==='order'?onReorderAction:null)} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?((viewMode==='country'||viewMode==='month'||viewMode==='quarter'||(viewMode==='category'&&col.directTasks))?((draggedId,targetId,position)=>{
                                     // Reorder within column — atomic batch update
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
                                     const dragIdx=colItems.findIndex(t=>t.id===draggedId);

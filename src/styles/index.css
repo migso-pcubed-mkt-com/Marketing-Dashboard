@@ -172,9 +172,6 @@ body.resizing *{cursor:col-resize!important}
 .column-icon.completed{background:#dcfce7;color:#16a34a}
 .column-name{font-weight:600;font-size:13px}
 .column-count{color:var(--text-muted);font-size:12px;font-weight:500}
-.column-menu{width:24px;height:24px;border-radius:var(--radius-sm);border:none;background:transparent;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;justify-content:center;font-size:14px}
-.column-menu:hover{background:var(--bg-tertiary)}
-.column-menu svg{width:14px;height:14px}
 .kanban-cards{display:flex;flex-direction:column;gap:8px;flex:1}
 .column-empty{flex:1;display:flex;align-items:center;justify-content:center;padding:24px 16px;color:var(--text-muted);font-size:12px;text-align:center;border:1px dashed var(--border);border-radius:var(--radius-md);background:transparent}
 /* Task Cards */

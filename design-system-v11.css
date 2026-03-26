@@ -642,27 +642,6 @@ body {
     font-weight: 500;
 }
 
-.column-menu {
-    width: 24px;
-    height: 24px;
-    border-radius: var(--radius-sm);
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    color: var(--text-muted);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.column-menu:hover {
-    background: var(--bg-tertiary);
-}
-
-.column-menu svg {
-    width: 14px;
-    height: 14px;
-}
 
 .kanban-cards {
     display: flex;
