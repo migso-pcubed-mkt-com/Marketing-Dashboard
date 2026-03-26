@@ -1593,7 +1593,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         let actionHadLocalOrderChange = false;
         for (let j = 0; j < updatedTasks.length; j++) {
             const task = updatedTasks[j];
-            if (task.actionId !== action.id || !task.trelloCheckItemId) continue;
+            if (!task || task.actionId !== action.id || !task.trelloCheckItemId) continue;
 
             const itemData = trelloItems.get(task.trelloCheckItemId);
             if (!itemData) {
@@ -1603,8 +1603,8 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     // Entire checklist deleted on Trello → remove task locally
                     updatedTasks[j] = null;
                 } else {
-                    // Individual item deleted (checklist still exists) → mark as disconnected
-                    updatedTasks[j] = { ...task, trelloCheckItemId: null, trelloChecklistId: null, trelloItemDeleted: true };
+                    // Individual item deleted on Trello → remove task locally
+                    updatedTasks[j] = null;
                 }
                 result.updated++;
                 continue;

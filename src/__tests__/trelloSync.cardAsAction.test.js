@@ -332,7 +332,7 @@ describe('syncWithTrello — card-as-action', () => {
     // ════════════════════════════════════════════════════════
     // Item deleted on Trello → trelloItemDeleted flag
     // ════════════════════════════════════════════════════════
-    it('sets trelloItemDeleted when checklist item removed on Trello', async () => {
+    it('removes task when checklist item removed on Trello', async () => {
         const board = makeBoard({
             categories: [{ id: 'c1', trelloListId: 'list-1' }],
             actions: [{
@@ -361,9 +361,8 @@ describe('syncWithTrello — card-as-action', () => {
 
         const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
 
-        const task = synced.tasks.find(t => t.id === 't1');
-        expect(task.trelloItemDeleted).toBe(true);
-        expect(task.trelloCheckItemId).toBeNull();
+        // Task should be completely removed, not just flagged
+        expect(synced.tasks.find(t => t.id === 't1')).toBeUndefined();
     });
 
     // ════════════════════════════════════════════════════════
@@ -581,13 +580,10 @@ describe('syncWithTrello — card-as-action', () => {
     // Move detection at line 1711 checks taskAction.trelloCardId !== task.trelloCardId
     // This only triggers when the task still has its trelloCheckItemId
     // ════════════════════════════════════════════════════════
-    it('detects task moved between actions and clears IDs for recreation', async () => {
+    it('removes task moved between actions when item not found on new card', async () => {
         // Setup: task has actionId=a-new but trelloCardId still points to card-old
-        // AND the item ci-1 still exists on card-old's checklist under a-old
         // a-old processes card-old: t1 has actionId=a-new so NOT matched under a-old
-        // a-new processes card-new: ci-1 not on card-new → not found as trelloItem
-        //   → task gets trelloItemDeleted=true, trelloCheckItemId=null
-        // Move detection then skips because trelloCheckItemId is already null
+        // a-new processes card-new: ci-1 not on card-new → task removed
         const board = makeBoard({
             categories: [{ id: 'c1', trelloListId: 'list-1' }],
             actions: [
@@ -615,10 +611,8 @@ describe('syncWithTrello — card-as-action', () => {
 
         const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
 
-        const task = synced.tasks.find(t => t.id === 't1');
-        // Task gets marked as deleted (item not found under new action's card)
-        expect(task.trelloCheckItemId).toBeNull();
-        expect(task.trelloItemDeleted).toBe(true);
+        // Task is removed — item not found on new action's card
+        expect(synced.tasks.find(t => t.id === 't1')).toBeUndefined();
     });
 
     // ════════════════════════════════════════════════════════
@@ -1630,6 +1624,94 @@ describe('syncWithTrello — card-as-action', () => {
         // No zombie t3/t4 tasks should exist
         expect(synced.tasks.find(t => t.id === 't3')).toBeUndefined();
         expect(synced.tasks.find(t => t.id === 't4')).toBeUndefined();
+    });
+
+    it('removes task when individual checklist item deleted on Trello', async () => {
+        // When a single checklist item is deleted on Trello (but checklist still exists),
+        // the local task should be completely removed — not just flagged
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [
+                { id: 't1', title: 'Kept Item', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-kept', trelloChecklistId: 'cl-1', trelloChecklistName: 'Tasks', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 },
+                { id: 't2', title: 'Deleted Item', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-gone', trelloChecklistId: 'cl-1', trelloChecklistName: 'Tasks', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 1 }
+            ]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.NEW,
+                checklists: [{ id: 'cl-1', name: 'Tasks', pos: 100, checkItems: [
+                    { id: 'ci-kept', name: 'Kept Item', state: 'incomplete', pos: 16384 }
+                    // ci-gone is absent — deleted on Trello
+                ] }]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // Deleted item's task should be completely removed
+        expect(synced.tasks.find(t => t.id === 't2')).toBeUndefined();
+        // Kept item should still exist
+        expect(synced.tasks.find(t => t.id === 't1')).toBeDefined();
+        expect(synced.tasks).toHaveLength(1);
+    });
+
+    it('does not crash when checklist deleted on Trello with multiple actions', async () => {
+        // When a checklist is deleted on Trello, tasks are set to null.
+        // With multiple actions, the next action's loop must not crash on null tasks.
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [
+                {
+                    id: 'a1', name: 'Action 1', categoryId: 'c1',
+                    trelloCardId: 'card-1', trelloLastModified: T.MID,
+                    updatedAt: T.OLD, budget: 0, priority: 'medium',
+                    tags: [], countries: [], otherLabels: [], assignees: [],
+                    comments: [], attachments: [], description: '', status: 'active'
+                },
+                {
+                    id: 'a2', name: 'Action 2', categoryId: 'c1',
+                    trelloCardId: 'card-2', trelloLastModified: T.MID,
+                    updatedAt: T.OLD, budget: 0, priority: 'medium',
+                    tags: [], countries: [], otherLabels: [], assignees: [],
+                    comments: [], attachments: [], description: '', status: 'active'
+                }
+            ],
+            tasks: [
+                { id: 't1', title: 'A1-Item', actionId: 'a1', status: 'todo', trelloCardId: 'card-1', trelloCheckItemId: 'ci-1', trelloChecklistId: 'cl-gone', trelloChecklistName: 'Gone', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 },
+                { id: 't2', title: 'A2-Item', actionId: 'a2', status: 'todo', trelloCardId: 'card-2', trelloCheckItemId: 'ci-2', trelloChecklistId: 'cl-2', trelloChecklistName: 'Tasks', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 }
+            ]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [
+                makeCard({
+                    id: 'card-1', dateLastActivity: T.NEW,
+                    checklists: [] // cl-gone deleted — no checklists on card-1
+                }),
+                makeCard({
+                    id: 'card-2', name: 'Action 2', dateLastActivity: T.NEW,
+                    checklists: [{ id: 'cl-2', name: 'Tasks', pos: 100, checkItems: [
+                        { id: 'ci-2', name: 'A2-Item', state: 'incomplete', pos: 16384 }
+                    ] }]
+                })
+            ]
+        }));
+
+        // Should NOT throw — previously crashed with "Cannot read properties of null (reading 'actionId')"
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // t1 should be removed (checklist deleted)
+        expect(synced.tasks.find(t => t.id === 't1')).toBeUndefined();
+        // t2 should still exist
+        expect(synced.tasks.find(t => t.id === 't2')).toBeDefined();
     });
 
     // ════════════════════════════════════════════════════════
