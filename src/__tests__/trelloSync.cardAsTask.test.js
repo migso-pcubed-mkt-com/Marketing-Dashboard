@@ -1549,4 +1549,63 @@ describe('syncWithTrello — card-as-task', () => {
         const task = synced.tasks.find(t => t.id === 't1');
         expect(task._inheritChannels).toEqual(['social']);
     });
+
+    it('sets _inherit* fields on new tasks imported from Trello', async () => {
+        // New card on Trello with a channel label — task should get _inheritChannels
+        const board = makeBoard({
+            categories: [{ id: 'cat-1', name: 'Cat', trelloListId: 'list-1' }],
+            actions: [{ id: 'act-1', name: 'Action', categoryId: 'cat-1', isDefault: true }],
+            tasks: [],
+            trelloSync: {
+                trelloBoardId: 'tb-1', syncEnabled: true, syncMode: 'card-as-task',
+                lastSyncAt: T.OLD, pollIntervalMs: 120000,
+                labelMappings: { 'lbl-social': { type: 'channel', channelId: 'social' } }
+            }
+        });
+
+        fetchTrelloBoardFull.mockResolvedValueOnce(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-new', name: 'New Card', dateLastActivity: T.NEW, idLabels: ['lbl-social'] })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {
+            labelMappings: { 'lbl-social': { type: 'channel', channelId: 'social' } }
+        });
+
+        const task = synced.tasks.find(t => t.trelloCardId === 'card-new');
+        expect(task).toBeTruthy();
+        expect(task.channels).toContain('social');
+        expect(task._inheritChannels).toEqual(['social']);
+    });
+
+    it('sets _inherit* fields after pushing new local task to Trello', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'cat-1', name: 'Cat', trelloListId: 'list-1' }],
+            actions: [{ id: 'act-1', name: 'Action', categoryId: 'cat-1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Local Task', actionId: 'act-1',
+                // No trelloCardId — new local task
+                channels: ['social'], countries: [], otherLabels: [],
+                status: 'inprogress', startDate: '2026-03-01', dueDate: '2026-03-15'
+            }],
+            trelloSync: {
+                trelloBoardId: 'tb-1', syncEnabled: true, syncMode: 'card-as-task',
+                lastSyncAt: T.OLD, pollIntervalMs: 120000,
+                labelMappings: { 'lbl-social': { type: 'channel', channelId: 'social' } }
+            }
+        });
+
+        fetchTrelloBoardFull.mockResolvedValueOnce(makeTrelloResponse({
+            lists: [makeList()],
+            cards: []
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {
+            labelMappings: { 'lbl-social': { type: 'channel', channelId: 'social' } }
+        });
+
+        const task = synced.tasks.find(t => t.id === 't1');
+        expect(task.trelloCardId).toBeTruthy();
+        expect(task._inheritChannels).toEqual(['social']);
+    });
 });

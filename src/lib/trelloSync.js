@@ -1082,6 +1082,9 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             countries,
             assignees: card.idMembers || [],
             otherLabels,
+            _inheritChannels: channels,
+            _inheritCountries: countries,
+            _inheritOtherLabels: otherLabels,
             order: card.pos || 0,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -1125,6 +1128,10 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 const emptyCard = { id: created.id, checklists: [], comments: [], attachments: [], idLabels: [] };
                 await pushTaskExtrasToTrello(updatedTasks[i], emptyCard);
                 await pushTaskLabelsToTrello(updatedTasks[i], emptyCard, board, mappingConfig);
+                // Update label baseline after push
+                updatedTasks[i]._inheritChannels = updatedTasks[i].channels || [];
+                updatedTasks[i]._inheritCountries = updatedTasks[i].countries || [];
+                updatedTasks[i]._inheritOtherLabels = updatedTasks[i].otherLabels || [];
             } catch (extrasErr) {
                 console.error(`Failed to push extras for new card "${task.title}":`, extrasErr);
             }
