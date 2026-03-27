@@ -1917,4 +1917,106 @@ describe('syncWithTrello — card-as-action', () => {
         // Should NOT push assignee (it wasn't changed locally)
         expect(itemCall[2]).not.toHaveProperty('idMember');
     });
+
+    // ════════════════════════════════════════════════════════
+    // Label mapping persistence
+    // ════════════════════════════════════════════════════════
+
+    it('persists new label mappings created during pushActionLabelsToTrello', async () => {
+        // Action has a channel tag with no existing label mapping
+        createTrelloBoardLabel.mockResolvedValueOnce({ id: 'lbl-new-channel' });
+        const board = makeBoard({
+            categories: [{ id: 'cat-1', name: 'Cat', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'cat-1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.NEW, // locally modified → push path
+                tags: ['social'], countries: [], otherLabels: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                isDefault: false
+            }],
+            tasks: []
+        });
+
+        fetchTrelloBoardFull.mockResolvedValueOnce(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', name: 'Action', dateLastActivity: T.OLD, idLabels: [] })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // The newly created label mapping should be persisted in trelloSync.labelMappings
+        expect(synced.trelloSync.labelMappings['lbl-new-channel']).toBeDefined();
+        expect(synced.trelloSync.labelMappings['lbl-new-channel'].type).toBe('channel');
+        expect(synced.trelloSync.labelMappings['lbl-new-channel'].channelId).toBe('social');
+    });
+
+    it('preserves channel tags across sync cycles after label creation', async () => {
+        // Sync 1: push creates a new label
+        createTrelloBoardLabel.mockResolvedValueOnce({ id: 'lbl-social' });
+        const board = makeBoard({
+            categories: [{ id: 'cat-1', name: 'Cat', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'cat-1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.NEW, tags: ['social'], countries: [], otherLabels: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                isDefault: false
+            }],
+            tasks: []
+        });
+
+        fetchTrelloBoardFull.mockResolvedValueOnce(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', name: 'Action', dateLastActivity: T.OLD, idLabels: [] })]
+        }));
+
+        const { board: synced1 } = await syncWithTrello(board, { labelMappings: {} });
+
+        // Sync 2: auto-sync, Trello card now has the label, no local changes
+        fetchTrelloBoardFull.mockResolvedValueOnce(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', name: 'Action', dateLastActivity: T.NEWER, idLabels: ['lbl-social'] })]
+        }));
+
+        // Rebuild mappingConfig from synced board (simulating App.jsx behavior)
+        const mappingConfig2 = { labelMappings: { ...synced1.trelloSync.labelMappings } };
+        const { board: synced2 } = await syncWithTrello(synced1, mappingConfig2);
+
+        // Tags should be preserved via the persisted mapping
+        const action = synced2.actions.find(a => a.id === 'a1');
+        expect(action.tags).toContain('social');
+    });
+
+    it('updates _inheritChannels after successful local push', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'cat-1', name: 'Cat', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'cat-1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.NEW, tags: ['social'], countries: [], otherLabels: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                isDefault: false
+            }],
+            tasks: [],
+            trelloSync: {
+                trelloBoardId: 'tb-1', syncEnabled: true, syncMode: 'card-as-action',
+                lastSyncAt: T.OLD, pollIntervalMs: 120000,
+                labelMappings: { 'lbl-social': { type: 'channel', channelId: 'social' } }
+            }
+        });
+
+        fetchTrelloBoardFull.mockResolvedValueOnce(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', name: 'Action', dateLastActivity: T.OLD, idLabels: ['lbl-social'] })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {
+            labelMappings: { 'lbl-social': { type: 'channel', channelId: 'social' } }
+        });
+
+        const action = synced.actions.find(a => a.id === 'a1');
+        // _inheritChannels should be updated to match pushed tags
+        expect(action._inheritChannels).toEqual(['social']);
+    });
 });

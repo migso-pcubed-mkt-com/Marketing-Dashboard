@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-25 (card-as-task label guard + selective push with _trelloBaseline)
+> Last updated: 2026-03-27 (label mapping persistence + _inherit* baseline fix)
 
 ---
 
@@ -339,6 +339,12 @@ When a task's `actionId` changes in card-as-action mode, the sync detects the `t
 
 ### card-as-action: action move between categories
 `handleReorderAction` sets `updatedAt` on cross-category moves. The sync pushes `idList` via `mapActionToTrelloCardUpdate`. Without `updatedAt`, the timestamp comparison fails and the move is never pushed.
+
+### Label mapping persistence across sync cycles
+`pushActionLabelsToTrello` and `pushTaskLabelsToTrello` may create new Trello labels (when a channel/other tag has no existing mapping). These mutations on `mappingConfig.labelMappings` MUST be persisted to `syncedBoard.trelloSync.labelMappings` at the end of each sync. Without this, new mappings are lost on the next sync cycle and `mergeCardIntoAction`/`mergeCardIntoTask` can't map the label back → tags disappear.
+
+### `_inheritChannels` baseline must be updated after label push
+After `pushActionLabelsToTrello`/`pushTaskLabelsToTrello`, update `_inheritChannels`/`_inheritCountries`/`_inheritOtherLabels` to match the pushed values. Without this, `labelsChangedLocally` permanently reports `true` (baseline never matches current tags), breaking label change detection on subsequent syncs.
 
 ---
 

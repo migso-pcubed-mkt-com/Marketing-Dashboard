@@ -862,7 +862,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     updatedTasks[i] = {
                         ...mergedTask,
                         channels: task.channels, countries: task.countries, otherLabels: task.otherLabels,
-                        _inheritChannels: task._inheritChannels, _inheritCountries: task._inheritCountries, _inheritOtherLabels: task._inheritOtherLabels,
+                        _inheritChannels: task.channels || [], _inheritCountries: task.countries || [], _inheritOtherLabels: task.otherLabels || [],
                         trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt
                     };
                     result.pushed++;
@@ -923,7 +923,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     updatedTasks[i] = {
                         ...finalTask,
                         channels: task.channels, countries: task.countries, otherLabels: task.otherLabels,
-                        _inheritChannels: task._inheritChannels, _inheritCountries: task._inheritCountries, _inheritOtherLabels: task._inheritOtherLabels,
+                        _inheritChannels: task.channels || [], _inheritCountries: task.countries || [], _inheritOtherLabels: task.otherLabels || [],
                         _trelloBaseline: mergedFromTrello._trelloBaseline,
                         trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt
                     };
@@ -1291,6 +1291,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         members: members.length ? members : (board.members || []),
         trelloSync: {
             ...board.trelloSync,
+            labelMappings: mappingConfig.labelMappings,
             lastSyncAt: new Date().toISOString()
         },
         updatedAt: new Date().toISOString()
@@ -1577,6 +1578,10 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             } catch (e) {
                 console.error(`Failed to push labels for action "${action.name}":`, e);
             }
+            // Update label baseline after push — Trello now has these labels
+            updatedActions[i]._inheritChannels = updatedActions[i].tags || [];
+            updatedActions[i]._inheritCountries = updatedActions[i].countries || [];
+            updatedActions[i]._inheritOtherLabels = updatedActions[i].otherLabels || [];
         }
 
         // Sync checklist items ↔ tasks
@@ -2040,6 +2045,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         members: members.length ? members : (board.members || []),
         trelloSync: {
             ...board.trelloSync,
+            labelMappings: mappingConfig.labelMappings,
             lastSyncAt: new Date().toISOString()
         },
         updatedAt: new Date().toISOString()
