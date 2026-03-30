@@ -22,6 +22,9 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-30 | Fix card-as-action: pause action (not just tasks) when Trello card is deleted/archived; add unarchive restore logic | Action stayed `status: 'active'` when its card was deleted/archived on Trello — only tasks were paused |
+| 2026-03-30 | Fix ghost tag: move `trelloLastModified` after all push operations + preserve local labels in "neither changed" path | Push API calls update `dateLastActivity` on Trello; setting `trelloLastModified` before caused false `trelloCardModified` on next sync, pulling stale labels |
+| 2026-03-30 | Fix duplicate list: dedup by name before `createTrelloList` + use `activeListsCA` in pull phase (both modes) | Creating a local category matching an existing Trello list created a duplicate; pull phase iterated all lists including archived |
 | 2026-03-27 | Fix label mapping persistence: save `mappingConfig.labelMappings` to `syncedBoard.trelloSync.labelMappings` + update `_inherit*` baseline after push | New labels created by pushActionLabelsToTrello/pushTaskLabelsToTrello were lost across sync cycles, causing tags to disappear after subsequent modifications |
 | 2026-03-26 | Fix card-as-action: `mergeCheckItemIntoTask` now syncs `trelloChecklistId`/`trelloChecklistName` from Trello parent checklist on pull | Items moved between checklists on Trello kept stale group membership locally; only update in pull paths to avoid overwriting local move intent |
 | 2026-03-26 | Fix card-as-action: remove tasks when Trello checklist item/checklist is deleted; add null guard at line 1596 for multi-action sync | Item deletion set `trelloItemDeleted` flag but never removed the task; checklist deletion set task to null but crashed on next action's loop accessing `null.actionId` |
