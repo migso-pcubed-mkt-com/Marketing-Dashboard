@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-25 (card-as-task label guard + selective push with _trelloBaseline)
+> Last updated: 2026-03-27 (label mapping persistence + _inherit* baseline fix)
 
 ---
 
@@ -251,7 +251,7 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 `pushTaskExtrasToTrello(task, card, isPushWinner)` — positions are only pushed to Trello when `isPushWinner=true` (local won last-write-wins). When `isPushWinner=false`, local checklists/items are reordered to match Trello positions. Do NOT remove the `isPushWinner` parameter or always push positions — this causes Trello reorder to be overwritten. `mergeTrelloExtrasIntoTask` must also capture `order` from Trello `pos` on both checklist and item objects, and sort arrays by `order` — without this, the position pull from `pushTaskExtrasToTrello` gets overwritten.
 
 ### card-as-action: checklist/item position sync
-`mergeCheckItemIntoTask` computes a **composite order**: `checklist.pos * 65536 + item.pos`. This is critical because when checklists are reordered on Trello, only `checklist.pos` changes — individual `item.pos` values stay the same. Without the composite, checklist reorder is ignored and groups revert on next pull. Do NOT use plain `item.pos` for order — it only encodes position within a single checklist, not across checklists. The position push block in `syncWithTrelloCardAsAction` is guarded by `actionHadLocalOrderChange` — only pushes positions when `orderUpdatedAt > trelloLastModified` on at least one task. Do NOT use `actionHadLocalPush` (content push) for this guard — it overwrites Trello reorders when only content was locally changed. When local wins content (push) but no explicit reorder happened, composite order is still pulled from Trello (`orderWasLocallyChanged` check). After the position push completes, `trelloLastModified` must be updated on all affected tasks AND the action — otherwise `card.dateLastActivity` (updated by the position API calls) appears newer than `task.trelloLastModified`, causing a false "Trello changed" detection on next sync that overwrites local `order` with renormalized Trello positions (feedback loop). `handleBatchUpdateTasks` sets `orderUpdatedAt` when `order` changes — this timestamp drives the position push guard.
+`mergeCheckItemIntoTask` computes a **composite order**: `checklist.pos * 65536 + item.pos`. This is critical because when checklists are reordered on Trello, only `checklist.pos` changes — individual `item.pos` values stay the same. Without the composite, checklist reorder is ignored and groups revert on next pull. Do NOT use plain `item.pos` for order — it only encodes position within a single checklist, not across checklists. `mergeCheckItemIntoTask` also updates `trelloChecklistId` and `trelloChecklistName` from the item's actual parent checklist — this ensures items moved between checklists on Trello are reflected in the correct group locally. Do NOT update these fields in push paths (local wins) — that would overwrite the user's local move intent (trelloChecklistName change) needed by the cross-checklist move detection. The position push block in `syncWithTrelloCardAsAction` is guarded by `actionHadLocalOrderChange` — only pushes positions when `orderUpdatedAt > trelloLastModified` on at least one task. Do NOT use `actionHadLocalPush` (content push) for this guard — it overwrites Trello reorders when only content was locally changed. When local wins content (push) but no explicit reorder happened, composite order is still pulled from Trello (`orderWasLocallyChanged` check). After the position push completes, `trelloLastModified` must be updated on all affected tasks AND the action — otherwise `card.dateLastActivity` (updated by the position API calls) appears newer than `task.trelloLastModified`, causing a false "Trello changed" detection on next sync that overwrites local `order` with renormalized Trello positions (feedback loop). `handleBatchUpdateTasks` sets `orderUpdatedAt` when `order` changes — this timestamp drives the position push guard.
 
 ### card-as-action: cross-checklist task move
 When moving a task between groups in ActionDetailModal, `trelloChecklistName` changes but `trelloChecklistId` stays pointing to the source checklist. The sync detects this mismatch (item's actual checklist on Trello differs from `trelloChecklistName`'s target checklist) and moves the item via `updateTrelloChecklistItem(cardId, itemId, { idChecklist: targetClId })`. Do NOT rely on the checklist name push to handle this — it would incorrectly rename the source checklist. The checklist name push only renames when ALL tasks with the same `trelloChecklistId` agree on the name (uses a `Set` of names, renames only when `size === 1`).
@@ -339,6 +339,12 @@ When a task's `actionId` changes in card-as-action mode, the sync detects the `t
 
 ### card-as-action: action move between categories
 `handleReorderAction` sets `updatedAt` on cross-category moves. The sync pushes `idList` via `mapActionToTrelloCardUpdate`. Without `updatedAt`, the timestamp comparison fails and the move is never pushed.
+
+### Label mapping persistence across sync cycles
+`pushActionLabelsToTrello` and `pushTaskLabelsToTrello` may create new Trello labels (when a channel/other tag has no existing mapping). These mutations on `mappingConfig.labelMappings` MUST be persisted to `syncedBoard.trelloSync.labelMappings` at the end of each sync. Without this, new mappings are lost on the next sync cycle and `mergeCardIntoAction`/`mergeCardIntoTask` can't map the label back → tags disappear.
+
+### `_inheritChannels` baseline must be updated after label push
+After `pushActionLabelsToTrello`/`pushTaskLabelsToTrello`, update `_inheritChannels`/`_inheritCountries`/`_inheritOtherLabels` to match the pushed values. Without this, `labelsChangedLocally` permanently reports `true` (baseline never matches current tags), breaking label change detection on subsequent syncs.
 
 ---
 

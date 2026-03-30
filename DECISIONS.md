@@ -22,6 +22,8 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-27 | Fix label mapping persistence: save `mappingConfig.labelMappings` to `syncedBoard.trelloSync.labelMappings` + update `_inherit*` baseline after push | New labels created by pushActionLabelsToTrello/pushTaskLabelsToTrello were lost across sync cycles, causing tags to disappear after subsequent modifications |
+| 2026-03-26 | Fix card-as-action: `mergeCheckItemIntoTask` now syncs `trelloChecklistId`/`trelloChecklistName` from Trello parent checklist on pull | Items moved between checklists on Trello kept stale group membership locally; only update in pull paths to avoid overwriting local move intent |
 | 2026-03-26 | Fix card-as-action: remove tasks when Trello checklist item/checklist is deleted; add null guard at line 1596 for multi-action sync | Item deletion set `trelloItemDeleted` flag but never removed the task; checklist deletion set task to null but crashed on next action's loop accessing `null.actionId` |
 | 2026-03-25 | Add selective push with `_trelloBaseline` for all content fields in both modes | Full push overwrote Trello changes to fields the user didn't touch (e.g., changing name locally overwrote Trello's date change); now only locally-modified fields are pushed, non-pushed fields are merged from Trello |
 | 2026-03-25 | Extend label sync decoupling to card-as-task mode with `_inherit*` fields + label guard | Same label re-addition bug as card-as-action also affected card-as-task; also fix `mergeTrelloExtrasIntoTask` union merge overwriting pushed labels |

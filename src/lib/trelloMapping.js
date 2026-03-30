@@ -668,6 +668,8 @@ export const mergeCheckItemIntoTask = (existingTask, item, card) => {
         startDate,
         month,
         order: compositeOrder,
+        trelloChecklistId: parentCl?.id || existingTask.trelloChecklistId,
+        trelloChecklistName: parentCl?.name || existingTask.trelloChecklistName,
         assignees: item.idMember ? [item.idMember] : existingTask.assignees,
         _trelloBaseline: {
             title: item.name,
