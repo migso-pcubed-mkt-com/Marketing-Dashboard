@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-31 (save robustness: fallback cascading, Realtime guards, tab detection, saveId echo filter)
+> Last updated: 2026-03-31 (fix dueComplete, card delete unlink, post-sync auto-save persistence)
 
 ---
 
@@ -375,6 +375,15 @@ The Realtime handler checks `autoSaveTimeoutRef.current` — if a debounced save
 
 ### _saveId echo filter for Realtime
 Each auto-save stamps a `_saveId` (UUID) on `boardDataRef.current`. The Realtime handler compares incoming `_saveId` with `lastSaveIdRef.current` — if they match, it's our own echo and is skipped. This replaces reliance on the fixed 3s `justSavedTimestampRef` guard for echo detection. The 3s guard and `syncRealtimeGuardRef` (8s post-sync) are kept as additional safety layers. Do NOT remove any of the three guards — they cover different edge cases (saveId = echo detection, 3s = rapid saves, 8s = post-sync window).
+
+### Post-sync: do NOT set isReceivingRealtimeRef
+After Trello sync, use `syncRealtimeGuardRef` (checked by Realtime handler) to block incoming events — do NOT set `isReceivingRealtimeRef.current = true`. That flag blocks auto-save, which prevents synced data from being persisted to Supabase. Without auto-save, sync results (archive/delete/position changes) are lost on page refresh.
+
+### No-conflict local push must use buildSelective*, not map*ToTrelloCardUpdate
+The "local only changed" push paths (card-as-task line 847, card-as-action line 1558) must use `buildSelectiveTaskUpdate` / `buildSelectiveActionUpdate` — NOT `mapTaskToTrelloCardUpdate` / `mapActionToTrelloCardUpdate`. The `map*` functions always include `dueComplete` regardless of status change, triggering false "completed this card" activity on Trello.
+
+### Card permanent deletion must unlink, not just pause
+When a Trello card is permanently deleted (missing from API response), the local entity must be unlinked (`trelloCardId: undefined, trelloUnlinked: true`) — not just paused. Without unlinking, the "push new tasks" section re-creates a Trello card for the deleted entity. Without `trelloUnlinked`, the entity would be pushed as a new card on next sync.
 
 ---
 

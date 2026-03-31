@@ -1982,4 +1982,64 @@ describe('syncWithTrello — card-as-task', () => {
         expect(cl).toBeTruthy();
         expect(cl.items.length).toBeGreaterThanOrEqual(1);
     });
+
+    // ════════════════════════════════════════════════════════
+    // Bug: dueComplete should NOT be sent when status hasn't changed (card-as-task)
+    // ════════════════════════════════════════════════════════
+    it('does not send dueComplete when only local fields changed (no status change)', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Updated Title', actionId: 'a1', status: 'inprogress',
+                trelloCardId: 'card-1',
+                trelloLastModified: T.MID, updatedAt: T.NEW,
+                _trelloBaseline: { title: 'Old Title', description: '', startDate: null, dueDate: null, status: 'inprogress', assignees: [] },
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', dateLastActivity: T.MID })]
+        }));
+
+        await syncWithTrello(board, { labelMappings: {} });
+
+        expect(updateTrelloCard).toHaveBeenCalled();
+        const updateArgs = updateTrelloCard.mock.calls[0][1];
+        // dueComplete should NOT be in the update since status didn't change
+        expect(updateArgs).not.toHaveProperty('dueComplete');
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Bug: permanent card deletion should unlink task from Trello
+    // ════════════════════════════════════════════════════════
+    it('unlinks task from Trello when card is permanently deleted (after archive)', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Was Archived', actionId: 'a1', status: 'paused',
+                trelloCardId: 'card-gone', trelloArchived: true,
+                trelloLastModified: T.MID, updatedAt: T.OLD,
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [] // Card permanently deleted
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        const task = synced.tasks[0];
+        // Task should be unlinked from Trello (no longer tracked)
+        expect(task.trelloCardId).toBeUndefined();
+        expect(task.trelloArchived).toBeFalsy();
+        expect(task.status).toBe('paused');
+    });
 });

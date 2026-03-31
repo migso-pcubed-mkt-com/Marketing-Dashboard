@@ -22,6 +22,9 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-31 | Fix post-sync auto-save: use syncRealtimeGuardRef (not isReceivingRealtimeRef) to block Realtime after sync | isReceivingRealtimeRef blocked auto-save, so synced data (archive/delete/positions) was never persisted — lost on page refresh |
+| 2026-03-31 | Use buildSelective*Update for no-conflict local push paths (lines 847, 1558) | map*ToTrelloCardUpdate always sends dueComplete, triggering false "completed this card" activity on Trello for any field change |
+| 2026-03-31 | Unlink entities from Trello on permanent card deletion (trelloCardId=undefined, trelloUnlinked=true) | Previous behavior just paused — but "push new tasks" would re-create a Trello card for the unlinked entity |
 | 2026-03-31 | Add Realtime unsaved-edit guard (autoSaveTimeoutRef check), concurrent tab detection (BroadcastChannel), and _saveId echo filter | Realtime could overwrite pending edits during debounce window; concurrent tabs caused silent data loss; timer-based echo detection was unreliable |
 | 2026-03-31 | Add save fallback cascading (Supabase → GitHub → localStorage) + validateBoardIntegrity on Realtime incoming data + localStorage quota guard | Supabase outage silently lost data; corrupted Realtime data propagated across clients; localStorage quota errors failed silently |
 | 2026-03-30 | Fix card-as-action: pause action (not just tasks) when Trello card is deleted/archived; add unarchive restore logic | Action stayed `status: 'active'` when its card was deleted/archived on Trello — only tasks were paused |

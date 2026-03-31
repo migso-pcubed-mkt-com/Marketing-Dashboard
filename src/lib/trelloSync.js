@@ -799,11 +799,14 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
 
         const card = trelloCardMap.get(task.trelloCardId);
         if (!card) {
-            // Card deleted on Trello — mark as paused
-            if (task.status !== 'paused') {
-                updatedTasks[i] = { ...task, status: 'paused', trelloArchived: false };
-                result.updated++;
-            }
+            // Card permanently deleted on Trello — unlink from Trello and pause
+            updatedTasks[i] = {
+                ...task, status: 'paused',
+                trelloCardId: undefined, trelloArchived: undefined,
+                trelloLastModified: undefined, _trelloBaseline: undefined,
+                trelloUnlinked: true
+            };
+            result.updated++;
             continue;
         }
 
@@ -844,7 +847,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 try {
                     const action = board.actions.find(a => a.id === task.actionId);
                     const listId = action ? catToListId[action.categoryId] : null;
-                    const updates = mapTaskToTrelloCardUpdate(task, listId);
+                    const updates = buildSelectiveTaskUpdate(task, listId);
                     await updateTrelloCard(task.trelloCardId, updates);
                     // Also push comments, checklists, attachments — capture Trello IDs
                     // isPushWinner=true: local wins, push positions to Trello
@@ -1100,7 +1103,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         // In guest/readOnly mode, don't push anything to Trello
     } else for (let i = 0; i < updatedTasks.length; i++) {
         const task = updatedTasks[i];
-        if (task.trelloCardId) continue; // Already linked
+        if (task.trelloCardId || task.trelloUnlinked) continue; // Already linked or permanently deleted
 
         // Find the Trello listId for this task's category
         const action = board.actions.find(a => a.id === task.actionId);
@@ -1506,14 +1509,23 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         processedCardIds.add(action.trelloCardId);
 
         if (!card) {
-            // Card deleted on Trello — pause action AND all its tasks
-            updatedActions[i] = { ...action, status: 'paused' };
+            // Card permanently deleted on Trello — unlink action and all its tasks
+            updatedActions[i] = {
+                ...action, status: 'paused',
+                trelloCardId: undefined, trelloArchived: undefined,
+                trelloLastModified: undefined, _trelloBaseline: undefined,
+                trelloUnlinked: true
+            };
             for (let j = 0; j < updatedTasks.length; j++) {
                 if (!updatedTasks[j] || updatedTasks[j].actionId !== action.id) continue;
-                if (updatedTasks[j].status !== 'paused') {
-                    updatedTasks[j] = { ...updatedTasks[j], status: 'paused' };
-                    result.updated++;
-                }
+                updatedTasks[j] = {
+                    ...updatedTasks[j], status: 'paused',
+                    trelloCardId: undefined, trelloCheckItemId: undefined,
+                    trelloChecklistId: undefined, trelloChecklistName: undefined,
+                    trelloArchived: undefined, trelloLastModified: undefined,
+                    _trelloBaseline: undefined
+                };
+                result.updated++;
             }
             continue;
         }
@@ -1555,7 +1567,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             // Local action changed — push to Trello card
             try {
                 const listId = catToListId[action.categoryId];
-                const updates = mapActionToTrelloCardUpdate(action, listId);
+                const updates = buildSelectiveActionUpdate(action, listId);
                 await updateTrelloCard(action.trelloCardId, updates);
                 updatedActions[i] = { ...action };
                 result.pushed++;
@@ -1949,7 +1961,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     if (!readOnly) {
         for (let i = 0; i < updatedActions.length; i++) {
             const action = updatedActions[i];
-            if (action.trelloCardId) continue;
+            if (action.trelloCardId || action.trelloUnlinked) continue;
             const listId = catToListId[action.categoryId];
             if (!listId) continue;
 

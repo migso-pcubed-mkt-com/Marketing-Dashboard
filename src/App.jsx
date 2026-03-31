@@ -485,11 +485,6 @@ const App = () => {
             if (success) {
                 justSavedTimestampRef.current = Date.now();
                 saveSnapshot(boardDataRef.current, 'auto-save');
-                // Clear Realtime guard after synced data is saved
-                if (syncRealtimeGuardRef.current) {
-                    syncRealtimeGuardRef.current = false;
-                    setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
-                }
                 // Auto-trigger Trello sync after save (debounced 5s)
                 const board = boardDataRef.current?.boards?.find(b => b.id === currentBoardId);
                 if (board?.trelloSync?.syncEnabled && board?.trelloSync?.trelloBoardId) {
@@ -575,7 +570,7 @@ const App = () => {
             console.log('🔄 Supabase Realtime subscription enabled');
             const channel = supabaseClient.channel('app_data_changes')
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data', filter: 'id=eq.default' }, (payload) => {
-                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
+                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
                     const d = payload.new;
                     // Skip our own echo — compare _saveId
                     const incomingSaveId = d.board_data?._saveId;
@@ -656,7 +651,7 @@ const App = () => {
             console.log('🔄 GitHub polling enabled (15s)');
             const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin;
             const checkForUpdates = async () => {
-                if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
+                if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
                 try {
                     const url = `${API_BASE_URL}/api/github`;
                     const response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
@@ -1153,17 +1148,17 @@ const App = () => {
             // In guest mode (no Trello user), sync is read-only — pull from Trello but never push
             const isGuest = !trelloUser;
             const { board: syncedBoard, result } = await syncWithTrello(currentBoard, mappingConfig, { readOnly: isGuest });
-            // Prevent Supabase Realtime from overwriting freshly synced data
-            isReceivingRealtimeRef.current = true;
-            // Update the board in boardData
+            // Block Realtime events during post-sync save window to prevent overwrites.
+            // DO NOT set isReceivingRealtimeRef here — that blocks auto-save, preventing
+            // synced data from being persisted. Use syncRealtimeGuardRef instead (checked by Realtime handler).
+            syncRealtimeGuardRef.current = true;
+            // Update the board in boardData — triggers auto-save via useEffect
             setBoardData(prev => ({
                 ...prev,
                 boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b)
             }));
-            // Guard stays active until auto-save completes for synced data (see syncRealtimeGuardRef)
-            syncRealtimeGuardRef.current = true;
-            // Fallback: if auto-save doesn't fire within 8s, clear guard anyway
-            setTimeout(() => { if (syncRealtimeGuardRef.current) { syncRealtimeGuardRef.current = false; isReceivingRealtimeRef.current = false; } }, 8000);
+            // Clear guard after auto-save has had time to complete (save debounce + network)
+            setTimeout(() => { syncRealtimeGuardRef.current = false; }, 8000);
             setTrelloSyncStatus(result.errors > 0 ? 'error' : 'synced');
             const msg = [];
             if (result.created) msg.push(`${result.created} new`);
