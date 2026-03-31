@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-27 (label mapping persistence + _inherit* baseline fix)
+> Last updated: 2026-03-30 (ghost tag fix + list dedup + card archive/delete action sync)
 
 ---
 
@@ -345,6 +345,18 @@ When a task's `actionId` changes in card-as-action mode, the sync detects the `t
 
 ### `_inheritChannels` baseline must be updated after label push
 After `pushActionLabelsToTrello`/`pushTaskLabelsToTrello`, update `_inheritChannels`/`_inheritCountries`/`_inheritOtherLabels` to match the pushed values. Without this, `labelsChangedLocally` permanently reports `true` (baseline never matches current tags), breaking label change detection on subsequent syncs.
+
+### card-as-action: trelloLastModified must be set AFTER all push operations
+`trelloLastModified` is set AFTER `pushActionExtrasToTrello` and `pushActionLabelsToTrello` (at the end of the push block), not during the content push path. The push API calls update `card.dateLastActivity` on Trello. If `trelloLastModified` were set before, the next sync sees `dateLastActivity > trelloLastModified` → false `trelloCardModified` → pulls stale labels (ghost tag). Also, the "neither changed" path preserves local labels instead of merging from Trello, preventing ghost tags from stale Trello cache.
+
+### List push must dedup by name (both modes)
+When creating Trello lists for new local categories, check if an active Trello list with the same name already exists. If so, link to it instead of calling `createTrelloList`. Without this, creating a category locally that matches an existing Trello list creates a duplicate. Both card-as-task and card-as-action modes.
+
+### card-as-action: pull phase must use activeListsCA, not all lists
+The pull phase that creates local categories from new Trello lists must iterate `activeListsCA` (active only), not `lists` (all including archived). Otherwise archived/closed lists create ghost categories that are immediately removed by the archive cleanup code.
+
+### card-as-action: action must be paused on card delete/archive
+When a Trello card is deleted or archived, the ACTION itself (not just its tasks) must be set to `status: 'paused'`. Card delete: `{ ...action, status: 'paused' }`. Card archive: `{ ...action, status: 'paused', trelloArchived: true }`. Card unarchive: restore action status + clear `trelloArchived`. Uses `let action` (not `const`) so the unarchive block can update the reference for subsequent sync paths.
 
 ---
 

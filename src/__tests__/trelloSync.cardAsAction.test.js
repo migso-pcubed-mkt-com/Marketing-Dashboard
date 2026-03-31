@@ -248,6 +248,107 @@ describe('syncWithTrello — card-as-action', () => {
     });
 
     // ════════════════════════════════════════════════════════
+    // Card deleted → ACTION should also be paused
+    // ════════════════════════════════════════════════════════
+    it('pauses action when card is deleted on Trello', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Deleted', categoryId: 'c1',
+                trelloCardId: 'card-gone', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [
+                { id: 't1', title: 'Task1', actionId: 'a1', status: 'todo', trelloCheckItemId: 'ci-1', trelloCardId: 'card-gone', trelloLastModified: T.MID, updatedAt: T.OLD, dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, description: '', checklists: [], comments: [], attachments: [], channels: [], countries: [], assignees: [], otherLabels: [], order: 0 }
+            ]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [] // Card is gone
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        expect(synced.actions[0].status).toBe('paused');
+        expect(synced.tasks[0].status).toBe('paused');
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Card archived → ACTION should also be paused + trelloArchived
+    // ════════════════════════════════════════════════════════
+    it('pauses action with trelloArchived when card is archived on Trello', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Archived', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [{
+                id: 't1', title: 'Task', actionId: 'a1', status: 'todo',
+                trelloCheckItemId: 'ci-1', trelloCardId: 'card-1',
+                trelloLastModified: T.MID, updatedAt: T.OLD,
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', closed: true })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        expect(synced.actions[0].status).toBe('paused');
+        expect(synced.actions[0].trelloArchived).toBe(true);
+        expect(synced.tasks[0].status).toBe('paused');
+        expect(synced.tasks[0].trelloArchived).toBe(true);
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Card unarchived → ACTION + tasks should be restored
+    // ════════════════════════════════════════════════════════
+    it('restores action when card is unarchived on Trello', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Was Archived', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '',
+                status: 'paused', trelloArchived: true
+            }],
+            tasks: [{
+                id: 't1', title: 'Task', actionId: 'a1',
+                status: 'paused', trelloArchived: true,
+                trelloCheckItemId: 'ci-1', trelloCardId: 'card-1',
+                trelloLastModified: T.MID, updatedAt: T.OLD,
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', closed: false, dateLastActivity: T.NEW,
+                checklists: [{ id: 'cl-1', name: 'Tasks', pos: 100, checkItems: [{ id: 'ci-1', name: 'Task', state: 'incomplete', pos: 100 }] }]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        expect(synced.actions[0].trelloArchived).toBeFalsy();
+        expect(synced.actions[0].status).not.toBe('paused');
+        expect(synced.tasks[0].trelloArchived).toBeFalsy();
+    });
+
+    // ════════════════════════════════════════════════════════
     // Checklist item: Trello changed → task pulled
     // ════════════════════════════════════════════════════════
     it('pulls task changes when Trello checklist item changed', async () => {
@@ -2018,5 +2119,475 @@ describe('syncWithTrello — card-as-action', () => {
         const action = synced.actions.find(a => a.id === 'a1');
         // _inheritChannels should be updated to match pushed tags
         expect(action._inheritChannels).toEqual(['social']);
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Bug 3: trelloLastModified must be set AFTER all push operations
+    // to prevent false trelloCardModified on next sync (ghost tags)
+    // ════════════════════════════════════════════════════════
+    it('sets trelloLastModified after push operations to prevent ghost tags', async () => {
+        // Bug 3 reproduction with fake timers to simulate the timing gap.
+        // The bug: trelloLastModified is set BEFORE pushActionExtrasToTrello/pushActionLabelsToTrello.
+        // Those operations take time (API calls). Trello updates dateLastActivity during the call.
+        // So dateLastActivity ends up AFTER trelloLastModified → false trelloCardModified on next sync.
+        //
+        // With fake timers: we advance time between the content push (where old code sets
+        // trelloLastModified) and the extras/labels push (where Trello would update dateLastActivity).
+        // The fix moves trelloLastModified to AFTER all push operations.
+        vi.useFakeTimers();
+        const SYNC_TIME = new Date('2026-03-20T12:00:00.000Z');
+        vi.setSystemTime(SYNC_TIME);
+
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.NEW, // locally modified (comment added)
+                budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                comments: [{ id: 'cm-1', author: 'User', text: 'New comment', date: T.NEW }],
+                attachments: [], description: '', status: 'active'
+            }],
+            tasks: []
+        });
+
+        // Sync 1: Trello card not changed (dateLastActivity = trelloLastModified)
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.OLD,
+                idLabels: ['lbl-social']
+            })]
+        }));
+
+        // Simulate time advancing during push operations:
+        // addTrelloComment (called by pushActionExtrasToTrello) advances time by 2 seconds
+        const { addTrelloComment } = await import('../lib/trello.js');
+        addTrelloComment.mockImplementation(async () => {
+            // Simulate Trello API call taking time — dateLastActivity gets updated during this
+            vi.advanceTimersByTime(2000);
+            return { id: 'new-cm-pushed' };
+        });
+
+        const mappingConfig = { labelMappings: { 'lbl-social': { type: 'channel', channelId: 'social' } } };
+        const { board: synced1 } = await syncWithTrello(board, mappingConfig);
+        const action1 = synced1.actions.find(a => a.id === 'a1');
+
+        // After sync 1, tags must still be empty
+        expect(action1.tags).toEqual([]);
+
+        // The dateLastActivity Trello would report = time when pushExtras ran + API time
+        // = SYNC_TIME + 2s (the advanced time). If trelloLastModified was set BEFORE the
+        // extras push, it would be SYNC_TIME. If AFTER, it would be SYNC_TIME + 2s.
+        const trelloReportedTime = new Date(SYNC_TIME.getTime() + 2000).toISOString();
+
+        // Sync 2: Trello reports dateLastActivity = time of the push operations
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: trelloReportedTime,
+                idLabels: ['lbl-social'] // label on Trello (simulating stale cache or re-add)
+            })]
+        }));
+
+        // Reset mock for sync 2 (no time advance needed)
+        addTrelloComment.mockResolvedValue({ id: 'new-cm-2' });
+
+        const board2 = { ...synced1, actions: synced1.actions.map(a => ({ ...a })) };
+        const { board: synced2 } = await syncWithTrello(board2, mappingConfig);
+        const action2 = synced2.actions.find(a => a.id === 'a1');
+
+        // Ghost tag must NOT appear — trelloLastModified should have been set
+        // AFTER push operations (>= trelloReportedTime), so trelloCardModified = false
+        expect(action2.tags).toEqual([]);
+
+        vi.useRealTimers();
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Bug 4: Duplicate list on Trello + archived list leak in pull
+    // ════════════════════════════════════════════════════════
+    it('links to existing Trello list by name instead of creating duplicate', async () => {
+        // New local category "Marketing" has no trelloListId.
+        // Trello already has an active list named "Marketing".
+        // Push should link to existing list, NOT create a duplicate.
+        const board = makeBoard({
+            categories: [{
+                id: 'c1', name: 'Marketing',
+                // No trelloListId — new local category
+            }],
+            actions: [],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [{ id: 'existing-list-1', name: 'Marketing', closed: false, pos: 16384 }],
+            cards: []
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {});
+        const cat = synced.categories.find(c => c.id === 'c1');
+
+        // Should be linked to existing list
+        expect(cat.trelloListId).toBe('existing-list-1');
+        // Should NOT have called createTrelloList
+        expect(createTrelloList).not.toHaveBeenCalled();
+    });
+
+    it('pull phase skips archived/closed lists in card-as-action mode', async () => {
+        // Trello has two lists: one active, one archived.
+        // Only the active list should be pulled as a new category.
+        const board = makeBoard({
+            categories: [],
+            actions: [],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [
+                { id: 'active-list', name: 'Active', closed: false, pos: 16384 },
+                { id: 'archived-list', name: 'Archived', closed: true, pos: 32768 }
+            ],
+            cards: []
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {});
+
+        // Only the active list should create a category
+        expect(synced.categories).toHaveLength(1);
+        expect(synced.categories[0].trelloListId).toBe('active-list');
+        expect(synced.categories[0].name).toBe('Active');
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Coverage: Selective push, action move, category name sync, comment push
+    // ════════════════════════════════════════════════════════
+    it('pushes only locally-changed fields when both sides changed (selective push)', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'New Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.NEWER, // local wins
+                budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                description: 'Desc', status: 'active', startDate: '2026-03-01', dueDate: '2026-03-15',
+                comments: [], attachments: [],
+                _trelloBaseline: { name: 'Old Action', description: 'Desc', startDate: '2026-03-01', dueDate: '2026-03-15', status: null, assignees: [] }
+            }],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', name: 'Trello Name', desc: 'Trello Desc', dateLastActivity: T.NEW })]
+        }));
+
+        await syncWithTrello(board, {});
+
+        // updateTrelloCard should have been called with selective update
+        expect(updateTrelloCard).toHaveBeenCalled();
+        const updateArgs = updateTrelloCard.mock.calls[0][1];
+        expect(updateArgs.name).toBe('New Action'); // locally changed
+        expect(updateArgs).not.toHaveProperty('desc'); // not changed locally
+        expect(updateArgs).not.toHaveProperty('start'); // not changed locally
+        expect(updateArgs).not.toHaveProperty('due'); // not changed locally
+    });
+
+    it('pushes idList when action moves to different category', async () => {
+        const board = makeBoard({
+            categories: [
+                { id: 'c1', trelloListId: 'list-1' },
+                { id: 'c2', trelloListId: 'list-2' }
+            ],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c2', // moved to c2
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.NEW,
+                budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                description: '', status: 'active',
+                comments: [], attachments: []
+            }],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList({ id: 'list-1' }), makeList({ id: 'list-2', name: 'List 2', pos: 32768 })],
+            cards: [makeCard({ id: 'card-1', idList: 'list-1', dateLastActivity: T.OLD })]
+        }));
+
+        await syncWithTrello(board, {});
+
+        expect(updateTrelloCard).toHaveBeenCalled();
+        const updateArgs = updateTrelloCard.mock.calls[0][1];
+        expect(updateArgs.idList).toBe('list-2');
+    });
+
+    it('pulls list name change from Trello in card-as-action mode', async () => {
+        const board = makeBoard({
+            categories: [{
+                id: 'c1', name: 'Old Name', trelloListId: 'list-1',
+                trelloLastModified: T.OLD
+            }],
+            actions: [],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList({ id: 'list-1', name: 'New Name' })],
+            cards: []
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {});
+
+        expect(synced.categories[0].name).toBe('New Name');
+    });
+
+    it('pushes new local comment to Trello card in card-as-action mode', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.OLD,
+                budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                description: '', status: 'active',
+                comments: [{ id: 'cm-local', author: 'User', text: 'New comment', date: T.NEW }],
+                attachments: []
+            }],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', dateLastActivity: T.OLD })]
+        }));
+
+        const { addTrelloComment } = await import('../lib/trello.js');
+        await syncWithTrello(board, {});
+
+        // pushActionExtrasToTrello should push the local-only comment
+        expect(addTrelloComment).toHaveBeenCalledWith('card-1', 'New comment');
+    });
+
+    it('selective push merges non-pushed fields from Trello when both changed', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Local Name', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.NEWER, // local wins
+                budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                description: 'Old Desc', status: 'active',
+                comments: [], attachments: [],
+                _trelloBaseline: { name: 'Old Name', description: 'Old Desc', startDate: null, dueDate: null, status: null, assignees: [] }
+            }],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', name: 'Trello Name', desc: 'Trello Desc',
+                dateLastActivity: T.NEW // Trello also changed
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {});
+        const action = synced.actions.find(a => a.id === 'a1');
+
+        // Name was changed locally → local value preserved
+        expect(action.name).toBe('Local Name');
+        // Description was NOT changed locally (matches baseline) → Trello value pulled
+        expect(action.description).toBe('Trello Desc');
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Edge case tests: robustness and error handling
+    // ════════════════════════════════════════════════════════
+    it('falls back to merge on push failure without crash', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Local Change', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.NEW,
+                budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                description: '', status: 'active',
+                comments: [], attachments: []
+            }],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', name: 'Trello Name', dateLastActivity: T.OLD })]
+        }));
+        // Make push fail
+        updateTrelloCard.mockRejectedValueOnce(new Error('API Error'));
+
+        const { board: synced, result } = await syncWithTrello(board, {});
+
+        expect(result.errors).toBeGreaterThanOrEqual(1);
+        // Action still exists (merged from Trello as fallback)
+        expect(synced.actions.find(a => a.id === 'a1')).toBeTruthy();
+    });
+
+    it('handles null tasks in checklist rename consensus gracefully', async () => {
+        // Task t2's checklist item is deleted on Trello → set to null during sync.
+        // The rename consensus logic at line 1798 must skip null tasks.
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.OLD,
+                budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                description: '', status: 'active',
+                comments: [], attachments: []
+            }],
+            tasks: [
+                {
+                    id: 't1', title: 'Task 1', actionId: 'a1', status: 'todo',
+                    trelloCardId: 'card-1', trelloCheckItemId: 'item-1',
+                    trelloChecklistId: 'cl-1', trelloChecklistName: 'Renamed',
+                    trelloLastModified: T.OLD, updatedAt: T.OLD, order: 0
+                },
+                {
+                    id: 't2', title: 'Task 2', actionId: 'a1', status: 'todo',
+                    trelloCardId: 'card-1', trelloCheckItemId: 'item-deleted',
+                    trelloChecklistId: 'cl-1', trelloChecklistName: 'Renamed',
+                    trelloLastModified: T.OLD, updatedAt: T.OLD, order: 1
+                }
+            ]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.OLD,
+                checklists: [{
+                    id: 'cl-1', name: 'Original',
+                    checkItems: [{ id: 'item-1', name: 'Task 1', state: 'incomplete', pos: 100 }]
+                    // item-deleted is gone → t2 will be set to null
+                }]
+            })]
+        }));
+
+        // Should not crash despite t2 being nullified during sync
+        const { board: synced } = await syncWithTrello(board, {});
+        // t1 survives, t2 removed
+        expect(synced.tasks.filter(t => t.actionId === 'a1')).toHaveLength(1);
+    });
+
+    it('deduplicates new checklist items by title instead of creating duplicates', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.OLD,
+                budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                _inheritChannels: [], _inheritCountries: [], _inheritOtherLabels: [],
+                description: '', status: 'active',
+                comments: [], attachments: []
+            }],
+            tasks: [{
+                id: 't1', title: 'Existing Task', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1',
+                // No trelloCheckItemId — local-only task that matches Trello item by name
+                trelloChecklistName: 'Tasks',
+                trelloLastModified: T.OLD, updatedAt: T.OLD, order: 0
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.OLD,
+                checklists: [{
+                    id: 'cl-1', name: 'Tasks',
+                    checkItems: [{ id: 'new-item-1', name: 'Existing Task', state: 'incomplete', pos: 100 }]
+                }]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {});
+
+        // Should NOT create a duplicate — re-link existing task instead
+        const actionTasks = synced.tasks.filter(t => t.actionId === 'a1');
+        expect(actionTasks).toHaveLength(1);
+        expect(actionTasks[0].trelloCheckItemId).toBe('new-item-1');
+    });
+
+    it('handles orphaned channelId in action.tags without crash', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.OLD,
+                updatedAt: T.OLD,
+                budget: 0, priority: 'medium',
+                tags: ['nonexistent-channel'], countries: [], otherLabels: [], assignees: [],
+                _inheritChannels: ['nonexistent-channel'], _inheritCountries: [], _inheritOtherLabels: [],
+                description: '', status: 'active',
+                comments: [], attachments: []
+            }],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', dateLastActivity: T.OLD })]
+        }));
+
+        // Should not crash — nonexistent channelId is skipped
+        const { board: synced } = await syncWithTrello(board, {});
+        const action = synced.actions.find(a => a.id === 'a1');
+        expect(action.tags).toContain('nonexistent-channel');
+        // No label creation attempted for unknown channel
+        expect(createTrelloBoardLabel).not.toHaveBeenCalled();
+    });
+
+    it('sync lock auto-resets after timeout allowing next sync', async () => {
+        vi.useFakeTimers();
+        const SYNC_TIME = new Date('2026-03-20T12:00:00.000Z');
+        vi.setSystemTime(SYNC_TIME);
+
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [],
+            tasks: []
+        });
+
+        // First sync: fetchTrelloBoardFull returns a promise that never resolves (simulates hang)
+        let hangResolve;
+        fetchTrelloBoardFull.mockReturnValueOnce(new Promise(resolve => { hangResolve = resolve; }));
+
+        // Start first sync (don't await — it will hang)
+        const firstSync = syncWithTrello(board, {});
+
+        // Advance past the lock timeout (15s)
+        vi.advanceTimersByTime(16000);
+
+        // Second sync: proper response
+        fetchTrelloBoardFull.mockResolvedValueOnce(makeTrelloResponse({
+            lists: [makeList()],
+            cards: []
+        }));
+
+        const { result } = await syncWithTrello(board, {});
+
+        // Should NOT be skipped — lock was auto-reset
+        expect(result.skipped).toBeFalsy();
+
+        // Clean up: resolve the hanging promise to avoid unhandled rejection
+        hangResolve(makeTrelloResponse({ lists: [], cards: [] }));
+        await firstSync.catch(() => {});
+
+        vi.useRealTimers();
     });
 });
