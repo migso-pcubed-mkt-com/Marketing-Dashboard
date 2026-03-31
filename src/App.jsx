@@ -11,7 +11,7 @@ import {
     saveSnapshot,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
-import { syncWithTrello, isSyncInProgress } from './lib/trelloSync.js';
+import { syncWithTrello, isSyncInProgress, validateBoardIntegrity } from './lib/trelloSync.js';
 import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem, deleteTrelloChecklist } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
@@ -290,8 +290,24 @@ const App = () => {
         }
         if (useSupabase) {
             const result = await saveToSupabase(boardDataRef, setSyncing, showNotification);
-            if (result) saveToLocalStorage();
-            return result;
+            if (result) {
+                saveToLocalStorage();
+                return true;
+            }
+            // Supabase failed — try GitHub as fallback
+            console.warn('⚠️ Supabase save failed, trying GitHub fallback...');
+            if (githubToken) {
+                const ghResult = await saveToGitHub(boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification);
+                if (ghResult) {
+                    saveToLocalStorage();
+                    showNotification('⚠️ Saved to GitHub (Supabase unavailable)');
+                    return true;
+                }
+            }
+            // Both failed — save to localStorage and warn user
+            saveToLocalStorage();
+            showNotification('⚠️ Cloud save failed — data saved locally only');
+            return false;
         } else if (githubToken) {
             const result = await saveToGitHub(boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification);
             if (result) saveToLocalStorage();
@@ -540,6 +556,15 @@ const App = () => {
                         incoming = migrateToV2({ categories: d.categories, actions: d.actions, tasks: d.tasks });
                     }
                     if (incoming) {
+                        // Validate and repair incoming data before merging
+                        incoming = {
+                            ...incoming,
+                            boards: incoming.boards.map(b => {
+                                const integrity = validateBoardIntegrity(b);
+                                if (integrity.warnings?.length) console.warn('[Realtime] Repaired incoming board:', integrity.warnings);
+                                return integrity.board;
+                            })
+                        };
                         // Field-by-field merge — preserves local fields missing from incoming
                         setBoardData(prev => {
                             if (!prev?.boards) return incoming;

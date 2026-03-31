@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-31 | Add save fallback cascading (Supabase → GitHub → localStorage) + validateBoardIntegrity on Realtime incoming data + localStorage quota guard | Supabase outage silently lost data; corrupted Realtime data propagated across clients; localStorage quota errors failed silently |
 | 2026-03-30 | Fix card-as-action: pause action (not just tasks) when Trello card is deleted/archived; add unarchive restore logic | Action stayed `status: 'active'` when its card was deleted/archived on Trello — only tasks were paused |
 | 2026-03-30 | Fix ghost tag: move `trelloLastModified` after all push operations + preserve local labels in "neither changed" path | Push API calls update `dateLastActivity` on Trello; setting `trelloLastModified` before caused false `trelloCardModified` on next sync, pulling stale labels |
 | 2026-03-30 | Fix duplicate list: dedup by name before `createTrelloList` + use `activeListsCA` in pull phase (both modes) | Creating a local category matching an existing Trello list created a duplicate; pull phase iterated all lists including archived |

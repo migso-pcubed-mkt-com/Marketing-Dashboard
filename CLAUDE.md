@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-30 (ghost tag fix + list dedup + card archive/delete action sync)
+> Last updated: 2026-03-31 (save fallback cascading + Realtime integrity check + localStorage quota guard)
 
 ---
 
@@ -357,6 +357,15 @@ The pull phase that creates local categories from new Trello lists must iterate 
 
 ### card-as-action: action must be paused on card delete/archive
 When a Trello card is deleted or archived, the ACTION itself (not just its tasks) must be set to `status: 'paused'`. Card delete: `{ ...action, status: 'paused' }`. Card archive: `{ ...action, status: 'paused', trelloArchived: true }`. Card unarchive: restore action status + clear `trelloArchived`. Uses `let action` (not `const`) so the unarchive block can update the reference for subsequent sync paths.
+
+### Save fallback cascading
+`saveData()` tries Supabase first. If Supabase fails and GitHub token is available, falls back to GitHub. If both fail, saves to localStorage only and warns the user. Do NOT remove the fallback chain — without it, a Supabase outage silently loses unsaved data.
+
+### Realtime incoming data must pass validateBoardIntegrity
+The Realtime handler calls `validateBoardIntegrity` on each incoming board before merging. This catches corrupted data from other clients (orphan refs, duplicate IDs, missing default actions). Do NOT skip this check — it prevents cascading corruption across clients.
+
+### localStorage quota handling
+`saveToLocalStorage` and `saveSnapshot` catch `QuotaExceededError`. On quota exceeded: `saveToLocalStorage` clears all snapshots and retries; `saveSnapshot` clears the oldest snapshot and retries. Do NOT let quota errors silently fail — the backup save is the last resort.
 
 ---
 

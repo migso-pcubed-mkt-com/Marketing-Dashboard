@@ -232,7 +232,21 @@ export const saveToLocalStorage = (boardDataRef) => {
         const data = { ...boardDataRef.current, timestamp: Date.now() };
         localStorage.setItem('marketing_tracker_backup', JSON.stringify(data));
     } catch (e) {
-        console.error('LocalStorage save error:', e);
+        if (e.name === 'QuotaExceededError' || e.code === 22) {
+            console.warn('[Storage] localStorage quota exceeded, clearing old snapshots...');
+            for (let i = 0; i < SNAPSHOT_COUNT; i++) {
+                localStorage.removeItem(`${SNAPSHOT_KEY_PREFIX}${i}`);
+            }
+            localStorage.removeItem(SNAPSHOT_INDEX_KEY);
+            try {
+                const data = { ...boardDataRef.current, timestamp: Date.now() };
+                localStorage.setItem('marketing_tracker_backup', JSON.stringify(data));
+            } catch (e2) {
+                console.error('LocalStorage save failed even after cleanup:', e2);
+            }
+        } else {
+            console.error('LocalStorage save error:', e);
+        }
     }
 };
 
@@ -251,7 +265,23 @@ export const saveSnapshot = (boardData, trigger = 'auto-save') => {
         localStorage.setItem(`${SNAPSHOT_KEY_PREFIX}${nextIndex}`, JSON.stringify(snapshot));
         localStorage.setItem(SNAPSHOT_INDEX_KEY, String(nextIndex));
     } catch (e) {
-        console.error('Snapshot save error:', e);
+        if (e.name === 'QuotaExceededError' || e.code === 22) {
+            console.warn('[Storage] localStorage quota exceeded, clearing oldest snapshot...');
+            // Remove the oldest snapshot and retry
+            const oldestIndex = (parseInt(localStorage.getItem(SNAPSHOT_INDEX_KEY) || '0', 10) + 1) % SNAPSHOT_COUNT;
+            localStorage.removeItem(`${SNAPSHOT_KEY_PREFIX}${oldestIndex}`);
+            try {
+                const index = parseInt(localStorage.getItem(SNAPSHOT_INDEX_KEY) || '0', 10);
+                const nextIndex = (index + 1) % SNAPSHOT_COUNT;
+                const snapshot = { boardData, timestamp: Date.now(), trigger };
+                localStorage.setItem(`${SNAPSHOT_KEY_PREFIX}${nextIndex}`, JSON.stringify(snapshot));
+                localStorage.setItem(SNAPSHOT_INDEX_KEY, String(nextIndex));
+            } catch (e2) {
+                console.error('Snapshot save failed even after cleanup:', e2);
+            }
+        } else {
+            console.error('Snapshot save error:', e);
+        }
     }
 };
 
