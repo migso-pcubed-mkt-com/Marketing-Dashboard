@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-31 (save fallback cascading + Realtime integrity check + localStorage quota guard)
+> Last updated: 2026-03-31 (save robustness: fallback cascading, Realtime guards, tab detection, saveId echo filter)
 
 ---
 
@@ -366,6 +366,15 @@ The Realtime handler calls `validateBoardIntegrity` on each incoming board befor
 
 ### localStorage quota handling
 `saveToLocalStorage` and `saveSnapshot` catch `QuotaExceededError`. On quota exceeded: `saveToLocalStorage` clears all snapshots and retries; `saveSnapshot` clears the oldest snapshot and retries. Do NOT let quota errors silently fail — the backup save is the last resort.
+
+### Realtime must skip when auto-save is pending
+The Realtime handler checks `autoSaveTimeoutRef.current` — if a debounced save is pending, it means there are unsaved local changes. Accepting Realtime data would overwrite them. Do NOT remove this guard — the 1-2s debounce window is the highest-risk period for data loss.
+
+### Concurrent tab detection via BroadcastChannel
+`BroadcastChannel('mkt_dashboard_tabs')` detects other open tabs. Messages: `tab-open` (announce), `tab-ack` (reply), `tab-close` (leaving). Orange banner warns user of conflict risk. `beforeunload` sends `tab-close`. Do NOT use localStorage-based detection — BroadcastChannel is more reliable and doesn't trigger storage events.
+
+### _saveId echo filter for Realtime
+Each auto-save stamps a `_saveId` (UUID) on `boardDataRef.current`. The Realtime handler compares incoming `_saveId` with `lastSaveIdRef.current` — if they match, it's our own echo and is skipped. This replaces reliance on the fixed 3s `justSavedTimestampRef` guard for echo detection. The 3s guard and `syncRealtimeGuardRef` (8s post-sync) are kept as additional safety layers. Do NOT remove any of the three guards — they cover different edge cases (saveId = echo detection, 3s = rapid saves, 8s = post-sync window).
 
 ---
 

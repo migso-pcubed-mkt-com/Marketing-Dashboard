@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-03-31 | Add Realtime unsaved-edit guard (autoSaveTimeoutRef check), concurrent tab detection (BroadcastChannel), and _saveId echo filter | Realtime could overwrite pending edits during debounce window; concurrent tabs caused silent data loss; timer-based echo detection was unreliable |
 | 2026-03-31 | Add save fallback cascading (Supabase → GitHub → localStorage) + validateBoardIntegrity on Realtime incoming data + localStorage quota guard | Supabase outage silently lost data; corrupted Realtime data propagated across clients; localStorage quota errors failed silently |
 | 2026-03-30 | Fix card-as-action: pause action (not just tasks) when Trello card is deleted/archived; add unarchive restore logic | Action stayed `status: 'active'` when its card was deleted/archived on Trello — only tasks were paused |
 | 2026-03-30 | Fix ghost tag: move `trelloLastModified` after all push operations + preserve local labels in "neither changed" path | Push API calls update `dateLastActivity` on Trello; setting `trelloLastModified` before caused false `trelloCardModified` on next sync, pulling stale labels |

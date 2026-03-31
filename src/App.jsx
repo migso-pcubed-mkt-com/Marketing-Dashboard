@@ -74,6 +74,7 @@ const App = () => {
         return !!(sessionStorage.getItem('guest_auth') || localStorage.getItem('trello_user_token'));
     });
     const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
+    const [otherTabActive, setOtherTabActive] = useState(false);
     const [realtimeConnected, setRealtimeConnected] = useState(null); // null = not applicable, true = connected, false = disconnected
     const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_done'));
     const trelloSyncIntervalRef = useRef(null);
@@ -87,6 +88,7 @@ const App = () => {
     const fileShaRef = useRef(fileSha);
     const isUserInteractingRef = useRef(false);
     const justSavedTimestampRef = useRef(0);
+    const lastSaveIdRef = useRef(null);
     const searchInputRef = useRef(null);
 
     // --- Derive active board data ---
@@ -473,6 +475,10 @@ const App = () => {
                 return;
             }
             console.log('💾 Auto-save triggered...');
+            // Stamp a save ID so Realtime can detect our own echo
+            const saveId = crypto.randomUUID();
+            lastSaveIdRef.current = saveId;
+            boardDataRef.current = { ...boardDataRef.current, _saveId: saveId };
             const success = await saveData();
             setSavingStatus(success ? 'saved' : 'error');
             if (!success) saveToLocalStorage();
@@ -535,6 +541,32 @@ const App = () => {
         };
     }, [dataLoaded]);
 
+    // Concurrent tab detection via BroadcastChannel
+    useEffect(() => {
+        if (typeof BroadcastChannel === 'undefined') return;
+        const channel = new BroadcastChannel('mkt_dashboard_tabs');
+        // Announce this tab
+        channel.postMessage({ type: 'tab-open' });
+        channel.onmessage = (e) => {
+            if (e.data?.type === 'tab-open') {
+                setOtherTabActive(true);
+                // Reply so the other tab also knows
+                channel.postMessage({ type: 'tab-ack' });
+            } else if (e.data?.type === 'tab-ack') {
+                setOtherTabActive(true);
+            } else if (e.data?.type === 'tab-close') {
+                setOtherTabActive(false);
+            }
+        };
+        const handleUnload = () => channel.postMessage({ type: 'tab-close' });
+        window.addEventListener('beforeunload', handleUnload);
+        return () => {
+            channel.postMessage({ type: 'tab-close' });
+            window.removeEventListener('beforeunload', handleUnload);
+            channel.close();
+        };
+    }, []);
+
     // Realtime sync
     useEffect(() => {
         if (!dataLoaded) return;
@@ -543,10 +575,16 @@ const App = () => {
             console.log('🔄 Supabase Realtime subscription enabled');
             const channel = supabaseClient.channel('app_data_changes')
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data', filter: 'id=eq.default' }, (payload) => {
-                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || Date.now() - justSavedTimestampRef.current < 3000) return;
+                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
+                    const d = payload.new;
+                    // Skip our own echo — compare _saveId
+                    const incomingSaveId = d.board_data?._saveId;
+                    if (incomingSaveId && incomingSaveId === lastSaveIdRef.current) {
+                        console.log('🔄 Realtime: skipping own echo (saveId match)');
+                        return;
+                    }
                     console.log('🔄 Realtime update received from Supabase');
                     isReceivingRealtimeRef.current = true;
-                    const d = payload.new;
                     // Prefer board_data column (v2)
                     let incoming = null;
                     if (d.board_data && d.board_data.version === 2) {
@@ -1327,6 +1365,11 @@ const App = () => {
                 {isOffline && (
                     <div style={{background:'#f59e0b',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
                         📡 Offline — changes saved locally. Will sync when back online.
+                    </div>
+                )}
+                {otherTabActive && !isOffline && (
+                    <div style={{background:'#f97316',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
+                        ⚠️ This app is open in another tab — simultaneous edits may cause data conflicts.
                     </div>
                 )}
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync} isOffline={isOffline} realtimeConnected={realtimeConnected}/>
