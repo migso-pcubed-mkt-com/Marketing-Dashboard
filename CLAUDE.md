@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-03-30 (ghost tag fix + list dedup + card archive/delete action sync)
+> Last updated: 2026-03-31 (fix dueComplete, card delete unlink, post-sync auto-save persistence)
 
 ---
 
@@ -357,6 +357,33 @@ The pull phase that creates local categories from new Trello lists must iterate 
 
 ### card-as-action: action must be paused on card delete/archive
 When a Trello card is deleted or archived, the ACTION itself (not just its tasks) must be set to `status: 'paused'`. Card delete: `{ ...action, status: 'paused' }`. Card archive: `{ ...action, status: 'paused', trelloArchived: true }`. Card unarchive: restore action status + clear `trelloArchived`. Uses `let action` (not `const`) so the unarchive block can update the reference for subsequent sync paths.
+
+### Save fallback cascading
+`saveData()` tries Supabase first. If Supabase fails and GitHub token is available, falls back to GitHub. If both fail, saves to localStorage only and warns the user. Do NOT remove the fallback chain — without it, a Supabase outage silently loses unsaved data.
+
+### Realtime incoming data must pass validateBoardIntegrity
+The Realtime handler calls `validateBoardIntegrity` on each incoming board before merging. This catches corrupted data from other clients (orphan refs, duplicate IDs, missing default actions). Do NOT skip this check — it prevents cascading corruption across clients.
+
+### localStorage quota handling
+`saveToLocalStorage` and `saveSnapshot` catch `QuotaExceededError`. On quota exceeded: `saveToLocalStorage` clears all snapshots and retries; `saveSnapshot` clears the oldest snapshot and retries. Do NOT let quota errors silently fail — the backup save is the last resort.
+
+### Realtime must skip when auto-save is pending
+The Realtime handler checks `autoSaveTimeoutRef.current` — if a debounced save is pending, it means there are unsaved local changes. Accepting Realtime data would overwrite them. Do NOT remove this guard — the 1-2s debounce window is the highest-risk period for data loss.
+
+### Concurrent tab detection via BroadcastChannel
+`BroadcastChannel('mkt_dashboard_tabs')` detects other open tabs. Messages: `tab-open` (announce), `tab-ack` (reply), `tab-close` (leaving). Orange banner warns user of conflict risk. `beforeunload` sends `tab-close`. Do NOT use localStorage-based detection — BroadcastChannel is more reliable and doesn't trigger storage events.
+
+### _saveId echo filter for Realtime
+Each auto-save stamps a `_saveId` (UUID) on `boardDataRef.current`. The Realtime handler compares incoming `_saveId` with `lastSaveIdRef.current` — if they match, it's our own echo and is skipped. This replaces reliance on the fixed 3s `justSavedTimestampRef` guard for echo detection. The 3s guard and `syncRealtimeGuardRef` (8s post-sync) are kept as additional safety layers. Do NOT remove any of the three guards — they cover different edge cases (saveId = echo detection, 3s = rapid saves, 8s = post-sync window).
+
+### Post-sync: do NOT set isReceivingRealtimeRef
+After Trello sync, use `syncRealtimeGuardRef` (checked by Realtime handler) to block incoming events — do NOT set `isReceivingRealtimeRef.current = true`. That flag blocks auto-save, which prevents synced data from being persisted to Supabase. Without auto-save, sync results (archive/delete/position changes) are lost on page refresh.
+
+### No-conflict local push must use buildSelective*, not map*ToTrelloCardUpdate
+The "local only changed" push paths (card-as-task line 847, card-as-action line 1558) must use `buildSelectiveTaskUpdate` / `buildSelectiveActionUpdate` — NOT `mapTaskToTrelloCardUpdate` / `mapActionToTrelloCardUpdate`. The `map*` functions always include `dueComplete` regardless of status change, triggering false "completed this card" activity on Trello.
+
+### Card permanent deletion must unlink, not just pause
+When a Trello card is permanently deleted (missing from API response), the local entity must be unlinked (`trelloCardId: undefined, trelloUnlinked: true`) — not just paused. Without unlinking, the "push new tasks" section re-creates a Trello card for the deleted entity. Without `trelloUnlinked`, the entity would be pushed as a new card on next sync.
 
 ---
 

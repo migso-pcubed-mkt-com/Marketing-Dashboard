@@ -11,7 +11,7 @@ import {
     saveSnapshot,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
-import { syncWithTrello, isSyncInProgress } from './lib/trelloSync.js';
+import { syncWithTrello, isSyncInProgress, validateBoardIntegrity } from './lib/trelloSync.js';
 import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem, deleteTrelloChecklist } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
@@ -74,6 +74,7 @@ const App = () => {
         return !!(sessionStorage.getItem('guest_auth') || localStorage.getItem('trello_user_token'));
     });
     const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
+    const [otherTabActive, setOtherTabActive] = useState(false);
     const [realtimeConnected, setRealtimeConnected] = useState(null); // null = not applicable, true = connected, false = disconnected
     const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_done'));
     const trelloSyncIntervalRef = useRef(null);
@@ -87,6 +88,7 @@ const App = () => {
     const fileShaRef = useRef(fileSha);
     const isUserInteractingRef = useRef(false);
     const justSavedTimestampRef = useRef(0);
+    const lastSaveIdRef = useRef(null);
     const searchInputRef = useRef(null);
 
     // --- Derive active board data ---
@@ -290,8 +292,24 @@ const App = () => {
         }
         if (useSupabase) {
             const result = await saveToSupabase(boardDataRef, setSyncing, showNotification);
-            if (result) saveToLocalStorage();
-            return result;
+            if (result) {
+                saveToLocalStorage();
+                return true;
+            }
+            // Supabase failed — try GitHub as fallback
+            console.warn('⚠️ Supabase save failed, trying GitHub fallback...');
+            if (githubToken) {
+                const ghResult = await saveToGitHub(boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification);
+                if (ghResult) {
+                    saveToLocalStorage();
+                    showNotification('⚠️ Saved to GitHub (Supabase unavailable)');
+                    return true;
+                }
+            }
+            // Both failed — save to localStorage and warn user
+            saveToLocalStorage();
+            showNotification('⚠️ Cloud save failed — data saved locally only');
+            return false;
         } else if (githubToken) {
             const result = await saveToGitHub(boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification);
             if (result) saveToLocalStorage();
@@ -457,17 +475,16 @@ const App = () => {
                 return;
             }
             console.log('💾 Auto-save triggered...');
+            // Stamp a save ID so Realtime can detect our own echo
+            const saveId = crypto.randomUUID();
+            lastSaveIdRef.current = saveId;
+            boardDataRef.current = { ...boardDataRef.current, _saveId: saveId };
             const success = await saveData();
             setSavingStatus(success ? 'saved' : 'error');
             if (!success) saveToLocalStorage();
             if (success) {
                 justSavedTimestampRef.current = Date.now();
                 saveSnapshot(boardDataRef.current, 'auto-save');
-                // Clear Realtime guard after synced data is saved
-                if (syncRealtimeGuardRef.current) {
-                    syncRealtimeGuardRef.current = false;
-                    setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
-                }
                 // Auto-trigger Trello sync after save (debounced 5s)
                 const board = boardDataRef.current?.boards?.find(b => b.id === currentBoardId);
                 if (board?.trelloSync?.syncEnabled && board?.trelloSync?.trelloBoardId) {
@@ -519,6 +536,32 @@ const App = () => {
         };
     }, [dataLoaded]);
 
+    // Concurrent tab detection via BroadcastChannel
+    useEffect(() => {
+        if (typeof BroadcastChannel === 'undefined') return;
+        const channel = new BroadcastChannel('mkt_dashboard_tabs');
+        // Announce this tab
+        channel.postMessage({ type: 'tab-open' });
+        channel.onmessage = (e) => {
+            if (e.data?.type === 'tab-open') {
+                setOtherTabActive(true);
+                // Reply so the other tab also knows
+                channel.postMessage({ type: 'tab-ack' });
+            } else if (e.data?.type === 'tab-ack') {
+                setOtherTabActive(true);
+            } else if (e.data?.type === 'tab-close') {
+                setOtherTabActive(false);
+            }
+        };
+        const handleUnload = () => channel.postMessage({ type: 'tab-close' });
+        window.addEventListener('beforeunload', handleUnload);
+        return () => {
+            channel.postMessage({ type: 'tab-close' });
+            window.removeEventListener('beforeunload', handleUnload);
+            channel.close();
+        };
+    }, []);
+
     // Realtime sync
     useEffect(() => {
         if (!dataLoaded) return;
@@ -527,10 +570,16 @@ const App = () => {
             console.log('🔄 Supabase Realtime subscription enabled');
             const channel = supabaseClient.channel('app_data_changes')
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data', filter: 'id=eq.default' }, (payload) => {
-                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || Date.now() - justSavedTimestampRef.current < 3000) return;
+                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
+                    const d = payload.new;
+                    // Skip our own echo — compare _saveId
+                    const incomingSaveId = d.board_data?._saveId;
+                    if (incomingSaveId && incomingSaveId === lastSaveIdRef.current) {
+                        console.log('🔄 Realtime: skipping own echo (saveId match)');
+                        return;
+                    }
                     console.log('🔄 Realtime update received from Supabase');
                     isReceivingRealtimeRef.current = true;
-                    const d = payload.new;
                     // Prefer board_data column (v2)
                     let incoming = null;
                     if (d.board_data && d.board_data.version === 2) {
@@ -540,6 +589,15 @@ const App = () => {
                         incoming = migrateToV2({ categories: d.categories, actions: d.actions, tasks: d.tasks });
                     }
                     if (incoming) {
+                        // Validate and repair incoming data before merging
+                        incoming = {
+                            ...incoming,
+                            boards: incoming.boards.map(b => {
+                                const integrity = validateBoardIntegrity(b);
+                                if (integrity.warnings?.length) console.warn('[Realtime] Repaired incoming board:', integrity.warnings);
+                                return integrity.board;
+                            })
+                        };
                         // Field-by-field merge — preserves local fields missing from incoming
                         setBoardData(prev => {
                             if (!prev?.boards) return incoming;
@@ -593,7 +651,7 @@ const App = () => {
             console.log('🔄 GitHub polling enabled (15s)');
             const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin;
             const checkForUpdates = async () => {
-                if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
+                if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
                 try {
                     const url = `${API_BASE_URL}/api/github`;
                     const response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
@@ -1090,17 +1148,17 @@ const App = () => {
             // In guest mode (no Trello user), sync is read-only — pull from Trello but never push
             const isGuest = !trelloUser;
             const { board: syncedBoard, result } = await syncWithTrello(currentBoard, mappingConfig, { readOnly: isGuest });
-            // Prevent Supabase Realtime from overwriting freshly synced data
-            isReceivingRealtimeRef.current = true;
-            // Update the board in boardData
+            // Block Realtime events during post-sync save window to prevent overwrites.
+            // DO NOT set isReceivingRealtimeRef here — that blocks auto-save, preventing
+            // synced data from being persisted. Use syncRealtimeGuardRef instead (checked by Realtime handler).
+            syncRealtimeGuardRef.current = true;
+            // Update the board in boardData — triggers auto-save via useEffect
             setBoardData(prev => ({
                 ...prev,
                 boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b)
             }));
-            // Guard stays active until auto-save completes for synced data (see syncRealtimeGuardRef)
-            syncRealtimeGuardRef.current = true;
-            // Fallback: if auto-save doesn't fire within 8s, clear guard anyway
-            setTimeout(() => { if (syncRealtimeGuardRef.current) { syncRealtimeGuardRef.current = false; isReceivingRealtimeRef.current = false; } }, 8000);
+            // Clear guard after auto-save has had time to complete (save debounce + network)
+            setTimeout(() => { syncRealtimeGuardRef.current = false; }, 8000);
             setTrelloSyncStatus(result.errors > 0 ? 'error' : 'synced');
             const msg = [];
             if (result.created) msg.push(`${result.created} new`);
@@ -1302,6 +1360,11 @@ const App = () => {
                 {isOffline && (
                     <div style={{background:'#f59e0b',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
                         📡 Offline — changes saved locally. Will sync when back online.
+                    </div>
+                )}
+                {otherTabActive && !isOffline && (
+                    <div style={{background:'#f97316',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
+                        ⚠️ This app is open in another tab — simultaneous edits may cause data conflicts.
                     </div>
                 )}
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync} isOffline={isOffline} realtimeConnected={realtimeConnected}/>
