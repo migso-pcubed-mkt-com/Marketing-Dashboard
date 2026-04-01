@@ -108,16 +108,29 @@ export const saveToSupabase = async (boardDataRef, setSyncing, showNotification)
         const boardData = boardDataRef.current;
         // Find active board for backward-compatible legacy columns
         const activeBoard = boardData.boards.find(b => b.id === boardData.currentBoardId) || boardData.boards[0];
+        // Try full save with board_data column
         const { error } = await supabaseClient.from('app_data').upsert({
             id: 'default',
             board_data: boardData,
-            // Keep legacy columns for backward compatibility
             categories: activeBoard?.categories,
             actions: activeBoard?.actions,
             tasks: activeBoard?.tasks,
             updated_at: new Date().toISOString()
         });
-        if (error) throw error;
+
+        if (error) {
+            // If board_data column doesn't exist, retry with legacy columns only
+            console.warn('Supabase save with board_data failed, retrying legacy-only:', error.message);
+            const { error: legacyError } = await supabaseClient.from('app_data').upsert({
+                id: 'default',
+                categories: activeBoard?.categories,
+                actions: activeBoard?.actions,
+                tasks: activeBoard?.tasks,
+                updated_at: new Date().toISOString()
+            });
+            if (legacyError) throw legacyError;
+        }
+
         console.log('✅ Supabase save successful');
         return true;
     } catch (e) {
