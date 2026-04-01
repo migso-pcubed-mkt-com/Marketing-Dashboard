@@ -123,6 +123,7 @@ export const saveToSupabase = async (boardDataRef, setSyncing, showNotification)
             console.warn('Supabase save with board_data failed, retrying legacy-only:', error.message);
             const { error: legacyError } = await supabaseClient.from('app_data').upsert({
                 id: 'default',
+                board_data: null,
                 categories: activeBoard?.categories,
                 actions: activeBoard?.actions,
                 tasks: activeBoard?.tasks,
