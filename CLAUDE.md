@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-01 (saveToSupabase legacy-column fallback for missing board_data migration)
+> Last updated: 2026-04-01 (fix archive reappearance + visibleActions filtering)
 
 ---
 
@@ -362,7 +362,10 @@ When a Trello card is deleted or archived, the ACTION itself (not just its tasks
 `saveData()` tries Supabase first. If Supabase fails and GitHub token is available, falls back to GitHub. If both fail, saves to localStorage only and warns the user. Do NOT remove the fallback chain — without it, a Supabase outage silently loses unsaved data.
 
 ### saveToSupabase legacy-column fallback
-`saveToSupabase` first tries upsert with `board_data` + legacy columns. If that fails (e.g. `board_data` column missing because migration wasn't run), retries with legacy columns only. Do NOT remove this fallback — without it, the entire save chain fails when the migration hasn't been applied.
+`saveToSupabase` first tries upsert with `board_data` + legacy columns. If that fails (e.g. `board_data` column missing because migration wasn't run), retries with legacy columns only AND sets `board_data: null`. The null is critical — without it, stale `board_data` persists in Supabase, causing the Realtime handler to use old data (echo filter fails on mismatched `_saveId`, handler prefers stale `board_data` over fresh legacy columns). Do NOT remove `board_data: null` from the fallback.
+
+### visibleActions filtering for archived actions
+`visibleActions` memo in App.jsx filters `trelloArchived` actions (same pattern as `visibleTasks`). Passed to KanbanView, TimelineView, CalendarView, DashboardView. Do NOT pass `visibleActions` to TaskDetailModal, ActionDetailModal, NewTaskModal, FilterSidebar, or filteredTasks computation — those need the full action list.
 
 ### Realtime incoming data must pass validateBoardIntegrity
 The Realtime handler calls `validateBoardIntegrity` on each incoming board before merging. This catches corrupted data from other clients (orphan refs, duplicate IDs, missing default actions). Do NOT skip this check — it prevents cascading corruption across clients.

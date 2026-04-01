@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-04-01 | Fix archive reappearance: set board_data=null in legacy fallback + add visibleActions filtering | Stale board_data in Supabase caused Realtime to restore pre-archive state; archived actions (card-as-action) were never filtered from views |
 | 2026-04-01 | Add legacy-column fallback in saveToSupabase when board_data column missing | Entire save failed if board_data migration wasn't run, causing "Cloud save failed" and loss of all sync results on refresh |
 | 2026-03-31 | Fix post-sync auto-save: use syncRealtimeGuardRef (not isReceivingRealtimeRef) to block Realtime after sync | isReceivingRealtimeRef blocked auto-save, so synced data (archive/delete/positions) was never persisted — lost on page refresh |
 | 2026-03-31 | Use buildSelective*Update for no-conflict local push paths (lines 847, 1558) | map*ToTrelloCardUpdate always sends dueComplete, triggering false "completed this card" activity on Trello for any field change |
