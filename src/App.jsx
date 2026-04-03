@@ -43,7 +43,7 @@ const App = () => {
     const [boardData, setBoardData] = useState(null);
     const [currentBoardId, setCurrentBoardId] = useState('board-default');
 
-    const [filters, setFilters] = useState({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],hideArchived:false});
+    const [filters, setFilters] = useState({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
     const [syncing, setSyncing] = useState(false);
     const [savingStatus, setSavingStatus] = useState(null);
     const [selectedTask, setSelectedTask] = useState(null);
@@ -102,17 +102,17 @@ const App = () => {
     const tasks = currentBoard?.tasks || DEFAULT_TASKS;
     const boards = boardData?.boards || [];
 
-    // Archived tasks/actions are visible by default (with ARCHIVED badge).
-    // User can hide them via the "Hide archived" filter checkbox.
+    // Archived tasks/actions are hidden by default.
+    // User can show them via the "Show archived" filter checkbox.
     const visibleTasks = useMemo(() => {
-        if (filters.hideArchived) return tasks.filter(t => !t.trelloArchived);
-        return tasks;
-    }, [tasks, filters.hideArchived]);
+        if (filters.showArchived) return tasks;
+        return tasks.filter(t => !t.trelloArchived);
+    }, [tasks, filters.showArchived]);
 
     const visibleActions = useMemo(() => {
-        if (filters.hideArchived) return actions.filter(a => !a.trelloArchived);
-        return actions;
-    }, [actions, filters.hideArchived]);
+        if (filters.showArchived) return actions;
+        return actions.filter(a => !a.trelloArchived);
+    }, [actions, filters.showArchived]);
 
     // Guest users are read-only on Trello-linked boards (can edit non-Trello boards)
     const isReadOnly = !trelloUser && !!currentBoard?.trelloSync?.trelloBoardId;
@@ -177,7 +177,7 @@ const App = () => {
     const handleSwitchBoard = useCallback((boardId) => {
         setCurrentBoardId(boardId);
         setBoardData(prev => ({ ...prev, currentBoardId: boardId }));
-        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],hideArchived:false});
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
         setSelectedTask(null);
         setSelectedAction(null);
     }, []);
@@ -241,7 +241,7 @@ const App = () => {
                 updatedAt: new Date().toISOString()
             };
             setCurrentBoardId(newId);
-            setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],hideArchived:false});
+            setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
             return { ...prev, currentBoardId: newId, boards: [...prev.boards, newBoard] };
         });
         showNotification('✅ Board duplicated');
@@ -1308,7 +1308,7 @@ const App = () => {
 
     const totalBudget = tasks.reduce((s, t) => s + (t.budget || 0), 0);
     const completedCount = tasks.filter(t => t.status === 'completed').length;
-    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.hideArchived ? 1 : 0);
+    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
 
     // Filtered tasks for stats — same logic as views (visibleTasks already excludes archived)
     const filteredTasks = useMemo(() => {

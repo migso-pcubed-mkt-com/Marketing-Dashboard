@@ -210,8 +210,8 @@ describe('syncWithTrello — card-as-action', () => {
 
         const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
 
-        expect(synced.tasks[0].status).toBe('paused');
-        expect(synced.tasks[1].status).toBe('paused');
+        // Tasks should be completely removed (action's card deleted)
+        expect(synced.tasks).toHaveLength(0);
     });
 
     // ════════════════════════════════════════════════════════
@@ -271,8 +271,9 @@ describe('syncWithTrello — card-as-action', () => {
 
         const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
 
-        expect(synced.actions[0].status).toBe('paused');
-        expect(synced.tasks[0].status).toBe('paused');
+        // Action and tasks should be completely removed
+        expect(synced.actions).toHaveLength(0);
+        expect(synced.tasks).toHaveLength(0);
     });
 
     // ════════════════════════════════════════════════════════
@@ -2650,14 +2651,9 @@ describe('syncWithTrello — card-as-action', () => {
 
         const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
 
-        // Action should be unlinked from Trello
-        expect(synced.actions[0].trelloCardId).toBeUndefined();
-        expect(synced.actions[0].trelloArchived).toBe(true); // Preserved from archive step
-        expect(synced.actions[0].trelloUnlinked).toBe(true);
-        expect(synced.actions[0].status).toBe('paused');
-        // Task should also be unlinked
-        expect(synced.tasks[0].trelloCardId).toBeUndefined();
-        expect(synced.tasks[0].trelloCheckItemId).toBeUndefined();
+        // Action and tasks should be completely removed from the board
+        expect(synced.actions).toHaveLength(0);
+        expect(synced.tasks).toHaveLength(0);
     });
 
     // ════════════════════════════════════════════════════════
