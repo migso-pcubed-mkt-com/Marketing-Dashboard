@@ -1684,7 +1684,11 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             if (!itemData) {
                 const checklistStillExists = card.checklists?.some(cl => cl.id === task.trelloChecklistId);
                 const taskBelongsToThisCard = task.trelloCardId === card.id;
-                if (!checklistStillExists && taskBelongsToThisCard) {
+                if (!taskBelongsToThisCard) {
+                    // Task was moved to this action but its Trello item is on a different card
+                    // Skip — move detection below will handle it
+                    continue;
+                } else if (!checklistStillExists) {
                     // Entire checklist deleted on Trello → remove task locally
                     updatedTasks[j] = null;
                 } else {
@@ -1917,6 +1921,11 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 updatedTasks[idx] = { ...existingTask, trelloCheckItemId: itemId, trelloChecklistId: checklistId, trelloChecklistName: checklistName, trelloCardId: card.id, trelloLastModified: new Date().toISOString() };
                 result.updated++;
             } else {
+                // Check if this checklist item belongs to a task moved to another action
+                const movedTask = updatedTasks.find(t =>
+                    t && t.trelloCheckItemId === itemId && t.actionId !== action.id
+                );
+                if (movedTask) continue; // Move detection below will handle it
                 const newTask = mapTrelloCheckItemToTask(item, action.id, card, checklistId, checklistName, mappingConfig);
                 newTasks.push(newTask);
                 result.created++;
