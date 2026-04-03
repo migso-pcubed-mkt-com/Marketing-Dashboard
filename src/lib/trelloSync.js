@@ -1770,7 +1770,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             } else {
                 // Neither side changed content — still pull position from Trello
                 if (!orderWasLocallyChanged && trelloCompositeOrder !== null && task.order !== trelloCompositeOrder) {
-                    updatedTasks[j] = { ...task, order: trelloCompositeOrder };
+                    updatedTasks[j] = { ...task, order: trelloCompositeOrder, trelloLastModified: card.dateLastActivity };
                     result.updated++;
                 }
             }
