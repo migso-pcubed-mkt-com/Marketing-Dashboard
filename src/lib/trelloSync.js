@@ -799,13 +799,8 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
 
         const card = trelloCardMap.get(task.trelloCardId);
         if (!card) {
-            // Card permanently deleted on Trello — unlink from Trello and pause
-            updatedTasks[i] = {
-                ...task, status: 'paused',
-                trelloCardId: undefined,
-                trelloLastModified: undefined, _trelloBaseline: undefined,
-                trelloUnlinked: true
-            };
+            // Card permanently deleted on Trello — remove task from app
+            updatedTasks[i] = null;
             result.updated++;
             continue;
         }
@@ -943,13 +938,17 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         } else {
             // Neither side has timestamp changes — still merge extras
             // (positions, new checklist items, comments that don't affect dateLastActivity)
+            // Snapshot before mutation (pushTaskExtrasToTrello mutates task.checklists in-place)
+            const checklistsBefore = JSON.stringify(task.checklists);
+            const commentsBefore = JSON.stringify(task.comments);
+            const attachmentsBefore = JSON.stringify(task.attachments);
             // isPushWinner=false: pull Trello positions into local order
             await pushTaskExtrasToTrello(task, card, false).catch(() => {});
             const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig);
-            // Check if anything actually changed
-            const extrasChanged = JSON.stringify(mergedTask.checklists) !== JSON.stringify(task.checklists) ||
-                JSON.stringify(mergedTask.comments) !== JSON.stringify(task.comments) ||
-                JSON.stringify(mergedTask.attachments) !== JSON.stringify(task.attachments);
+            // Check if anything actually changed (compare against pre-mutation snapshot)
+            const extrasChanged = JSON.stringify(mergedTask.checklists) !== checklistsBefore ||
+                JSON.stringify(mergedTask.comments) !== commentsBefore ||
+                JSON.stringify(mergedTask.attachments) !== attachmentsBefore;
             if (extrasChanged) {
                 updatedTasks[i] = { ...mergedTask, trelloLastModified: card.dateLastActivity };
                 result.updated++;
@@ -1103,7 +1102,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         // In guest/readOnly mode, don't push anything to Trello
     } else for (let i = 0; i < updatedTasks.length; i++) {
         const task = updatedTasks[i];
-        if (task.trelloCardId || task.trelloUnlinked) continue; // Already linked or permanently deleted
+        if (!task || task.trelloCardId || task.trelloUnlinked) continue; // Null (deleted), already linked, or permanently deleted
 
         // Find the Trello listId for this task's category
         const action = board.actions.find(a => a.id === task.actionId);
@@ -1315,7 +1314,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     const removedActionIds = removedCatIds.size > 0
         ? new Set(updatedActions.filter(a => removedCatIds.has(a.categoryId)).map(a => a.id))
         : new Set();
-    const allTasks = [...updatedTasks, ...newTasks];
+    const allTasks = [...updatedTasks, ...newTasks].filter(Boolean);
     const finalTasks = removedActionIds.size > 0
         ? allTasks.filter(t => !removedActionIds.has(t.actionId))
         : allTasks;
@@ -1509,21 +1508,12 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         processedCardIds.add(action.trelloCardId);
 
         if (!card) {
-            // Card permanently deleted on Trello — unlink action and all its tasks
-            updatedActions[i] = {
-                ...action, status: 'paused',
-                trelloCardId: undefined,
-                trelloLastModified: undefined, _trelloBaseline: undefined,
-                trelloUnlinked: true
-            };
+            // Card permanently deleted on Trello — remove action and all its tasks
+            const actionId = action.id;
+            updatedActions[i] = null;
             for (let j = 0; j < updatedTasks.length; j++) {
-                if (!updatedTasks[j] || updatedTasks[j].actionId !== action.id) continue;
-                updatedTasks[j] = {
-                    ...updatedTasks[j], status: 'paused',
-                    trelloCardId: undefined, trelloCheckItemId: undefined,
-                    trelloChecklistId: undefined, trelloChecklistName: undefined,
-                    trelloLastModified: undefined, _trelloBaseline: undefined
-                };
+                if (!updatedTasks[j] || updatedTasks[j].actionId !== actionId) continue;
+                updatedTasks[j] = null;
                 result.updated++;
             }
             continue;
@@ -1777,6 +1767,12 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     updatedTasks[j] = mergeCheckItemIntoTask(task, item, card);
                     result.updated++;
                 }
+            } else {
+                // Neither side changed content — still pull position from Trello
+                if (!orderWasLocallyChanged && trelloCompositeOrder !== null && task.order !== trelloCompositeOrder) {
+                    updatedTasks[j] = { ...task, order: trelloCompositeOrder };
+                    result.updated++;
+                }
             }
         }
 
@@ -1960,7 +1956,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     if (!readOnly) {
         for (let i = 0; i < updatedActions.length; i++) {
             const action = updatedActions[i];
-            if (action.trelloCardId || action.trelloUnlinked) continue;
+            if (!action || action.trelloCardId || action.trelloUnlinked) continue;
             const listId = catToListId[action.categoryId];
             if (!listId) continue;
 
@@ -2115,14 +2111,14 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     }));
 
     // 6. Filter out actions/tasks of removed categories, then build updated board
-    const allActionsCA = [...updatedActions, ...newActions];
+    const allActionsCA = [...updatedActions, ...newActions].filter(Boolean);
     const finalActionsCA = removedCatIdsCA.size > 0
         ? allActionsCA.filter(a => !removedCatIdsCA.has(a.categoryId))
         : allActionsCA;
     const removedActionIdsCA = removedCatIdsCA.size > 0
         ? new Set(allActionsCA.filter(a => removedCatIdsCA.has(a.categoryId)).map(a => a.id))
         : new Set();
-    const allTasksCA = [...updatedTasks, ...newTasks];
+    const allTasksCA = [...updatedTasks, ...newTasks].filter(Boolean);
     const finalTasksCA = removedActionIdsCA.size > 0
         ? allTasksCA.filter(t => !removedActionIdsCA.has(t.actionId))
         : allTasksCA;

@@ -245,7 +245,8 @@ describe('syncWithTrello — card-as-task', () => {
 
         const { board: synced, result } = await syncWithTrello(board, { labelMappings: {} });
 
-        expect(synced.tasks[0].status).toBe('paused');
+        // Task should be completely removed from the board
+        expect(synced.tasks).toHaveLength(0);
         expect(result.updated).toBeGreaterThanOrEqual(1);
     });
 
@@ -2036,11 +2037,7 @@ describe('syncWithTrello — card-as-task', () => {
 
         const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
 
-        const task = synced.tasks[0];
-        // Task should be unlinked from Trello (no longer tracked)
-        expect(task.trelloCardId).toBeUndefined();
-        expect(task.trelloArchived).toBe(true); // Preserved from archive step
-        expect(task.trelloUnlinked).toBe(true);
-        expect(task.status).toBe('paused');
+        // Task should be completely removed from the board
+        expect(synced.tasks).toHaveLength(0);
     });
 });
