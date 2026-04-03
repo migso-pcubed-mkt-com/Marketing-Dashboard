@@ -22,7 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
-| 2026-04-03 | Preserve trelloArchived on card unlink + invert archive filter to hideArchived | Clearing trelloArchived on unlink caused reappearance; user expects archived items visible by default with badge, not hidden |
+| 2026-04-03 | Revert to showArchived, delete→remove entities, fix checklist position sync | User expects archived items hidden by default; deleted cards should disappear entirely; position-only Trello changes were silently dropped (supersedes 2026-04-03 hideArchived) |
 | 2026-04-01 | Fix archive reappearance: set board_data=null in legacy fallback + add visibleActions filtering | Stale board_data in Supabase caused Realtime to restore pre-archive state; archived actions (card-as-action) were never filtered from views |
 | 2026-04-01 | Add legacy-column fallback in saveToSupabase when board_data column missing | Entire save failed if board_data migration wasn't run, causing "Cloud save failed" and loss of all sync results on refresh |
 | 2026-03-31 | Fix post-sync auto-save: use syncRealtimeGuardRef (not isReceivingRealtimeRef) to block Realtime after sync | isReceivingRealtimeRef blocked auto-save, so synced data (archive/delete/positions) was never persisted — lost on page refresh |
