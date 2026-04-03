@@ -73,12 +73,12 @@ const FilterSidebar = ({show, onClose, filters, setFilters, categories, allCount
             )}
             <div className="filter-section">
                 <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13,color:'var(--text-secondary)'}}>
-                    <input type="checkbox" checked={!!filters.showArchived} onChange={e=>setFilters({...filters,showArchived:e.target.checked})} style={{accentColor:'var(--accent)'}}/>
-                    Show archived tasks
+                    <input type="checkbox" checked={!!filters.hideArchived} onChange={e=>setFilters({...filters,hideArchived:e.target.checked})} style={{accentColor:'var(--accent)'}}/>
+                    Hide archived
                 </label>
             </div>
             <div className="sidebar-footer">
-                <button onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false})} className="v11-btn-secondary" style={{flex:1}}>Reset</button>
+                <button onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],hideArchived:false})} className="v11-btn-secondary" style={{flex:1}}>Reset</button>
                 <button onClick={onClose} className="v11-btn-primary" style={{flex:1}}>Apply</button>
             </div>
         </div>

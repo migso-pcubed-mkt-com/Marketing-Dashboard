@@ -802,7 +802,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             // Card permanently deleted on Trello — unlink from Trello and pause
             updatedTasks[i] = {
                 ...task, status: 'paused',
-                trelloCardId: undefined, trelloArchived: undefined,
+                trelloCardId: undefined,
                 trelloLastModified: undefined, _trelloBaseline: undefined,
                 trelloUnlinked: true
             };
@@ -1512,7 +1512,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             // Card permanently deleted on Trello — unlink action and all its tasks
             updatedActions[i] = {
                 ...action, status: 'paused',
-                trelloCardId: undefined, trelloArchived: undefined,
+                trelloCardId: undefined,
                 trelloLastModified: undefined, _trelloBaseline: undefined,
                 trelloUnlinked: true
             };
@@ -1522,8 +1522,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     ...updatedTasks[j], status: 'paused',
                     trelloCardId: undefined, trelloCheckItemId: undefined,
                     trelloChecklistId: undefined, trelloChecklistName: undefined,
-                    trelloArchived: undefined, trelloLastModified: undefined,
-                    _trelloBaseline: undefined
+                    trelloLastModified: undefined, _trelloBaseline: undefined
                 };
                 result.updated++;
             }

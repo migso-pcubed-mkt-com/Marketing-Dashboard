@@ -2039,7 +2039,8 @@ describe('syncWithTrello — card-as-task', () => {
         const task = synced.tasks[0];
         // Task should be unlinked from Trello (no longer tracked)
         expect(task.trelloCardId).toBeUndefined();
-        expect(task.trelloArchived).toBeFalsy();
+        expect(task.trelloArchived).toBe(true); // Preserved from archive step
+        expect(task.trelloUnlinked).toBe(true);
         expect(task.status).toBe('paused');
     });
 });

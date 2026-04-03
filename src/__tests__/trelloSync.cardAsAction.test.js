@@ -2652,7 +2652,8 @@ describe('syncWithTrello — card-as-action', () => {
 
         // Action should be unlinked from Trello
         expect(synced.actions[0].trelloCardId).toBeUndefined();
-        expect(synced.actions[0].trelloArchived).toBeFalsy();
+        expect(synced.actions[0].trelloArchived).toBe(true); // Preserved from archive step
+        expect(synced.actions[0].trelloUnlinked).toBe(true);
         expect(synced.actions[0].status).toBe('paused');
         // Task should also be unlinked
         expect(synced.tasks[0].trelloCardId).toBeUndefined();
