@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-01 (fix archive reappearance + visibleActions filtering)
+> Last updated: 2026-04-03 (preserve trelloArchived on unlink + invert archive filter to hideArchived)
 
 ---
 
@@ -367,6 +367,12 @@ When a Trello card is deleted or archived, the ACTION itself (not just its tasks
 ### visibleActions filtering for archived actions
 `visibleActions` memo in App.jsx filters `trelloArchived` actions (same pattern as `visibleTasks`). Passed to KanbanView, TimelineView, CalendarView, DashboardView. Do NOT pass `visibleActions` to TaskDetailModal, ActionDetailModal, NewTaskModal, FilterSidebar, or filteredTasks computation — those need the full action list.
 
+### Archive filter is "hide" not "show" (hideArchived)
+Archived items are **visible by default** with an ARCHIVED badge. `filters.hideArchived` (checkbox "Hide archived") hides them when checked. Do NOT revert to `showArchived` — the user expects archived items to be visible by default, not hidden.
+
+### Card unlink must preserve trelloArchived
+When unlinking a permanently deleted card (trelloSync.js), do NOT set `trelloArchived: undefined`. The `...task`/`...action` spread already preserves the existing `trelloArchived` value. Clearing it causes the unlinked entity to reappear in the UI (since `!undefined === true` passes the visibleActions/visibleTasks filter).
+
 ### Realtime incoming data must pass validateBoardIntegrity
 The Realtime handler calls `validateBoardIntegrity` on each incoming board before merging. This catches corrupted data from other clients (orphan refs, duplicate IDs, missing default actions). Do NOT skip this check — it prevents cascading corruption across clients.
 
@@ -389,7 +395,7 @@ After Trello sync, use `syncRealtimeGuardRef` (checked by Realtime handler) to b
 The "local only changed" push paths (card-as-task line 847, card-as-action line 1558) must use `buildSelectiveTaskUpdate` / `buildSelectiveActionUpdate` — NOT `mapTaskToTrelloCardUpdate` / `mapActionToTrelloCardUpdate`. The `map*` functions always include `dueComplete` regardless of status change, triggering false "completed this card" activity on Trello.
 
 ### Card permanent deletion must unlink, not just pause
-When a Trello card is permanently deleted (missing from API response), the local entity must be unlinked (`trelloCardId: undefined, trelloUnlinked: true`) — not just paused. Without unlinking, the "push new tasks" section re-creates a Trello card for the deleted entity. Without `trelloUnlinked`, the entity would be pushed as a new card on next sync.
+When a Trello card is permanently deleted (missing from API response), the local entity must be unlinked (`trelloCardId: undefined, trelloUnlinked: true`) — not just paused. Without unlinking, the "push new tasks" section re-creates a Trello card for the deleted entity. Without `trelloUnlinked`, the entity would be pushed as a new card on next sync. The unlink must NOT clear `trelloArchived` — see "Card unlink must preserve trelloArchived" pitfall.
 
 ---
 
