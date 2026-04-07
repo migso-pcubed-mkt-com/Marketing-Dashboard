@@ -682,10 +682,10 @@ describe('syncWithTrello — card-as-action', () => {
     // Move detection at line 1711 checks taskAction.trelloCardId !== task.trelloCardId
     // This only triggers when the task still has its trelloCheckItemId
     // ════════════════════════════════════════════════════════
-    it('removes task moved between actions when item not found on new card', async () => {
+    it('moves task between actions: deletes old item, clears IDs for re-creation', async () => {
         // Setup: task has actionId=a-new but trelloCardId still points to card-old
-        // a-old processes card-old: t1 has actionId=a-new so NOT matched under a-old
-        // a-new processes card-new: ci-1 not on card-new → task removed
+        // Sync should: skip duplicate import, detect move, delete old item, clear IDs
+        addTrelloChecklistItems.mockResolvedValue({ itemsAdded: 1, items: [{ id: 'ci-new-1' }] });
         const board = makeBoard({
             categories: [{ id: 'c1', trelloListId: 'list-1' }],
             actions: [
@@ -697,6 +697,7 @@ describe('syncWithTrello — card-as-action', () => {
                 status: 'todo',
                 trelloCardId: 'card-old', // Still points to old card
                 trelloCheckItemId: 'ci-1', trelloChecklistId: 'cl-1',
+                trelloChecklistName: 'Tasks',
                 trelloLastModified: T.MID, updatedAt: T.NEW,
                 dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
                 description: '', checklists: [], comments: [], attachments: [],
@@ -713,8 +714,17 @@ describe('syncWithTrello — card-as-action', () => {
 
         const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
 
-        // Task is removed — item not found on new action's card
-        expect(synced.tasks.find(t => t.id === 't1')).toBeUndefined();
+        // Task survives — not duplicated, not removed
+        const movedTasks = synced.tasks.filter(t => t.title === 'Moved Task');
+        expect(movedTasks).toHaveLength(1);
+
+        const movedTask = synced.tasks.find(t => t.id === 't1');
+        expect(movedTask).toBeDefined();
+        expect(movedTask.actionId).toBe('a-new');
+        expect(movedTask.trelloCardId).toBe('card-new');
+
+        // Old checklist item deleted from Trello
+        expect(deleteTrelloChecklistItem).toHaveBeenCalledWith('cl-1', 'ci-1');
     });
 
     // ════════════════════════════════════════════════════════
@@ -2684,5 +2694,52 @@ describe('syncWithTrello — card-as-action', () => {
         expect(addTrelloAttachment).toHaveBeenCalledWith('card-1', 'https://storage.example.com/doc.pdf', 'doc.pdf');
         // Attachment should now have trelloAttachmentId
         expect(synced.actions[0].attachments[0].trelloAttachmentId).toBe('new-att-1');
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Task move between actions: no duplicate creation
+    // ════════════════════════════════════════════════════════
+    it('does not create duplicate task when task moved between actions and item still on old card', async () => {
+        addTrelloChecklistItems.mockResolvedValue({ itemsAdded: 1, items: [{ id: 'ci-moved-new' }] });
+        const board = makeBoard({
+            categories: [{ id: 'c1', name: 'Cat', trelloListId: 'list-1', order: 0 }],
+            actions: [
+                { id: 'a-old', name: 'Old Action', categoryId: 'c1', trelloCardId: 'card-old', trelloLastModified: T.MID, updatedAt: T.OLD, budget: 0, priority: 'medium', tags: [], countries: [], otherLabels: [], assignees: [], comments: [], attachments: [], description: '', status: 'active', order: 0 },
+                { id: 'a-new', name: 'New Action', categoryId: 'c1', trelloCardId: 'card-new', trelloLastModified: T.MID, updatedAt: T.OLD, budget: 0, priority: 'medium', tags: [], countries: [], otherLabels: [], assignees: [], comments: [], attachments: [], description: '', status: 'active', order: 1 }
+            ],
+            tasks: [{
+                id: 't1', title: 'Moved Task', actionId: 'a-new',
+                status: 'todo', priority: 'medium',
+                trelloCardId: 'card-old',
+                trelloCheckItemId: 'ci-1', trelloChecklistId: 'cl-1',
+                trelloChecklistName: 'Tasks',
+                trelloLastModified: T.MID, updatedAt: T.NEW,
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [
+                makeCard({ id: 'card-old', name: 'Old Action', dateLastActivity: T.MID, checklists: [{ id: 'cl-1', name: 'Tasks', pos: 100, checkItems: [{ id: 'ci-1', name: 'Moved Task', state: 'incomplete', pos: 100 }] }] }),
+                makeCard({ id: 'card-new', name: 'New Action', dateLastActivity: T.MID, checklists: [] })
+            ]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // No duplicate: only one task with this title
+        const movedTasks = synced.tasks.filter(t => t.title === 'Moved Task');
+        expect(movedTasks).toHaveLength(1);
+
+        // The task should remain under the new action
+        const movedTask = synced.tasks.find(t => t.id === 't1');
+        expect(movedTask).toBeDefined();
+        expect(movedTask.actionId).toBe('a-new');
+        expect(movedTask.trelloCardId).toBe('card-new');
+
+        // Old checklist item deleted from Trello
+        expect(deleteTrelloChecklistItem).toHaveBeenCalledWith('cl-1', 'ci-1');
     });
 });

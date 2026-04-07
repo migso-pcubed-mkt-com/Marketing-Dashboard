@@ -802,7 +802,7 @@ const App = () => {
         }
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
-        const newTask = { id: `t-${crypto.randomUUID()}`, actionId, month, startDate, title: 'New task', description: '', status: 'todo', priority: 'medium', dueDate, budget: 0, channels: action?.tags || [], checklist: [], comments: [], attachments: [], order: maxOrder, createdAt: now, updatedAt: now };
+        const newTask = { id: `t-${crypto.randomUUID()}`, actionId, month, startDate, title: 'New task', description: '', status: 'todo', priority: 'medium', dueDate, budget: 0, channels: action?.tags || [], checklist: [], comments: [], attachments: [], order: maxOrder, createdAt: now, updatedAt: now, trelloChecklistName: 'Tasks', trelloCardId: action?.trelloCardId || null, trelloChecklistId: null };
         setTasks(prev => [...prev, newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Task created');
