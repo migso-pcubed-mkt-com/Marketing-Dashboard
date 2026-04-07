@@ -164,7 +164,7 @@ const buildSelectiveCheckItemUpdate = (task) => {
     if (JSON.stringify(task.assignees || []) !== JSON.stringify(baseline.assignees || [])) {
         updates.idMember = task.assignees?.[0] || null;
     }
-    if (Object.keys(updates).length === 0) updates.name = task.title;
+    if (Object.keys(updates).length === 0) return null; // Nothing changed — skip API call
     return updates;
 };
 
@@ -1722,17 +1722,19 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 updatedTasks[j] = mergeCheckItemIntoTask(task, item, card);
                 result.updated++;
             } else if (taskLocallyModified && !trelloItemModified) {
-                // Local changed — push
+                // Local changed — push (selective: only push fields that actually changed)
                 if (!readOnly) {
                     try {
-                        const updates = mapTaskToCheckItemUpdate(task);
-                        await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, updates);
+                        const updates = buildSelectiveCheckItemUpdate(task);
+                        if (updates) {
+                            await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, updates);
+                            actionHadLocalPush = true;
+                            result.pushed++;
+                        }
                         const pushed = { ...task, trelloLastModified: new Date().toISOString() };
                         // Sync position from Trello unless user explicitly reordered
                         if (!orderWasLocallyChanged && trelloCompositeOrder !== null) pushed.order = trelloCompositeOrder;
                         updatedTasks[j] = pushed;
-                        actionHadLocalPush = true;
-                        result.pushed++;
                     } catch (e) {
                         console.error(`Failed to push task "${task.title}" to Trello checkItem:`, e);
                         result.errors++;

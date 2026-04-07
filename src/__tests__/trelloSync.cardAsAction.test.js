@@ -2742,4 +2742,118 @@ describe('syncWithTrello — card-as-action', () => {
         // Old checklist item deleted from Trello
         expect(deleteTrelloChecklistItem).toHaveBeenCalledWith('cl-1', 'ci-1');
     });
+
+    // ════════════════════════════════════════════════════════
+    // Issue 2: Local-only push must NOT send state when status
+    // unchanged (reduces Trello "marked incomplete" activity)
+    // ════════════════════════════════════════════════════════
+    it('does not send state in checkItem update when only order changed locally', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [{
+                id: 't1', title: 'Item', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1', trelloCheckItemId: 'ci-1', trelloChecklistId: 'cl-1',
+                trelloChecklistName: 'Tasks',
+                trelloLastModified: T.MID,
+                updatedAt: T.NEW, // Locally modified
+                orderUpdatedAt: T.NEW, // Order changed
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0,
+                // Baseline matches current values — only order changed
+                _trelloBaseline: { title: 'Item', status: 'todo', dueDate: '2026-03-31', assignees: [] }
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.MID,
+                checklists: [{
+                    id: 'cl-1', name: 'Tasks', pos: 100,
+                    checkItems: [{ id: 'ci-1', name: 'Item', state: 'incomplete', pos: 100 }]
+                }]
+            })]
+        }));
+
+        await syncWithTrello(board, { labelMappings: {} });
+
+        // updateTrelloChecklistItem should NOT have been called with a `state` property
+        // when the task's status hasn't changed (only order changed)
+        const calls = updateTrelloChecklistItem.mock.calls;
+        for (const call of calls) {
+            const updates = call[2]; // Third argument is the updates object
+            if (typeof updates === 'object' && updates !== null && !updates.pos) {
+                // Content update (not position-only) should NOT include state
+                expect(updates).not.toHaveProperty('state');
+            }
+        }
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Issue 3: New task with trelloChecklistName matching
+    // existing checklist gets pushed to that checklist
+    // ════════════════════════════════════════════════════════
+    it('pushes new task to existing checklist by name instead of creating new one', async () => {
+        addTrelloChecklistItems.mockResolvedValue({
+            itemsAdded: 1, items: [{ id: 'ci-new-1' }]
+        });
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{
+                id: 'a1', name: 'Action', categoryId: 'c1',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, budget: 0, priority: 'medium',
+                tags: [], countries: [], otherLabels: [], assignees: [],
+                comments: [], attachments: [], description: '', status: 'active'
+            }],
+            tasks: [
+                // Existing synced task in "Email/Newsletter" checklist
+                {
+                    id: 't-existing', title: 'Existing', actionId: 'a1', status: 'todo',
+                    trelloCardId: 'card-1', trelloCheckItemId: 'ci-existing',
+                    trelloChecklistId: 'cl-email', trelloChecklistName: 'Email/Newsletter',
+                    trelloLastModified: T.MID, updatedAt: T.OLD,
+                    dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                    description: '', checklists: [], comments: [], attachments: [],
+                    channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+                },
+                // NEW task — should use existing checklist name from siblings
+                {
+                    id: 't-new', title: 'New Task', actionId: 'a1', status: 'todo',
+                    trelloCardId: 'card-1', trelloCheckItemId: null,
+                    trelloChecklistId: null, trelloChecklistName: 'Email/Newsletter',
+                    trelloLastModified: null, updatedAt: T.NEW,
+                    dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                    description: '', checklists: [], comments: [], attachments: [],
+                    channels: [], countries: [], assignees: [], otherLabels: [], order: 1
+                }
+            ]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.MID,
+                checklists: [{
+                    id: 'cl-email', name: 'Email/Newsletter', pos: 100,
+                    checkItems: [{ id: 'ci-existing', name: 'Existing', state: 'incomplete', pos: 100 }]
+                }]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // Should push to existing checklist, NOT create a new one
+        expect(addTrelloChecklistItems).toHaveBeenCalledWith('cl-email', expect.any(Array));
+        // New task should have trelloCheckItemId assigned
+        const newTask = synced.tasks.find(t => t.id === 't-new');
+        expect(newTask?.trelloCheckItemId).toBe('ci-new-1');
+        expect(newTask?.trelloChecklistId).toBe('cl-email');
+    });
 });

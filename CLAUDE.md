@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-03 (revert to showArchived, delete→remove, position sync fix)
+> Last updated: 2026-04-07 (post-sync merge, selective checkItem push, handleAddTask checklistName, orderUpdatedAt)
 
 ---
 
@@ -357,6 +357,18 @@ The pull phase that creates local categories from new Trello lists must iterate 
 
 ### card-as-action: action must be paused on card delete/archive
 When a Trello card is deleted or archived, the ACTION itself (not just its tasks) must be set to `status: 'paused'`. Card delete: `{ ...action, status: 'paused' }`. Card archive: `{ ...action, status: 'paused', trelloArchived: true }`. Card unarchive: restore action status + clear `trelloArchived`. Uses `let action` (not `const`) so the unarchive block can update the reference for subsequent sync paths.
+
+### Post-sync merge preserves local edits during sync
+`handleTrelloSync` captures pre-sync `updatedAt` timestamps for all tasks and actions before calling `syncWithTrello`. After sync returns, `setBoardData` merges sync results with current state: tasks/actions whose `updatedAt` changed during sync (user edited) keep their live version but receive Trello IDs from the sync result. Tasks created during sync (not in pre-sync snapshot) are preserved. Do NOT replace the board entirely with sync results — that overwrites user edits made during the sync window.
+
+### handleUpdateTask must set orderUpdatedAt for order changes
+`handleUpdateTask` sets `orderUpdatedAt` when `updates.order !== undefined` (same as `handleBatchUpdateTasks`). Without this, position sync to Trello doesn't detect order changes from cross-action moves in TimelineView.
+
+### handleAddTask must use sibling trelloChecklistName in card-as-action
+`handleAddTask` finds a sibling task (`tasks.find(t => t.actionId === actionId && t.trelloChecklistName)`) and uses its `trelloChecklistName` + `trelloChecklistId` + `trelloCardId`. Do NOT hardcode `'Tasks'` — the action's Trello card may have differently named checklists. Mirrors `handleAddTaskInGroup`.
+
+### card-as-action: local-only push uses buildSelectiveCheckItemUpdate
+The "local changed, Trello didn't" push path for checklist items uses `buildSelectiveCheckItemUpdate` (NOT `mapTaskToCheckItemUpdate`). The selective version only includes `state` when it actually changed from baseline. When nothing changed (only order), it returns `null` and the API call is skipped entirely. This prevents Trello "marked incomplete" activity spam during reorder-only pushes.
 
 ### Save fallback cascading
 `saveData()` tries Supabase first. If Supabase fails and GitHub token is available, falls back to GitHub. If both fail, saves to localStorage only and warns the user. Do NOT remove the fallback chain — without it, a Supabase outage silently loses unsaved data.
