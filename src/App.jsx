@@ -708,7 +708,8 @@ const App = () => {
     const handleUpdateTask = (taskId, updates) => {
         setTasks(prev => prev.map(t => {
             if (t.id !== taskId) return t;
-            const newTask = {...t, ...updates, updatedAt: new Date().toISOString()};
+            const now = new Date().toISOString();
+            const newTask = {...t, ...updates, updatedAt: now};
             if (updates.dueDate) {
                 const d = new Date(updates.dueDate);
                 newTask.month = d.getMonth();
@@ -716,6 +717,8 @@ const App = () => {
                 const d = new Date(updates.startDate);
                 newTask.month = d.getMonth();
             }
+            // Set orderUpdatedAt when order changes (mirrors handleBatchUpdateTasks)
+            if (updates.order !== undefined) newTask.orderUpdatedAt = now;
             return newTask;
         }));
         showNotification('✅ Task updated');
@@ -802,7 +805,11 @@ const App = () => {
         }
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
-        const newTask = { id: `t-${crypto.randomUUID()}`, actionId, month, startDate, title: 'New task', description: '', status: 'todo', priority: 'medium', dueDate, budget: 0, channels: action?.tags || [], checklist: [], comments: [], attachments: [], order: maxOrder, createdAt: now, updatedAt: now, trelloChecklistName: 'Tasks', trelloCardId: action?.trelloCardId || null, trelloChecklistId: null };
+        // In card-as-action mode, use existing checklist name from sibling tasks (mirrors handleAddTaskInGroup)
+        const siblingTask = tasks.find(t => t.actionId === actionId && t.trelloChecklistName);
+        const trelloChecklistName = siblingTask?.trelloChecklistName || 'Tasks';
+        const trelloChecklistId = siblingTask?.trelloChecklistId || null;
+        const newTask = { id: `t-${crypto.randomUUID()}`, actionId, month, startDate, title: 'New task', description: '', status: 'todo', priority: 'medium', dueDate, budget: 0, channels: action?.tags || [], checklist: [], comments: [], attachments: [], order: maxOrder, createdAt: now, updatedAt: now, trelloChecklistName, trelloCardId: siblingTask?.trelloCardId || action?.trelloCardId || null, trelloChecklistId };
         setTasks(prev => [...prev, newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Task created');
@@ -1153,16 +1160,85 @@ const App = () => {
             }
             // In guest mode (no Trello user), sync is read-only — pull from Trello but never push
             const isGuest = !trelloUser;
+            // Capture pre-sync timestamps to detect local edits made during sync
+            const preSyncTaskMap = new Map((currentBoard.tasks || []).map(t => [t.id, t.updatedAt]));
+            const preSyncActionMap = new Map((currentBoard.actions || []).map(a => [a.id, a.updatedAt]));
+            const preSyncTaskIds = new Set((currentBoard.tasks || []).map(t => t.id));
+            const preSyncActionIds = new Set((currentBoard.actions || []).map(a => a.id));
             const { board: syncedBoard, result } = await syncWithTrello(currentBoard, mappingConfig, { readOnly: isGuest });
             // Block Realtime events during post-sync save window to prevent overwrites.
             // DO NOT set isReceivingRealtimeRef here — that blocks auto-save, preventing
             // synced data from being persisted. Use syncRealtimeGuardRef instead (checked by Realtime handler).
             syncRealtimeGuardRef.current = true;
-            // Update the board in boardData — triggers auto-save via useEffect
-            setBoardData(prev => ({
-                ...prev,
-                boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b)
-            }));
+            // Merge sync results with current state — preserve local edits made during sync
+            setBoardData(prev => {
+                const liveBoard = prev.boards.find(b => b.id === syncedBoard.id);
+                if (!liveBoard) return { ...prev, boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b) };
+
+                // Merge tasks: keep live version if edited during sync, otherwise use synced
+                const syncedTaskMap = new Map(syncedBoard.tasks.map(t => [t.id, t]));
+                const mergedTasks = [];
+                const processedTaskIds = new Set();
+
+                for (const syncedTask of syncedBoard.tasks) {
+                    const liveTask = liveBoard.tasks.find(t => t.id === syncedTask.id);
+                    const preSyncUpdatedAt = preSyncTaskMap.get(syncedTask.id);
+                    // Task was edited locally during sync — keep live version but merge Trello IDs
+                    if (liveTask && preSyncUpdatedAt && liveTask.updatedAt !== preSyncUpdatedAt
+                        && new Date(liveTask.updatedAt).getTime() > new Date(preSyncUpdatedAt).getTime()) {
+                        mergedTasks.push({
+                            ...liveTask,
+                            trelloCheckItemId: syncedTask.trelloCheckItemId || liveTask.trelloCheckItemId,
+                            trelloChecklistId: syncedTask.trelloChecklistId || liveTask.trelloChecklistId,
+                            trelloCardId: syncedTask.trelloCardId || liveTask.trelloCardId,
+                            trelloLastModified: syncedTask.trelloLastModified || liveTask.trelloLastModified,
+                            _trelloBaseline: syncedTask._trelloBaseline || liveTask._trelloBaseline,
+                        });
+                    } else {
+                        mergedTasks.push(syncedTask);
+                    }
+                    processedTaskIds.add(syncedTask.id);
+                }
+                // Add tasks created during sync (not in pre-sync snapshot = brand new)
+                for (const task of liveBoard.tasks) {
+                    if (!processedTaskIds.has(task.id) && !preSyncTaskIds.has(task.id)) {
+                        mergedTasks.push(task);
+                    }
+                }
+
+                // Merge actions: same pattern
+                const mergedActions = [];
+                const processedActionIds = new Set();
+                for (const syncedAction of syncedBoard.actions) {
+                    const liveAction = liveBoard.actions.find(a => a.id === syncedAction.id);
+                    const preSyncUpdatedAt = preSyncActionMap.get(syncedAction.id);
+                    if (liveAction && preSyncUpdatedAt && liveAction.updatedAt !== preSyncUpdatedAt
+                        && new Date(liveAction.updatedAt).getTime() > new Date(preSyncUpdatedAt).getTime()) {
+                        mergedActions.push({
+                            ...liveAction,
+                            trelloCardId: syncedAction.trelloCardId || liveAction.trelloCardId,
+                            trelloLastModified: syncedAction.trelloLastModified || liveAction.trelloLastModified,
+                            _trelloBaseline: syncedAction._trelloBaseline || liveAction._trelloBaseline,
+                        });
+                    } else {
+                        mergedActions.push(syncedAction);
+                    }
+                    processedActionIds.add(syncedAction.id);
+                }
+                for (const action of liveBoard.actions) {
+                    if (!processedActionIds.has(action.id) && !preSyncActionIds.has(action.id)) {
+                        mergedActions.push(action);
+                    }
+                }
+
+                return {
+                    ...prev,
+                    boards: prev.boards.map(b => b.id === syncedBoard.id
+                        ? { ...syncedBoard, tasks: mergedTasks, actions: mergedActions }
+                        : b
+                    )
+                };
+            });
             // Clear guard after auto-save has had time to complete (save debounce + network)
             setTimeout(() => { syncRealtimeGuardRef.current = false; }, 8000);
             setTrelloSyncStatus(result.errors > 0 ? 'error' : 'synced');
