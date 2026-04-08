@@ -27,6 +27,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[descriptionEditing,setDescriptionEditing]=useState(false);
     const descTextareaRef=useRef(null);
     const descEditableRef=useRef(null);
+    const modalScrollRef=useRef(null);
     const[newComment,setNewComment]=useState('');
     const[newChecklistItems,setNewChecklistItems]=useState({}); // Per-checklist new item text
     const[newChecklistName,setNewChecklistName]=useState('');
@@ -117,6 +118,20 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         const handleKeyDown=(e)=>{if(e.key==='Escape'){e.preventDefault();handleClose();}};
         window.addEventListener('keydown',handleKeyDown);
         return()=>window.removeEventListener('keydown',handleKeyDown);
+    },[]);
+    // Toggle sticky header border on scroll
+    useEffect(()=>{
+        const el=modalScrollRef.current;
+        if(!el)return;
+        const onScroll=()=>{
+            const header=el.querySelector('.modal-sticky-header');
+            if(header){
+                if(el.scrollTop>8){header.style.borderColor='var(--border-light)';header.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)';}
+                else{header.style.borderColor='transparent';header.style.boxShadow='none';}
+            }
+        };
+        el.addEventListener('scroll',onScroll,{passive:true});
+        return()=>el.removeEventListener('scroll',onScroll);
     },[]);
     const saveDescription=()=>{setForm({...form,description:descriptionDraft});setDescriptionSaved(true);};
     const[commentEditing,setCommentEditing]=useState(false);
@@ -253,8 +268,10 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         <div className="v11-modal-overlay" onClick={handleClose} style={{alignItems:'flex-start',paddingTop:64,overflowY:'auto'}}>
             <div className="v11-modal animate-slide-up" style={{maxWidth:672,marginBottom:32}} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
-                <div className="p-6">
-                    <div className="flex items-start justify-between mb-4">
+                <div ref={modalScrollRef} className="p-6" style={{maxHeight:'calc(90vh - 80px)',overflowY:'auto'}}>
+                    {/* Header — sticky on scroll */}
+                    <div className="modal-sticky-header" style={{position:'sticky',top:-24,zIndex:10,background:'var(--bg-primary)',paddingTop:24,paddingBottom:8,marginTop:-24,marginBottom:8}}>
+                    <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3 flex-1">
                             <button onClick={()=>!isReadOnly&&setForm({...form,status:form.status==='completed'?'todo':'completed'})} className="mt-2 flex-shrink-0" style={{width:22,height:22,borderRadius:6,border:form.status==='completed'?'none':'2px solid var(--border-strong)',background:form.status==='completed'?'var(--success)':'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:isReadOnly?'default':'pointer',transition:'all 0.2s',opacity:isReadOnly?0.7:1}} title={form.status==='completed'?'Mark as not completed':'Mark as completed'}>{form.status==='completed'&&<svg width="12" height="12" fill="none" stroke="white" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>}</button>
                             <div className="flex-1">
@@ -266,6 +283,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                             </div>
                         </div>
                         <button onClick={handleClose} className="v11-icon-btn"><Icon.Close/></button>
+                    </div>
                     </div>
                     {/* Details section */}
                     <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
@@ -470,15 +488,10 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                     </div>
                     <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
                         <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:8}}>💬 Comments ({form.comments?.length||0})</div>
-                        <div className="space-y-2 mb-3" style={{maxHeight:320,overflowY:'auto'}}>{[...(form.comments||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>
-                            <div className="flex justify-between mb-2"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
-                            <div style={{fontSize:13,color:'var(--text-secondary)'}}><SimpleMarkdown text={c.text}/></div>
-                            {c.attachments&&c.attachments.length>0&&<div style={{marginTop:6,display:'flex',flexWrap:'wrap',gap:4}}>{c.attachments.map(att=>(<a key={att.id||att.name} href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',textDecoration:'none'}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>{att.name}</a>))}</div>}
-                        </div>))}</div>
-                        {!isReadOnly && <div>
+                        {!isReadOnly && <div style={{marginBottom:(form.comments||[]).length>0?12:0}}>
                             {commentEditing ? (<div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)',overflow:'hidden'}}>
                                 <WysiwygToolbar editableRef={commentEditableRef} onAttach={()=>document.getElementById('comment-attach-input')?.click()}/>
-                                <MentionInput editableRef={commentEditableRef} members={members}
+                                <MentionInput editableRef={commentEditableRef} members={members} onSubmit={addComment}
                                     onDragOver={e=>{e.preventDefault();e.currentTarget.style.background='var(--accent-light)';}}
                                     onDragLeave={e=>{e.currentTarget.style.background='transparent';}}
                                     onDrop={e=>{e.preventDefault();e.currentTarget.style.background='transparent';const files=Array.from(e.dataTransfer.files);files.forEach(file=>{if(file.size>5*1024*1024)return;const reader=new FileReader();reader.onload=ev=>{setCommentAttachments(prev=>[...prev,{id:`catt-${crypto.randomUUID()}`,name:file.name,type:file.type,size:file.size,data:ev.target.result,date:new Date().toISOString()}]);};reader.readAsDataURL(file);});}}/>
@@ -492,6 +505,11 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                 <div onClick={()=>setCommentEditing(true)} className="v11-input" style={{cursor:'text',minHeight:36,color:'var(--text-muted)',padding:'8px 12px',fontSize:13}}>Write a comment...</div>
                             )}
                         </div>}
+                        {(form.comments||[]).length>0&&<div className="space-y-2" style={{maxHeight:320,overflowY:'auto'}}>{[...(form.comments||[])].sort((a,b)=>new Date(b.date)-new Date(a.date)).map(c=>(<div key={c.id} className="p-3 rounded-lg" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>
+                            <div className="flex justify-between mb-2"><span className="font-medium text-sm">{c.author}</span><span className="text-xs" style={{color:'var(--text-muted)'}}>{new Date(c.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+                            <div style={{fontSize:13,color:'var(--text-secondary)'}}><SimpleMarkdown text={c.text}/></div>
+                            {c.attachments&&c.attachments.length>0&&<div style={{marginTop:6,display:'flex',flexWrap:'wrap',gap:4}}>{c.attachments.map(att=>(<a key={att.id||att.name} href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',textDecoration:'none'}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>{att.name}</a>))}</div>}
+                        </div>))}</div>}
                     </div>
                     <div className="rounded-xl mb-5" style={{background:'var(--bg-secondary)',border:'1px solid var(--border-light)',padding:'14px 16px'}}>
                         <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:8}}>📎 Attachments ({(form.attachments||[]).length})</div>

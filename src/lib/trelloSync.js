@@ -1,7 +1,7 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
 import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, deleteTrelloChecklistItem, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList } from './trello.js';
-import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex, mergeCardIntoAction, mergeCheckItemIntoTask, mapTaskToCheckItemUpdate, mapActionToTrelloCardUpdate, mapTrelloCardToAction, mapTrelloCheckItemToTask } from './trelloMapping.js';
+import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex, mergeCardIntoAction, mergeCheckItemIntoTask, mapTaskToCheckItemUpdate, mapActionToTrelloCardUpdate, mapTrelloCardToAction, mapTrelloCheckItemToTask, resolveTrelloCardUrl } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
 
 // Sync lock — prevents concurrent sync operations
@@ -1778,6 +1778,14 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 if (!orderWasLocallyChanged && trelloCompositeOrder !== null && task.order !== trelloCompositeOrder) {
                     updatedTasks[j] = { ...task, order: trelloCompositeOrder, trelloLastModified: card.dateLastActivity };
                     result.updated++;
+                }
+                // Resolve Trello card URLs for tasks created before URL resolution was added
+                if (!task.trelloLinkedCardUrl && task.title) {
+                    const resolved = resolveTrelloCardUrl(task.title, cards);
+                    if (resolved) {
+                        updatedTasks[j] = { ...(updatedTasks[j] || task), title: resolved.title, trelloLinkedCardUrl: resolved.trelloLinkedCardUrl, _trelloBaseline: { ...(task._trelloBaseline || {}), title: resolved.title } };
+                        if (!result.updated) result.updated++;
+                    }
                 }
             }
         }
