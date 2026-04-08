@@ -195,6 +195,21 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         }
     },[action.id]);
 
+    // Toggle sticky header border on scroll
+    useEffect(()=>{
+        const el=modalScrollRef.current;
+        if(!el)return;
+        const onScroll=()=>{
+            const header=el.querySelector('.modal-sticky-header');
+            if(header){
+                if(el.scrollTop>8){header.style.borderColor='var(--border-light)';header.style.boxShadow='0 2px 8px rgba(0,0,0,0.06)';}
+                else{header.style.borderColor='transparent';header.style.boxShadow='none';}
+            }
+        };
+        el.addEventListener('scroll',onScroll,{passive:true});
+        return()=>el.removeEventListener('scroll',onScroll);
+    },[]);
+
     const handleOpenTask=(task)=>{
         if(modalScrollRef.current){
             sessionStorage.setItem(`action_scroll_${action.id}`,String(modalScrollRef.current.scrollTop));
@@ -455,8 +470,9 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                 {/* Amber gradient bar */}
                 <div className="h-2 rounded-t-2xl" style={{background:'linear-gradient(to right, #f59e0b, #d97706)'}}/>
                 <div ref={modalScrollRef} className="p-6" style={{maxHeight:'calc(90vh - 80px)',overflowY:'auto'}}>
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-4">
+                    {/* Header — sticky on scroll */}
+                    <div className="modal-sticky-header" style={{position:'sticky',top:-24,zIndex:10,background:'var(--bg-primary)',paddingTop:24,paddingBottom:8,marginTop:-24,marginBottom:8}}>
+                    <div className="flex items-start justify-between">
                         <div className="flex-1">
                             <span className="text-xs" style={{color:'#d97706',textTransform:'uppercase',letterSpacing:0.5,fontWeight:700}}>📁 ACTION</span>
                             <div style={{display:'flex',alignItems:'center',gap:8,marginTop:4}}>
@@ -465,6 +481,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                             </div>
                         </div>
                         <button onClick={handleClose} className="ml-2 v11-icon-btn"><Icon.Close/></button>
+                    </div>
                     </div>
 
                     {/* Details */}
@@ -754,7 +771,24 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                     {/* Comments */}
                     <div className="rounded-xl mb-5" style={sectionCard}>
                         <div style={{...sectionLabel,marginBottom:10}}>💬 Comments ({(form.comments||[]).length})</div>
-                        {(form.comments||[]).length>0&&<div className="space-y-2 mb-4">
+                        {!isReadOnly&&<div style={{marginBottom:(form.comments||[]).length>0?12:0}}>
+                            <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)'}}>
+                                <div style={{padding:'4px 8px',borderBottom:'1px solid var(--border)'}}>
+                                    <WysiwygToolbar editableRef={newCommentEditableRef} onAttach={()=>commentFileRef.current?.click()}/>
+                                </div>
+                                <MentionInput editableRef={newCommentEditableRef} members={members} style={{padding:'8px 12px',minHeight:48}} placeholder="Write a comment..." onSubmit={addComment}/>
+                            </div>
+                            <input ref={commentFileRef} type="file" multiple style={{display:'none'}} onChange={handleCommentFileSelect}/>
+                            {commentAttachments.length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
+                                {commentAttachments.map((att,i)=>(
+                                    <span key={i} style={{fontSize:11,padding:'2px 6px',background:'var(--bg-secondary)',borderRadius:4,display:'flex',alignItems:'center',gap:3}}>📎 {att.name}<button onClick={()=>setCommentAttachments(prev=>prev.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',fontSize:10,color:'var(--text-muted)',padding:0}}>&times;</button></span>
+                                ))}
+                            </div>}
+                            <div style={{display:'flex',justifyContent:'flex-end',marginTop:6}}>
+                                <button onClick={addComment} className="px-3 py-1 text-white rounded-lg text-xs font-medium" style={{background:'#d97706'}}>Comment</button>
+                            </div>
+                        </div>}
+                        {(form.comments||[]).length>0&&<div className="space-y-2">
                             {(form.comments||[]).slice().sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)).map((comment,idx)=>(
                                 <div key={comment.id||idx} className="p-3 rounded-lg" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>
                                     <div className="flex justify-between mb-2">
@@ -769,23 +803,6 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                     </div>}
                                 </div>
                             ))}
-                        </div>}
-                        {!isReadOnly&&<div>
-                            <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)'}}>
-                                <div style={{padding:'4px 8px',borderBottom:'1px solid var(--border)'}}>
-                                    <WysiwygToolbar editableRef={newCommentEditableRef} onAttach={()=>commentFileRef.current?.click()}/>
-                                </div>
-                                <MentionInput editableRef={newCommentEditableRef} members={members} style={{padding:'8px 12px',minHeight:48}} placeholder="Write a comment..."/>
-                            </div>
-                            <input ref={commentFileRef} type="file" multiple style={{display:'none'}} onChange={handleCommentFileSelect}/>
-                            {commentAttachments.length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
-                                {commentAttachments.map((att,i)=>(
-                                    <span key={i} style={{fontSize:11,padding:'2px 6px',background:'var(--bg-secondary)',borderRadius:4,display:'flex',alignItems:'center',gap:3}}>📎 {att.name}<button onClick={()=>setCommentAttachments(prev=>prev.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',fontSize:10,color:'var(--text-muted)',padding:0}}>&times;</button></span>
-                                ))}
-                            </div>}
-                            <div style={{display:'flex',justifyContent:'flex-end',marginTop:6}}>
-                                <button onClick={addComment} className="px-3 py-1 text-white rounded-lg text-xs font-medium" style={{background:'#d97706'}}>Comment</button>
-                            </div>
                         </div>}
                     </div>
 

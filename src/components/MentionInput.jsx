@@ -7,7 +7,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 //   style: additional styles for the editable div
 //   placeholder: placeholder text
 //   ...rest: other props forwarded to the contentEditable div
-const MentionInput = ({ editableRef, members = [], style = {}, placeholder, ...rest }) => {
+const MentionInput = ({ editableRef, members = [], style = {}, placeholder, onSubmit, ...rest }) => {
     const [mentionQuery, setMentionQuery] = useState(null); // null = not mentioning, string = filter text
     const [mentionPos, setMentionPos] = useState({ top: 0, left: 0 });
     const [selectedIdx, setSelectedIdx] = useState(0);
@@ -84,6 +84,11 @@ const MentionInput = ({ editableRef, members = [], style = {}, placeholder, ...r
     }, []);
 
     const handleKeyDown = useCallback((e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            if (onSubmit) onSubmit();
+            return;
+        }
         if (mentionQuery === null || filteredMembers.length === 0) return;
         if (e.key === 'ArrowDown') {
             e.preventDefault();
@@ -97,7 +102,7 @@ const MentionInput = ({ editableRef, members = [], style = {}, placeholder, ...r
         } else if (e.key === 'Escape') {
             setMentionQuery(null);
         }
-    }, [mentionQuery, filteredMembers, selectedIdx, insertMention]);
+    }, [mentionQuery, filteredMembers, selectedIdx, insertMention, onSubmit]);
 
     // Close dropdown on outside click
     useEffect(() => {
