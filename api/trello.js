@@ -100,7 +100,7 @@ export default async function handler(req, res) {
                 fetch(`${TRELLO_BASE}/boards/${boardId}?${authParams}&fields=name,desc,dateLastActivity,url`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/lists?${authParams}&fields=name,pos,closed&filter=open`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/labels?${authParams}&fields=name,color`),
-                fetch(`${TRELLO_BASE}/boards/${boardId}/cards?${authParams}&fields=name,desc,due,start,dueComplete,dateLastActivity,idList,idLabels,idMembers,pos,closed&filter=all&checklists=all&attachments=true&attachment_fields=name,url,mimeType,date`),
+                fetch(`${TRELLO_BASE}/boards/${boardId}/cards?${authParams}&fields=name,desc,due,start,dueComplete,dateLastActivity,idList,idLabels,idMembers,pos,closed,shortLink&filter=all&checklists=all&attachments=true&attachment_fields=name,url,mimeType,date`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/members?${authParams}&fields=fullName,username,avatarUrl`)
             ]);
 
