@@ -414,8 +414,30 @@ export const mapTrelloCardToAction = (card, categoryId, mappingConfig) => {
     };
 };
 
+// --- Resolve Trello card URL in checklist item name ---
+// When a checklist item references another Trello card, the API returns the raw URL as item.name.
+// This resolves it to the card's actual name + preserves the URL for linking.
+export const resolveTrelloCardUrl = (name, allCards) => {
+    if (!name) return null;
+    const match = name.match(/^https?:\/\/trello\.com\/c\/([a-zA-Z0-9]+)(?:\/(.*))?$/);
+    if (!match) return null;
+    const shortLink = match[1];
+    const slug = match[2] || '';
+    // Try to find the card in the fetched board data
+    if (allCards) {
+        const card = allCards.find(c => c.shortLink === shortLink);
+        if (card) return { title: card.name, trelloLinkedCardUrl: name };
+    }
+    // Cross-board card: extract readable name from URL slug (e.g. "42-some-card-title" → "Some card title")
+    if (slug) {
+        const readable = slug.replace(/^\d+-/, '').replace(/-/g, ' ');
+        if (readable) return { title: readable.charAt(0).toUpperCase() + readable.slice(1), trelloLinkedCardUrl: name };
+    }
+    return { title: name, trelloLinkedCardUrl: name };
+};
+
 // --- Trello Checklist Item → Dashboard Task (card-as-action mode) ---
-export const mapTrelloCheckItemToTask = (item, actionId, card, checklistId, checklistName, mappingConfig) => {
+export const mapTrelloCheckItemToTask = (item, actionId, card, checklistId, checklistName, mappingConfig, allCards) => {
     const now = new Date();
     // Due date: item's own due, or inherit from card
     const itemDue = item.due ? item.due.split('T')[0] : null;
@@ -452,10 +474,15 @@ export const mapTrelloCheckItemToTask = (item, actionId, card, checklistId, chec
     // Assignee: item member, or inherit from card
     const assignees = item.idMember ? [item.idMember] : (card.idMembers || []);
 
+    // Resolve Trello card URLs in checklist item names
+    const resolved = resolveTrelloCardUrl(item.name, allCards);
+    const title = resolved ? resolved.title : item.name;
+    const trelloLinkedCardUrl = resolved ? resolved.trelloLinkedCardUrl : undefined;
+
     return {
         id: genId('task'),
         actionId,
-        title: item.name,
+        title,
         description: '',
         startDate,
         dueDate: dueDate || startDate,
@@ -472,8 +499,9 @@ export const mapTrelloCheckItemToTask = (item, actionId, card, checklistId, chec
         otherLabels,
         order: item.pos || 0,
         createdAt: new Date().toISOString(),
+        trelloLinkedCardUrl,
         _trelloBaseline: {
-            title: item.name,
+            title,  // Baseline uses resolved title so selective push doesn't push resolved name back as item name
             dueDate: (item.due || card.due) ? (item.due || card.due).split('T')[0] : null,
             status: item.state === 'complete' ? 'completed' : 'todo',
             assignees: item.idMember ? [item.idMember] : []
@@ -514,7 +542,7 @@ export const buildImportDataCardAsAction = (trelloData, mappingConfig) => {
             for (const cl of sortedChecklists) {
                 const sortedItems = [...(cl.checkItems || [])].sort((a, b) => (a.pos || 0) - (b.pos || 0));
                 for (const item of sortedItems) {
-                    tasks.push(mapTrelloCheckItemToTask(item, action.id, card, cl.id, cl.name, mappingConfig));
+                    tasks.push(mapTrelloCheckItemToTask(item, action.id, card, cl.id, cl.name, mappingConfig, cards));
                 }
             }
         }
@@ -639,7 +667,7 @@ export const mergeCardIntoAction = (existingAction, card, listToCat, mappingConf
 };
 
 // --- Merge Trello checklist item into existing Task (card-as-action pull) ---
-export const mergeCheckItemIntoTask = (existingTask, item, card) => {
+export const mergeCheckItemIntoTask = (existingTask, item, card, allCards) => {
     const itemDue = item.due ? item.due.split('T')[0] : null;
     const cardDue = card.due ? card.due.split('T')[0] : null;
     const dueDate = itemDue || cardDue || existingTask.dueDate;
@@ -660,9 +688,15 @@ export const mergeCheckItemIntoTask = (existingTask, item, card) => {
         ? (clPos * 65536 + item.pos)
         : (item.pos != null ? item.pos : existingTask.order);
 
+    // Resolve Trello card URLs in checklist item names
+    const resolved = resolveTrelloCardUrl(item.name, allCards);
+    const title = resolved ? resolved.title : item.name;
+    const trelloLinkedCardUrl = resolved ? resolved.trelloLinkedCardUrl : undefined;
+
     return {
         ...existingTask,
-        title: item.name,
+        title,
+        trelloLinkedCardUrl,
         status: TRELLO_PROTECTED_STATUSES.has(existingTask.status) ? existingTask.status : (item.state === 'complete' ? 'completed' : (existingTask.status === 'completed' ? 'todo' : existingTask.status)),
         dueDate: dueDate || existingTask.dueDate,
         startDate,
@@ -672,7 +706,7 @@ export const mergeCheckItemIntoTask = (existingTask, item, card) => {
         trelloChecklistName: parentCl?.name || existingTask.trelloChecklistName,
         assignees: item.idMember ? [item.idMember] : existingTask.assignees,
         _trelloBaseline: {
-            title: item.name,
+            title,  // Resolved title so selective push doesn't overwrite card URL reference
             dueDate: (item.due || card.due) ? (item.due || card.due).split('T')[0] : null,
             status: item.state === 'complete' ? 'completed' : 'todo',
             assignees: item.idMember ? [item.idMember] : []

@@ -1719,7 +1719,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
 
             if (trelloItemModified && !taskLocallyModified) {
                 // Trello changed — pull
-                updatedTasks[j] = mergeCheckItemIntoTask(task, item, card);
+                updatedTasks[j] = mergeCheckItemIntoTask(task, item, card, cards);
                 result.updated++;
             } else if (taskLocallyModified && !trelloItemModified) {
                 // Local changed — push (selective: only push fields that actually changed)
@@ -1749,11 +1749,11 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                         const updates = buildSelectiveCheckItemUpdate(task);
                         await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, updates);
                         // Merge non-pushed fields from Trello
-                        const mergedFromTrello = mergeCheckItemIntoTask(task, item, card);
+                        const mergedFromTrello = mergeCheckItemIntoTask(task, item, card, cards);
                         const baseline = task._trelloBaseline || {};
                         const pushed = { ...task, trelloLastModified: new Date().toISOString() };
                         // Pull non-pushed content fields from Trello
-                        if (task.title === baseline.title) pushed.title = mergedFromTrello.title;
+                        if (task.title === baseline.title) { pushed.title = mergedFromTrello.title; pushed.trelloLinkedCardUrl = mergedFromTrello.trelloLinkedCardUrl; }
                         if (task.dueDate === baseline.dueDate) { pushed.dueDate = mergedFromTrello.dueDate; pushed.month = mergedFromTrello.month; pushed.startDate = mergedFromTrello.startDate; }
                         const localStatus = task.status === 'completed' ? 'completed' : 'todo';
                         if (localStatus === baseline.status) pushed.status = mergedFromTrello.status;
@@ -1770,7 +1770,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                         result.errorDetails.push({ name: task.title, op: 'push checkItem', error: e.message });
                     }
                 } else {
-                    updatedTasks[j] = mergeCheckItemIntoTask(task, item, card);
+                    updatedTasks[j] = mergeCheckItemIntoTask(task, item, card, cards);
                     result.updated++;
                 }
             } else {
@@ -1928,7 +1928,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     t && t.trelloCheckItemId === itemId && t.actionId !== action.id
                 );
                 if (movedTask) continue; // Move detection below will handle it
-                const newTask = mapTrelloCheckItemToTask(item, action.id, card, checklistId, checklistName, mappingConfig);
+                const newTask = mapTrelloCheckItemToTask(item, action.id, card, checklistId, checklistName, mappingConfig, cards);
                 newTasks.push(newTask);
                 result.created++;
             }
@@ -1955,7 +1955,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             for (const cl of sortedChecklists) {
                 const sortedItems = [...(cl.checkItems || [])].sort((a, b) => (a.pos || 0) - (b.pos || 0));
                 for (const item of sortedItems) {
-                    newTasks.push(mapTrelloCheckItemToTask(item, newAction.id, card, cl.id, cl.name, mappingConfig));
+                    newTasks.push(mapTrelloCheckItemToTask(item, newAction.id, card, cl.id, cl.name, mappingConfig, cards));
                     result.created++;
                 }
             }

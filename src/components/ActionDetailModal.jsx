@@ -137,6 +137,8 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
             }))];
         }
         setForm(updatedForm);
+        // Save comments immediately so they sync to Trello without waiting for modal close
+        if(!isReadOnly)onUpdateAction(action.id,{comments:updatedForm.comments,attachments:updatedForm.attachments});
         setNewComment('');
         setCommentAttachments([]);
         if(newCommentEditableRef.current)newCommentEditableRef.current.innerHTML='';
@@ -680,8 +682,9 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                     <div className="flex items-center gap-3">
                                                         {!isReadOnly&&<span style={{cursor:'grab',opacity:0.3,fontSize:10,flexShrink:0}}>⋮⋮</span>}
                                                         <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:110,flexShrink:0}} disabled={isReadOnly}/>
-                                                        <div className="flex-1 min-w-0" style={{cursor:'pointer'}} onClick={()=>handleOpenTask(task)}>
-                                                            <p className="font-medium text-sm truncate" style={{color:task.status==='completed'?'var(--text-muted)':'var(--accent)',textDecoration:task.status==='completed'?'line-through':'none'}} onMouseEnter={e=>{if(task.status!=='completed')e.target.style.textDecoration='underline';}} onMouseLeave={e=>{e.target.style.textDecoration=task.status==='completed'?'line-through':'none';}}>{task.title}</p>
+                                                        <div className="flex-1 min-w-0 flex items-center gap-1.5" style={{cursor:'pointer'}}>
+                                                            <p className="font-medium text-sm truncate" style={{color:task.status==='completed'?'var(--text-muted)':'var(--accent)',textDecoration:task.status==='completed'?'line-through':'none',flex:'1 1 auto',minWidth:0}} onClick={()=>handleOpenTask(task)} onMouseEnter={e=>{if(task.status!=='completed')e.target.style.textDecoration='underline';}} onMouseLeave={e=>{e.target.style.textDecoration=task.status==='completed'?'line-through':'none';}}>{task.title}</p>
+                                                            {task.trelloLinkedCardUrl&&<a href={task.trelloLinkedCardUrl} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} title="Open linked Trello card" style={{flexShrink:0,display:'inline-flex',alignItems:'center',padding:'2px 4px',borderRadius:3,color:'#0079bf',opacity:0.7}} onMouseEnter={e=>{e.currentTarget.style.opacity='1';e.currentTarget.style.background='rgba(0,121,191,0.1)';}} onMouseLeave={e=>{e.currentTarget.style.opacity='0.7';e.currentTarget.style.background='none';}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>}
                                                         </div>
                                                         <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
                                                             {/* Inline due date — click opens calendar directly */}
