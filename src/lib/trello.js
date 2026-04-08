@@ -63,6 +63,10 @@ export const fetchTrelloBoards = () =>
 export const fetchTrelloBoardFull = (boardId) =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=board&boardId=${encodeURIComponent(boardId)}`);
 
+// Fetch a single card by ID or shortLink (for cross-board URL resolution)
+export const fetchTrelloCard = (idOrShortLink) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=getCard&cardId=${encodeURIComponent(idOrShortLink)}`);
+
 // Update a Trello card
 export const updateTrelloCard = (cardId, updates) =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=updateCard`, {

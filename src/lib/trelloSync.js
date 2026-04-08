@@ -1,6 +1,6 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
-import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, deleteTrelloChecklistItem, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList } from './trello.js';
+import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, deleteTrelloChecklistItem, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList, fetchTrelloCard } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex, mergeCardIntoAction, mergeCheckItemIntoTask, mapTaskToCheckItemUpdate, mapActionToTrelloCardUpdate, mapTrelloCardToAction, mapTrelloCheckItemToTask, resolveTrelloCardUrl } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
 
@@ -726,6 +726,65 @@ const pushTaskLabelsToTrello = async (task, card, board, mappingConfig) => {
     }
 
     return { labelsModified: modified };
+};
+
+// Resolve cross-board card URLs that couldn't be resolved synchronously.
+// Tasks where trelloLinkedCardUrl === title have an unresolved URL as their title.
+// Fetches card names from Trello API for unique shortLinks, updates tasks in-place.
+// fetchCardFn parameter allows injection for testing (defaults to fetchTrelloCard).
+export const resolveCrossBoardCardUrls = async (tasks, fetchCardFn = fetchTrelloCard) => {
+    const urlRegex = /^https?:\/\/trello\.com\/c\/([a-zA-Z0-9]+)/;
+    const unresolved = tasks.filter(t => t && t.trelloLinkedCardUrl && t.trelloLinkedCardUrl === t.title);
+    if (unresolved.length === 0) return tasks;
+
+    // Collect unique shortLinks
+    const shortLinks = [...new Set(unresolved.map(t => {
+        const m = t.title.match(urlRegex);
+        return m ? m[1] : null;
+    }).filter(Boolean))];
+
+    // Batch-fetch card names
+    const cardNameMap = new Map();
+    for (const sl of shortLinks) {
+        try {
+            const card = await fetchCardFn(sl);
+            if (card?.name) cardNameMap.set(sl, card.name);
+        } catch (e) { /* Cross-board card not accessible — keep URL as title */ }
+    }
+
+    if (cardNameMap.size === 0) return tasks;
+
+    // Update tasks with resolved names
+    return tasks.map(t => {
+        if (!t || !t.trelloLinkedCardUrl || t.trelloLinkedCardUrl !== t.title) return t;
+        const m = t.title.match(urlRegex);
+        if (m && cardNameMap.has(m[1])) {
+            const resolvedTitle = cardNameMap.get(m[1]);
+            return { ...t, title: resolvedTitle, _trelloBaseline: { ...(t._trelloBaseline || {}), title: resolvedTitle } };
+        }
+        return t;
+    });
+};
+
+// Enrich a new task (from NewTaskModal) with Trello metadata from sibling tasks.
+// Mirrors the logic in handleAddTask for card-as-action mode.
+export const enrichNewTaskWithTrelloMetadata = (newTask, existingTasks, actions) => {
+    const enriched = { ...newTask };
+    if (!enriched.trelloCardId && enriched.actionId) {
+        const siblingTask = existingTasks.find(t => t.actionId === enriched.actionId && t.trelloChecklistName);
+        if (siblingTask) {
+            enriched.trelloChecklistName = siblingTask.trelloChecklistName;
+            enriched.trelloChecklistId = siblingTask.trelloChecklistId || null;
+            enriched.trelloCardId = siblingTask.trelloCardId || null;
+        } else {
+            const action = actions.find(a => a.id === enriched.actionId);
+            if (action?.trelloCardId) {
+                enriched.trelloChecklistName = 'Tasks';
+                enriched.trelloCardId = action.trelloCardId;
+            }
+        }
+    }
+    return enriched;
 };
 
 // Sync a dashboard board with its linked Trello board
@@ -2121,7 +2180,12 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         }
     }
 
-    // 5. Update members
+    // 5. Resolve cross-board card URLs that couldn't be resolved synchronously
+    const resolvedTasks = await resolveCrossBoardCardUrls(updatedTasks);
+    // Replace updatedTasks contents with resolved versions
+    for (let i = 0; i < resolvedTasks.length; i++) updatedTasks[i] = resolvedTasks[i];
+
+    // 6. Update members
     const members = (trelloMembers || []).map(m => ({
         id: m.id,
         fullName: m.fullName,
@@ -2129,7 +2193,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         avatarUrl: m.avatarUrl ? `${m.avatarUrl}/50.png` : null
     }));
 
-    // 6. Filter out actions/tasks of removed categories, then build updated board
+    // 7. Filter out actions/tasks of removed categories, then build updated board
     const allActionsCA = [...updatedActions, ...newActions].filter(Boolean);
     const finalActionsCA = removedCatIdsCA.size > 0
         ? allActionsCA.filter(a => !removedCatIdsCA.has(a.categoryId))
