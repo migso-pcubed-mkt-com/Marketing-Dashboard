@@ -11,7 +11,7 @@ import {
     saveSnapshot,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
-import { syncWithTrello, isSyncInProgress, validateBoardIntegrity } from './lib/trelloSync.js';
+import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
 import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem, deleteTrelloChecklist } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
@@ -1339,7 +1339,8 @@ const App = () => {
     const handleAddNewTask = (newTask) => {
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
-        setTasks(prev => [...prev, {...newTask, order: maxOrder, createdAt: newTask.createdAt || now}]);
+        const enriched = enrichNewTaskWithTrelloMetadata({...newTask, order: maxOrder, createdAt: newTask.createdAt || now, updatedAt: newTask.updatedAt || now}, tasks, actions);
+        setTasks(prev => [...prev, enriched]);
         showNotification('✅ Task created');
     };
 

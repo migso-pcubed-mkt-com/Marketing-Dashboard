@@ -1,5 +1,5 @@
 // Tests for Trello card URL resolution in checklist item names
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { resolveTrelloCardUrl, mapTrelloCheckItemToTask, mergeCheckItemIntoTask } from '../lib/trelloMapping.js';
 
 // ════════════════════════════════════════════════════════════
@@ -158,5 +158,144 @@ describe('mergeCheckItemIntoTask with card URL', () => {
         const item = { id: 'ci-1', name: 'https://trello.com/c/REF123', pos: 0, state: 'incomplete' };
         const merged = mergeCheckItemIntoTask(existingTask, item, card, allCards);
         expect(merged._trelloBaseline.title).toBe('Referenced Card');
+    });
+});
+
+// ════════════════════════════════════════════════════════════
+// Cross-board card URL async resolution (post-sync step)
+// ════════════════════════════════════════════════════════════
+describe('resolveCrossBoardCardUrls', () => {
+    // This function doesn't exist yet — it will be added to trelloSync.js
+    // Tests the async resolution of cross-board card URLs that couldn't be resolved synchronously
+
+    it('resolves unresolved cross-board URLs via async card fetch', async () => {
+        // Dynamically import to pick up the new export
+        const { resolveCrossBoardCardUrls } = await import('../lib/trelloSync.js');
+
+        const tasks = [
+            { id: 't-1', title: 'https://trello.com/c/CROSS1', trelloLinkedCardUrl: 'https://trello.com/c/CROSS1' },
+            { id: 't-2', title: 'Normal task', trelloLinkedCardUrl: undefined },
+            { id: 't-3', title: 'https://trello.com/c/CROSS2', trelloLinkedCardUrl: 'https://trello.com/c/CROSS2' },
+        ];
+
+        const mockFetch = vi.fn()
+            .mockResolvedValueOnce({ name: 'Cross Board Card 1', shortLink: 'CROSS1' })
+            .mockResolvedValueOnce({ name: 'Cross Board Card 2', shortLink: 'CROSS2' });
+
+        const result = await resolveCrossBoardCardUrls(tasks, mockFetch);
+
+        expect(result[0].title).toBe('Cross Board Card 1');
+        expect(result[0].trelloLinkedCardUrl).toBe('https://trello.com/c/CROSS1');
+        expect(result[0]._trelloBaseline.title).toBe('Cross Board Card 1');
+        expect(result[1].title).toBe('Normal task'); // unchanged
+        expect(result[2].title).toBe('Cross Board Card 2');
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('deduplicates shortLinks when multiple tasks reference the same card', async () => {
+        const { resolveCrossBoardCardUrls } = await import('../lib/trelloSync.js');
+
+        const tasks = [
+            { id: 't-1', title: 'https://trello.com/c/SAME1', trelloLinkedCardUrl: 'https://trello.com/c/SAME1' },
+            { id: 't-2', title: 'https://trello.com/c/SAME1', trelloLinkedCardUrl: 'https://trello.com/c/SAME1' },
+        ];
+
+        const mockFetch = vi.fn()
+            .mockResolvedValueOnce({ name: 'Shared Card', shortLink: 'SAME1' });
+
+        const result = await resolveCrossBoardCardUrls(tasks, mockFetch);
+
+        expect(result[0].title).toBe('Shared Card');
+        expect(result[1].title).toBe('Shared Card');
+        expect(mockFetch).toHaveBeenCalledTimes(1); // only one fetch for deduped shortLink
+    });
+
+    it('keeps URL as title when fetch fails (card inaccessible)', async () => {
+        const { resolveCrossBoardCardUrls } = await import('../lib/trelloSync.js');
+
+        const tasks = [
+            { id: 't-1', title: 'https://trello.com/c/PRIVATE1', trelloLinkedCardUrl: 'https://trello.com/c/PRIVATE1' },
+        ];
+
+        const mockFetch = vi.fn().mockRejectedValueOnce(new Error('401 Unauthorized'));
+
+        const result = await resolveCrossBoardCardUrls(tasks, mockFetch);
+
+        expect(result[0].title).toBe('https://trello.com/c/PRIVATE1'); // unchanged
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips tasks that are already resolved (title !== trelloLinkedCardUrl)', async () => {
+        const { resolveCrossBoardCardUrls } = await import('../lib/trelloSync.js');
+
+        const tasks = [
+            { id: 't-1', title: 'Already Resolved', trelloLinkedCardUrl: 'https://trello.com/c/RES1' },
+            { id: 't-2', title: 'https://trello.com/c/NEED1', trelloLinkedCardUrl: 'https://trello.com/c/NEED1' },
+        ];
+
+        const mockFetch = vi.fn()
+            .mockResolvedValueOnce({ name: 'Resolved Card', shortLink: 'NEED1' });
+
+        const result = await resolveCrossBoardCardUrls(tasks, mockFetch);
+
+        expect(result[0].title).toBe('Already Resolved'); // unchanged
+        expect(result[1].title).toBe('Resolved Card');
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+});
+
+// ════════════════════════════════════════════════════════════
+// handleAddNewTask Trello metadata enrichment
+// ════════════════════════════════════════════════════════════
+describe('handleAddNewTask Trello metadata enrichment', () => {
+    // This tests the enrichment logic that should be in handleAddNewTask
+    // We extract the enrichment into a pure function to make it testable
+
+    it('adds Trello metadata from sibling task when creating via NewTaskModal', async () => {
+        const { enrichNewTaskWithTrelloMetadata } = await import('../lib/trelloSync.js');
+
+        const newTask = {
+            id: 't-new', actionId: 'act-1', title: 'New task from modal',
+            status: 'todo', startDate: '2026-04-01', dueDate: '2026-04-30'
+        };
+        const existingTasks = [
+            { id: 't-1', actionId: 'act-1', trelloChecklistName: 'Social Media Post', trelloChecklistId: 'cl-1', trelloCardId: 'card-1' },
+            { id: 't-2', actionId: 'act-2', trelloChecklistName: 'Other', trelloChecklistId: 'cl-2', trelloCardId: 'card-2' },
+        ];
+        const actions = [
+            { id: 'act-1', trelloCardId: 'card-1' },
+        ];
+
+        const enriched = enrichNewTaskWithTrelloMetadata(newTask, existingTasks, actions);
+
+        expect(enriched.trelloChecklistName).toBe('Social Media Post');
+        expect(enriched.trelloChecklistId).toBe('cl-1');
+        expect(enriched.trelloCardId).toBe('card-1');
+    });
+
+    it('falls back to action trelloCardId when no sibling tasks exist', async () => {
+        const { enrichNewTaskWithTrelloMetadata } = await import('../lib/trelloSync.js');
+
+        const newTask = { id: 't-new', actionId: 'act-1', title: 'New task' };
+        const existingTasks = []; // no siblings
+        const actions = [{ id: 'act-1', trelloCardId: 'card-1' }];
+
+        const enriched = enrichNewTaskWithTrelloMetadata(newTask, existingTasks, actions);
+
+        expect(enriched.trelloChecklistName).toBe('Tasks');
+        expect(enriched.trelloCardId).toBe('card-1');
+    });
+
+    it('does nothing when no Trello metadata available', async () => {
+        const { enrichNewTaskWithTrelloMetadata } = await import('../lib/trelloSync.js');
+
+        const newTask = { id: 't-new', actionId: 'act-1', title: 'New task' };
+        const existingTasks = [];
+        const actions = [{ id: 'act-1' }]; // no trelloCardId
+
+        const enriched = enrichNewTaskWithTrelloMetadata(newTask, existingTasks, actions);
+
+        expect(enriched.trelloCardId).toBeUndefined();
+        expect(enriched.trelloChecklistName).toBeUndefined();
     });
 });

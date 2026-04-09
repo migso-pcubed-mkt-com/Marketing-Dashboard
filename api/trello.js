@@ -145,6 +145,14 @@ export default async function handler(req, res) {
             return res.status(200).json({ board, lists, labels, cards, members });
         }
 
+        // GET /api/trello?action=getCard&cardId=SHORTLINK — Fetch a single card by ID or shortLink
+        if (req.method === 'GET' && action === 'getCard') {
+            if (!cardId) return res.status(400).json({ error: 'cardId required' });
+            const resp = await fetch(`${TRELLO_BASE}/cards/${cardId}?${authParams}&fields=name,shortLink`);
+            if (!resp.ok) return res.status(resp.status).json({ error: `Trello error ${resp.status}` });
+            return res.json(await resp.json());
+        }
+
         // PUT /api/trello?action=updateCard — Update a card
         if (req.method === 'PUT' && action === 'updateCard') {
             const { cardId: cid, updates } = req.body;

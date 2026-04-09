@@ -22,7 +22,8 @@ vi.mock('../lib/trello.js', () => ({
     updateTrelloList: vi.fn().mockResolvedValue({}),
     createTrelloList: vi.fn().mockResolvedValue({ id: 'new-list-1', pos: 16384 }),
     setTrelloUserToken: vi.fn(),
-    getTrelloUserToken: vi.fn()
+    getTrelloUserToken: vi.fn(),
+    fetchTrelloCard: vi.fn().mockRejectedValue(new Error('Not found'))
 }));
 
 import { syncWithTrello } from '../lib/trelloSync.js';
