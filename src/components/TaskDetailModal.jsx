@@ -279,6 +279,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                 <div className="flex items-center gap-2 mt-1">
                                     <p className="text-sm" style={{color:'var(--text-muted)'}}>📁 {action?.name} • {CONFIG.MONTHS_FULL[task.month]}</p>
                                     {onBackToAction&&!isCardAsTask&&<button onClick={onBackToAction} className="text-xs text-secondary hover:underline flex items-center gap-1">← Back to action</button>}
+                                    {task.trelloLinkedCardUrl && <a href={task.trelloLinkedCardUrl} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} title="Open linked Trello card" style={{display:'inline-flex',alignItems:'center',gap:3,fontSize:11,color:'#0079bf',fontWeight:500,textDecoration:'none'}} onMouseEnter={e=>{e.currentTarget.style.textDecoration='underline';}} onMouseLeave={e=>{e.currentTarget.style.textDecoration='none';}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M14 4h6m0 0v6m0-6L10 14"/></svg>Open in Trello</a>}
                                 </div>
                             </div>
                         </div>

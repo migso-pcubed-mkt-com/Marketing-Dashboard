@@ -549,10 +549,11 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     else if(viewMode==='action'){onAddTask({title,actionId:selectedAction||actions[0]?.id||'',status:col.key});}
                                     else if(viewMode==='month'){const y=selectedYear,m=col.key;const sd=y+'-'+String(m+1).padStart(2,'0')+'-01';const ld=new Date(y,m+1,0).getDate();onAddTask({title,startDate:sd,dueDate:y+'-'+String(m+1).padStart(2,'0')+'-'+ld});}
                                     else if(viewMode==='country'){onAddTask({title,countries:col.key==='_unassigned'?[]:[col.key]});}
+                                    else if(viewMode==='category'&&!isCardAsTask&&!col.directTasks){const now=new Date().toISOString();onAddAction({id:crypto.randomUUID(),name:title,categoryId:col.key,budget:0,priority:'medium',tags:[],status:'active',createdAt:now,updatedAt:now});}
                                     else{onAddTask({title});}
                                     setQuickAddTitle('');setQuickAddCol(null);
                                 }} style={{padding:'4px 0'}}>
-                                    <input type="text" value={quickAddTitle} onChange={e=>setQuickAddTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Escape'){setQuickAddCol(null);setQuickAddTitle('');}}} autoFocus placeholder="Task title..." style={{width:'100%',padding:'6px 8px',borderRadius:4,border:'1px solid var(--accent)',fontSize:12,outline:'none',background:'var(--bg-primary)',color:'var(--text-primary)'}}/>
+                                    <input type="text" value={quickAddTitle} onChange={e=>setQuickAddTitle(e.target.value)} onKeyDown={e=>{if(e.key==='Escape'){setQuickAddCol(null);setQuickAddTitle('');}}} autoFocus placeholder={viewMode==='category'&&!isCardAsTask&&!col.directTasks?"Action name...":"Task title..."} style={{width:'100%',padding:'6px 8px',borderRadius:4,border:'1px solid var(--accent)',fontSize:12,outline:'none',background:'var(--bg-primary)',color:'var(--text-primary)'}}/>
                                 </form>:null}
                                 <button onClick={()=>{if(isReadOnly)return;setQuickAddCol(quickAddCol===col.key?null:col.key);setQuickAddTitle('');}} className="add-card-btn" style={isReadOnly?{display:'none'}:{}}>{quickAddCol===col.key?'Cancel':'+ Quick add'}</button>
                                 <button onClick={()=>{
