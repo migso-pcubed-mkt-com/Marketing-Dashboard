@@ -269,9 +269,8 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
 
     // Compact bar for month view (single line)
     const renderMonthBar = (task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight, topOffset, keyPrefix = '') => {
-        const action = actions.find(a => a.id === task.actionId);
-        const cat = categories.find(c => c.id === action?.categoryId);
-        const barColor = cat?.color || 'var(--accent)';
+        const statusObj = CONFIG.STATUSES.find(s => s.id === task.status);
+        const barColor = statusObj?.color || '#94a3b8';
         const left = `calc(${(startCol / 7) * 100}% + 4px)`;
         const width = `calc(${(span / 7) * 100}% - 8px)`;
         const top = topOffset + rowIdx * 24;
@@ -455,8 +454,8 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                     {/* Detailed bars */}
                     {bars.map(({ task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight }) => {
                         const action = actions.find(a => a.id === task.actionId);
-                        const cat = categories.find(c => c.id === action?.categoryId);
-                        const barColor = cat?.color || 'var(--accent)';
+                        const statusObj = CONFIG.STATUSES.find(s => s.id === task.status);
+                        const barColor = statusObj?.color || '#94a3b8';
                         const colWidth = `calc((100% - 60px) / 7)`;
                         const left = `calc(60px + ${colWidth} * ${startCol} + 4px)`;
                         const width = `calc(${colWidth} * ${span} - 8px)`;

@@ -451,7 +451,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                         {editingItemId===item.id?(
                                             <input type="text" value={editingItemText} onChange={e=>setEditingItemText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')renameChecklistItem(cl.id,item.id,editingItemText);if(e.key==='Escape')setEditingItemId(null);}} onBlur={()=>renameChecklistItem(cl.id,item.id,editingItemText)} style={{flex:1,border:'none',borderBottom:'1px solid var(--accent)',outline:'none',background:'transparent',fontSize:13,padding:'0 0 1px',color:'var(--text-primary)'}} autoFocus/>
                                         ):(
-                                            <span onClick={()=>{if(isReadOnly)return;setEditingItemId(item.id);setEditingItemText(item.text);}} style={{flex:1,fontSize:13,textDecoration:item.done?'line-through':'none',color:item.done?'var(--text-muted)':'var(--text-secondary)',cursor:isReadOnly?'default':'pointer'}}>{item.text}</span>
+                                            <span onClick={()=>{if(item.trelloLinkedCardUrl){window.open(item.trelloLinkedCardUrl,'_blank');return;}if(isReadOnly)return;setEditingItemId(item.id);setEditingItemText(item.text);}} style={{flex:1,fontSize:13,textDecoration:item.done?'line-through':'none',color:item.done?'var(--text-muted)':'var(--text-secondary)',cursor:item.trelloLinkedCardUrl?'pointer':isReadOnly?'default':'pointer',display:'flex',alignItems:'center',gap:4}}>{item.trelloLinkedCardUrl&&<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0079bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,opacity:0.7}}><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>}{item.text}</span>
                                         )}
                                         {/* Assignee badge */}
                                         <div style={{flexShrink:0}}>
@@ -517,11 +517,11 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         {(form.attachments||[]).length>0&&<div className="space-y-2 mb-3">
                             {(form.attachments||[]).map(att=>{
                                 const isImage = (att.type||att.mimeType||'').startsWith('image/');
-                                const src = att.data || att.url;
+                                const thumbSrc = att.thumbnailUrl || att.data || (isImage ? att.url : null);
                                 return (
                                 <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg" style={{background:'var(--bg-secondary)',cursor:'pointer'}} onClick={()=>att.url ? window.open(att.url,'_blank') : setPreviewAttachment(att)}>
-                                    {isImage && src ?
-                                        <img src={src} alt={att.name} style={{width:40,height:40,objectFit:'cover',borderRadius:'var(--radius-sm)',flexShrink:0}}/>:
+                                    {thumbSrc ?
+                                        <img src={thumbSrc} alt={att.name} style={{width:40,height:40,objectFit:'cover',borderRadius:'var(--radius-sm)',flexShrink:0}}/>:
                                         <div style={{width:40,height:40,borderRadius:'var(--radius-sm)',background:'var(--accent-light)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:16}}>📄</div>
                                     }
                                     <div style={{flex:1,minWidth:0}}>

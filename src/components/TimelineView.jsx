@@ -746,6 +746,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const getWeekHeaders=()=>{
         const weeks=[];
         const months=[];
+        const monthBoundaries=[];
         const dec31=new Date(selectedYear,11,31);
         let lastMonth=-1;
         for(let w=0;w<54;w++){
@@ -764,14 +765,25 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 if(months.length>0)months[months.length-1].endWeek=w;
                 months.push({month:monthIdx,label:CONFIG.MONTHS[monthIdx],startWeek:w,endWeek:w+1});
                 lastMonth=monthIdx;
+                // Compute month boundary line position (1st of month within this week)
+                if(w>0){
+                    const firstOfMonth=new Date(selectedYear,monthIdx,1);
+                    const dayOffset=Math.round((firstOfMonth-weekStart)/86400000);
+                    if(dayOffset>=0&&dayOffset<7){
+                        monthBoundaries.push({weekIndex:w,dayOffset});
+                    }
+                }
             }
         }
         if(months.length>0)months[months.length-1].endWeek=weeks.length;
-        return{weeks,months};
+        return{weeks,months,monthBoundaries};
     };
 
-    const headers=zoom==='quarter'?[{q:1,label:'Q1',months:[0,1,2]},{q:2,label:'Q2',months:[3,4,5]},{q:3,label:'Q3',months:[6,7,8]},{q:4,label:'Q4',months:[9,10,11]}]:zoom==='week'?getWeekHeaders().weeks:zoom==='day'?getDayHeaders().days:CONFIG.MONTHS.map((m,i)=>({month:i,label:m}));
-    const monthHeaders=zoom==='week'?getWeekHeaders().months:zoom==='day'?getDayHeaders().months:null;
+    const weekHeadersCache=zoom==='week'?getWeekHeaders():null;
+    const dayHeadersCache=zoom==='day'?getDayHeaders():null;
+    const headers=zoom==='quarter'?[{q:1,label:'Q1',months:[0,1,2]},{q:2,label:'Q2',months:[3,4,5]},{q:3,label:'Q3',months:[6,7,8]},{q:4,label:'Q4',months:[9,10,11]}]:zoom==='week'?weekHeadersCache.weeks:zoom==='day'?dayHeadersCache.days:CONFIG.MONTHS.map((m,i)=>({month:i,label:m}));
+    const monthHeaders=zoom==='week'?weekHeadersCache.months:zoom==='day'?dayHeadersCache.months:null;
+    const monthBoundaryLines=zoom==='week'?(weekHeadersCache.monthBoundaries||[]):[];
 
     const filteredTasks=tasks.filter(t=>{
         const action=actions.find(a=>a.id===t.actionId);
@@ -1200,7 +1212,11 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                     </div>
                 </div>
                 <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll',flex:1,overflowY:'auto'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
-                    <div style={{minWidth:`${headers.length*colWidth+250}px`}}>
+                    <div style={{minWidth:`${headers.length*colWidth+250}px`,position:'relative'}}>
+                        {/* Month boundary vertical lines for week zoom */}
+                        {zoom==='week'&&monthBoundaryLines.length>0&&monthBoundaryLines.map((mb,idx)=>(
+                            <div key={`mb-${idx}`} style={{position:'absolute',left:250+mb.weekIndex*colWidth+(mb.dayOffset/7)*colWidth,top:0,bottom:0,width:2,background:'var(--accent)',opacity:0.25,zIndex:5,pointerEvents:'none'}}/>
+                        ))}
                         {(zoom==='week'||zoom==='day')&&monthHeaders&&(
                             <div className={`flex border-b border-[var(--border)] sticky top-0 z-40 bg-[var(--bg-primary)]`}>
                                 <div className={`w-[250px] flex-shrink-0 sticky left-0 z-30 bg-[var(--bg-primary)]`}/>

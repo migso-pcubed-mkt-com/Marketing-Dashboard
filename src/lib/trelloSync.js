@@ -911,15 +911,30 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                         const delSet = new Set(deletedChecklistIds);
                         task.checklists = (task.checklists || []).filter(cl => !delSet.has(cl.id));
                     }
-                    // Push labels (channels, countries, otherLabels)
-                    await pushTaskLabelsToTrello(task, card, board, mappingConfig);
+                    // Check if labels were explicitly changed locally vs baseline
+                    const labelsChangedLocally =
+                        JSON.stringify(task.channels || []) !== JSON.stringify(task._inheritChannels || []) ||
+                        JSON.stringify(task.countries || []) !== JSON.stringify(task._inheritCountries || []) ||
+                        JSON.stringify((task.otherLabels || []).map(l => l.name).sort()) !== JSON.stringify((task._inheritOtherLabels || []).map(l => l.name).sort());
+                    // Push labels (channels, countries, otherLabels) only if changed locally
+                    if (labelsChangedLocally) {
+                        await pushTaskLabelsToTrello(task, card, board, mappingConfig);
+                    }
+                    // Check if assignees changed locally vs baseline
+                    const assigneesChangedLocally = JSON.stringify(task.assignees || []) !== JSON.stringify(task._trelloBaseline?.assignees || []);
                     // After push, also pull any new Trello extras (checklists, items) into local task
-                    // Preserve pushed labels — mergeTrelloExtrasIntoTask unions stale card.idLabels
                     const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig);
+                    // Re-fetch merged labels from Trello if not changed locally
+                    const mergedForLabels = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
                     updatedTasks[i] = {
                         ...mergedTask,
-                        channels: task.channels, countries: task.countries, otherLabels: task.otherLabels,
-                        _inheritChannels: task.channels || [], _inheritCountries: task.countries || [], _inheritOtherLabels: task.otherLabels || [],
+                        channels: labelsChangedLocally ? task.channels : mergedForLabels.channels,
+                        countries: labelsChangedLocally ? task.countries : mergedForLabels.countries,
+                        otherLabels: labelsChangedLocally ? task.otherLabels : mergedForLabels.otherLabels,
+                        _inheritChannels: labelsChangedLocally ? (task.channels || []) : (mergedForLabels._inheritChannels || []),
+                        _inheritCountries: labelsChangedLocally ? (task.countries || []) : (mergedForLabels._inheritCountries || []),
+                        _inheritOtherLabels: labelsChangedLocally ? (task.otherLabels || []) : (mergedForLabels._inheritOtherLabels || []),
+                        assignees: assigneesChangedLocally ? task.assignees : mergedForLabels.assignees,
                         trelloLastModified: new Date().toISOString(), updatedAt: task.updatedAt
                     };
                     result.pushed++;
