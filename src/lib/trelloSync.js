@@ -1098,7 +1098,8 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         const attachments = [];
         if (card.attachments) {
             for (const att of card.attachments) {
-                attachments.push({ id: genId('att'), name: att.name, url: att.url, mimeType: att.mimeType || '', date: att.date, trelloAttachmentId: att.id });
+                const preview = att.previews?.filter(p => p.width >= 100 && p.width <= 300).sort((a,b) => a.width - b.width)[0];
+                attachments.push({ id: genId('att'), name: att.name, url: att.url, mimeType: att.mimeType || '', date: att.date, trelloAttachmentId: att.id, ...(preview ? { thumbnailUrl: preview.url } : {}) });
             }
         }
 
@@ -1161,6 +1162,14 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             _inheritChannels: channels,
             _inheritCountries: countries,
             _inheritOtherLabels: otherLabels,
+            _trelloBaseline: {
+                title: card.name,
+                description: card.desc || '',
+                startDate,
+                dueDate: dueDate || startDate,
+                status: card.dueComplete ? 'completed' : 'todo',
+                assignees: card.idMembers || []
+            },
             order: card.pos || 0,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
@@ -1208,6 +1217,14 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 updatedTasks[i]._inheritChannels = updatedTasks[i].channels || [];
                 updatedTasks[i]._inheritCountries = updatedTasks[i].countries || [];
                 updatedTasks[i]._inheritOtherLabels = updatedTasks[i].otherLabels || [];
+                // Set _trelloBaseline so next sync uses selective push (not full push)
+                updatedTasks[i]._trelloBaseline = {
+                    title: task.title, description: task.description || '',
+                    startDate: task.startDate, dueDate: task.dueDate,
+                    status: task.status, assignees: task.assignees || []
+                };
+                // Update trelloLastModified AFTER all push operations to prevent false "Trello changed"
+                updatedTasks[i].trelloLastModified = new Date().toISOString();
             } catch (extrasErr) {
                 console.error(`Failed to push extras for new card "${task.title}":`, extrasErr);
             }
@@ -1389,6 +1406,11 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         ? new Set(updatedActions.filter(a => removedCatIds.has(a.categoryId)).map(a => a.id))
         : new Set();
     const allTasks = [...updatedTasks, ...newTasks].filter(Boolean);
+
+    // Resolve cross-board card URLs (parity with card-as-action mode)
+    const resolvedTasks = await resolveCrossBoardCardUrls(allTasks);
+    for (let i = 0; i < resolvedTasks.length; i++) allTasks[i] = resolvedTasks[i];
+
     const finalTasks = removedActionIds.size > 0
         ? allTasks.filter(t => !removedActionIds.has(t.actionId))
         : allTasks;
