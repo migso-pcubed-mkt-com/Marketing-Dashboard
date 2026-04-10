@@ -1226,8 +1226,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                 ))}
                             </div>
                         )}
-                        <div className={`flex border-b border-[var(--border)] ${(zoom==='week'||zoom==='day')?'sticky top-[37px] z-30':'sticky top-0 z-40'} bg-[var(--bg-primary)]`}>
-                            <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 bg-[var(--bg-primary)] border-r border-[var(--border)]`}>{isCardAsTask?'Tasks':'Actions'}</div>
+                        <div className={`flex border-b border-[var(--border)] ${(zoom==='week'||zoom==='day')?'sticky top-[37px] z-30':'sticky top-0 z-40'} bg-[var(--bg-primary)] relative`}>
+                            <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 bg-[var(--bg-primary)] border-r border-[var(--border)]`} style={{zIndex:2}}>{isCardAsTask?'Tasks':'Actions'}</div>
                             {zoom==='quarter'?headers.map(h=>(
                                 <div key={h.q} className={`flex-shrink-0 p-3 text-center font-semibold border-l border-[var(--border)]`} style={{width:colWidth}}>
                                     <div>{h.label}</div>
@@ -1241,6 +1241,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                 <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l border-[var(--border)] ${h.month===currentMonth&&h.date===new Date().getDate()?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
                             )):headers.map((h,i)=>(
                                 <div key={i} className={`flex-shrink-0 p-2 text-center text-xs font-medium border-l border-[var(--border)] ${h.month===currentMonth?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
+                            ))}
+                            {zoom==='week'&&monthBoundaryLines.map((b,idx)=>(
+                                <div key={`mbh-${idx}`} className="absolute top-0 bottom-0 pointer-events-none" style={{left:250+b.weekIndex*colWidth+b.dayOffset*(colWidth/7),borderLeft:'1.5px dashed var(--text-muted)',opacity:0.35,zIndex:1}}/>
                             ))}
                         </div>
                         {groupedByCategory.map(({category,actions:catActions})=>(
@@ -1273,6 +1276,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                     <div key={i} className={`border-l border-[var(--border)]`} style={{width:colWidth}}/>
                                                 ))}
                                             </div>
+                                            {zoom==='week'&&monthBoundaryLines.map((b,idx)=>(
+                                                <div key={`mb-${idx}`} className="absolute top-0 bottom-0 pointer-events-none" style={{left:b.weekIndex*colWidth+b.dayOffset*(colWidth/7),borderLeft:'1.5px dashed var(--text-muted)',opacity:0.35,zIndex:1}}/>
+                                            ))}
                                             {dragPreview&&dragPreview.actionId===action.id&&(
                                                 <div className="drag-preview-line" style={{left:dragPreview.left,width:dragPreview.width,top:dragPreview.top||8,background:dragPreview.color||'var(--accent)'}}/>
                                             )}

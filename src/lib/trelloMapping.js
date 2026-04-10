@@ -759,7 +759,7 @@ export const mapTaskToTrelloCardUpdate = (task, listId) => {
 // --- After push: merge new Trello extras (checklists, attachments, labels) into local task ---
 // This ensures items added on Trello side are preserved even when "push wins".
 // mappingConfig is optional — if provided, also re-pulls channels/countries/otherLabels from card labels.
-export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig, allCards) => {
+export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig, allCards, preserveLocalState = false) => {
     if (!card) return task;
     const updated = { ...task };
 
@@ -803,9 +803,11 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig, allCards) =
                     : trelloCl.checkItems.find(ti => ti.name === item.text);
                 if (trelloItem) {
                     const resolvedItem = allCards ? resolveTrelloCardUrl(trelloItem.name, allCards) : null;
-                    const updatedText = resolvedItem ? resolvedItem.title : (trelloItem.name || item.text);
                     const linkedUrl = resolvedItem?.trelloLinkedCardUrl || item.trelloLinkedCardUrl;
-                    return { ...item, text: updatedText, done: trelloItem.state === 'complete', trelloCheckItemId: trelloItem.id, due: trelloItem.due ? trelloItem.due.split('T')[0] : item.due, assignee: trelloItem.idMember || item.assignee, order: trelloItem.pos != null ? trelloItem.pos : item.order, ...(linkedUrl ? { trelloLinkedCardUrl: linkedUrl } : {}) };
+                    // When preserveLocalState is true (after local push), keep local text/done — card object is stale (pre-push)
+                    const updatedText = preserveLocalState && item.trelloCheckItemId ? item.text : (resolvedItem ? resolvedItem.title : (trelloItem.name || item.text));
+                    const updatedDone = preserveLocalState && item.trelloCheckItemId ? item.done : (trelloItem.state === 'complete');
+                    return { ...item, text: updatedText, done: updatedDone, trelloCheckItemId: trelloItem.id, due: preserveLocalState && item.trelloCheckItemId ? item.due : (trelloItem.due ? trelloItem.due.split('T')[0] : item.due), assignee: preserveLocalState && item.trelloCheckItemId ? item.assignee : (trelloItem.idMember || item.assignee), order: trelloItem.pos != null ? trelloItem.pos : item.order, ...(linkedUrl ? { trelloLinkedCardUrl: linkedUrl } : {}) };
                 }
                 return item;
             });
