@@ -55927,48 +55927,6 @@
           ]
         },
         {
-          "id": "task-9ce5cac2-1324-44cc-a8e5-ec573e8e83fe",
-          "actionId": "a-e54c061c-d8ac-4f84-900b-ebb7d079f36c",
-          "title": "task quick",
-          "description": "",
-          "startDate": "2026-04-01",
-          "dueDate": "2026-04-01",
-          "month": 3,
-          "status": "todo",
-          "priority": "medium",
-          "budget": 0,
-          "checklists": [
-            {
-              "id": "cl-f40a8dc0-aaa2-4cea-896a-252e5149af57",
-              "name": "Checklist",
-              "trelloChecklistId": "69d93b221ee32229e3304a4c",
-              "items": []
-            }
-          ],
-          "comments": [],
-          "attachments": [],
-          "channels": [],
-          "countries": [],
-          "assignees": [],
-          "otherLabels": [],
-          "_inheritChannels": [],
-          "_inheritCountries": [],
-          "_inheritOtherLabels": [],
-          "_trelloBaseline": {
-            "title": "task quick",
-            "description": "",
-            "startDate": "2026-04-01",
-            "dueDate": "2026-04-01",
-            "status": "todo",
-            "assignees": []
-          },
-          "order": 140737488420864,
-          "createdAt": "2026-04-10T18:12:53.404Z",
-          "updatedAt": "2026-04-10T18:12:53.404Z",
-          "trelloCardId": "69d93b22a3ebaaeaa9c27001",
-          "trelloLastModified": "2026-04-10T18:02:10.412Z"
-        },
-        {
           "id": "task-7e332ad0-ac07-41c0-a451-d04cf8b5c55e",
           "actionId": "a-e54c061c-d8ac-4f84-900b-ebb7d079f36c",
           "title": "task quick",
@@ -56529,7 +56487,7 @@
         }
       ],
       "createdAt": "2026-04-10T14:46:07.452Z",
-      "updatedAt": "2026-04-10T18:12:56.165Z",
+      "updatedAt": "2026-04-10T18:12:34.881Z",
       "categories": [
         {
           "id": "cat-9d2f5006-9aca-4e4e-8f32-c472ee32bef6",
@@ -56849,7 +56807,7 @@
       ],
       "trelloSync": {
         "syncMode": "card-as-task",
-        "lastSyncAt": "2026-04-10T18:12:56.165Z",
+        "lastSyncAt": "2026-04-10T18:12:34.881Z",
         "syncEnabled": true,
         "labelMappings": {
           "6751b2fde5a4064a6d732244": {
@@ -70398,7 +70356,7 @@
       }
     }
   ],
-  "_saveId": "7896c587-4313-4212-b971-cf07bb48cbd9",
+  "_saveId": "56cac799-8177-4b94-974e-5d5d3a5093d4",
   "version": 2,
   "currentBoardId": "board-fd027751-1660-45b5-ac22-3dc9848cbbd0",
   "timestamp": 1775842769702
