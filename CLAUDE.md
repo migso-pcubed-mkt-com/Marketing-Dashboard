@@ -215,6 +215,8 @@ Props still drilled for view-specific handlers (`onUpdateTask`, `onOpenTask`, et
 - **App → Trello (card-as-action groups)**: `handleDeleteTaskGroup` deletes all checklist items + the checklist itself via `deleteTrelloChecklistItem()` + `deleteTrelloChecklist()`.
 - **Trello → App**: During sync, tasks/actions whose `trelloCardId` points to a missing/deleted card are marked `status: 'paused'`. Archived cards (`closed: true`) are similarly paused with `trelloArchived: true`. Archived cards are NOT re-imported as new entities.
 
+**Race condition guard**: `_recentlyDeletedCardIds` and `_recentlyDeletedListIds` arrays on `board.trelloSync` (entries: `{ id, at }` with 5-min TTL). Populated by `handleDeleteTask`, `handleDeleteCategory`, `handleDeleteAction` before the async archive call. Checked by both `syncWithTrelloCardAsTask` and `syncWithTrelloCardAsAction` before importing new cards/lists. Prevents race condition where async archive hasn't completed when sync runs → card/list still active on Trello → re-imported as new entity.
+
 **Helper functions** in `trello.js`: `archiveTrelloList(listId)`, `archiveTrelloCard(cardId)` — both wrap `updateXxx(id, { closed: 'true' })`.
 
 ### Card movement sync (card-as-task)

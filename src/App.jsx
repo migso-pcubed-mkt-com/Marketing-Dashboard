@@ -783,8 +783,32 @@ const App = () => {
             showNotification('Cannot delete the default action — tasks depend on it');
             return;
         }
-        // Archive linked Trello card in card-as-action mode
-        if (action?.trelloCardId && !isReadOnly && currentBoard?.trelloSync?.syncMode === 'card-as-action') {
+        const syncMode = currentBoard?.trelloSync?.syncMode;
+        // Track deleted card ID to prevent re-import race condition (card-as-action mode)
+        if (syncMode === 'card-as-action' && action?.trelloCardId) {
+            const deletedCardEntry = { id: action.trelloCardId, at: Date.now() };
+            // Also collect trelloCardIds from child tasks (same card, but belt-and-suspenders)
+            updateCurrentBoard(b => ({
+                ...b,
+                actions: b.actions.filter(a => a.id !== actionId),
+                tasks: b.tasks.filter(t => t.actionId !== actionId),
+                trelloSync: {
+                    ...b.trelloSync,
+                    _recentlyDeletedCardIds: [
+                        ...(b.trelloSync?._recentlyDeletedCardIds || []),
+                        deletedCardEntry
+                    ]
+                }
+            }));
+            if (!isReadOnly) {
+                try { await archiveTrelloCard(action.trelloCardId); }
+                catch(e) { console.warn('Failed to archive Trello card:', e); }
+            }
+            showNotification('🗑️ Action deleted');
+            return;
+        }
+        // Archive linked Trello card in card-as-action mode (fallback for no trelloCardId)
+        if (action?.trelloCardId && !isReadOnly && syncMode === 'card-as-action') {
             try { await archiveTrelloCard(action.trelloCardId); }
             catch(e) { console.warn('Failed to archive Trello card:', e); }
         }
@@ -948,8 +972,16 @@ const App = () => {
         if (task && !isReadOnly) {
             const syncMode = currentBoard?.trelloSync?.syncMode;
             if (syncMode === 'card-as-task' && task.trelloCardId) {
+                // Track deleted card ID to prevent re-import during sync race condition
+                updateCurrentBoard(b => ({
+                    ...b,
+                    tasks: b.tasks.filter(t => t.id !== taskId),
+                    trelloSync: { ...b.trelloSync, _recentlyDeletedCardIds: [...(b.trelloSync?._recentlyDeletedCardIds || []), { id: task.trelloCardId, at: Date.now() }] }
+                }));
                 try { await archiveTrelloCard(task.trelloCardId); }
                 catch(e) { console.warn('Failed to archive Trello card:', e); }
+                showNotification('🗑️ Task deleted');
+                return;
             } else if (syncMode === 'card-as-action' && task.trelloCheckItemId && task.trelloChecklistId) {
                 try { await deleteTrelloChecklistItem(task.trelloChecklistId, task.trelloCheckItemId); }
                 catch(e) { console.warn('Failed to delete Trello checklist item:', e); }
@@ -1003,15 +1035,26 @@ const App = () => {
             ? `Are you sure you want to delete the category "${category?.name}" ?\n\nThis will also delete ${catActions.length} associated action(s) and ${affectedTaskCount} task(s).`
             : `Are you sure you want to delete the category "${category?.name}" ?`;
         if (!confirm(confirmMessage)) return;
+        // Track deleted list/card IDs to prevent re-import during sync race condition
+        const actionIds = new Set(catActions.map(a => a.id));
+        const deletedCardIds = tasks.filter(t => actionIds.has(t.actionId) && t.trelloCardId).map(t => ({ id: t.trelloCardId, at: Date.now() }));
+        const deletedListId = category?.trelloListId ? [{ id: category.trelloListId, at: Date.now() }] : [];
+        updateCurrentBoard(b => ({
+            ...b,
+            categories: b.categories.filter(c => c.id !== catId),
+            actions: b.actions.filter(a => a.categoryId !== catId),
+            tasks: b.tasks.filter(t => !actionIds.has(t.actionId)),
+            trelloSync: {
+                ...b.trelloSync,
+                _recentlyDeletedCardIds: [...(b.trelloSync?._recentlyDeletedCardIds || []), ...deletedCardIds],
+                _recentlyDeletedListIds: [...(b.trelloSync?._recentlyDeletedListIds || []), ...deletedListId]
+            }
+        }));
         // Archive linked Trello list (if not guest/read-only)
         if (category?.trelloListId && !isReadOnly) {
             try { await archiveTrelloList(category.trelloListId); }
             catch(e) { console.warn('Failed to archive Trello list:', e); }
         }
-        const actionIds = new Set(catActions.map(a => a.id));
-        setCategories(prev => prev.filter(c => c.id !== catId));
-        setActions(prev => prev.filter(a => a.categoryId !== catId));
-        setTasks(prev => prev.filter(t => !actionIds.has(t.actionId)));
         showNotification('🗑️ Category deleted');
     };
 
@@ -1477,7 +1520,7 @@ const App = () => {
                     </ErrorBoundary>
                 </main>
                 {selectedTask && <TaskDetailModal categories={categories} task={tasks.find(t => t.id === selectedTask.id) || selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={currentBoard?.members || []} isReadOnly={isReadOnly} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()}/>}
-                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={actions.find(a => a.id === selectedAction.id) || selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onOpenTask={t => { setSelectedTask(t); }} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={currentBoard?.members || []} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup} onDeleteTaskGroup={handleDeleteTaskGroup}/>}
+                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={actions.find(a => a.id === selectedAction.id) || selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onOpenTask={handleOpenTask} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={currentBoard?.members || []} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup} onDeleteTaskGroup={handleDeleteTaskGroup}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction} onAddCategory={handleAddCategory}/>}
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}

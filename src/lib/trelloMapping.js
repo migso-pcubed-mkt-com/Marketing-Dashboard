@@ -759,7 +759,7 @@ export const mapTaskToTrelloCardUpdate = (task, listId) => {
 // --- After push: merge new Trello extras (checklists, attachments, labels) into local task ---
 // This ensures items added on Trello side are preserved even when "push wins".
 // mappingConfig is optional — if provided, also re-pulls channels/countries/otherLabels from card labels.
-export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
+export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig, allCards) => {
     if (!card) return task;
     const updated = { ...task };
 
@@ -779,15 +779,19 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
             const sortedTrelloItems = [...trelloCl.checkItems].sort((a, b) => (a.pos || 0) - (b.pos || 0));
             const newItems = sortedTrelloItems
                 .filter(ti => !localItemIds.has(ti.id) && !localItemNames.has(ti.name))
-                .map(ti => ({
-                    id: genId('cli'),
-                    text: ti.name,
-                    done: ti.state === 'complete',
-                    trelloCheckItemId: ti.id,
-                    due: ti.due ? ti.due.split('T')[0] : null,
-                    assignee: ti.idMember || null,
-                    order: ti.pos != null ? ti.pos : undefined
-                }));
+                .map(ti => {
+                    const resolved = allCards ? resolveTrelloCardUrl(ti.name, allCards) : null;
+                    return {
+                        id: genId('cli'),
+                        text: resolved ? resolved.title : ti.name,
+                        done: ti.state === 'complete',
+                        trelloCheckItemId: ti.id,
+                        due: ti.due ? ti.due.split('T')[0] : null,
+                        assignee: ti.idMember || null,
+                        order: ti.pos != null ? ti.pos : undefined,
+                        ...(resolved?.trelloLinkedCardUrl ? { trelloLinkedCardUrl: resolved.trelloLinkedCardUrl } : {})
+                    };
+                });
             // Also update state/metadata of existing items from Trello
             // Remove local items whose trelloCheckItemId no longer exists on Trello (deleted on Trello)
             const trelloItemIds = new Set(trelloCl.checkItems.map(ti => ti.id));
@@ -798,7 +802,10 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
                     ? trelloCl.checkItems.find(ti => ti.id === item.trelloCheckItemId)
                     : trelloCl.checkItems.find(ti => ti.name === item.text);
                 if (trelloItem) {
-                    return { ...item, text: trelloItem.name || item.text, done: trelloItem.state === 'complete', trelloCheckItemId: trelloItem.id, due: trelloItem.due ? trelloItem.due.split('T')[0] : item.due, assignee: trelloItem.idMember || item.assignee, order: trelloItem.pos != null ? trelloItem.pos : item.order };
+                    const resolvedItem = allCards ? resolveTrelloCardUrl(trelloItem.name, allCards) : null;
+                    const updatedText = resolvedItem ? resolvedItem.title : (trelloItem.name || item.text);
+                    const linkedUrl = resolvedItem?.trelloLinkedCardUrl || item.trelloLinkedCardUrl;
+                    return { ...item, text: updatedText, done: trelloItem.state === 'complete', trelloCheckItemId: trelloItem.id, due: trelloItem.due ? trelloItem.due.split('T')[0] : item.due, assignee: trelloItem.idMember || item.assignee, order: trelloItem.pos != null ? trelloItem.pos : item.order, ...(linkedUrl ? { trelloLinkedCardUrl: linkedUrl } : {}) };
                 }
                 return item;
             });
@@ -819,15 +826,19 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
                 name: tc.name || 'Checklist',
                 trelloChecklistId: tc.id,
                 order: tc.pos != null ? tc.pos : undefined,
-                items: (tc.checkItems || []).sort((a, b) => (a.pos || 0) - (b.pos || 0)).map(ti => ({
-                    id: genId('cli'),
-                    text: ti.name,
-                    done: ti.state === 'complete',
-                    trelloCheckItemId: ti.id,
-                    due: ti.due ? ti.due.split('T')[0] : null,
-                    assignee: ti.idMember || null,
-                    order: ti.pos != null ? ti.pos : undefined
-                }))
+                items: (tc.checkItems || []).sort((a, b) => (a.pos || 0) - (b.pos || 0)).map(ti => {
+                    const resolved = allCards ? resolveTrelloCardUrl(ti.name, allCards) : null;
+                    return {
+                        id: genId('cli'),
+                        text: resolved ? resolved.title : ti.name,
+                        done: ti.state === 'complete',
+                        trelloCheckItemId: ti.id,
+                        due: ti.due ? ti.due.split('T')[0] : null,
+                        assignee: ti.idMember || null,
+                        order: ti.pos != null ? ti.pos : undefined,
+                        ...(resolved?.trelloLinkedCardUrl ? { trelloLinkedCardUrl: resolved.trelloLinkedCardUrl } : {})
+                    };
+                })
             }));
         // Sort all checklists by Trello position
         const allChecklists = [...updatedChecklists, ...newChecklists];
@@ -842,15 +853,19 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
                 name: tc.name || 'Checklist',
                 trelloChecklistId: tc.id,
                 order: tc.pos != null ? tc.pos : undefined,
-                items: (tc.checkItems || []).sort((a, b) => (a.pos || 0) - (b.pos || 0)).map(ti => ({
-                    id: genId('cli'),
-                    text: ti.name,
-                    done: ti.state === 'complete',
-                    trelloCheckItemId: ti.id,
-                    due: ti.due ? ti.due.split('T')[0] : null,
-                    assignee: ti.idMember || null,
-                    order: ti.pos != null ? ti.pos : undefined
-                }))
+                items: (tc.checkItems || []).sort((a, b) => (a.pos || 0) - (b.pos || 0)).map(ti => {
+                    const resolved = allCards ? resolveTrelloCardUrl(ti.name, allCards) : null;
+                    return {
+                        id: genId('cli'),
+                        text: resolved ? resolved.title : ti.name,
+                        done: ti.state === 'complete',
+                        trelloCheckItemId: ti.id,
+                        due: ti.due ? ti.due.split('T')[0] : null,
+                        assignee: ti.idMember || null,
+                        order: ti.pos != null ? ti.pos : undefined,
+                        ...(resolved?.trelloLinkedCardUrl ? { trelloLinkedCardUrl: resolved.trelloLinkedCardUrl } : {})
+                    };
+                })
             }));
     }
 
