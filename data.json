@@ -55862,16 +55862,27 @@
           "createdAt": "2026-04-10T17:42:51.169Z",
           "updatedAt": "2026-04-10T17:42:51.169Z",
           "trelloCardId": "69d936e10ddc5682611ef949",
-          "trelloLastModified": "2026-04-10T17:44:03.185Z",
+          "trelloLastModified": "2026-04-10T17:44:01.185Z",
           "_inheritChannels": [],
           "_inheritCountries": [],
           "_inheritOtherLabels": [],
           "_trelloBaseline": {
             "title": "task quick",
             "description": "",
-            "status": "todo",
+            "startDate": null,
+            "dueDate": null,
+            "status": null,
             "assignees": []
-          }
+          },
+          "checklists": [
+            {
+              "id": "cl-f943f45c-8ea3-45b7-b6d0-cd7e40c163cc",
+              "name": "Checklist",
+              "trelloChecklistId": "69d936e16c80cb7c33e80b33",
+              "order": 140737488355328,
+              "items": []
+            }
+          ]
         },
         {
           "id": "t-b2bf6d25-6d95-487e-b37d-07565b3395fd",
@@ -55891,7 +55902,29 @@
           "countries": [],
           "createdAt": "2026-04-10T17:43:58.411Z",
           "updatedAt": "2026-04-10T17:43:58.411Z",
-          "order": 140737488388098
+          "order": 140737488388098,
+          "trelloCardId": "69d93746859f98aaef0a64c2",
+          "trelloLastModified": "2026-04-10T17:45:42.196Z",
+          "_inheritChannels": [],
+          "_inheritCountries": [],
+          "_inheritOtherLabels": [],
+          "_trelloBaseline": {
+            "title": "new task 19h",
+            "description": "",
+            "startDate": "2026-04-10",
+            "dueDate": null,
+            "status": null,
+            "assignees": []
+          },
+          "checklists": [
+            {
+              "id": "cl-b0cd8928-f14c-47e9-ad7b-4c187869483e",
+              "name": "Checklist",
+              "trelloChecklistId": "69d937469afbcabcbaff76e9",
+              "order": 140737488355328,
+              "items": []
+            }
+          ]
         }
       ],
       "actions": [
@@ -56102,6 +56135,32 @@
           "categoryId": "cat-c4b0aaea-069f-4928-b98d-bfe87e68fa98"
         },
         {
+          "id": "a-83b49544-26e8-49e4-96e3-281d264b6574",
+          "name": "liste 19h30",
+          "categoryId": "cat-81a39a61-9405-41b3-a53c-cbc773f80399",
+          "isDefault": true,
+          "budget": 0,
+          "priority": "medium",
+          "tags": [],
+          "status": "active",
+          "createdAt": "2026-04-10T17:45:59.572Z",
+          "updatedAt": "2026-04-10T17:45:59.572Z",
+          "order": 20
+        },
+        {
+          "id": "a-a9723cff-c88d-4064-8fc8-843c3ddb2109",
+          "name": "list 19h30 quick",
+          "categoryId": "cat-e010a692-55b8-40a8-bd63-299dca80f859",
+          "isDefault": true,
+          "budget": 0,
+          "priority": "medium",
+          "tags": [],
+          "status": "active",
+          "createdAt": "2026-04-10T17:45:59.572Z",
+          "updatedAt": "2026-04-10T17:45:59.572Z",
+          "order": 21
+        },
+        {
           "id": "a-80c342b3-ae4e-4d48-b66c-119cc6527431",
           "name": "liste 19h30",
           "categoryId": "cat-34bb915c-1ad5-487b-bf33-8ae3adb9405e",
@@ -56163,7 +56222,7 @@
         }
       ],
       "createdAt": "2026-04-10T14:46:07.452Z",
-      "updatedAt": "2026-04-10T17:44:53.753Z",
+      "updatedAt": "2026-04-10T17:47:54.428Z",
       "categories": [
         {
           "id": "cat-9d2f5006-9aca-4e4e-8f32-c472ee32bef6",
@@ -56370,6 +56429,17 @@
           "trelloLastModified": "2026-04-10T15:43:41.761Z"
         },
         {
+          "id": "cat-81a39a61-9405-41b3-a53c-cbc773f80399",
+          "name": "liste 19h30",
+          "color": "#22c55e",
+          "gradient": "from-green-400 to-emerald-600",
+          "trelloListId": "69d9367c728809e41de808f0",
+          "trelloListPos": 311296,
+          "order": 20,
+          "trelloLastModified": "2026-04-10T17:45:59.572Z",
+          "createdAt": "2026-04-10T17:45:59.572Z"
+        },
+        {
           "id": "cat-34bb915c-1ad5-487b-bf33-8ae3adb9405e",
           "name": "liste 19h30",
           "color": "#22c55e",
@@ -56377,17 +56447,6 @@
           "trelloListId": "69d9367c728809e41de808f0",
           "trelloListPos": 311296,
           "order": 20,
-          "trelloLastModified": "2026-04-10T17:44:48.849Z",
-          "createdAt": "2026-04-10T17:44:48.849Z"
-        },
-        {
-          "id": "cat-92ccbd0e-adfc-4873-bf08-1e9850551964",
-          "name": "list 19h30 quick",
-          "color": "#6366f1",
-          "gradient": "from-indigo-500 to-purple-600",
-          "trelloListId": "69d936cdf0e5d3b0a9855e2a",
-          "trelloListPos": 327680,
-          "order": 21,
           "trelloLastModified": "2026-04-10T17:44:48.849Z",
           "createdAt": "2026-04-10T17:44:48.849Z"
         },
@@ -56401,6 +56460,28 @@
           "order": 20,
           "trelloLastModified": "2026-04-10T17:44:01.548Z",
           "createdAt": "2026-04-10T17:43:41.840Z"
+        },
+        {
+          "id": "cat-e010a692-55b8-40a8-bd63-299dca80f859",
+          "name": "list 19h30 quick",
+          "color": "#6366f1",
+          "gradient": "from-indigo-500 to-purple-600",
+          "trelloListId": "69d936cdf0e5d3b0a9855e2a",
+          "trelloListPos": 327680,
+          "order": 21,
+          "trelloLastModified": "2026-04-10T17:45:59.572Z",
+          "createdAt": "2026-04-10T17:45:59.572Z"
+        },
+        {
+          "id": "cat-92ccbd0e-adfc-4873-bf08-1e9850551964",
+          "name": "list 19h30 quick",
+          "color": "#6366f1",
+          "gradient": "from-indigo-500 to-purple-600",
+          "trelloListId": "69d936cdf0e5d3b0a9855e2a",
+          "trelloListPos": 327680,
+          "order": 21,
+          "trelloLastModified": "2026-04-10T17:44:48.849Z",
+          "createdAt": "2026-04-10T17:44:48.849Z"
         },
         {
           "name": "list 19h30 quick",
@@ -56417,7 +56498,7 @@
       ],
       "trelloSync": {
         "syncMode": "card-as-task",
-        "lastSyncAt": "2026-04-10T17:44:53.730Z",
+        "lastSyncAt": "2026-04-10T17:47:54.428Z",
         "syncEnabled": true,
         "labelMappings": {
           "6751b2fde5a4064a6d732244": {
@@ -69966,7 +70047,7 @@
       }
     }
   ],
-  "_saveId": "57aa4d00-fa21-43ba-99c2-a56c219b245e",
+  "_saveId": "13a69594-f6ed-44ce-b270-8d3780db40b7",
   "version": 2,
   "currentBoardId": "board-fd027751-1660-45b5-ac22-3dc9848cbbd0",
   "timestamp": 1775842769702
