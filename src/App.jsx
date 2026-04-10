@@ -492,11 +492,16 @@ const App = () => {
             if (success) {
                 justSavedTimestampRef.current = Date.now();
                 saveSnapshot(boardDataRef.current, 'auto-save');
-                // Auto-trigger Trello sync after save (debounced 5s)
-                const board = boardDataRef.current?.boards?.find(b => b.id === currentBoardId);
-                if (board?.trelloSync?.syncEnabled && board?.trelloSync?.trelloBoardId) {
-                    if (postSaveSyncTimeoutRef.current) clearTimeout(postSaveSyncTimeoutRef.current);
-                    postSaveSyncTimeoutRef.current = setTimeout(() => { handleTrelloSync(); }, 5000);
+                // Auto-trigger Trello sync after save — ONLY for user-initiated changes.
+                // Skip when syncRealtimeGuardRef is active (= save was triggered by sync result)
+                // to prevent infinite save → sync → save → sync loop.
+                if (!syncRealtimeGuardRef.current) {
+                    const board = boardDataRef.current?.boards?.find(b => b.id === currentBoardId);
+                    if (board?.trelloSync?.syncEnabled && board?.trelloSync?.trelloBoardId) {
+                        if (postSaveSyncTimeoutRef.current) clearTimeout(postSaveSyncTimeoutRef.current);
+                        // Use ref to avoid stale closure — handleTrelloSync depends on currentBoard
+                        postSaveSyncTimeoutRef.current = setTimeout(() => { handleTrelloSyncRef.current?.(); }, 5000);
+                    }
                 }
             }
             setTimeout(() => setSavingStatus(null), 2000);
