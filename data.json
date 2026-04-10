@@ -55876,7 +55876,7 @@
           },
           "checklists": [
             {
-              "id": "cl-d7da7bee-d842-4663-9646-0ed705c75f89",
+              "id": "cl-f943f45c-8ea3-45b7-b6d0-cd7e40c163cc",
               "name": "Checklist",
               "trelloChecklistId": "69d936e16c80cb7c33e80b33",
               "order": 16384,
@@ -55903,8 +55903,8 @@
           "createdAt": "2026-04-10T17:43:58.411Z",
           "updatedAt": "2026-04-10T17:43:58.411Z",
           "order": 140737488388098,
-          "trelloCardId": "69d938c35fdad4448a5e3db6",
-          "trelloLastModified": "2026-04-10T17:52:04.046Z",
+          "trelloCardId": "69d93746859f98aaef0a64c2",
+          "trelloLastModified": "2026-04-10T17:45:42.196Z",
           "_inheritChannels": [],
           "_inheritCountries": [],
           "_inheritOtherLabels": [],
@@ -55918,13 +55918,97 @@
           },
           "checklists": [
             {
-              "id": "cl-6b404929-7579-411b-9cce-4aae985f1a0d",
+              "id": "cl-b0cd8928-f14c-47e9-ad7b-4c187869483e",
               "name": "Checklist",
-              "trelloChecklistId": "69d938c425cd3805a88e7870",
+              "trelloChecklistId": "69d937469afbcabcbaff76e9",
               "order": 16384,
               "items": []
             }
           ]
+        },
+        {
+          "id": "task-9ce5cac2-1324-44cc-a8e5-ec573e8e83fe",
+          "actionId": "a-e54c061c-d8ac-4f84-900b-ebb7d079f36c",
+          "title": "task quick",
+          "description": "",
+          "startDate": "2026-04-01",
+          "dueDate": "2026-04-01",
+          "month": 3,
+          "status": "todo",
+          "priority": "medium",
+          "budget": 0,
+          "checklists": [
+            {
+              "id": "cl-f40a8dc0-aaa2-4cea-896a-252e5149af57",
+              "name": "Checklist",
+              "trelloChecklistId": "69d93b221ee32229e3304a4c",
+              "items": []
+            }
+          ],
+          "comments": [],
+          "attachments": [],
+          "channels": [],
+          "countries": [],
+          "assignees": [],
+          "otherLabels": [],
+          "_inheritChannels": [],
+          "_inheritCountries": [],
+          "_inheritOtherLabels": [],
+          "_trelloBaseline": {
+            "title": "task quick",
+            "description": "",
+            "startDate": "2026-04-01",
+            "dueDate": "2026-04-01",
+            "status": "todo",
+            "assignees": []
+          },
+          "order": 140737488420864,
+          "createdAt": "2026-04-10T18:12:53.404Z",
+          "updatedAt": "2026-04-10T18:12:53.404Z",
+          "trelloCardId": "69d93b22a3ebaaeaa9c27001",
+          "trelloLastModified": "2026-04-10T18:02:10.412Z"
+        },
+        {
+          "id": "task-7e332ad0-ac07-41c0-a451-d04cf8b5c55e",
+          "actionId": "a-e54c061c-d8ac-4f84-900b-ebb7d079f36c",
+          "title": "task quick",
+          "description": "",
+          "startDate": "2026-04-01",
+          "dueDate": "2026-04-01",
+          "month": 3,
+          "status": "todo",
+          "priority": "medium",
+          "budget": 0,
+          "checklists": [
+            {
+              "id": "cl-c6951874-eaf6-44fa-9b53-c564c81acaa6",
+              "name": "Checklist",
+              "trelloChecklistId": "69d93b221ee32229e3304a4c",
+              "items": []
+            }
+          ],
+          "comments": [],
+          "attachments": [],
+          "channels": [],
+          "countries": [],
+          "assignees": [],
+          "otherLabels": [],
+          "_inheritChannels": [],
+          "_inheritCountries": [],
+          "_inheritOtherLabels": [],
+          "_trelloBaseline": {
+            "title": "task quick",
+            "description": "",
+            "startDate": "2026-04-01",
+            "dueDate": "2026-04-01",
+            "status": "todo",
+            "assignees": []
+          },
+          "order": 140737488420864,
+          "createdAt": "2026-04-10T18:12:32.008Z",
+          "updatedAt": "2026-04-10T18:12:32.008Z",
+          "trelloCardId": "69d93b22a3ebaaeaa9c27001",
+          "trelloLastModified": "2026-04-10T18:02:10.412Z"
         },
         {
           "id": "task-4dc1903a-24e9-4a56-aa4d-91b4b64e2af6",
@@ -56306,6 +56390,32 @@
           "categoryId": "cat-c4b0aaea-069f-4928-b98d-bfe87e68fa98"
         },
         {
+          "id": "a-83b49544-26e8-49e4-96e3-281d264b6574",
+          "name": "liste 19h30",
+          "categoryId": "cat-81a39a61-9405-41b3-a53c-cbc773f80399",
+          "isDefault": true,
+          "budget": 0,
+          "priority": "medium",
+          "tags": [],
+          "status": "active",
+          "createdAt": "2026-04-10T17:45:59.572Z",
+          "updatedAt": "2026-04-10T17:45:59.572Z",
+          "order": 20
+        },
+        {
+          "id": "a-a9723cff-c88d-4064-8fc8-843c3ddb2109",
+          "name": "list 19h30 quick",
+          "categoryId": "cat-e010a692-55b8-40a8-bd63-299dca80f859",
+          "isDefault": true,
+          "budget": 0,
+          "priority": "medium",
+          "tags": [],
+          "status": "active",
+          "createdAt": "2026-04-10T17:45:59.572Z",
+          "updatedAt": "2026-04-10T17:45:59.572Z",
+          "order": 21
+        },
+        {
           "id": "a-80c342b3-ae4e-4d48-b66c-119cc6527431",
           "name": "liste 19h30",
           "categoryId": "cat-34bb915c-1ad5-487b-bf33-8ae3adb9405e",
@@ -56358,19 +56468,6 @@
           "order": 21
         },
         {
-          "id": "a-e54c061c-d8ac-4f84-900b-ebb7d079f36c",
-          "name": "list 19h30 quick",
-          "categoryId": "cat-7506e666-04ac-4d34-99fd-0d6a505856c8",
-          "isDefault": true,
-          "budget": 0,
-          "priority": "medium",
-          "tags": [],
-          "status": "active",
-          "createdAt": "2026-04-10T17:51:33.218Z",
-          "updatedAt": "2026-04-10T17:51:33.218Z",
-          "order": 20
-        },
-        {
           "id": "a-7b97ddcb-d695-4743-a813-09d4651e377e",
           "name": "liste 19h30",
           "categoryId": "cat-37c014e7-c3b7-4162-ae01-61279fc6b998",
@@ -56397,30 +56494,17 @@
           "order": 20
         },
         {
-          "id": "a-83b49544-26e8-49e4-96e3-281d264b6574",
-          "name": "liste 19h30",
-          "categoryId": "cat-81a39a61-9405-41b3-a53c-cbc773f80399",
-          "isDefault": true,
-          "budget": 0,
-          "priority": "medium",
-          "tags": [],
-          "status": "active",
-          "createdAt": "2026-04-10T17:45:59.572Z",
-          "updatedAt": "2026-04-10T17:45:59.572Z",
-          "order": 20
-        },
-        {
-          "id": "a-a9723cff-c88d-4064-8fc8-843c3ddb2109",
+          "id": "a-e54c061c-d8ac-4f84-900b-ebb7d079f36c",
           "name": "list 19h30 quick",
-          "categoryId": "cat-e010a692-55b8-40a8-bd63-299dca80f859",
+          "categoryId": "cat-7506e666-04ac-4d34-99fd-0d6a505856c8",
           "isDefault": true,
           "budget": 0,
           "priority": "medium",
           "tags": [],
           "status": "active",
-          "createdAt": "2026-04-10T17:45:59.572Z",
-          "updatedAt": "2026-04-10T17:45:59.572Z",
-          "order": 21
+          "createdAt": "2026-04-10T17:51:33.218Z",
+          "updatedAt": "2026-04-10T17:51:33.218Z",
+          "order": 20
         },
         {
           "id": "a-1d32caab-fe68-41f9-b4c5-1a976cb9c2e3",
@@ -56445,7 +56529,7 @@
         }
       ],
       "createdAt": "2026-04-10T14:46:07.452Z",
-      "updatedAt": "2026-04-10T18:07:23.162Z",
+      "updatedAt": "2026-04-10T18:12:56.165Z",
       "categories": [
         {
           "id": "cat-9d2f5006-9aca-4e4e-8f32-c472ee32bef6",
@@ -56652,6 +56736,17 @@
           "trelloLastModified": "2026-04-10T15:43:41.761Z"
         },
         {
+          "id": "cat-81a39a61-9405-41b3-a53c-cbc773f80399",
+          "name": "liste 19h30",
+          "color": "#22c55e",
+          "gradient": "from-green-400 to-emerald-600",
+          "trelloListId": "69d9367c728809e41de808f0",
+          "trelloListPos": 311296,
+          "order": 20,
+          "trelloLastModified": "2026-04-10T17:45:59.572Z",
+          "createdAt": "2026-04-10T17:45:59.572Z"
+        },
+        {
           "id": "cat-34bb915c-1ad5-487b-bf33-8ae3adb9405e",
           "name": "liste 19h30",
           "color": "#22c55e",
@@ -56681,19 +56776,8 @@
           "trelloListId": "69d9367c728809e41de808f0",
           "trelloListPos": 311296,
           "order": 20,
-          "trelloLastModified": "2026-04-10T17:56:01.873Z",
+          "trelloLastModified": "2026-04-10T17:57:38.127Z",
           "createdAt": "2026-04-10T17:50:26.261Z"
-        },
-        {
-          "id": "cat-81a39a61-9405-41b3-a53c-cbc773f80399",
-          "name": "liste 19h30",
-          "color": "#22c55e",
-          "gradient": "from-green-400 to-emerald-600",
-          "trelloListId": "69d9367c728809e41de808f0",
-          "trelloListPos": 311296,
-          "order": 20,
-          "trelloLastModified": "2026-04-10T17:45:59.572Z",
-          "createdAt": "2026-04-10T17:45:59.572Z"
         },
         {
           "id": "cat-efa7d0eb-be50-4074-b7e5-127dbb8a0ce2",
@@ -56705,6 +56789,17 @@
           "order": 20,
           "trelloLastModified": "2026-04-10T17:54:40.956Z",
           "createdAt": "2026-04-10T17:52:15.615Z"
+        },
+        {
+          "id": "cat-e010a692-55b8-40a8-bd63-299dca80f859",
+          "name": "list 19h30 quick",
+          "color": "#6366f1",
+          "gradient": "from-indigo-500 to-purple-600",
+          "trelloListId": "69d936cdf0e5d3b0a9855e2a",
+          "trelloListPos": 327680,
+          "order": 21,
+          "trelloLastModified": "2026-04-10T17:45:59.572Z",
+          "createdAt": "2026-04-10T17:45:59.572Z"
         },
         {
           "id": "cat-92ccbd0e-adfc-4873-bf08-1e9850551964",
@@ -56730,17 +56825,6 @@
           "order": 21
         },
         {
-          "id": "cat-7506e666-04ac-4d34-99fd-0d6a505856c8",
-          "name": "list 19h30 quick",
-          "color": "#6366f1",
-          "gradient": "from-indigo-500 to-purple-600",
-          "trelloListId": "69d936cdf0e5d3b0a9855e2a",
-          "trelloListPos": 327680,
-          "order": 21,
-          "trelloLastModified": "2026-04-10T17:51:33.218Z",
-          "createdAt": "2026-04-10T17:51:33.218Z"
-        },
-        {
           "id": "cat-aa02fccd-44bf-4f52-8c7f-dad47b95718b",
           "name": "list 19h30 quick",
           "color": "#6366f1",
@@ -56752,20 +56836,20 @@
           "createdAt": "2026-04-10T17:49:38.144Z"
         },
         {
-          "id": "cat-e010a692-55b8-40a8-bd63-299dca80f859",
+          "id": "cat-7506e666-04ac-4d34-99fd-0d6a505856c8",
           "name": "list 19h30 quick",
           "color": "#6366f1",
           "gradient": "from-indigo-500 to-purple-600",
           "trelloListId": "69d936cdf0e5d3b0a9855e2a",
           "trelloListPos": 327680,
           "order": 21,
-          "trelloLastModified": "2026-04-10T17:45:59.572Z",
-          "createdAt": "2026-04-10T17:45:59.572Z"
+          "trelloLastModified": "2026-04-10T17:51:33.218Z",
+          "createdAt": "2026-04-10T17:51:33.218Z"
         }
       ],
       "trelloSync": {
         "syncMode": "card-as-task",
-        "lastSyncAt": "2026-04-10T18:07:23.162Z",
+        "lastSyncAt": "2026-04-10T18:12:56.165Z",
         "syncEnabled": true,
         "labelMappings": {
           "6751b2fde5a4064a6d732244": {
@@ -70314,7 +70398,7 @@
       }
     }
   ],
-  "_saveId": "fa7d2015-fbaa-4666-a97d-5568ce28c579",
+  "_saveId": "13b88fb8-8f1a-4310-a3e4-c1cb3ea4b3db",
   "version": 2,
   "currentBoardId": "board-fd027751-1660-45b5-ac22-3dc9848cbbd0",
   "timestamp": 1775842769702
