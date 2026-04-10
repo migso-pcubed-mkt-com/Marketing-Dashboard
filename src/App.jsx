@@ -12,6 +12,7 @@ import {
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
+import { mergePostSync } from './lib/postSyncMerge.js';
 import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem, deleteTrelloChecklist } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
@@ -1165,6 +1166,7 @@ const App = () => {
             const preSyncActionMap = new Map((currentBoard.actions || []).map(a => [a.id, a.updatedAt]));
             const preSyncTaskIds = new Set((currentBoard.tasks || []).map(t => t.id));
             const preSyncActionIds = new Set((currentBoard.actions || []).map(a => a.id));
+            const preSyncCategoryIds = new Set((currentBoard.categories || []).map(c => c.id));
             const { board: syncedBoard, result } = await syncWithTrello(currentBoard, mappingConfig, { readOnly: isGuest });
             // Block Realtime events during post-sync save window to prevent overwrites.
             // DO NOT set isReceivingRealtimeRef here — that blocks auto-save, preventing
@@ -1175,66 +1177,16 @@ const App = () => {
                 const liveBoard = prev.boards.find(b => b.id === syncedBoard.id);
                 if (!liveBoard) return { ...prev, boards: prev.boards.map(b => b.id === syncedBoard.id ? syncedBoard : b) };
 
-                // Merge tasks: keep live version if edited during sync, otherwise use synced
-                const syncedTaskMap = new Map(syncedBoard.tasks.map(t => [t.id, t]));
-                const mergedTasks = [];
-                const processedTaskIds = new Set();
-
-                for (const syncedTask of syncedBoard.tasks) {
-                    const liveTask = liveBoard.tasks.find(t => t.id === syncedTask.id);
-                    const preSyncUpdatedAt = preSyncTaskMap.get(syncedTask.id);
-                    // Task was edited locally during sync — keep live version but merge Trello IDs
-                    if (liveTask && preSyncUpdatedAt && liveTask.updatedAt !== preSyncUpdatedAt
-                        && new Date(liveTask.updatedAt).getTime() > new Date(preSyncUpdatedAt).getTime()) {
-                        mergedTasks.push({
-                            ...liveTask,
-                            trelloCheckItemId: syncedTask.trelloCheckItemId || liveTask.trelloCheckItemId,
-                            trelloChecklistId: syncedTask.trelloChecklistId || liveTask.trelloChecklistId,
-                            trelloCardId: syncedTask.trelloCardId || liveTask.trelloCardId,
-                            trelloLastModified: syncedTask.trelloLastModified || liveTask.trelloLastModified,
-                            _trelloBaseline: syncedTask._trelloBaseline || liveTask._trelloBaseline,
-                        });
-                    } else {
-                        mergedTasks.push(syncedTask);
-                    }
-                    processedTaskIds.add(syncedTask.id);
-                }
-                // Add tasks created during sync (not in pre-sync snapshot = brand new)
-                for (const task of liveBoard.tasks) {
-                    if (!processedTaskIds.has(task.id) && !preSyncTaskIds.has(task.id)) {
-                        mergedTasks.push(task);
-                    }
-                }
-
-                // Merge actions: same pattern
-                const mergedActions = [];
-                const processedActionIds = new Set();
-                for (const syncedAction of syncedBoard.actions) {
-                    const liveAction = liveBoard.actions.find(a => a.id === syncedAction.id);
-                    const preSyncUpdatedAt = preSyncActionMap.get(syncedAction.id);
-                    if (liveAction && preSyncUpdatedAt && liveAction.updatedAt !== preSyncUpdatedAt
-                        && new Date(liveAction.updatedAt).getTime() > new Date(preSyncUpdatedAt).getTime()) {
-                        mergedActions.push({
-                            ...liveAction,
-                            trelloCardId: syncedAction.trelloCardId || liveAction.trelloCardId,
-                            trelloLastModified: syncedAction.trelloLastModified || liveAction.trelloLastModified,
-                            _trelloBaseline: syncedAction._trelloBaseline || liveAction._trelloBaseline,
-                        });
-                    } else {
-                        mergedActions.push(syncedAction);
-                    }
-                    processedActionIds.add(syncedAction.id);
-                }
-                for (const action of liveBoard.actions) {
-                    if (!processedActionIds.has(action.id) && !preSyncActionIds.has(action.id)) {
-                        mergedActions.push(action);
-                    }
-                }
+                const { categories: mergedCategories, tasks: mergedTasks, actions: mergedActions } = mergePostSync({
+                    syncedBoard, liveBoard,
+                    preSyncCategoryIds, preSyncTaskIds, preSyncActionIds,
+                    preSyncTaskMap, preSyncActionMap
+                });
 
                 return {
                     ...prev,
                     boards: prev.boards.map(b => b.id === syncedBoard.id
-                        ? { ...syncedBoard, tasks: mergedTasks, actions: mergedActions }
+                        ? { ...syncedBoard, categories: mergedCategories, tasks: mergedTasks, actions: mergedActions }
                         : b
                     )
                 };
@@ -1339,7 +1291,7 @@ const App = () => {
     const handleAddNewTask = (newTask) => {
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
-        const enriched = enrichNewTaskWithTrelloMetadata({...newTask, order: maxOrder, createdAt: newTask.createdAt || now, updatedAt: newTask.updatedAt || now}, tasks, actions);
+        const enriched = enrichNewTaskWithTrelloMetadata({id: newTask.id || `t-${crypto.randomUUID()}`, status: 'todo', priority: 'medium', description: '', checklist: [], comments: [], attachments: [], channels: [], month: new Date().getMonth(), ...newTask, order: maxOrder, createdAt: newTask.createdAt || now, updatedAt: newTask.updatedAt || now}, tasks, actions);
         setTasks(prev => [...prev, enriched]);
         showNotification('✅ Task created');
     };

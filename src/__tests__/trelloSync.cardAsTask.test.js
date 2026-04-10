@@ -2041,4 +2041,211 @@ describe('syncWithTrello — card-as-task', () => {
         // Task should be completely removed from the board
         expect(synced.tasks).toHaveLength(0);
     });
+
+    // ════════════════════════════════════════════════════════
+    // Label deletion from Trello should sync when Trello timestamp changes
+    // ════════════════════════════════════════════════════════
+    it('pulls label removal from Trello when Trello only changed', async () => {
+        const labelMappings = {
+            'lbl-social': { type: 'channel', channelId: 'social' },
+            'lbl-seo': { type: 'channel', channelId: 'seo' }
+        };
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Task', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, // Local NOT modified since last sync
+                channels: ['social', 'seo'],
+                _inheritChannels: ['social', 'seo'],
+                countries: [], _inheritCountries: [],
+                otherLabels: [], _inheritOtherLabels: [],
+                assignees: [],
+                checklists: [], comments: [], attachments: [],
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, order: 0
+            }]
+        });
+        // Trello card only has 'social' label now (seo removed), dateLastActivity changed
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.NEW, // Trello changed
+                idLabels: ['lbl-social'], labels: [{ id: 'lbl-social', name: 'Social' }]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings });
+        const task = synced.tasks.find(t => t.id === 't1');
+        expect(task.channels).toEqual(['social']);
+        expect(task.channels).not.toContain('seo');
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Member removal from Trello should sync to app
+    // ════════════════════════════════════════════════════════
+    it('pulls member removal from Trello when Trello only changed', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Task', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.OLD, // Local NOT modified since last sync
+                assignees: ['member-1', 'member-2'],
+                _trelloBaseline: { assignees: ['member-1', 'member-2'] },
+                channels: [], _inheritChannels: [],
+                countries: [], _inheritCountries: [],
+                otherLabels: [], _inheritOtherLabels: [],
+                checklists: [], comments: [], attachments: [],
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, order: 0
+            }]
+        });
+        // Trello card now only has member-1, dateLastActivity updated
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.NEW, // Trello changed
+                idMembers: ['member-1']
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+        const task = synced.tasks.find(t => t.id === 't1');
+        expect(task.assignees).toEqual(['member-1']);
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Label removal when local only changed (non-label field)
+    // ════════════════════════════════════════════════════════
+    it('pulls label removal from Trello when local only changed non-label fields', async () => {
+        const labelMappings = {
+            'lbl-social': { type: 'channel', channelId: 'social' },
+            'lbl-seo': { type: 'channel', channelId: 'seo' }
+        };
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Updated Title', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1', trelloLastModified: T.MID,
+                updatedAt: T.NEW, // Local modified after last sync
+                channels: ['social', 'seo'],
+                _inheritChannels: ['social', 'seo'], // Same as current → labels NOT changed locally
+                countries: [], _inheritCountries: [],
+                otherLabels: [], _inheritOtherLabels: [],
+                assignees: ['member-1'],
+                _trelloBaseline: { title: 'Old Title', description: '', startDate: null, dueDate: null, status: null, assignees: ['member-1'] },
+                checklists: [], comments: [], attachments: [],
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2, order: 0
+            }]
+        });
+        // Trello hasn't changed timestamp — but labels differ
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-1', dateLastActivity: T.MID, // NOT modified since last sync
+                idLabels: ['lbl-social'], labels: [{ id: 'lbl-social', name: 'Social' }],
+                idMembers: [] // Member removed on Trello
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings });
+        const task = synced.tasks.find(t => t.id === 't1');
+        // Labels should reflect Trello's state (seo removed) since local didn't change labels
+        expect(task.channels).toEqual(['social']);
+        // Member removal should also be pulled since local didn't change assignees
+        expect(task.assignees).toEqual([]);
+    });
+
+    // ════════════════════════════════════════════════════════
+    // Sync parity audit: card-as-task matching card-as-action
+    // ════════════════════════════════════════════════════════
+
+    it('newly imported card from Trello has _trelloBaseline set', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [] // No tasks yet
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-new', name: 'New Task', desc: 'A description',
+                due: '2026-04-15T00:00:00.000Z', start: '2026-04-01T00:00:00.000Z',
+                dueComplete: false, idMembers: ['m1'],
+                dateLastActivity: T.NEW
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {});
+        const task = synced.tasks.find(t => t.trelloCardId === 'card-new');
+        expect(task).toBeTruthy();
+        expect(task._trelloBaseline).toBeTruthy();
+        expect(task._trelloBaseline.title).toBe('New Task');
+        expect(task._trelloBaseline.description).toBe('A description');
+        expect(task._trelloBaseline.assignees).toEqual(['m1']);
+        expect(task._trelloBaseline.status).toBe('todo');
+    });
+
+    it('newly imported card has attachment thumbnailUrl from previews', async () => {
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: []
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({
+                id: 'card-att', name: 'Task With Attachment',
+                dateLastActivity: T.NEW,
+                attachments: [{
+                    id: 'att-1', name: 'image.png', url: 'https://trello.com/att/1',
+                    mimeType: 'image/png', date: '2026-04-01',
+                    previews: [
+                        { url: 'https://trello.com/preview/50.png', width: 50, height: 50 },
+                        { url: 'https://trello.com/preview/150.png', width: 150, height: 150 },
+                        { url: 'https://trello.com/preview/500.png', width: 500, height: 500 }
+                    ]
+                }]
+            })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {});
+        const task = synced.tasks.find(t => t.trelloCardId === 'card-att');
+        expect(task.attachments).toHaveLength(1);
+        expect(task.attachments[0].thumbnailUrl).toBe('https://trello.com/preview/150.png');
+    });
+
+    it('newly created card gets _trelloBaseline and updated trelloLastModified after push', async () => {
+        createTrelloCard.mockResolvedValue({ id: 'created-card', dateLastActivity: '2026-04-01T00:00:00.000Z' });
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't-local', title: 'Local Task', actionId: 'a1', status: 'todo',
+                description: 'desc', dueDate: '2026-04-15', startDate: '2026-04-01',
+                priority: 'medium', channels: [], countries: [], assignees: ['m1'],
+                checklists: [], comments: [], attachments: [], otherLabels: [],
+                month: 3, createdAt: T.NEW, updatedAt: T.NEW
+                // No trelloCardId — will be pushed to Trello
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [] // No cards on Trello
+        }));
+
+        const { board: synced } = await syncWithTrello(board, {});
+        const task = synced.tasks.find(t => t.id === 't-local');
+        expect(task.trelloCardId).toBe('created-card');
+        // _trelloBaseline should be set after creation
+        expect(task._trelloBaseline).toBeTruthy();
+        expect(task._trelloBaseline.title).toBe('Local Task');
+        expect(task._trelloBaseline.assignees).toEqual(['m1']);
+        // trelloLastModified should be AFTER the card creation time (updated by extras push)
+        expect(new Date(task.trelloLastModified).getTime()).toBeGreaterThan(
+            new Date('2026-04-01T00:00:00.000Z').getTime()
+        );
+    });
 });

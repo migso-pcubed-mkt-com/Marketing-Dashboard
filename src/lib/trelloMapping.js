@@ -149,13 +149,15 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
     const attachments = [];
     if (card.attachments) {
         for (const att of card.attachments) {
+            const preview = att.previews?.filter(p => p.width >= 100 && p.width <= 300).sort((a,b) => a.width - b.width)[0];
             attachments.push({
                 id: genId('att'),
                 name: att.name,
                 url: att.url,
                 mimeType: att.mimeType || '',
                 date: att.date,
-                trelloAttachmentId: att.id
+                trelloAttachmentId: att.id,
+                ...(preview ? { thumbnailUrl: preview.url } : {})
             });
         }
     }
@@ -370,13 +372,15 @@ export const mapTrelloCardToAction = (card, categoryId, mappingConfig) => {
     const attachments = [];
     if (card.attachments) {
         for (const att of card.attachments) {
+            const preview = att.previews?.filter(p => p.width >= 100 && p.width <= 300).sort((a,b) => a.width - b.width)[0];
             attachments.push({
                 id: genId('att'),
                 name: att.name,
                 url: att.url,
                 mimeType: att.mimeType || '',
                 date: att.date,
-                trelloAttachmentId: att.id
+                trelloAttachmentId: att.id,
+                ...(preview ? { thumbnailUrl: preview.url } : {})
             });
         }
     }
@@ -623,10 +627,12 @@ export const mergeCardIntoAction = (existingAction, card, listToCat, mappingConf
     if (card.attachments) {
         for (const att of card.attachments) {
             const existing = existingAttMap.get(att.id);
+            const preview = att.previews?.filter(p => p.width >= 100 && p.width <= 300).sort((a,b) => a.width - b.width)[0];
             mergedAttachments.push({
                 id: existing?.id || genId('att'),
                 name: att.name, url: att.url, mimeType: att.mimeType || '',
-                date: att.date, trelloAttachmentId: att.id
+                date: att.date, trelloAttachmentId: att.id,
+                ...(preview ? { thumbnailUrl: preview.url } : (existing?.thumbnailUrl ? { thumbnailUrl: existing.thumbnailUrl } : {}))
             });
         }
     }
@@ -792,7 +798,7 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
                     ? trelloCl.checkItems.find(ti => ti.id === item.trelloCheckItemId)
                     : trelloCl.checkItems.find(ti => ti.name === item.text);
                 if (trelloItem) {
-                    return { ...item, done: trelloItem.state === 'complete', trelloCheckItemId: trelloItem.id, due: trelloItem.due ? trelloItem.due.split('T')[0] : item.due, assignee: trelloItem.idMember || item.assignee, order: trelloItem.pos != null ? trelloItem.pos : item.order };
+                    return { ...item, text: trelloItem.name || item.text, done: trelloItem.state === 'complete', trelloCheckItemId: trelloItem.id, due: trelloItem.due ? trelloItem.due.split('T')[0] : item.due, assignee: trelloItem.idMember || item.assignee, order: trelloItem.pos != null ? trelloItem.pos : item.order };
                 }
                 return item;
             });
@@ -800,8 +806,9 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
             // Sort items by Trello position when available
             allItems.sort((a, b) => (a.order || 0) - (b.order || 0));
             const clOrder = trelloCl.pos != null ? trelloCl.pos : cl.order;
-            if (newItems.length === 0 && clOrder === cl.order && mergedItems.every((item, i) => item.done === (cl.items || [])[i]?.done) && mergedItems.every((item, i) => item.order === (cl.items || [])[i]?.order)) return cl;
-            return { ...cl, order: clOrder, items: allItems };
+            const clName = trelloCl.name || cl.name;
+            if (newItems.length === 0 && clOrder === cl.order && clName === cl.name && mergedItems.every((item, i) => item.done === (cl.items || [])[i]?.done) && mergedItems.every((item, i) => item.order === (cl.items || [])[i]?.order) && mergedItems.every((item, i) => item.text === (cl.items || [])[i]?.text)) return cl;
+            return { ...cl, name: clName, order: clOrder, items: allItems };
         });
         // Also add entirely new Trello checklists not present locally
         const localTrelloClIds = new Set(updated.checklists.map(cl => cl.trelloChecklistId).filter(Boolean));
@@ -878,14 +885,18 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig) => {
         const localAttUrls = new Set((updated.attachments || []).map(a => a.url).filter(Boolean));
         const newAtts = card.attachments
             .filter(a => !localAttIds.has(a.id) && !localAttUrls.has(a.url))
-            .map(a => ({
-                id: genId('att'),
-                name: a.name,
-                url: a.url,
-                mimeType: a.mimeType || '',
-                date: a.date,
-                trelloAttachmentId: a.id
-            }));
+            .map(a => {
+                const preview = a.previews?.filter(p => p.width >= 100 && p.width <= 300).sort((x,y) => x.width - y.width)[0];
+                return {
+                    id: genId('att'),
+                    name: a.name,
+                    url: a.url,
+                    mimeType: a.mimeType || '',
+                    date: a.date,
+                    trelloAttachmentId: a.id,
+                    ...(preview ? { thumbnailUrl: preview.url } : {})
+                };
+            });
         if (newAtts.length > 0) {
             updated.attachments = [...(updated.attachments || []), ...newAtts];
         }
@@ -989,13 +1000,15 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig, listToCatId
     if (card.attachments) {
         for (const att of card.attachments) {
             const existing = existingAttMap.get(att.id);
+            const preview = att.previews?.filter(p => p.width >= 100 && p.width <= 300).sort((a,b) => a.width - b.width)[0];
             mergedAttachments.push({
                 id: existing?.id || genId('att'),
                 name: att.name,
                 url: att.url,
                 mimeType: att.mimeType || '',
                 date: att.date,
-                trelloAttachmentId: att.id
+                trelloAttachmentId: att.id,
+                ...(preview ? { thumbnailUrl: preview.url } : (existing?.thumbnailUrl ? { thumbnailUrl: existing.thumbnailUrl } : {}))
             });
         }
     }
