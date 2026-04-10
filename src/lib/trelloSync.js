@@ -1093,13 +1093,25 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 }
             }
             const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards);
+            // Refresh _trelloBaseline from current card state (keeps selective push accurate)
+            const refreshedBaseline = {
+                title: card.name || '',
+                description: card.desc || '',
+                startDate: card.start ? card.start.split('T')[0] : null,
+                dueDate: card.due ? card.due.split('T')[0] : null,
+                status: card.dueComplete ? 'completed' : null,
+                assignees: card.idMembers || []
+            };
             // Check if anything actually changed
             const extrasChanged = JSON.stringify(mergedTask.checklists) !== checklistsBefore ||
                 JSON.stringify(mergedTask.comments) !== commentsBefore ||
                 JSON.stringify(mergedTask.attachments) !== attachmentsBefore;
             if (extrasChanged) {
-                updatedTasks[i] = { ...mergedTask, trelloLastModified: card.dateLastActivity };
+                updatedTasks[i] = { ...mergedTask, _trelloBaseline: refreshedBaseline, trelloLastModified: card.dateLastActivity };
                 result.updated++;
+            } else if (JSON.stringify(task._trelloBaseline) !== JSON.stringify(refreshedBaseline)) {
+                // Baseline drifted — refresh it without bumping trelloLastModified
+                updatedTasks[i] = { ...task, _trelloBaseline: refreshedBaseline };
             }
         }
     }
@@ -1949,7 +1961,8 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                             actionHadLocalPush = true;
                             result.pushed++;
                         }
-                        const pushed = { ...task, trelloLastModified: new Date().toISOString() };
+                        const caBufferedTs = new Date(new Date(card.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
+                        const pushed = { ...task, trelloLastModified: caBufferedTs };
                         // Sync position from Trello unless user explicitly reordered
                         if (!orderWasLocallyChanged && trelloCompositeOrder !== null) pushed.order = trelloCompositeOrder;
                         updatedTasks[j] = pushed;
@@ -1969,7 +1982,8 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                         // Merge non-pushed fields from Trello
                         const mergedFromTrello = mergeCheckItemIntoTask(task, item, card, cards);
                         const baseline = task._trelloBaseline || {};
-                        const pushed = { ...task, trelloLastModified: new Date().toISOString() };
+                        const caBufferedTs2 = new Date(new Date(card.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
+                        const pushed = { ...task, trelloLastModified: caBufferedTs2 };
                         // Pull non-pushed content fields from Trello
                         if (task.title === baseline.title) { pushed.title = mergedFromTrello.title; pushed.trelloLinkedCardUrl = mergedFromTrello.trelloLinkedCardUrl; }
                         if (task.dueDate === baseline.dueDate) { pushed.dueDate = mergedFromTrello.dueDate; pushed.month = mergedFromTrello.month; }
@@ -2022,7 +2036,8 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 if (targetCl && targetCl.id !== actualCl.id) {
                     try {
                         await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, { idChecklist: targetCl.id });
-                        updatedTasks[j] = { ...task, trelloChecklistId: targetCl.id, trelloLastModified: new Date().toISOString() };
+                        const moveBufferedTs = new Date(new Date(card.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
+                        updatedTasks[j] = { ...task, trelloChecklistId: targetCl.id, trelloLastModified: moveBufferedTs };
                         result.pushed++;
                     } catch (e) {
                         console.error(`Failed to move item "${task.title}" to checklist "${task.trelloChecklistName}":`, e);
@@ -2111,7 +2126,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 // Prevent feedback loop: position push updates card.dateLastActivity on Trello,
                 // which would make next sync falsely detect "Trello changed" on all items.
                 // By updating trelloLastModified to NOW, we ensure trelloTime <= taskSyncTime.
-                const positionPushTime = new Date().toISOString();
+                const positionPushTime = new Date(new Date(card.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
                 for (let j = 0; j < updatedTasks.length; j++) {
                     if (updatedTasks[j] && updatedTasks[j].actionId === action.id && updatedTasks[j].trelloCheckItemId) {
                         updatedTasks[j] = { ...updatedTasks[j], trelloLastModified: positionPushTime };
@@ -2147,7 +2162,8 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             if (existingTask) {
                 // Re-link existing task instead of creating duplicate
                 const idx = updatedTasks.indexOf(existingTask);
-                updatedTasks[idx] = { ...existingTask, trelloCheckItemId: itemId, trelloChecklistId: checklistId, trelloChecklistName: checklistName, trelloCardId: card.id, trelloLastModified: new Date().toISOString() };
+                const relinkBufferedTs = new Date(new Date(card.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
+                updatedTasks[idx] = { ...existingTask, trelloCheckItemId: itemId, trelloChecklistId: checklistId, trelloChecklistName: checklistName, trelloCardId: card.id, trelloLastModified: relinkBufferedTs };
                 result.updated++;
             } else {
                 // Check if this checklist item belongs to a task moved to another action
@@ -2238,17 +2254,18 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                                     due: updatedTasks[tIdx].dueDate || null,
                                     idMember: updatedTasks[tIdx].assignees?.[0] || null
                                 };
+                                const createItemBufferedTs = new Date(new Date(created.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
                                 updatedTasks[tIdx] = {
                                     ...updatedTasks[tIdx],
                                     trelloCardId: created.id,
                                     trelloCheckItemId: createdItems[k].id,
                                     trelloChecklistId: checklistResult.id,
-                                    trelloLastModified: new Date().toISOString(),
+                                    trelloLastModified: createItemBufferedTs,
                                     _trelloBaseline: taskBaseline
                                 };
                             }
                         }
-                        lastModified = new Date().toISOString();
+                        lastModified = new Date(new Date(created.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
                     }
                 }
                 // Set trelloLastModified AFTER all push ops (checklist creation updates dateLastActivity)
@@ -2342,12 +2359,13 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                             due: task.dueDate || null,
                             idMember: task.assignees?.[0] || null
                         };
+                        const recreateBufferedTs = new Date(new Date(card?.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
                         updatedTasks[entries[k].index] = {
                             ...task,
                             trelloCardId: cardId,
                             trelloCheckItemId: createdItems[k].id,
                             trelloChecklistId: checklistId,
-                            trelloLastModified: new Date().toISOString(),
+                            trelloLastModified: recreateBufferedTs,
                             _trelloBaseline: taskBaseline
                         };
                         result.pushed++;

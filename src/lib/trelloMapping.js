@@ -603,7 +603,7 @@ export const mergeCardIntoAction = (existingAction, card, listToCat, mappingConf
     }
     const localOnlyComments = (existingAction.comments || []).filter(cm => !cm.trelloCommentId);
     const mergedComments = [];
-    if (card.comments) {
+    if (card.comments && card.comments.length > 0) {
         for (const comment of card.comments) {
             const existing = existingCmMap.get(comment.id);
             mergedComments.push({
@@ -611,8 +611,15 @@ export const mergeCardIntoAction = (existingAction, card, listToCat, mappingConf
                 author: comment.memberCreator?.fullName || comment.memberCreator?.username || 'Unknown',
                 text: comment.data?.text || '',
                 date: comment.date,
-                trelloCommentId: comment.id
+                trelloCommentId: comment.id,
+                ...(existing?.attachments ? { attachments: existing.attachments } : {})
             });
+        }
+    } else if (existingCmMap.size > 0) {
+        // card.comments is empty/missing (likely failed fetch or rate limit)
+        // Preserve existing synced comments to avoid data loss
+        for (const cm of existingCmMap.values()) {
+            mergedComments.push(cm);
         }
     }
     mergedComments.push(...localOnlyComments);
