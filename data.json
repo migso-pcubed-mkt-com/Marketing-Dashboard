@@ -56135,6 +56135,32 @@
           "categoryId": "cat-c4b0aaea-069f-4928-b98d-bfe87e68fa98"
         },
         {
+          "id": "a-46ec42ed-7165-4744-8c17-845594b97d2a",
+          "name": "list 19h30 quick",
+          "categoryId": "cat-62344a0f-fd10-4b27-801a-688bb2f3a4ee",
+          "isDefault": true,
+          "budget": 0,
+          "priority": "medium",
+          "tags": [],
+          "status": "active",
+          "createdAt": "2026-04-10T17:42:47.348Z",
+          "updatedAt": "2026-04-10T17:42:47.348Z",
+          "order": 20
+        },
+        {
+          "id": "a-7b97ddcb-d695-4743-a813-09d4651e377e",
+          "name": "liste 19h30",
+          "categoryId": "cat-37c014e7-c3b7-4162-ae01-61279fc6b998",
+          "isDefault": true,
+          "budget": 0,
+          "priority": "medium",
+          "tags": [],
+          "status": "active",
+          "createdAt": "2026-04-10T17:50:26.261Z",
+          "updatedAt": "2026-04-10T17:50:26.261Z",
+          "order": 21
+        },
+        {
           "id": "a-12578ef2-fddd-4fd0-bbbc-2cc81051a825",
           "name": "list 19h30 quick",
           "categoryId": "cat-aa02fccd-44bf-4f52-8c7f-dad47b95718b",
@@ -56200,19 +56226,6 @@
           "order": 21
         },
         {
-          "id": "a-46ec42ed-7165-4744-8c17-845594b97d2a",
-          "name": "list 19h30 quick",
-          "categoryId": "cat-62344a0f-fd10-4b27-801a-688bb2f3a4ee",
-          "isDefault": true,
-          "budget": 0,
-          "priority": "medium",
-          "tags": [],
-          "status": "active",
-          "createdAt": "2026-04-10T17:42:47.348Z",
-          "updatedAt": "2026-04-10T17:42:47.348Z",
-          "order": 20
-        },
-        {
           "id": "a-a530dc6f-a95e-4544-8650-ced20e1c99c5",
           "name": "liste 19h30",
           "categoryId": "cat-436e6302-d2dc-465a-9f28-53f7f6c0a3ff",
@@ -56235,7 +56248,7 @@
         }
       ],
       "createdAt": "2026-04-10T14:46:07.452Z",
-      "updatedAt": "2026-04-10T17:49:42.516Z",
+      "updatedAt": "2026-04-10T17:50:33.582Z",
       "categories": [
         {
           "id": "cat-9d2f5006-9aca-4e4e-8f32-c472ee32bef6",
@@ -56442,6 +56455,28 @@
           "trelloLastModified": "2026-04-10T15:43:41.761Z"
         },
         {
+          "id": "cat-37c014e7-c3b7-4162-ae01-61279fc6b998",
+          "name": "liste 19h30",
+          "color": "#6366f1",
+          "gradient": "from-indigo-500 to-purple-600",
+          "trelloListId": "69d9367c728809e41de808f0",
+          "trelloListPos": 311296,
+          "order": 21,
+          "trelloLastModified": "2026-04-10T17:50:26.261Z",
+          "createdAt": "2026-04-10T17:50:26.261Z"
+        },
+        {
+          "name": "list 19h30 quick",
+          "color": "#6366f1",
+          "gradient": "from-indigo-500 to-purple-600",
+          "id": "cat-62344a0f-fd10-4b27-801a-688bb2f3a4ee",
+          "createdAt": "2026-04-10T17:42:47.348Z",
+          "updatedAt": "2026-04-10T17:42:47.348Z",
+          "trelloListId": "69d936cdf0e5d3b0a9855e2a",
+          "trelloListPos": 327680,
+          "trelloLastModified": "2026-04-10T17:50:26.261Z"
+        },
+        {
           "id": "cat-aa02fccd-44bf-4f52-8c7f-dad47b95718b",
           "name": "list 19h30 quick",
           "color": "#6366f1",
@@ -56506,23 +56541,11 @@
           "order": 21,
           "trelloLastModified": "2026-04-10T17:44:48.849Z",
           "createdAt": "2026-04-10T17:44:48.849Z"
-        },
-        {
-          "name": "list 19h30 quick",
-          "color": "#6366f1",
-          "gradient": "from-indigo-500 to-purple-600",
-          "id": "cat-62344a0f-fd10-4b27-801a-688bb2f3a4ee",
-          "createdAt": "2026-04-10T17:42:47.348Z",
-          "updatedAt": "2026-04-10T17:42:47.348Z",
-          "trelloListId": "69d936cdf0e5d3b0a9855e2a",
-          "trelloListPos": 327680,
-          "trelloLastModified": "2026-04-10T17:44:01.548Z",
-          "order": 21
         }
       ],
       "trelloSync": {
         "syncMode": "card-as-task",
-        "lastSyncAt": "2026-04-10T17:49:42.501Z",
+        "lastSyncAt": "2026-04-10T17:50:33.562Z",
         "syncEnabled": true,
         "labelMappings": {
           "6751b2fde5a4064a6d732244": {
@@ -70071,7 +70094,7 @@
       }
     }
   ],
-  "_saveId": "964694bf-69cb-4223-bda8-3dee943fa7a0",
+  "_saveId": "7851bae7-ab4c-42e9-9b20-14945da67bea",
   "version": 2,
   "currentBoardId": "board-fd027751-1660-45b5-ac22-3dc9848cbbd0",
   "timestamp": 1775842769702
