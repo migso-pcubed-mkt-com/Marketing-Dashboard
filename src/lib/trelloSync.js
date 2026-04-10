@@ -1592,8 +1592,14 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     }
 
     // Pull: create local categories from new active Trello lists
+    const recentlyDeletedListIdsCA = new Set(
+        (trelloSync._recentlyDeletedListIds || [])
+            .filter(e => Date.now() - e.at < 5 * 60 * 1000)
+            .map(e => e.id)
+    );
     for (const list of activeListsCA) {
         if (existingListIds.has(list.id)) continue;
+        if (recentlyDeletedListIdsCA.has(list.id)) continue;
         const newCat = {
             id: `cat-${crypto.randomUUID()}`,
             name: list.name,
@@ -2071,9 +2077,15 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     updatedTasks = updatedTasks.filter(t => t !== null);
 
     // 3. New cards on Trello (not yet in dashboard) → create new actions + tasks
+    const recentlyDeletedCardIdsCA = new Set(
+        (trelloSync._recentlyDeletedCardIds || [])
+            .filter(e => Date.now() - e.at < 5 * 60 * 1000)
+            .map(e => e.id)
+    );
     for (const [cardId, card] of trelloCardMap) {
         if (processedCardIds.has(cardId)) continue;
         if (card.closed) continue;
+        if (recentlyDeletedCardIdsCA.has(cardId)) continue;
 
         const categoryId = listToCatId[card.idList];
         if (!categoryId) continue;
@@ -2110,14 +2122,19 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 if (action.assignees?.length > 0) cardData.idMembers = action.assignees.join(',');
                 if (action.status === 'completed') cardData.dueComplete = 'true';
                 const created = await createTrelloCard(listId, cardData);
-                updatedActions[i] = {
-                    ...action,
-                    trelloCardId: created.id,
-                    trelloLastModified: created.dateLastActivity || new Date().toISOString()
+                // Store baseline for selective push on future syncs
+                const actionBaseline = {
+                    name: action.name,
+                    desc: action.description || '',
+                    start: action.startDate || null,
+                    due: action.dueDate || null,
+                    dueComplete: action.status === 'completed',
+                    idMembers: action.assignees || []
                 };
 
                 // Push local tasks under this action as checklist items
                 const actionTasks = updatedTasks.filter(t => t.actionId === action.id && !t.trelloCheckItemId);
+                let lastModified = created.dateLastActivity || new Date().toISOString();
                 if (actionTasks.length > 0) {
                     // Create a default checklist
                     const checklistResult = await addTrelloChecklist(created.id, 'Tasks', actionTasks.map(t => ({ text: t.title, done: t.status === 'completed' })));
@@ -2126,17 +2143,32 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                         for (let k = 0; k < actionTasks.length && k < createdItems.length; k++) {
                             const tIdx = updatedTasks.findIndex(t => t.id === actionTasks[k].id);
                             if (tIdx >= 0) {
+                                const taskBaseline = {
+                                    name: updatedTasks[tIdx].title,
+                                    state: updatedTasks[tIdx].status === 'completed' ? 'complete' : 'incomplete',
+                                    due: updatedTasks[tIdx].dueDate || null,
+                                    idMember: updatedTasks[tIdx].assignees?.[0] || null
+                                };
                                 updatedTasks[tIdx] = {
                                     ...updatedTasks[tIdx],
                                     trelloCardId: created.id,
                                     trelloCheckItemId: createdItems[k].id,
                                     trelloChecklistId: checklistResult.id,
-                                    trelloLastModified: new Date().toISOString()
+                                    trelloLastModified: new Date().toISOString(),
+                                    _trelloBaseline: taskBaseline
                                 };
                             }
                         }
+                        lastModified = new Date().toISOString();
                     }
                 }
+                // Set trelloLastModified AFTER all push ops (checklist creation updates dateLastActivity)
+                updatedActions[i] = {
+                    ...action,
+                    trelloCardId: created.id,
+                    trelloLastModified: lastModified,
+                    _trelloBaseline: actionBaseline
+                };
                 result.pushed++;
             } catch (e) {
                 console.error(`Failed to create Trello card for action "${action.name}":`, e);
@@ -2215,12 +2247,19 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     const createdItems = itemResults?.items || [];
                     for (let k = 0; k < entries.length && k < createdItems.length; k++) {
                         const task = entries[k].task;
+                        const taskBaseline = {
+                            name: task.title,
+                            state: task.status === 'completed' ? 'complete' : 'incomplete',
+                            due: task.dueDate || null,
+                            idMember: task.assignees?.[0] || null
+                        };
                         updatedTasks[entries[k].index] = {
                             ...task,
                             trelloCardId: cardId,
                             trelloCheckItemId: createdItems[k].id,
                             trelloChecklistId: checklistId,
-                            trelloLastModified: new Date().toISOString()
+                            trelloLastModified: new Date().toISOString(),
+                            _trelloBaseline: taskBaseline
                         };
                         result.pushed++;
 
@@ -2271,6 +2310,10 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         ? allTasksCA.filter(t => !removedActionIdsCA.has(t.actionId))
         : allTasksCA;
 
+    // Clean up expired deletion tracking entries
+    const cleanedDeletedCardsCA = (board.trelloSync?._recentlyDeletedCardIds || []).filter(e => Date.now() - e.at < 5 * 60 * 1000);
+    const cleanedDeletedListsCA = (board.trelloSync?._recentlyDeletedListIds || []).filter(e => Date.now() - e.at < 5 * 60 * 1000);
+
     const syncedBoard = {
         ...board,
         categories: updatedCategories,
@@ -2280,7 +2323,9 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
         trelloSync: {
             ...board.trelloSync,
             labelMappings: mappingConfig.labelMappings,
-            lastSyncAt: new Date().toISOString()
+            lastSyncAt: new Date().toISOString(),
+            _recentlyDeletedCardIds: cleanedDeletedCardsCA.length > 0 ? cleanedDeletedCardsCA : undefined,
+            _recentlyDeletedListIds: cleanedDeletedListsCA.length > 0 ? cleanedDeletedListsCA : undefined
         },
         updatedAt: new Date().toISOString()
     };

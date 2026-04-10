@@ -783,8 +783,32 @@ const App = () => {
             showNotification('Cannot delete the default action — tasks depend on it');
             return;
         }
-        // Archive linked Trello card in card-as-action mode
-        if (action?.trelloCardId && !isReadOnly && currentBoard?.trelloSync?.syncMode === 'card-as-action') {
+        const syncMode = currentBoard?.trelloSync?.syncMode;
+        // Track deleted card ID to prevent re-import race condition (card-as-action mode)
+        if (syncMode === 'card-as-action' && action?.trelloCardId) {
+            const deletedCardEntry = { id: action.trelloCardId, at: Date.now() };
+            // Also collect trelloCardIds from child tasks (same card, but belt-and-suspenders)
+            updateCurrentBoard(b => ({
+                ...b,
+                actions: b.actions.filter(a => a.id !== actionId),
+                tasks: b.tasks.filter(t => t.actionId !== actionId),
+                trelloSync: {
+                    ...b.trelloSync,
+                    _recentlyDeletedCardIds: [
+                        ...(b.trelloSync?._recentlyDeletedCardIds || []),
+                        deletedCardEntry
+                    ]
+                }
+            }));
+            if (!isReadOnly) {
+                try { await archiveTrelloCard(action.trelloCardId); }
+                catch(e) { console.warn('Failed to archive Trello card:', e); }
+            }
+            showNotification('🗑️ Action deleted');
+            return;
+        }
+        // Archive linked Trello card in card-as-action mode (fallback for no trelloCardId)
+        if (action?.trelloCardId && !isReadOnly && syncMode === 'card-as-action') {
             try { await archiveTrelloCard(action.trelloCardId); }
             catch(e) { console.warn('Failed to archive Trello card:', e); }
         }
