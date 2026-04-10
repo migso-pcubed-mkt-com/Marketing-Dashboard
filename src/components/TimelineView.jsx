@@ -766,11 +766,11 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 months.push({month:monthIdx,label:CONFIG.MONTHS[monthIdx],startWeek:w,endWeek:w+1});
                 lastMonth=monthIdx;
                 // Compute month boundary line position (1st of month within this week)
-                if(w>0){
+                if(w>0||monthIdx>0){
                     const firstOfMonth=new Date(selectedYear,monthIdx,1);
                     const dayOffset=Math.round((firstOfMonth-weekStart)/86400000);
                     if(dayOffset>=0&&dayOffset<7){
-                        monthBoundaries.push({weekIndex:w,dayOffset});
+                        monthBoundaries.push({weekIndex:w,dayOffset,label:CONFIG.MONTHS[monthIdx]});
                     }
                 }
             }
@@ -1215,7 +1215,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                     <div style={{minWidth:`${headers.length*colWidth+250}px`,position:'relative'}}>
                         {/* Month boundary vertical lines for week zoom */}
                         {zoom==='week'&&monthBoundaryLines.length>0&&monthBoundaryLines.map((mb,idx)=>(
-                            <div key={`mb-${idx}`} style={{position:'absolute',left:250+mb.weekIndex*colWidth+(mb.dayOffset/7)*colWidth,top:0,bottom:0,width:2,background:'var(--accent)',opacity:0.25,zIndex:5,pointerEvents:'none'}}/>
+                            <div key={`mb-${idx}`} style={{position:'absolute',left:250+mb.weekIndex*colWidth+(mb.dayOffset/7)*colWidth,top:0,bottom:0,width:0,borderLeft:'2px dashed var(--accent)',opacity:0.35,zIndex:5,pointerEvents:'none'}}/>
                         ))}
                         {(zoom==='week'||zoom==='day')&&monthHeaders&&(
                             <div className={`flex border-b border-[var(--border)] sticky top-0 z-40 bg-[var(--bg-primary)]`}>
