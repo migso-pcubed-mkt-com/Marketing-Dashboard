@@ -825,8 +825,9 @@ const App = () => {
         if (customDueDate) {
             dueDate = customDueDate;
         } else {
-            const endOfMonth = new Date(2026, month + 1, 0).getDate();
-            dueDate = `2026-${String(month + 1).padStart(2, '0')}-${endOfMonth}`;
+            const year = new Date(startDate).getFullYear();
+            const endOfMonth = new Date(year, month + 1, 0).getDate();
+            dueDate = `${year}-${String(month + 1).padStart(2, '0')}-${endOfMonth}`;
         }
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();

@@ -470,6 +470,156 @@ describe('mergeCardIntoTask', () => {
         expect(result.checklists[0].items[0].due).toBe('2026-05-01');
         expect(result.checklists[0].items[0].assignee).toBe('mem-1');
     });
+
+    // ── Checklist URL resolution via allCards (BUG E fix) ──
+    it('resolves Trello card URLs in checklist items when allCards is provided', () => {
+        const allCards = [
+            { id: 'linked-card', shortLink: 'ABC123', name: 'Linked Card Title' }
+        ];
+        const card = {
+            ...baseCard,
+            checklists: [{
+                id: 'tcl-1', name: 'CL', pos: 1,
+                checkItems: [
+                    { id: 'tci-1', name: 'https://trello.com/c/ABC123/42-linked-card-title', state: 'incomplete', pos: 1 }
+                ]
+            }]
+        };
+        const result = mergeCardIntoTask(baseTask, card, {}, {}, [], allCards);
+        expect(result.checklists[0].items[0].text).toBe('Linked Card Title');
+        expect(result.checklists[0].items[0].trelloLinkedCardUrl).toBe('https://trello.com/c/ABC123/42-linked-card-title');
+    });
+
+    it('falls back to slug resolution for cross-board card URLs', () => {
+        const allCards = []; // Card not on this board
+        const card = {
+            ...baseCard,
+            checklists: [{
+                id: 'tcl-1', name: 'CL', pos: 1,
+                checkItems: [
+                    { id: 'tci-1', name: 'https://trello.com/c/XYZ789/7-some-linked-task', state: 'incomplete', pos: 1 }
+                ]
+            }]
+        };
+        const result = mergeCardIntoTask(baseTask, card, {}, {}, [], allCards);
+        expect(result.checklists[0].items[0].text).toBe('Some linked task');
+        expect(result.checklists[0].items[0].trelloLinkedCardUrl).toBe('https://trello.com/c/XYZ789/7-some-linked-task');
+    });
+
+    it('preserves existing trelloLinkedCardUrl when allCards is not provided', () => {
+        const task = {
+            ...baseTask,
+            checklists: [{
+                id: 'cl-1', name: 'CL', trelloChecklistId: 'tcl-1',
+                items: [{
+                    id: 'cli-1', text: 'Linked Card Title', done: false,
+                    trelloCheckItemId: 'tci-1',
+                    trelloLinkedCardUrl: 'https://trello.com/c/ABC123'
+                }]
+            }]
+        };
+        const card = {
+            ...baseCard,
+            checklists: [{
+                id: 'tcl-1', name: 'CL', pos: 1,
+                checkItems: [
+                    { id: 'tci-1', name: 'https://trello.com/c/ABC123', state: 'incomplete', pos: 1 }
+                ]
+            }]
+        };
+        // No allCards → URL resolution returns null, but existing trelloLinkedCardUrl preserved
+        const result = mergeCardIntoTask(task, card, {}, {}, []);
+        expect(result.checklists[0].items[0].trelloLinkedCardUrl).toBe('https://trello.com/c/ABC123');
+    });
+
+    it('does not set trelloLinkedCardUrl for regular (non-URL) checklist items', () => {
+        const allCards = [{ id: 'card-1', shortLink: 'ABC123', name: 'My Card' }];
+        const card = {
+            ...baseCard,
+            checklists: [{
+                id: 'tcl-1', name: 'CL', pos: 1,
+                checkItems: [
+                    { id: 'tci-1', name: 'Regular task item', state: 'incomplete', pos: 1 }
+                ]
+            }]
+        };
+        const result = mergeCardIntoTask(baseTask, card, {}, {}, [], allCards);
+        expect(result.checklists[0].items[0].text).toBe('Regular task item');
+        expect(result.checklists[0].items[0].trelloLinkedCardUrl).toBeUndefined();
+    });
+
+    // ── Comment protection when card.comments is empty (BUG F/G fix) ──
+    it('preserves existing synced comments when card.comments is empty', () => {
+        const task = {
+            ...baseTask,
+            comments: [
+                { id: 'cm-1', author: 'Alice', text: 'Synced comment', date: '2026-03-10T10:00:00.000Z', trelloCommentId: 'tcm-1' },
+                { id: 'cm-2', author: 'Bob', text: 'Another synced', date: '2026-03-11T10:00:00.000Z', trelloCommentId: 'tcm-2' }
+            ]
+        };
+        const card = { ...baseCard, comments: [] }; // Failed fetch → empty array
+        const result = mergeCardIntoTask(task, card, {}, {}, []);
+        // Both synced comments should be preserved (not dropped)
+        expect(result.comments).toHaveLength(2);
+        expect(result.comments[0].trelloCommentId).toBe('tcm-1');
+        expect(result.comments[1].trelloCommentId).toBe('tcm-2');
+    });
+
+    it('preserves both synced and local-only comments when card.comments is empty', () => {
+        const task = {
+            ...baseTask,
+            comments: [
+                { id: 'cm-synced', author: 'Alice', text: 'From Trello', date: '2026-03-10T10:00:00.000Z', trelloCommentId: 'tcm-1' },
+                { id: 'cm-local', author: 'Me', text: 'Local note', date: '2026-03-12T10:00:00.000Z' }
+            ]
+        };
+        const card = { ...baseCard, comments: [] };
+        const result = mergeCardIntoTask(task, card, {}, {}, []);
+        expect(result.comments).toHaveLength(2);
+        expect(result.comments.find(c => c.id === 'cm-synced')).toBeTruthy();
+        expect(result.comments.find(c => c.id === 'cm-local')).toBeTruthy();
+    });
+
+    it('still replaces comments normally when card.comments has data', () => {
+        const task = {
+            ...baseTask,
+            comments: [
+                { id: 'cm-1', author: 'Old', text: 'Old text', date: '2026-03-10T10:00:00.000Z', trelloCommentId: 'tcm-1' }
+            ]
+        };
+        const card = {
+            ...baseCard,
+            comments: [
+                { id: 'tcm-1', data: { text: 'Updated text' }, date: '2026-03-20T10:00:00.000Z', memberCreator: { fullName: 'New Author' } }
+            ]
+        };
+        const result = mergeCardIntoTask(task, card, {}, {}, []);
+        expect(result.comments).toHaveLength(1);
+        expect(result.comments[0].text).toBe('Updated text');
+        expect(result.comments[0].author).toBe('New Author');
+    });
+
+    // ── Comment sorting by date ──
+    it('sorts merged comments by date ascending', () => {
+        const task = {
+            ...baseTask,
+            comments: [
+                { id: 'cm-local', author: 'Me', text: 'Middle', date: '2026-03-15T10:00:00.000Z' }
+            ]
+        };
+        const card = {
+            ...baseCard,
+            comments: [
+                { id: 'tcm-2', data: { text: 'Latest' }, date: '2026-03-20T10:00:00.000Z', memberCreator: { fullName: 'B' } },
+                { id: 'tcm-1', data: { text: 'Earliest' }, date: '2026-03-05T10:00:00.000Z', memberCreator: { fullName: 'A' } }
+            ]
+        };
+        const result = mergeCardIntoTask(task, card, {}, {}, []);
+        expect(result.comments).toHaveLength(3);
+        expect(result.comments[0].text).toBe('Earliest');
+        expect(result.comments[1].text).toBe('Middle');
+        expect(result.comments[2].text).toBe('Latest');
+    });
 });
 
 

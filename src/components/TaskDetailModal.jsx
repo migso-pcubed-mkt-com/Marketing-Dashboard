@@ -240,6 +240,21 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const allChecklistItems=(form.checklists||[]).flatMap(cl=>cl.items||[]);
     const checklistPct=allChecklistItems.length>0?Math.round((allChecklistItems.filter(c=>c.done).length/allChecklistItems.length)*100):0;
 
+    // Debounced auto-save: persist checklist/comment/attachment changes to app state in real-time
+    // (mirrors ActionDetailModal pattern — prevents sync from overwriting pending form changes)
+    const autoSaveTimerRef=useRef(null);
+    const initialFormRef=useRef(true);
+    useEffect(()=>{
+        // Skip initial render (form is just initialized from task prop)
+        if(initialFormRef.current){initialFormRef.current=false;return;}
+        if(isReadOnly)return;
+        if(autoSaveTimerRef.current)clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current=setTimeout(()=>{
+            onUpdate(task.id,{checklists:form.checklists,comments:form.comments,attachments:form.attachments});
+        },500);
+        return()=>{if(autoSaveTimerRef.current)clearTimeout(autoSaveTimerRef.current);};
+    },[form.checklists,form.comments,form.attachments]);
+
     // Handle Delete key to delete task
     useEffect(()=>{
         const handleKeyDown=(e)=>{
