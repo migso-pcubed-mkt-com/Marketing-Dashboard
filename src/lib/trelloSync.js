@@ -729,23 +729,41 @@ const pushTaskLabelsToTrello = async (task, card, board, mappingConfig) => {
 };
 
 // Resolve cross-board card URLs that couldn't be resolved synchronously.
-// Tasks where trelloLinkedCardUrl === title have an unresolved URL as their title.
-// Fetches card names from Trello API for unique shortLinks, updates tasks in-place.
+// Checks both task-level URLs (card-as-action: checklist items are tasks) and
+// checklist item URLs (card-as-task: checklist items nested inside tasks).
+// Fetches card names from Trello API for unique shortLinks, updates in-place.
 // fetchCardFn parameter allows injection for testing (defaults to fetchTrelloCard).
 export const resolveCrossBoardCardUrls = async (tasks, fetchCardFn = fetchTrelloCard) => {
     const urlRegex = /^https?:\/\/trello\.com\/c\/([a-zA-Z0-9]+)/;
-    const unresolved = tasks.filter(t => t && t.trelloLinkedCardUrl && t.trelloLinkedCardUrl === t.title);
-    if (unresolved.length === 0) return tasks;
 
-    // Collect unique shortLinks
-    const shortLinks = [...new Set(unresolved.map(t => {
+    // Collect all unresolved shortLinks from both task-level and checklist item-level
+    const shortLinksToFetch = new Set();
+
+    // Task-level: card-as-action tasks where trelloLinkedCardUrl === title
+    const unresolvedTasks = tasks.filter(t => t && t.trelloLinkedCardUrl && t.trelloLinkedCardUrl === t.title);
+    for (const t of unresolvedTasks) {
         const m = t.title.match(urlRegex);
-        return m ? m[1] : null;
-    }).filter(Boolean))];
+        if (m) shortLinksToFetch.add(m[1]);
+    }
+
+    // Checklist item-level: card-as-task items where trelloLinkedCardUrl === text
+    for (const t of tasks) {
+        if (!t?.checklists) continue;
+        for (const cl of t.checklists) {
+            for (const item of (cl.items || [])) {
+                if (item.trelloLinkedCardUrl && item.trelloLinkedCardUrl === item.text) {
+                    const m = item.text.match(urlRegex);
+                    if (m) shortLinksToFetch.add(m[1]);
+                }
+            }
+        }
+    }
+
+    if (shortLinksToFetch.size === 0) return tasks;
 
     // Batch-fetch card names
     const cardNameMap = new Map();
-    for (const sl of shortLinks) {
+    for (const sl of shortLinksToFetch) {
         try {
             const card = await fetchCardFn(sl);
             if (card?.name) cardNameMap.set(sl, card.name);
@@ -754,15 +772,45 @@ export const resolveCrossBoardCardUrls = async (tasks, fetchCardFn = fetchTrello
 
     if (cardNameMap.size === 0) return tasks;
 
-    // Update tasks with resolved names
+    // Update tasks and checklist items with resolved names
     return tasks.map(t => {
-        if (!t || !t.trelloLinkedCardUrl || t.trelloLinkedCardUrl !== t.title) return t;
-        const m = t.title.match(urlRegex);
-        if (m && cardNameMap.has(m[1])) {
-            const resolvedTitle = cardNameMap.get(m[1]);
-            return { ...t, title: resolvedTitle, _trelloBaseline: { ...(t._trelloBaseline || {}), title: resolvedTitle } };
+        if (!t) return t;
+        let changed = false;
+        let updated = t;
+
+        // Resolve task-level URL
+        if (t.trelloLinkedCardUrl && t.trelloLinkedCardUrl === t.title) {
+            const m = t.title.match(urlRegex);
+            if (m && cardNameMap.has(m[1])) {
+                const resolvedTitle = cardNameMap.get(m[1]);
+                updated = { ...updated, title: resolvedTitle, _trelloBaseline: { ...(t._trelloBaseline || {}), title: resolvedTitle } };
+                changed = true;
+            }
         }
-        return t;
+
+        // Resolve checklist item-level URLs
+        if (t.checklists) {
+            const newChecklists = t.checklists.map(cl => {
+                if (!cl.items?.length) return cl;
+                let clChanged = false;
+                const newItems = cl.items.map(item => {
+                    if (!item.trelloLinkedCardUrl || item.trelloLinkedCardUrl !== item.text) return item;
+                    const m = item.text.match(urlRegex);
+                    if (m && cardNameMap.has(m[1])) {
+                        clChanged = true;
+                        return { ...item, text: cardNameMap.get(m[1]) };
+                    }
+                    return item;
+                });
+                return clChanged ? { ...cl, items: newItems } : cl;
+            });
+            if (newChecklists.some((cl, idx) => cl !== t.checklists[idx])) {
+                updated = { ...updated, checklists: newChecklists };
+                changed = true;
+            }
+        }
+
+        return changed ? updated : t;
     });
 };
 
@@ -1902,7 +1950,8 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                         const pushed = { ...task, trelloLastModified: new Date().toISOString() };
                         // Pull non-pushed content fields from Trello
                         if (task.title === baseline.title) { pushed.title = mergedFromTrello.title; pushed.trelloLinkedCardUrl = mergedFromTrello.trelloLinkedCardUrl; }
-                        if (task.dueDate === baseline.dueDate) { pushed.dueDate = mergedFromTrello.dueDate; pushed.month = mergedFromTrello.month; pushed.startDate = mergedFromTrello.startDate; }
+                        if (task.dueDate === baseline.dueDate) { pushed.dueDate = mergedFromTrello.dueDate; pushed.month = mergedFromTrello.month; }
+                        if (task.startDate === baseline.startDate) { pushed.startDate = mergedFromTrello.startDate; }
                         const localStatus = task.status === 'completed' ? 'completed' : 'todo';
                         if (localStatus === baseline.status) pushed.status = mergedFromTrello.status;
                         if (JSON.stringify(task.assignees || []) === JSON.stringify(baseline.assignees || [])) pushed.assignees = mergedFromTrello.assignees;

@@ -21,6 +21,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         delete normalized.checklist; // Remove old format
         return normalized;
     });
+    // Track the task.id we initialized from, so we can re-sync when the task prop changes
+    const lastSyncedTaskRef=useRef(task.updatedAt);
     const[previewAttachment,setPreviewAttachment]=useState(null);
     const[descriptionDraft,setDescriptionDraft]=useState(task.description||'');
     const[descriptionSaved,setDescriptionSaved]=useState(true);
@@ -40,6 +42,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[editingChecklistId,setEditingChecklistId]=useState(null);
     const[editingChecklistName,setEditingChecklistName]=useState('');
     const[uploading,setUploading]=useState(false);
+    const autoSaveTimerRef=useRef(null);
+    const initialFormRef=useRef(true);
 
     const handleFileUpload = async (file) => {
         if (file.size > 10 * 1024 * 1024) return; // 10MB limit
@@ -111,7 +115,12 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         setShowInlineCreateAction(false);
     };
 
-    const handleClose=()=>{if(!isReadOnly)onUpdate(task.id,form);onClose();}; // Auto-save on close (Trello-style), skip in read-only
+    const handleClose=()=>{
+        // Cancel pending auto-save to prevent race condition
+        if(autoSaveTimerRef.current){clearTimeout(autoSaveTimerRef.current);autoSaveTimerRef.current=null;}
+        if(!isReadOnly)onUpdate(task.id,form);
+        onClose();
+    };
 
     // Escape key to close
     useEffect(()=>{
@@ -242,8 +251,6 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
 
     // Debounced auto-save: persist checklist/comment/attachment changes to app state in real-time
     // (mirrors ActionDetailModal pattern — prevents sync from overwriting pending form changes)
-    const autoSaveTimerRef=useRef(null);
-    const initialFormRef=useRef(true);
     useEffect(()=>{
         // Skip initial render (form is just initialized from task prop)
         if(initialFormRef.current){initialFormRef.current=false;return;}
@@ -254,6 +261,23 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         },500);
         return()=>{if(autoSaveTimerRef.current)clearTimeout(autoSaveTimerRef.current);};
     },[form.checklists,form.comments,form.attachments]);
+
+    // Re-sync form when task prop changes externally (e.g., after Trello sync)
+    // Only update fields the user hasn't locally modified in the modal
+    useEffect(()=>{
+        if(task.updatedAt===lastSyncedTaskRef.current)return;
+        lastSyncedTaskRef.current=task.updatedAt;
+        setForm(prev=>{
+            const normalized={...task,checklists:normalizeTaskChecklists(task)};
+            delete normalized.checklist;
+            // Preserve user's local edits for checklists/comments/attachments if auto-save hasn't flushed yet
+            if(autoSaveTimerRef.current){
+                // User has pending local changes — keep their version of these fields
+                return {...normalized,checklists:prev.checklists,comments:prev.comments,attachments:prev.attachments};
+            }
+            return normalized;
+        });
+    },[task]);
 
     // Handle Delete key to delete task
     useEffect(()=>{

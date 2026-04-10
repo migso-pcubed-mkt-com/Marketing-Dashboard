@@ -242,6 +242,84 @@ describe('resolveCrossBoardCardUrls', () => {
         expect(result[1].title).toBe('Resolved Card');
         expect(mockFetch).toHaveBeenCalledTimes(1);
     });
+
+    // ── Checklist item URL resolution (card-as-task mode) ──
+    it('resolves unresolved URLs inside checklist items (card-as-task)', async () => {
+        const { resolveCrossBoardCardUrls } = await import('../lib/trelloSync.js');
+
+        const tasks = [
+            {
+                id: 't-1', title: 'Normal task',
+                checklists: [{
+                    id: 'cl-1', name: 'Checklist',
+                    items: [
+                        { id: 'cli-1', text: 'https://trello.com/c/CROSS1', trelloLinkedCardUrl: 'https://trello.com/c/CROSS1' },
+                        { id: 'cli-2', text: 'Normal item' },
+                        { id: 'cli-3', text: 'https://trello.com/c/CROSS2', trelloLinkedCardUrl: 'https://trello.com/c/CROSS2' }
+                    ]
+                }]
+            }
+        ];
+
+        const mockFetch = vi.fn()
+            .mockResolvedValueOnce({ name: 'Linked Card 1', shortLink: 'CROSS1' })
+            .mockResolvedValueOnce({ name: 'Linked Card 2', shortLink: 'CROSS2' });
+
+        const result = await resolveCrossBoardCardUrls(tasks, mockFetch);
+
+        expect(result[0].title).toBe('Normal task'); // task title unchanged
+        expect(result[0].checklists[0].items[0].text).toBe('Linked Card 1');
+        expect(result[0].checklists[0].items[0].trelloLinkedCardUrl).toBe('https://trello.com/c/CROSS1'); // URL preserved
+        expect(result[0].checklists[0].items[1].text).toBe('Normal item'); // unchanged
+        expect(result[0].checklists[0].items[2].text).toBe('Linked Card 2');
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('deduplicates shortLinks across task-level and checklist item-level URLs', async () => {
+        const { resolveCrossBoardCardUrls } = await import('../lib/trelloSync.js');
+
+        const tasks = [
+            // Task-level unresolved URL (card-as-action)
+            { id: 't-1', title: 'https://trello.com/c/SHARED1', trelloLinkedCardUrl: 'https://trello.com/c/SHARED1' },
+            // Checklist item with same URL (card-as-task)
+            {
+                id: 't-2', title: 'Parent task',
+                checklists: [{
+                    id: 'cl-1', name: 'CL',
+                    items: [{ id: 'cli-1', text: 'https://trello.com/c/SHARED1', trelloLinkedCardUrl: 'https://trello.com/c/SHARED1' }]
+                }]
+            }
+        ];
+
+        const mockFetch = vi.fn()
+            .mockResolvedValueOnce({ name: 'Shared Card', shortLink: 'SHARED1' });
+
+        const result = await resolveCrossBoardCardUrls(tasks, mockFetch);
+
+        expect(result[0].title).toBe('Shared Card');
+        expect(result[1].checklists[0].items[0].text).toBe('Shared Card');
+        expect(mockFetch).toHaveBeenCalledTimes(1); // only one fetch for deduped shortLink
+    });
+
+    it('does not modify checklist items that are already resolved', async () => {
+        const { resolveCrossBoardCardUrls } = await import('../lib/trelloSync.js');
+
+        const tasks = [{
+            id: 't-1', title: 'Task',
+            checklists: [{
+                id: 'cl-1', name: 'CL',
+                items: [
+                    { id: 'cli-1', text: 'Already Resolved Name', trelloLinkedCardUrl: 'https://trello.com/c/RES1' },
+                ]
+            }]
+        }];
+
+        const mockFetch = vi.fn();
+        const result = await resolveCrossBoardCardUrls(tasks, mockFetch);
+
+        expect(result[0].checklists[0].items[0].text).toBe('Already Resolved Name');
+        expect(mockFetch).not.toHaveBeenCalled(); // no fetch needed
+    });
 });
 
 // ════════════════════════════════════════════════════════════
