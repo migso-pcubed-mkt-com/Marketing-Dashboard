@@ -758,9 +758,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             isoD.setUTCDate(isoD.getUTCDate()+4-(isoD.getUTCDay()||7));
             const isoYS=new Date(Date.UTC(isoD.getUTCFullYear(),0,1));
             const isoWeek=Math.ceil(((isoD-isoYS)/86400000+1)/7);
-            const weekObj={week:w,label:isoWeek.toString(),monthStart:null};
+            const weekObj={week:w,label:isoWeek.toString(),monthStart:null,monthLabel:null};
             // Month grouping: use Monday date, but assign to Jan if in previous year
             const monthIdx=weekStart.getFullYear()<selectedYear?0:weekStart.getMonth();
+            weekObj.monthLabel=CONFIG.MONTHS[monthIdx];
             if(monthIdx!==lastMonth){
                 if(months.length>0)months[months.length-1].endWeek=w;
                 months.push({month:monthIdx,label:CONFIG.MONTHS[monthIdx],startWeek:w,endWeek:w+1});
@@ -1215,13 +1216,12 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 </div>
                 <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll',flex:1,overflowY:'auto'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
                     <div style={{minWidth:`${headers.length*colWidth+250}px`,position:'relative'}}>
-                        {/* Month boundary vertical lines for week zoom */}
+                        {/* Month boundary vertical lines for week zoom — dashed line at exact day position */}
                         {zoom==='week'&&monthBoundaryLines.length>0&&monthBoundaryLines.map((mb,idx)=>{
                             const xPos=250+mb.weekIndex*colWidth+(mb.dayOffset/7)*colWidth;
                             return(
                                 <div key={`mb-${idx}`} style={{position:'absolute',left:xPos,top:0,bottom:0,zIndex:6,pointerEvents:'none'}}>
-                                    <div style={{position:'absolute',top:0,bottom:0,width:0,borderLeft:'2px solid var(--accent)',opacity:0.45}}/>
-                                    <div style={{position:'absolute',top:78,left:2,background:'var(--accent)',color:'white',fontSize:7,fontWeight:700,padding:'1px 4px',borderRadius:2,whiteSpace:'nowrap',letterSpacing:0.3,lineHeight:'12px',opacity:0.8}}>{mb.label?.substring(0,3)}</div>
+                                    <div style={{position:'absolute',top:74,bottom:0,width:0,borderLeft:'1.5px dashed var(--accent)',opacity:0.35}}/>
                                 </div>
                             );
                         })}
@@ -1242,8 +1242,21 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     <div>{h.label}</div>
                                     <div className="flex justify-around text-xs text-[var(--text-muted)] mt-1">{h.months.map(m=><span key={m}>{CONFIG.MONTHS[m]}</span>)}</div>
                                 </div>
-                            )):zoom==='week'?headers.map((h,i)=>(
-                                <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l ${h.week===currentWeek?'bg-accent/10 text-accent':''}`} style={{width:colWidth,borderLeftWidth:h.monthStart?2:1,borderLeftColor:h.monthStart?'var(--accent)':'var(--border)',borderBottomWidth:h.monthStart?2:undefined,borderBottomColor:h.monthStart?'var(--accent)':undefined}}>{h.label}</div>
+                            )):zoom==='week'?headers.map((h,i)=>{
+                                // Find if this week has a month boundary
+                                const mb=monthBoundaryLines.find(m=>m.weekIndex===h.week);
+                                const prevMonth=mb&&i>0?headers[i-1]?.monthLabel:null;
+                                return(
+                                <div key={i} className={`flex-shrink-0 text-center text-xs font-medium border-l ${h.week===currentWeek?'bg-accent/10 text-accent':''}`} style={{width:colWidth,borderLeftWidth:h.monthStart?2:1,borderLeftColor:h.monthStart?'var(--accent)':'var(--border)',padding:mb&&mb.dayOffset>0&&mb.dayOffset<6?'2px 0':'4px 0',position:'relative'}}>
+                                    {mb&&mb.dayOffset>0&&mb.dayOffset<6?(
+                                        <div style={{display:'flex',alignItems:'center',height:'100%'}}>
+                                            <span style={{flex:mb.dayOffset,textAlign:'center',fontSize:7,color:'var(--text-muted)',lineHeight:'14px',borderRight:'1.5px dashed var(--accent)',opacity:0.9,paddingRight:1}}>{prevMonth?.substring(0,3)||''}</span>
+                                            <span style={{flex:7-mb.dayOffset,textAlign:'center',fontSize:7,color:'var(--accent)',fontWeight:700,lineHeight:'14px',paddingLeft:1}}>{mb.label?.substring(0,3)}</span>
+                                        </div>
+                                    ):(
+                                        <span>{h.label}</span>
+                                    )}
+                                </div>);}
                             )):zoom==='day'?headers.map((h,i)=>(
                                 <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l border-[var(--border)] ${h.month===currentMonth&&h.date===new Date().getDate()?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
                             )):headers.map((h,i)=>(

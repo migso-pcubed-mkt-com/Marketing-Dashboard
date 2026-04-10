@@ -893,7 +893,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
 
         if (trelloModified && !locallyModified) {
             // Only Trello changed → update local task
-            updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
+            updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions, cards);
             result.updated++;
         } else if (locallyModified && !trelloModified) {
             // Only dashboard changed → push to Trello (skip if readOnly / guest mode)
@@ -925,7 +925,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     // After push, also pull any new Trello extras (checklists, items) into local task
                     const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards);
                     // Re-fetch merged labels from Trello if not changed locally
-                    const mergedForLabels = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
+                    const mergedForLabels = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions, cards);
                     updatedTasks[i] = {
                         ...mergedTask,
                         channels: labelsChangedLocally ? task.channels : mergedForLabels.channels,
@@ -967,7 +967,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                             JSON.stringify(task.countries || []) !== JSON.stringify(task._inheritCountries || []) ||
                             JSON.stringify((task.otherLabels || []).map(l => l.name).sort()) !== JSON.stringify((task._inheritOtherLabels || []).map(l => l.name).sort());
                         if (!labelsChangedLocally) {
-                            const mergedForLabels = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
+                            const mergedForLabels = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions, cards);
                             task.channels = mergedForLabels.channels;
                             task.countries = mergedForLabels.countries;
                             task.otherLabels = mergedForLabels.otherLabels;
@@ -978,7 +978,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     }
                     await pushTaskLabelsToTrello(task, card, board, mappingConfig);
                     // Merge non-pushed fields from Trello (selective push preserved Trello's changes for those fields)
-                    const mergedFromTrello = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
+                    const mergedFromTrello = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions, cards);
                     // After push, also pull any new Trello extras (checklists, items) into local task
                     // Preserve pushed labels — mergeTrelloExtrasIntoTask unions stale card.idLabels
                     const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards);
@@ -1006,20 +1006,38 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     result.errorDetails.push({ name: task.title, op: 'push', error: err.message });
                 }
             } else {
-                updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
+                updatedTasks[i] = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions, cards);
                 result.updated++;
             }
         } else {
-            // Neither side has timestamp changes — still merge extras
-            // (positions, new checklist items, comments that don't affect dateLastActivity)
-            // Snapshot before mutation (pushTaskExtrasToTrello mutates task.checklists in-place)
+            // Neither side has timestamp changes — only pull new extras from Trello
+            // (no API calls needed — just merge new checklist items, comments, attachments locally)
             const checklistsBefore = JSON.stringify(task.checklists);
             const commentsBefore = JSON.stringify(task.comments);
             const attachmentsBefore = JSON.stringify(task.attachments);
-            // isPushWinner=false: pull Trello positions into local order
-            await pushTaskExtrasToTrello(task, card, false).catch(() => {});
+            // Pull Trello checklist/item positions into local order (no API calls)
+            const taskChecklists = task.checklists || [];
+            if (card.checklists && taskChecklists.length > 0) {
+                const trelloClMap = new Map((card.checklists || []).map(c => [c.id, c]));
+                taskChecklists.sort((a, b) => {
+                    const posA = a.trelloChecklistId ? (trelloClMap.get(a.trelloChecklistId)?.pos || 0) : Infinity;
+                    const posB = b.trelloChecklistId ? (trelloClMap.get(b.trelloChecklistId)?.pos || 0) : Infinity;
+                    return posA - posB;
+                });
+                for (const cl of taskChecklists) {
+                    if (!cl.trelloChecklistId || !cl.items?.length) continue;
+                    const trelloCl = trelloClMap.get(cl.trelloChecklistId);
+                    if (!trelloCl?.checkItems) continue;
+                    const itemPosMap = new Map(trelloCl.checkItems.map(i => [i.id, i.pos || 0]));
+                    cl.items.sort((a, b) => {
+                        const posA = a.trelloCheckItemId ? (itemPosMap.get(a.trelloCheckItemId) ?? Infinity) : Infinity;
+                        const posB = b.trelloCheckItemId ? (itemPosMap.get(b.trelloCheckItemId) ?? Infinity) : Infinity;
+                        return posA - posB;
+                    });
+                }
+            }
             const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards);
-            // Check if anything actually changed (compare against pre-mutation snapshot)
+            // Check if anything actually changed
             const extrasChanged = JSON.stringify(mergedTask.checklists) !== checklistsBefore ||
                 JSON.stringify(mergedTask.comments) !== commentsBefore ||
                 JSON.stringify(mergedTask.attachments) !== attachmentsBefore;
@@ -1350,7 +1368,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 }
                 result.pushed++;
             } else {
-                const pos = (i + 1) * 16384;
+                const pos = ((cat.order ?? i) + 1) * 16384;
                 try {
                     const created = await createTrelloList(trelloSync.trelloBoardId, cat.name, pos);
                     if (created?.id) {
@@ -1573,7 +1591,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 result.pushed++;
             } else {
                 try {
-                    const pos = (i + 1) * 16384;
+                    const pos = ((cat.order ?? i) + 1) * 16384;
                     const created = await createTrelloList(trelloSync.trelloBoardId, cat.name, pos);
                     if (created?.id) {
                         updatedCategories[i] = { ...cat, trelloListId: created.id, trelloListPos: created.pos, trelloLastModified: new Date().toISOString() };
