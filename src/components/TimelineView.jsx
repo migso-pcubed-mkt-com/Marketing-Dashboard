@@ -1257,7 +1257,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                         <span>{h.label}</span>
                                     )}
                                 </div>);}
-                            )):zoom==='day'?headers.map((h,i)=>(
+                            ):zoom==='day'?headers.map((h,i)=>(
                                 <div key={i} className={`flex-shrink-0 p-1 text-center text-xs font-medium border-l border-[var(--border)] ${h.month===currentMonth&&h.date===new Date().getDate()?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
                             )):headers.map((h,i)=>(
                                 <div key={i} className={`flex-shrink-0 p-2 text-center text-xs font-medium border-l border-[var(--border)] ${h.month===currentMonth?'bg-accent/10 text-accent':''}`} style={{width:colWidth}}>{h.label}</div>
