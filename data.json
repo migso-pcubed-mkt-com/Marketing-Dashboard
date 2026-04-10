@@ -56064,7 +56064,7 @@
         }
       ],
       "createdAt": "2026-04-10T14:46:07.452Z",
-      "updatedAt": "2026-04-10T17:30:46.304Z",
+      "updatedAt": "2026-04-10T17:31:14.565Z",
       "categories": [
         {
           "id": "cat-9d2f5006-9aca-4e4e-8f32-c472ee32bef6",
@@ -56273,7 +56273,7 @@
       ],
       "trelloSync": {
         "syncMode": "card-as-task",
-        "lastSyncAt": "2026-04-10T17:30:46.304Z",
+        "lastSyncAt": "2026-04-10T17:31:14.565Z",
         "syncEnabled": true,
         "labelMappings": {
           "6751b2fde5a4064a6d732244": {
@@ -69822,7 +69822,7 @@
       }
     }
   ],
-  "_saveId": "321dd454-7b29-444d-ba89-dea0697ed494",
+  "_saveId": "47f41952-de40-47e4-8257-3378898222a2",
   "version": 2,
   "currentBoardId": "board-fd027751-1660-45b5-ac22-3dc9848cbbd0"
 }
