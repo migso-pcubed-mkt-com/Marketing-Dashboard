@@ -56135,6 +56135,19 @@
           "categoryId": "cat-c4b0aaea-069f-4928-b98d-bfe87e68fa98"
         },
         {
+          "id": "a-e54c061c-d8ac-4f84-900b-ebb7d079f36c",
+          "name": "list 19h30 quick",
+          "categoryId": "cat-7506e666-04ac-4d34-99fd-0d6a505856c8",
+          "isDefault": true,
+          "budget": 0,
+          "priority": "medium",
+          "tags": [],
+          "status": "active",
+          "createdAt": "2026-04-10T17:51:33.218Z",
+          "updatedAt": "2026-04-10T17:51:33.218Z",
+          "order": 20
+        },
+        {
           "id": "a-46ec42ed-7165-4744-8c17-845594b97d2a",
           "name": "list 19h30 quick",
           "categoryId": "cat-62344a0f-fd10-4b27-801a-688bb2f3a4ee",
@@ -56248,7 +56261,7 @@
         }
       ],
       "createdAt": "2026-04-10T14:46:07.452Z",
-      "updatedAt": "2026-04-10T17:50:33.582Z",
+      "updatedAt": "2026-04-10T17:51:46.395Z",
       "categories": [
         {
           "id": "cat-9d2f5006-9aca-4e4e-8f32-c472ee32bef6",
@@ -56455,6 +56468,17 @@
           "trelloLastModified": "2026-04-10T15:43:41.761Z"
         },
         {
+          "id": "cat-7506e666-04ac-4d34-99fd-0d6a505856c8",
+          "name": "list 19h30 quick",
+          "color": "#6366f1",
+          "gradient": "from-indigo-500 to-purple-600",
+          "trelloListId": "69d936cdf0e5d3b0a9855e2a",
+          "trelloListPos": 327680,
+          "order": 21,
+          "trelloLastModified": "2026-04-10T17:51:33.218Z",
+          "createdAt": "2026-04-10T17:51:33.218Z"
+        },
+        {
           "id": "cat-37c014e7-c3b7-4162-ae01-61279fc6b998",
           "name": "liste 19h30",
           "color": "#6366f1",
@@ -56545,7 +56569,7 @@
       ],
       "trelloSync": {
         "syncMode": "card-as-task",
-        "lastSyncAt": "2026-04-10T17:50:33.562Z",
+        "lastSyncAt": "2026-04-10T17:51:46.373Z",
         "syncEnabled": true,
         "labelMappings": {
           "6751b2fde5a4064a6d732244": {
@@ -70094,7 +70118,7 @@
       }
     }
   ],
-  "_saveId": "7851bae7-ab4c-42e9-9b20-14945da67bea",
+  "_saveId": "ee8ab28f-6e9c-4505-9269-b5af5b08b8b1",
   "version": 2,
   "currentBoardId": "board-fd027751-1660-45b5-ac22-3dc9848cbbd0",
   "timestamp": 1775842769702
