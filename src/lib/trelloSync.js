@@ -923,7 +923,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     // Check if assignees changed locally vs baseline
                     const assigneesChangedLocally = JSON.stringify(task.assignees || []) !== JSON.stringify(task._trelloBaseline?.assignees || []);
                     // After push, also pull any new Trello extras (checklists, items) into local task
-                    const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig);
+                    const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards);
                     // Re-fetch merged labels from Trello if not changed locally
                     const mergedForLabels = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
                     updatedTasks[i] = {
@@ -981,7 +981,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     const mergedFromTrello = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions);
                     // After push, also pull any new Trello extras (checklists, items) into local task
                     // Preserve pushed labels — mergeTrelloExtrasIntoTask unions stale card.idLabels
-                    const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig);
+                    const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards);
                     // Build final task: start from merged Trello values, overlay locally-changed fields
                     const baseline = task._trelloBaseline || {};
                     const finalTask = { ...mergedTask };
@@ -1018,7 +1018,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             const attachmentsBefore = JSON.stringify(task.attachments);
             // isPushWinner=false: pull Trello positions into local order
             await pushTaskExtrasToTrello(task, card, false).catch(() => {});
-            const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig);
+            const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards);
             // Check if anything actually changed (compare against pre-mutation snapshot)
             const extrasChanged = JSON.stringify(mergedTask.checklists) !== checklistsBefore ||
                 JSON.stringify(mergedTask.comments) !== commentsBefore ||
@@ -1031,9 +1031,18 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     }
 
     // 3. New cards on Trello (not yet in dashboard)
+    // Build set of recently deleted card IDs to prevent re-import race condition
+    const recentlyDeletedCardIds = new Set(
+        (trelloSync._recentlyDeletedCardIds || [])
+            .filter(e => Date.now() - e.at < 5 * 60 * 1000) // 5 min window
+            .map(e => e.id)
+    );
     for (const [cardId, card] of trelloCardMap) {
         // Skip archived cards — don't import them as new tasks
         if (card.closed) continue;
+
+        // Skip cards that were recently deleted locally (archive may not have propagated to Trello yet)
+        if (recentlyDeletedCardIds.has(card.id)) continue;
 
         // Dedup: skip if card already imported (race condition protection)
         if (updatedTasks.some(t => t.trelloCardId === card.id) || newTasks.some(t => t.trelloCardId === card.id)) continue;
@@ -1082,14 +1091,18 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     id: genId('cl'),
                     name: cl.name || 'Checklist',
                     trelloChecklistId: cl.id,
-                    items: (cl.checkItems || []).map(item => ({
-                        id: genId('cli'),
-                        text: item.name,
-                        done: item.state === 'complete',
-                        trelloCheckItemId: item.id,
-                        due: item.due ? item.due.split('T')[0] : null,
-                        assignee: item.idMember || null
-                    }))
+                    items: (cl.checkItems || []).map(item => {
+                        const resolved = resolveTrelloCardUrl(item.name, cards);
+                        return {
+                            id: genId('cli'),
+                            text: resolved ? resolved.title : item.name,
+                            done: item.state === 'complete',
+                            trelloCheckItemId: item.id,
+                            due: item.due ? item.due.split('T')[0] : null,
+                            assignee: item.idMember || null,
+                            ...(resolved?.trelloLinkedCardUrl ? { trelloLinkedCardUrl: resolved.trelloLinkedCardUrl } : {})
+                        };
+                    })
                 });
             }
         }
@@ -1291,7 +1304,9 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     result.pushed++;
                 }
             } catch (e) {
-                console.warn('List push error:', e);
+                console.warn(`List push error for "${cat.name}":`, e);
+                result.errors++;
+                result.errorDetails.push({ name: cat.name, op: 'update list', error: e.message });
             }
         } else {
             // Pull from Trello (name + position)
@@ -1367,8 +1382,15 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     }
 
     // 5d. Pull new Trello lists (not yet mapped) as local categories
+    const recentlyDeletedListIds = new Set(
+        (trelloSync._recentlyDeletedListIds || [])
+            .filter(e => Date.now() - e.at < 5 * 60 * 1000)
+            .map(e => e.id)
+    );
     for (const list of trelloLists) {
         if (existingListIds.has(list.id)) continue;
+        // Skip lists that were recently deleted locally (archive may not have propagated)
+        if (recentlyDeletedListIds.has(list.id)) continue;
         const newCatId = `cat-${crypto.randomUUID()}`;
         const newCat = {
             id: newCatId,
@@ -1415,6 +1437,10 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         ? allTasks.filter(t => !removedActionIds.has(t.actionId))
         : allTasks;
 
+    // Clean up old deletion tracking entries (older than 5 min)
+    const cleanedDeletedCards = (board.trelloSync?._recentlyDeletedCardIds || []).filter(e => Date.now() - e.at < 5 * 60 * 1000);
+    const cleanedDeletedLists = (board.trelloSync?._recentlyDeletedListIds || []).filter(e => Date.now() - e.at < 5 * 60 * 1000);
+
     const syncedBoard = {
         ...board,
         categories: updatedCategories,
@@ -1424,7 +1450,9 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         trelloSync: {
             ...board.trelloSync,
             labelMappings: mappingConfig.labelMappings,
-            lastSyncAt: new Date().toISOString()
+            lastSyncAt: new Date().toISOString(),
+            _recentlyDeletedCardIds: cleanedDeletedCards.length > 0 ? cleanedDeletedCards : undefined,
+            _recentlyDeletedListIds: cleanedDeletedLists.length > 0 ? cleanedDeletedLists : undefined
         },
         updatedAt: new Date().toISOString()
     };

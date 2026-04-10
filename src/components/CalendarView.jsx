@@ -297,10 +297,10 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                 style={{
                     position: 'absolute',
                     left, width, top, height: 20, zIndex: 10,
-                    background: `linear-gradient(90deg, ${barColor}18, ${barColor}28)`,
-                    border: `1px solid ${barColor}44`,
+                    background: `linear-gradient(90deg, ${barColor}30, ${barColor}50)`,
+                    border: `1px solid ${barColor}66`,
                     borderLeftWidth: continuesLeft ? 1 : 3,
-                    borderLeftColor: continuesLeft ? `${barColor}44` : barColor,
+                    borderLeftColor: continuesLeft ? `${barColor}66` : barColor,
                     borderRadius: `${continuesLeft ? 0 : 4}px ${continuesRight ? 0 : 4}px ${continuesRight ? 0 : 4}px ${continuesLeft ? 0 : 4}px`,
                     cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 4,
@@ -483,10 +483,10 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                 style={{
                                     position: 'absolute',
                                     left, width, top, height: WEEK_BAR_HEIGHT, zIndex: 10,
-                                    background: `linear-gradient(90deg, ${barColor}18, ${barColor}28)`,
-                                    border: `1px solid ${barColor}44`,
+                                    background: `linear-gradient(90deg, ${barColor}30, ${barColor}50)`,
+                                    border: `1px solid ${barColor}66`,
                                     borderLeftWidth: continuesLeft ? 1 : 3,
-                                    borderLeftColor: continuesLeft ? `${barColor}44` : barColor,
+                                    borderLeftColor: continuesLeft ? `${barColor}66` : barColor,
                                     borderRadius: `${continuesLeft ? 0 : 6}px ${continuesRight ? 0 : 6}px ${continuesRight ? 0 : 6}px ${continuesLeft ? 0 : 6}px`,
                                     cursor: 'pointer',
                                     display: 'flex', flexDirection: 'column', justifyContent: 'center',
@@ -500,7 +500,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                     <span style={{
                                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
                                         fontSize: 12, fontWeight: 600,
-                                        color: 'var(--text-primary)',
+                                        color: barColor,
                                         textDecoration: task.status === 'completed' ? 'line-through' : 'none'
                                     }}>
                                         {task.title}
