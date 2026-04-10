@@ -22,6 +22,9 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-04-10 | Add _recentlyDeletedCardIds/_recentlyDeletedListIds to both sync modes | Async archive race condition: sync imports card/list as new entity before archiveTrelloCard completes |
+| 2026-04-10 | Add _trelloBaseline + fix trelloLastModified timing in card-as-action new push | New actions/items lacked baseline for selective push; trelloLastModified set before checklist creation caused false conflict on next sync |
+| 2026-04-10 | Update handleDeleteAction to track deleted card IDs via updateCurrentBoard | Card-as-action action deletion had same re-import race condition as card-as-task task deletion |
 | 2026-04-07 | Add post-sync merge to preserve local edits during Trello sync | Sync replaced entire board, losing user edits (task creation, moves) made during the multi-second sync window |
 | 2026-04-07 | Use buildSelectiveCheckItemUpdate for local-only checkItem push | mapTaskToCheckItemUpdate always sent state, causing "marked incomplete" Trello activity spam on every reorder |
 | 2026-04-07 | Fix handleAddTask to use sibling trelloChecklistName in card-as-action | Hardcoded 'Tasks' created spurious checklists instead of adding items to the action's existing checklist |
