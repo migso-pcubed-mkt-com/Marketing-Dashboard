@@ -269,6 +269,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
 
     // Compact bar for month view (single line)
     const renderMonthBar = (task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight, topOffset, keyPrefix = '') => {
+        const action = actions.find(a => a.id === task.actionId);
         const statusObj = CONFIG.STATUSES.find(s => s.id === task.status);
         const barColor = statusObj?.color || '#94a3b8';
         const left = `calc(${(startCol / 7) * 100}% + 4px)`;

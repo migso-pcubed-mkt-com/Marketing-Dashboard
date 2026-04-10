@@ -516,8 +516,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:8}}>📎 Attachments ({(form.attachments||[]).length})</div>
                         {(form.attachments||[]).length>0&&<div className="space-y-2 mb-3">
                             {(form.attachments||[]).map(att=>{
-                                const isImage = (att.type||att.mimeType||'').startsWith('image/');
-                                const thumbSrc = att.thumbnailUrl || att.data || (isImage ? att.url : null);
+                                const thumbSrc = att.thumbnailUrl || att.data || null;
                                 return (
                                 <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg" style={{background:'var(--bg-secondary)',cursor:'pointer'}} onClick={()=>att.url ? window.open(att.url,'_blank') : setPreviewAttachment(att)}>
                                     {thumbSrc ?
