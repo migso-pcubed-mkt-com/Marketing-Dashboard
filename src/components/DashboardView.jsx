@@ -2,7 +2,16 @@ import { memo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 
+const EmptyState = ({ icon, title, description }) => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+        <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.5 }}>{icon}</div>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>{title}</div>
+        <div style={{ fontSize: 13 }}>{description}</div>
+    </div>
+);
+
 const DashboardView = ({categories, actions, tasks, members = []}) => {
+    if (tasks.length === 0) return <EmptyState icon={<Icon.BarChart size={40}/>} title="No data yet" description="Create tasks to see dashboard statistics" />;
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const actionBudgetTotal = actions.reduce((s, a) => s + (a.budget || 0), 0);

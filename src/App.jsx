@@ -22,6 +22,7 @@ import OnboardingOverlay from './components/OnboardingOverlay.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
 import FilterSidebar from './components/FilterSidebar.jsx';
 import AuthGate from './components/AuthGate.jsx';
+import { ViewSkeleton } from './components/Skeletons.jsx';
 
 // Lazy-loaded views
 const KanbanView = lazy(() => import('./components/KanbanView.jsx'));
@@ -1549,7 +1550,7 @@ const App = () => {
                         </div>
                     )}
                     <ErrorBoundary>
-                    <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="animate-spin w-8 h-8 border-3 rounded-full" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/></div>}>
+                    <Suspense fallback={<ViewSkeleton view={currentView} />}>
                     {currentView === 'kanban' && <KanbanView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
