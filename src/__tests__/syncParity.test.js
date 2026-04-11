@@ -3,7 +3,7 @@
 // Fix 8: _trelloBaseline refresh in card-as-task "neither changed" path
 // Fix 9: Comment fallback in mergeCardIntoAction
 // Fix 10: Comment attachments preserved in mergeCardIntoAction
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { mergeCardIntoAction, mergeCardIntoTask } from '../lib/trelloMapping.js';
 
 // ════════════════════════════════════════════════════════════

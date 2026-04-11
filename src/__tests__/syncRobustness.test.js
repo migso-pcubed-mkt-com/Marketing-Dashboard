@@ -5,8 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { validateBoardIntegrity } from '../lib/trelloSync.js';
 import {
-    resetCounter, makeTrelloList, makeTrelloCard, makeTrelloChecklist, makeTrelloCheckItem,
-    makeTrelloLabel, makeTrelloBoardResponse,
+    resetCounter, makeTrelloList, makeTrelloBoardResponse,
     makeCategory, makeAction, makeTask, makeBoard, makeMappingConfig
 } from './helpers/mockTrello.js';
 
@@ -51,7 +50,7 @@ describe('maxListPos tracking from server response (Fix 14)', () => {
             tasks: []
         });
 
-        const result = await syncWithTrello(board, makeMappingConfig());
+        await syncWithTrello(board, makeMappingConfig());
 
         // Both lists should have been created
         expect(listCreations).toHaveLength(2);
@@ -86,7 +85,7 @@ describe('maxListPos tracking from server response (Fix 14)', () => {
             tasks: []
         });
 
-        const result = await syncWithTrello(board, makeMappingConfig());
+        await syncWithTrello(board, makeMappingConfig());
         expect(listCreations).toHaveLength(2);
         // Without server pos, second list should still be 16384 higher than first
         expect(listCreations[1].pos).toBe(listCreations[0].pos + 16384);

@@ -1004,7 +1004,7 @@ describe('syncWithTrello — card-as-action', () => {
             })]
         }));
 
-        const { board: synced, result } = await syncWithTrello(board, { labelMappings: {} });
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
 
         // Task should be recreated as a checklist item
         expect(addTrelloChecklistItems).toHaveBeenCalled();

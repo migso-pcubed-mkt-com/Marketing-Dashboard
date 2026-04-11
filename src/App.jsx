@@ -369,11 +369,9 @@ const App = () => {
 
     // Data loading on mount
     useEffect(() => {
-        console.log('🚀 Loading data...', useSupabase ? '(Supabase)' : '(GitHub fallback)');
         setGithubToken(useSupabase ? 'supabase' : 'vercel-api');
 
         const mountTimer = setTimeout(() => {
-            console.log('✅ App mounted, activating interface');
             setDataLoaded(true);
         }, 100);
 
@@ -475,23 +473,19 @@ const App = () => {
     // Auto-save with debounce
     useEffect(() => {
         if (!dataLoaded || !loadCompleted || !boardData || isReceivingRealtimeRef.current) return;
-        console.log('🔄 Data modified, auto-save...');
         setSavingStatus('saving');
         if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); }
         const delay = useSupabase ? 1000 : 2000;
         const doSave = async () => {
             if (isUserInteractingRef.current || isSyncInProgress()) {
-                console.log('⏳ User interacting or sync in progress, delaying save...');
                 autoSaveTimeoutRef.current = setTimeout(doSave, 500);
                 return;
             }
-            console.log('💾 Auto-save triggered...');
             // Pre-save conflict check: detect if another user saved since our last sync
             if (useSupabase && serverUpdatedAtRef.current) {
                 try {
                     const server = await fetchServerState();
                     if (server && server.updated_at !== serverUpdatedAtRef.current && server.board_data?.version === 2) {
-                        console.log('🔄 Pre-save: merging with server changes before saving');
                         boardDataRef.current = mergeBoardsEntityLevel(boardDataRef.current, server.board_data);
                         serverUpdatedAtRef.current = server.updated_at;
                     }
@@ -606,7 +600,6 @@ const App = () => {
     // Process a Realtime payload: validate, entity-level merge, save backup
     const processRealtimePayload = (payload) => {
         const d = payload.new;
-        console.log('🔄 Realtime update received from Supabase');
         isReceivingRealtimeRef.current = true;
         let incoming = null;
         if (d.board_data && d.board_data.version === 2) {
@@ -640,25 +633,21 @@ const App = () => {
         if (!dataLoaded) return;
 
         if (useSupabase) {
-            console.log('🔄 Supabase Realtime subscription enabled');
             const channel = supabaseClient.channel('app_data_changes')
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data', filter: 'id=eq.default' }, (payload) => {
                     const d = payload.new;
                     // Skip our own echo — compare _saveId (always check, regardless of guards)
                     const incomingSaveId = d.board_data?._saveId;
                     if (incomingSaveId && incomingSaveId === lastSaveIdRef.current) {
-                        console.log('🔄 Realtime: skipping own echo (saveId match)');
                         return;
                     }
                     // Guard: queue events arriving before initial load completes
                     if (!loadCompletedRef.current) {
-                        console.log('🔄 Realtime: initial load not complete, queuing event');
                         pendingRealtimeRef.current = payload;
                         return;
                     }
                     // Guards active → queue event for later instead of dropping it
                     if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) {
-                        console.log('🔄 Realtime: guards active, queuing event for later');
                         pendingRealtimeRef.current = payload;
                         return;
                     }
@@ -673,7 +662,6 @@ const App = () => {
         }
 
         if (githubToken) {
-            console.log('🔄 GitHub polling enabled (15s)');
             const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin;
             const checkForUpdates = async () => {
                 if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isReceivingRealtimeRef.current || isUserInteractingRef.current || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
@@ -692,7 +680,7 @@ const App = () => {
                             showNotification('✅ Synced with team');
                         }
                     }
-                } catch (e) { console.log('⚠️ Polling error (silent):', e.message); }
+                } catch (_) { /* polling error — silent */ }
             };
             const interval = setInterval(checkForUpdates, 15000);
             return () => clearInterval(interval);
@@ -711,7 +699,6 @@ const App = () => {
             // Re-verify echo (our save might have completed while queued)
             const incomingSaveId = payload.new?.board_data?._saveId;
             if (incomingSaveId && incomingSaveId === lastSaveIdRef.current) return true;
-            console.log('🔄 Realtime: processing queued event');
             processRealtimePayload(payload);
             return true;
         };
@@ -727,7 +714,6 @@ const App = () => {
         const needsOrder = tasks.some(t => t.order === undefined);
         const needsCreatedAt = tasks.some(t => !t.createdAt);
         if (needsOrder || needsCreatedAt) {
-            console.log('🔢 Initializing task properties...');
             setTasks(prev => prev.map((t, idx) => ({
                 ...t,
                 order: t.order !== undefined ? t.order : idx,
@@ -740,7 +726,6 @@ const App = () => {
         if (!dataLoaded || !currentBoard) return;
         const needsOrder = actions.some(a => a.order === undefined);
         if (needsOrder) {
-            console.log('🔢 Initializing action order...');
             setActions(prev => prev.map((a, idx) => ({...a, order: a.order !== undefined ? a.order : idx})));
         }
     }, [dataLoaded, currentBoard, actions.length]);
@@ -1228,7 +1213,6 @@ const App = () => {
                             const localBoardIds = new Set(boardDataRef.current?.boards?.map(b => b.id) || []);
                             const hasNewBoards = freshData.boards.some(b => !localBoardIds.has(b.id));
                             if (hasNewBoards) {
-                                console.log('[Post-sync refresh] Found new boards from Supabase');
                                 isReceivingRealtimeRef.current = true;
                                 setBoardData(freshData);
                                 setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
@@ -1236,7 +1220,6 @@ const App = () => {
                         }
                     } catch (e) {
                         // Silent — best effort refresh
-                        console.log('[Post-sync refresh] Skipped:', e.message);
                     }
                 }, 4000);
             }
@@ -1247,7 +1230,6 @@ const App = () => {
             try {
                 const snapshot = JSON.parse(localStorage.getItem('trello_sync_snapshot'));
                 if (snapshot?.board && Date.now() - snapshot.timestamp < 86400000) {
-                    console.log('[Trello sync] Restoring board from pre-sync snapshot');
                     setBoardData(prev => ({
                         ...prev,
                         boards: prev.boards.map(b => b.id === snapshot.board.id ? snapshot.board : b)
@@ -1279,7 +1261,6 @@ const App = () => {
         // Start polling if current board has Trello sync enabled
         if (currentBoard?.trelloSync?.syncEnabled && currentBoard?.trelloSync?.trelloBoardId) {
             const intervalMs = currentBoard.trelloSync.pollIntervalMs || 60000;
-            console.log(`Trello polling started (${intervalMs / 1000}s)`);
             trelloSyncIntervalRef.current = setInterval(() => handleTrelloSyncRef.current(), intervalMs);
         }
         return () => {

@@ -1,6 +1,6 @@
 // Trello ↔ Dashboard mapping and conversion functions
 
-import { CONFIG, TRELLO_COLORS } from '../config.js';
+import { CONFIG } from '../config.js';
 
 // Statuses that have no Trello equivalent — never overwrite from dueComplete/item.state
 const TRELLO_PROTECTED_STATUSES = new Set(['creating', 'review', 'paused']);
@@ -520,7 +520,7 @@ export const mapTrelloCheckItemToTask = (item, actionId, card, checklistId, chec
 
 // --- Build import data in "card-as-action" mode ---
 export const buildImportDataCardAsAction = (trelloData, mappingConfig) => {
-    const { board, lists, labels, cards, members: trelloMembers } = trelloData;
+    const { board, lists, cards, members: trelloMembers } = trelloData;
 
     // 1. Map lists → categories (same as card-as-task mode)
     const categories = lists

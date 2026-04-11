@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, CONFIG, DEFAULT_ACTIONS, DEFAULT_TASKS, GITHUB_CONFIG } from '../config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config.js';
 import { migrateToV2 } from './migration.js';
 
 // Initialize Supabase client
@@ -7,7 +7,6 @@ const isSupabaseConfigured = SUPABASE_URL !== 'https://YOUR_PROJECT_ID.supabase.
 let supabaseClient = null;
 if (isSupabaseConfigured) {
     supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log('✅ Supabase client initialized');
 } else {
     console.warn('⚠️ Supabase not configured - falling back to GitHub/localStorage storage');
 }
@@ -55,11 +54,9 @@ export const base64DecodeUnicode = (str) => {
 
 export const loadFromSupabase = async (showNotification) => {
     try {
-        console.log('📥 Loading from Supabase...');
         const { data, error } = await supabaseClient.from('app_data').select('*').eq('id', 'default').single();
         if (error) {
             if (error.code === 'PGRST116') {
-                console.log('📝 No data in Supabase, inserting defaults...');
                 const defaultV2 = migrateToV2(null);
                 const defaultData = {
                     id: 'default',
@@ -88,8 +85,6 @@ export const loadFromSupabase = async (showNotification) => {
                     tasks: data.tasks
                 });
             }
-            const board = boardData.boards[0];
-            console.log('✅ Supabase loaded. Boards:', boardData.boards.length, 'Categories:', board?.categories?.length, 'Actions:', board?.actions?.length, 'Tasks:', board?.tasks?.length);
             showNotification('✅ Data loaded from Supabase');
             return boardData;
         }
@@ -140,7 +135,6 @@ export const saveToSupabase = async (boardDataRef, setSyncing, showNotification,
             serverUpdatedAtRef.current = data.updated_at;
         }
 
-        console.log('✅ Supabase save successful');
         return true;
     } catch (e) {
         console.error('Error saving to Supabase:', e);
@@ -170,7 +164,6 @@ export const fetchServerState = async () => {
 
 export const loadDataFromGitHub = async (setFileSha, showNotification, loadFromLocalStorageFn) => {
     try {
-        console.log('📥 Loading from GitHub via Vercel API...');
         const url = `${API_BASE_URL}/api/github`;
         const response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
         if (response.ok) {
