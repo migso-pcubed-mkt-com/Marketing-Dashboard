@@ -4,13 +4,14 @@ import { AppContext } from './context.js';
 import { migrateToV2 } from './lib/migration.js';
 import {
     supabaseClient, isSupabaseConfigured, useSupabase,
-    loadFromSupabase, saveToSupabase,
+    loadFromSupabase, saveToSupabase, fetchServerState,
     loadDataFromGitHub, saveToGitHub,
     loadFromLocalStorage as loadFromLocalStorageFn,
     saveToLocalStorage as saveToLocalStorageFn,
     saveSnapshot,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
+import { mergeBoardsEntityLevel } from './lib/realtimeMerge.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
 import { mergePostSync } from './lib/postSyncMerge.js';
 import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem, deleteTrelloChecklist } from './lib/trello.js';
@@ -284,6 +285,8 @@ const App = () => {
     const isReceivingRealtimeRef = useRef(false);
     const postSaveSyncTimeoutRef = useRef(null);
     const syncRealtimeGuardRef = useRef(false);
+    const pendingRealtimeRef = useRef(null);
+    const serverUpdatedAtRef = useRef(null);
 
     const saveToLocalStorage = () => {
         saveToLocalStorageFn(boardDataRef);
@@ -296,7 +299,7 @@ const App = () => {
             return true;
         }
         if (useSupabase) {
-            const result = await saveToSupabase(boardDataRef, setSyncing, showNotification);
+            const result = await saveToSupabase(boardDataRef, setSyncing, showNotification, serverUpdatedAtRef);
             if (result) {
                 saveToLocalStorage();
                 return true;
@@ -480,6 +483,19 @@ const App = () => {
                 return;
             }
             console.log('💾 Auto-save triggered...');
+            // Pre-save conflict check: detect if another user saved since our last sync
+            if (useSupabase && serverUpdatedAtRef.current) {
+                try {
+                    const server = await fetchServerState();
+                    if (server && server.updated_at !== serverUpdatedAtRef.current && server.board_data?.version === 2) {
+                        console.log('🔄 Pre-save: merging with server changes before saving');
+                        boardDataRef.current = mergeBoardsEntityLevel(boardDataRef.current, server.board_data);
+                        serverUpdatedAtRef.current = server.updated_at;
+                    }
+                } catch (e) {
+                    console.warn('Pre-save conflict check failed (continuing):', e.message);
+                }
+            }
             // Stamp a save ID so Realtime can detect our own echo
             const saveId = crypto.randomUUID();
             lastSaveIdRef.current = saveId;
@@ -583,6 +599,38 @@ const App = () => {
         };
     }, []);
 
+    // Process a Realtime payload: validate, entity-level merge, save backup
+    const processRealtimePayload = (payload) => {
+        const d = payload.new;
+        console.log('🔄 Realtime update received from Supabase');
+        isReceivingRealtimeRef.current = true;
+        let incoming = null;
+        if (d.board_data && d.board_data.version === 2) {
+            incoming = d.board_data;
+        } else if (d.categories) {
+            incoming = migrateToV2({ categories: d.categories, actions: d.actions, tasks: d.tasks });
+        }
+        if (incoming) {
+            incoming = {
+                ...incoming,
+                boards: incoming.boards.map(b => {
+                    const integrity = validateBoardIntegrity(b);
+                    if (integrity.warnings?.length) console.warn('[Realtime] Repaired incoming board:', integrity.warnings);
+                    return integrity.board;
+                })
+            };
+            // Entity-level merge: preserves local edits to different entities
+            setBoardData(prev => {
+                if (!prev?.boards) return incoming;
+                return mergeBoardsEntityLevel(prev, incoming);
+            });
+        }
+        if (d.updated_at) serverUpdatedAtRef.current = d.updated_at;
+        saveToLocalStorage();
+        showNotification('✅ Synced with team');
+        setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
+    };
+
     // Realtime sync
     useEffect(() => {
         if (!dataLoaded) return;
@@ -591,74 +639,20 @@ const App = () => {
             console.log('🔄 Supabase Realtime subscription enabled');
             const channel = supabaseClient.channel('app_data_changes')
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data', filter: 'id=eq.default' }, (payload) => {
-                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
                     const d = payload.new;
-                    // Skip our own echo — compare _saveId
+                    // Skip our own echo — compare _saveId (always check, regardless of guards)
                     const incomingSaveId = d.board_data?._saveId;
                     if (incomingSaveId && incomingSaveId === lastSaveIdRef.current) {
                         console.log('🔄 Realtime: skipping own echo (saveId match)');
                         return;
                     }
-                    console.log('🔄 Realtime update received from Supabase');
-                    isReceivingRealtimeRef.current = true;
-                    // Prefer board_data column (v2)
-                    let incoming = null;
-                    if (d.board_data && d.board_data.version === 2) {
-                        incoming = d.board_data;
-                    } else if (d.categories) {
-                        // Legacy format from another client
-                        incoming = migrateToV2({ categories: d.categories, actions: d.actions, tasks: d.tasks });
+                    // Guards active → queue event for later instead of dropping it
+                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) {
+                        console.log('🔄 Realtime: guards active, queuing event for later');
+                        pendingRealtimeRef.current = payload;
+                        return;
                     }
-                    if (incoming) {
-                        // Validate and repair incoming data before merging
-                        incoming = {
-                            ...incoming,
-                            boards: incoming.boards.map(b => {
-                                const integrity = validateBoardIntegrity(b);
-                                if (integrity.warnings?.length) console.warn('[Realtime] Repaired incoming board:', integrity.warnings);
-                                return integrity.board;
-                            })
-                        };
-                        // Field-by-field merge — preserves local fields missing from incoming
-                        setBoardData(prev => {
-                            if (!prev?.boards) return incoming;
-                            const merged = {
-                                ...prev,
-                                ...incoming,
-                                boards: incoming.boards.map(incomingBoard => {
-                                    const localBoard = prev.boards.find(b => b.id === incomingBoard.id);
-                                    if (!localBoard) return incomingBoard;
-                                    // Merge trelloSync: local as base, incoming on top
-                                    let mergedSync = incomingBoard.trelloSync;
-                                    if (localBoard.trelloSync) {
-                                        mergedSync = { ...localBoard.trelloSync, ...(incomingBoard.trelloSync || {}) };
-                                        // Preserve local syncMode, labelMappings, trelloBoardId if incoming is missing them
-                                        if (localBoard.trelloSync.syncMode && !incomingBoard.trelloSync?.syncMode) {
-                                            mergedSync.syncMode = localBoard.trelloSync.syncMode;
-                                        }
-                                        if (localBoard.trelloSync.labelMappings && !incomingBoard.trelloSync?.labelMappings) {
-                                            mergedSync.labelMappings = localBoard.trelloSync.labelMappings;
-                                        }
-                                        if (localBoard.trelloSync.trelloBoardId && !incomingBoard.trelloSync?.trelloBoardId) {
-                                            mergedSync.trelloBoardId = localBoard.trelloSync.trelloBoardId;
-                                        }
-                                    }
-                                    // Preserve local members if incoming doesn't have them
-                                    const mergedMembers = incomingBoard.members || localBoard.members;
-                                    return {
-                                        ...localBoard,
-                                        ...incomingBoard,
-                                        trelloSync: mergedSync,
-                                        members: mergedMembers
-                                    };
-                                })
-                            };
-                            return merged;
-                        });
-                    }
-                    saveToLocalStorage();
-                    showNotification('✅ Synced with team');
-                    setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
+                    processRealtimePayload(payload);
                 })
                 .subscribe((status) => {
                     if (status === 'SUBSCRIBED') setRealtimeConnected(true);
@@ -682,7 +676,8 @@ const App = () => {
                             showNotification('🔄 Syncing with team...');
                             const result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
                             if (result) {
-                                setBoardData(result);
+                                // Entity-level merge for GitHub polling too
+                                setBoardData(prev => prev?.boards ? mergeBoardsEntityLevel(prev, result) : result);
                             }
                             showNotification('✅ Synced with team');
                         }
@@ -693,6 +688,28 @@ const App = () => {
             return () => clearInterval(interval);
         }
     }, [dataLoaded, githubToken, selectedTask, selectedAction, syncing, savingStatus, fileSha]);
+
+    // Process pending Realtime events when guards clear
+    useEffect(() => {
+        const tryProcessPending = () => {
+            if (!pendingRealtimeRef.current) return true;
+            if (selectedTask || selectedAction || syncing || savingStatus === 'saving') return false;
+            if (isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current) return false;
+            if (autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return false;
+            const payload = pendingRealtimeRef.current;
+            pendingRealtimeRef.current = null;
+            // Re-verify echo (our save might have completed while queued)
+            const incomingSaveId = payload.new?.board_data?._saveId;
+            if (incomingSaveId && incomingSaveId === lastSaveIdRef.current) return true;
+            console.log('🔄 Realtime: processing queued event');
+            processRealtimePayload(payload);
+            return true;
+        };
+        if (tryProcessPending()) return;
+        // Poll for ref-based guards that don't trigger re-renders
+        const interval = setInterval(() => { if (tryProcessPending()) clearInterval(interval); }, 500);
+        return () => clearInterval(interval);
+    }, [selectedTask, selectedAction, syncing, savingStatus, dataLoaded]);
 
     // Auto-initialize order and createdAt
     useEffect(() => {

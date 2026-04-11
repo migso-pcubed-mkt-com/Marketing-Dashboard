@@ -101,35 +101,38 @@ export const loadFromSupabase = async (showNotification) => {
     }
 };
 
-export const saveToSupabase = async (boardDataRef, setSyncing, showNotification) => {
+export const saveToSupabase = async (boardDataRef, setSyncing, showNotification, serverUpdatedAtRef) => {
     if (!supabaseClient) return false;
     setSyncing(true);
     try {
         const boardData = boardDataRef.current;
         // Find active board for backward-compatible legacy columns
         const activeBoard = boardData.boards.find(b => b.id === boardData.currentBoardId) || boardData.boards[0];
-        // Try full save with board_data column
-        const { error } = await supabaseClient.from('app_data').upsert({
+        // Try full save with board_data column — capture updated_at for OCC
+        const { data, error } = await supabaseClient.from('app_data').upsert({
             id: 'default',
             board_data: boardData,
             categories: activeBoard?.categories,
             actions: activeBoard?.actions,
             tasks: activeBoard?.tasks,
             updated_at: new Date().toISOString()
-        });
+        }).select('updated_at').single();
 
         if (error) {
             // If board_data column doesn't exist, retry with legacy columns only
             console.warn('Supabase save with board_data failed, retrying legacy-only:', error.message);
-            const { error: legacyError } = await supabaseClient.from('app_data').upsert({
+            const { data: legacyData, error: legacyError } = await supabaseClient.from('app_data').upsert({
                 id: 'default',
                 board_data: null,
                 categories: activeBoard?.categories,
                 actions: activeBoard?.actions,
                 tasks: activeBoard?.tasks,
                 updated_at: new Date().toISOString()
-            });
+            }).select('updated_at').single();
             if (legacyError) throw legacyError;
+            if (legacyData?.updated_at && serverUpdatedAtRef) serverUpdatedAtRef.current = legacyData.updated_at;
+        } else if (data?.updated_at && serverUpdatedAtRef) {
+            serverUpdatedAtRef.current = data.updated_at;
         }
 
         console.log('✅ Supabase save successful');
@@ -140,6 +143,21 @@ export const saveToSupabase = async (boardDataRef, setSyncing, showNotification)
         return false;
     } finally {
         setSyncing(false);
+    }
+};
+
+// Lightweight fetch for pre-save conflict detection (OCC)
+export const fetchServerState = async () => {
+    if (!supabaseClient) return null;
+    try {
+        const { data } = await supabaseClient.from('app_data')
+            .select('updated_at, board_data')
+            .eq('id', 'default')
+            .single();
+        return data;
+    } catch (e) {
+        console.warn('fetchServerState failed:', e.message);
+        return null;
     }
 };
 
