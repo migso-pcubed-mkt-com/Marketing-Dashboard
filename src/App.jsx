@@ -14,6 +14,7 @@ import {
 import { mergeBoardsEntityLevel } from './lib/realtimeMerge.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
 import { mergePostSync } from './lib/postSyncMerge.js';
+import { applyTaskUpdate, applyBatchTaskUpdate, applyActionUpdate, computeTagPropagation, applyTaskReorder } from './lib/handlers.js';
 import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem, deleteTrelloChecklist } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
@@ -735,71 +736,20 @@ const App = () => {
     const handleSync = useCallback(() => saveData(), []);
 
     const handleUpdateTask = useCallback((taskId, updates) => {
-        setTasks(prev => prev.map(t => {
-            if (t.id !== taskId) return t;
-            const now = new Date().toISOString();
-            const newTask = {...t, ...updates, updatedAt: now};
-            if (updates.dueDate) {
-                const d = new Date(updates.dueDate);
-                newTask.month = d.getMonth();
-            } else if (updates.startDate) {
-                const d = new Date(updates.startDate);
-                newTask.month = d.getMonth();
-            }
-            // Set orderUpdatedAt when order changes (mirrors handleBatchUpdateTasks)
-            if (updates.order !== undefined) newTask.orderUpdatedAt = now;
-            return newTask;
-        }));
+        setTasks(prev => applyTaskUpdate(prev, taskId, updates));
         showNotification('✅ Task updated');
     }, [setTasks, showNotification]);
 
     const handleBatchUpdateTasks = useCallback((updates) => {
-        // updates: [{id, changes}, ...] — apply all in one atomic setTasks call
-        setTasks(prev => prev.map(t => {
-            const u = updates.find(u => u.id === t.id);
-            if (!u) return t;
-            const now = new Date().toISOString();
-            const newTask = {...t, ...u.changes, updatedAt: now};
-            if (u.changes.order !== undefined) newTask.orderUpdatedAt = now;
-            if (u.changes.dueDate) {
-                newTask.month = new Date(u.changes.dueDate).getMonth();
-            } else if (u.changes.startDate) {
-                newTask.month = new Date(u.changes.startDate).getMonth();
-            }
-            return newTask;
-        }));
+        setTasks(prev => applyBatchTaskUpdate(prev, updates));
     }, [setTasks]);
 
     const handleUpdateAction = useCallback((actionId, updates) => {
         const oldAction = actions.find(a => a.id === actionId);
-        setActions(prev => prev.map(a => a.id === actionId ? {...a, ...updates, updatedAt: new Date().toISOString()} : a));
-        // Propagate tag/country changes to linked tasks (union merge: keep task-specific tags)
-        if (oldAction && (updates.tags !== undefined || updates.countries !== undefined)) {
-            const oldTags = new Set(oldAction.tags || []);
-            const oldCountries = new Set(oldAction.countries || []);
-            const newTags = updates.tags !== undefined ? updates.tags : (oldAction.tags || []);
-            const newCountries = updates.countries !== undefined ? updates.countries : (oldAction.countries || []);
-            const tagsChanged = updates.tags !== undefined && JSON.stringify([...(oldAction.tags || [])].sort()) !== JSON.stringify([...newTags].sort());
-            const countriesChanged = updates.countries !== undefined && JSON.stringify([...(oldAction.countries || [])].sort()) !== JSON.stringify([...newCountries].sort());
-            if (tagsChanged || countriesChanged) {
-                const linkedTasks = tasks.filter(t => t.actionId === actionId);
-                if (linkedTasks.length > 0) {
-                    const batchUpdates = linkedTasks.map(task => {
-                        const changes = {};
-                        if (tagsChanged) {
-                            const taskSpecificTags = (task.channels || []).filter(c => !oldTags.has(c));
-                            changes.channels = [...new Set([...newTags, ...taskSpecificTags])];
-                        }
-                        if (countriesChanged) {
-                            const taskSpecificCountries = (task.countries || []).filter(c => !oldCountries.has(c));
-                            changes.countries = [...new Set([...newCountries, ...taskSpecificCountries])];
-                        }
-                        return { id: task.id, changes };
-                    });
-                    handleBatchUpdateTasks(batchUpdates);
-                }
-            }
-        }
+        setActions(prev => applyActionUpdate(prev, actionId, updates));
+        const linkedTasks = tasks.filter(t => t.actionId === actionId);
+        const batchUpdates = computeTagPropagation(oldAction, updates, linkedTasks);
+        if (batchUpdates.length > 0) handleBatchUpdateTasks(batchUpdates);
         showNotification('✅ Action updated');
     }, [actions, tasks, setActions, handleBatchUpdateTasks, showNotification]);
 
@@ -891,50 +841,12 @@ const App = () => {
     }, [tasks, setTasks, showNotification]);
 
     const handleReorderTask = useCallback((draggedId, targetId, position) => {
-        if (draggedId === targetId) return;
         const draggedTask = tasks.find(t => t.id === draggedId);
         const targetTask = tasks.find(t => t.id === targetId);
-        if (!draggedTask || !targetTask) return;
-        const isDifferentMonth = (draggedTask.month !== undefined && targetTask.month !== undefined && draggedTask.month !== targetTask.month);
-        const isDifferentStatus = (draggedTask.status !== undefined && targetTask.status !== undefined && draggedTask.status !== targetTask.status);
-        const isDifferentColumn = isDifferentMonth || isDifferentStatus;
-        let updatedDraggedTask = {...draggedTask};
-        if (isDifferentColumn) {
-            if (isDifferentMonth) {
-                updatedDraggedTask.month = targetTask.month;
-                const year = targetTask.startDate ? new Date(targetTask.startDate).getFullYear() : 2026;
-                const monthIdx = targetTask.month;
-                const startDate = year + '-' + String(monthIdx + 1).padStart(2, '0') + '-01';
-                const lastDay = new Date(year, monthIdx + 1, 0).getDate();
-                const dueDate = year + '-' + String(monthIdx + 1).padStart(2, '0') + '-' + lastDay;
-                updatedDraggedTask.startDate = startDate;
-                updatedDraggedTask.dueDate = dueDate;
-            }
-            if (isDifferentStatus) {
-                updatedDraggedTask.status = targetTask.status;
-            }
-            updatedDraggedTask.updatedAt = new Date().toISOString();
-        }
-        const targetColumnTasks = tasks.filter(t => {
-            if (t.id === draggedId) return true;
-            if (targetTask.month !== undefined) return t.month === targetTask.month;
-            return t.status === targetTask.status;
-        }).map(t => t.id === draggedId ? updatedDraggedTask : t).sort((a, b) => (a.order || 0) - (b.order || 0));
-        const draggedIndex = targetColumnTasks.findIndex(t => t.id === draggedId);
-        const targetIndex = targetColumnTasks.findIndex(t => t.id === targetId);
-        if (draggedIndex === -1 || targetIndex === -1) return;
-        const reordered = [...targetColumnTasks];
-        const [removed] = reordered.splice(draggedIndex, 1);
-        // Recalculate target index AFTER removal (indices shifted)
-        const adjustedTargetIdx = reordered.findIndex(t => t.id === targetId);
-        if (adjustedTargetIdx === -1) return;
-        const insertIndex = position === 'before' ? adjustedTargetIdx : adjustedTargetIdx + 1;
-        reordered.splice(insertIndex, 0, removed);
-        const updatedTasks = reordered.map((t, idx) => ({...t, order: idx}));
-        setTasks(prev => prev.map(t => {
-            const updated = updatedTasks.find(ut => ut.id === t.id);
-            return updated || t;
-        }));
+        if (!draggedTask || !targetTask || draggedId === targetId) return;
+        const isDifferentColumn = (draggedTask.month !== undefined && targetTask.month !== undefined && draggedTask.month !== targetTask.month) ||
+            (draggedTask.status !== undefined && targetTask.status !== undefined && draggedTask.status !== targetTask.status);
+        setTasks(prev => applyTaskReorder(prev, draggedId, targetId, position));
         showNotification(isDifferentColumn ? '✅ Task moved to new column' : '✅ Task reordered');
     }, [tasks, setTasks, showNotification]);
 
