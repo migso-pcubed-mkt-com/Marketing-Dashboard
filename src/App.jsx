@@ -81,8 +81,6 @@ const App = () => {
     const trelloSyncIntervalRef = useRef(null);
     const handleTrelloSyncRef = useRef(null);
 
-    const saveQueueRef = useRef([]);
-    const isSavingRef = useRef(false);
     const createDropdownRef = useRef(null);
     const exportDropdownRef = useRef(null);
     const boardDataRef = useRef(boardData);
@@ -513,6 +511,10 @@ const App = () => {
     // Flush pending save on tab close / navigation away
     useEffect(() => {
         const handleBeforeUnload = () => {
+            if (postSaveSyncTimeoutRef.current) {
+                clearTimeout(postSaveSyncTimeoutRef.current);
+                postSaveSyncTimeoutRef.current = null;
+            }
             if (autoSaveTimeoutRef.current && boardDataRef.current) {
                 clearTimeout(autoSaveTimeoutRef.current);
                 autoSaveTimeoutRef.current = null;
@@ -521,7 +523,14 @@ const App = () => {
             }
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            // Cleanup pending post-save sync on unmount
+            if (postSaveSyncTimeoutRef.current) {
+                clearTimeout(postSaveSyncTimeoutRef.current);
+                postSaveSyncTimeoutRef.current = null;
+            }
+        };
     }, []);
 
     // Network online/offline detection
@@ -663,7 +672,7 @@ const App = () => {
             console.log('🔄 GitHub polling enabled (15s)');
             const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin;
             const checkForUpdates = async () => {
-                if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
+                if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isReceivingRealtimeRef.current || isUserInteractingRef.current || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
                 try {
                     const url = `${API_BASE_URL}/api/github`;
                     const response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
