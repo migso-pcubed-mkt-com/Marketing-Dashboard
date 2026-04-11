@@ -67,6 +67,7 @@ const App = () => {
     // (showFilterSidebar, searchInputRef, filteredTasks etc. are in useFilters hook)
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [dataLoaded, setDataLoaded] = useState(false);
+    const [loadCompleted, setLoadCompleted] = useState(false); // true only after cloud/local data fully loaded — gates auto-save
     const [fileSha, setFileSha] = useState(() => {
         return localStorage.getItem('github_file_sha') || '';
     });
@@ -94,7 +95,9 @@ const App = () => {
     const fileShaRef = useRef(fileSha);
     const isUserInteractingRef = useRef(false);
     const justSavedTimestampRef = useRef(0);
-    const lastSaveIdRef = useRef(null);
+    // Restore last save ID from sessionStorage to detect echoes after page reload
+    const lastSaveIdRef = useRef(sessionStorage.getItem('mkt_last_save_id') || null);
+    const loadCompletedRef = useRef(false);
 
     // --- Derive active board data ---
     const currentBoard = useMemo(() => {
@@ -381,6 +384,7 @@ const App = () => {
                 setBoardData(fallbackData);
                 setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
             }
+            setLoadCompleted(true);
         }, 5000);
 
         const loadData = async () => {
@@ -399,6 +403,7 @@ const App = () => {
                     saveToLocalStorage();
                 }
                 clearTimeout(timeoutId);
+                setLoadCompleted(true);
             } catch (err) {
                 console.error('Error loading data:', err);
                 clearTimeout(timeoutId);
@@ -407,6 +412,7 @@ const App = () => {
                     setBoardData(fallbackData);
                     setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
                 }
+                setLoadCompleted(true);
             }
         };
         loadData();
@@ -461,13 +467,14 @@ const App = () => {
         else { localStorage.removeItem('github_file_sha'); }
     }, [fileSha]);
 
-    // Keep boardDataRef in sync
+    // Keep refs in sync with state
     useEffect(() => { boardDataRef.current = boardData; }, [boardData]);
     useEffect(() => { fileShaRef.current = fileSha; }, [fileSha]);
+    useEffect(() => { loadCompletedRef.current = loadCompleted; }, [loadCompleted]);
 
     // Auto-save with debounce
     useEffect(() => {
-        if (!dataLoaded || !boardData || isReceivingRealtimeRef.current) return;
+        if (!dataLoaded || !loadCompleted || !boardData || isReceivingRealtimeRef.current) return;
         console.log('🔄 Data modified, auto-save...');
         setSavingStatus('saving');
         if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); }
@@ -495,6 +502,7 @@ const App = () => {
             // Stamp a save ID so Realtime can detect our own echo
             const saveId = crypto.randomUUID();
             lastSaveIdRef.current = saveId;
+            try { sessionStorage.setItem('mkt_last_save_id', saveId); } catch (_) {}
             boardDataRef.current = { ...boardDataRef.current, _saveId: saveId };
             const success = await saveData();
             setSavingStatus(success ? 'saved' : 'error');
@@ -518,7 +526,7 @@ const App = () => {
         };
         autoSaveTimeoutRef.current = setTimeout(doSave, delay);
         return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); };
-    }, [boardData, dataLoaded, githubToken]);
+    }, [boardData, dataLoaded, loadCompleted, githubToken]);
 
     // Flush pending save on tab close / navigation away
     useEffect(() => {
@@ -640,6 +648,12 @@ const App = () => {
                     const incomingSaveId = d.board_data?._saveId;
                     if (incomingSaveId && incomingSaveId === lastSaveIdRef.current) {
                         console.log('🔄 Realtime: skipping own echo (saveId match)');
+                        return;
+                    }
+                    // Guard: queue events arriving before initial load completes
+                    if (!loadCompletedRef.current) {
+                        console.log('🔄 Realtime: initial load not complete, queuing event');
+                        pendingRealtimeRef.current = payload;
                         return;
                     }
                     // Guards active → queue event for later instead of dropping it

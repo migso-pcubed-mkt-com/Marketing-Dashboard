@@ -103,9 +103,14 @@ export const loadFromSupabase = async (showNotification) => {
 
 export const saveToSupabase = async (boardDataRef, setSyncing, showNotification, serverUpdatedAtRef) => {
     if (!supabaseClient) return false;
+    // Guard: never overwrite cloud with empty/invalid data
+    const boardData = boardDataRef.current;
+    if (!boardData?.boards?.length) {
+        console.warn('⛔ saveToSupabase blocked: boardData is empty or has no boards');
+        return false;
+    }
     setSyncing(true);
     try {
-        const boardData = boardDataRef.current;
         // Find active board for backward-compatible legacy columns
         const activeBoard = boardData.boards.find(b => b.id === boardData.currentBoardId) || boardData.boards[0];
         // Try full save with board_data column — capture updated_at for OCC
@@ -209,9 +214,15 @@ export const loadDataFromGitHub = async (setFileSha, showNotification, loadFromL
 };
 
 export const saveToGitHub = async (boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification) => {
+    // Guard: never overwrite cloud with empty/invalid data
+    const boardData = boardDataRef.current;
+    if (!boardData?.boards?.length) {
+        console.warn('⛔ saveToGitHub blocked: boardData is empty or has no boards');
+        return false;
+    }
     setSyncing(true);
     try {
-        const jsonString = JSON.stringify(boardDataRef.current, null, 2);
+        const jsonString = JSON.stringify(boardData, null, 2);
         const content = base64EncodeUnicode(jsonString);
         const body = { message: `Update data from Marketing Tracker - ${new Date().toISOString()}`, content, sha: fileShaRef.current || undefined };
         const url = `${API_BASE_URL}/api/github`;
