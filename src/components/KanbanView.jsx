@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, memo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
@@ -622,4 +622,4 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     );
 };
 
-export default KanbanView;
+export default memo(KanbanView);

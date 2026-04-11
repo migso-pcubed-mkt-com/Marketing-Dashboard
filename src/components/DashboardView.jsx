@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 
@@ -120,4 +121,4 @@ const DashboardView = ({categories, actions, tasks, members = []}) => {
     );
 };
 
-export default DashboardView;
+export default memo(DashboardView);

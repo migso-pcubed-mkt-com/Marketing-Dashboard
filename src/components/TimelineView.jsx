@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon, PriorityIcon } from './Icons.jsx';
 
@@ -1342,4 +1342,4 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     );
 };
 
-export default TimelineView;
+export default memo(TimelineView);

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, memo } from 'react';
 import { CONFIG } from '../config.js';
 import { useApp } from '../context.js';
 
@@ -132,4 +132,4 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
     );
 };
 
-export default TaskCard;
+export default memo(TaskCard);

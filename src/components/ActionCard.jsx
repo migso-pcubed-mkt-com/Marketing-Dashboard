@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, memo } from 'react';
 import { CONFIG } from '../config.js';
 import { useApp } from '../context.js';
 import { useTouchDrag } from '../hooks/useTouchDrag.js';
@@ -94,4 +94,4 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
     );
 };
 
-export default ActionCard;
+export default memo(ActionCard);

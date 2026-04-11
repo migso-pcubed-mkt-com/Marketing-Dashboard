@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { CONFIG, DEFAULT_ACTIONS, DEFAULT_TASKS, GITHUB_CONFIG } from './config.js';
 import { AppContext } from './context.js';
 import { migrateToV2 } from './lib/migration.js';
@@ -19,19 +19,23 @@ import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } f
 import Header from './components/Header.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import OnboardingOverlay from './components/OnboardingOverlay.jsx';
-import TrelloImportModal from './components/TrelloImportModal.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
-import KanbanView from './components/KanbanView.jsx';
-import TimelineView from './components/TimelineView.jsx';
-import DashboardView from './components/DashboardView.jsx';
-import CalendarView from './components/CalendarView.jsx';
 import FilterSidebar from './components/FilterSidebar.jsx';
-import TaskDetailModal from './components/TaskDetailModal.jsx';
-import ActionDetailModal from './components/ActionDetailModal.jsx';
-import CategoriesManagementModal from './components/CategoriesManagementModal.jsx';
-import NewActionModal from './components/NewActionModal.jsx';
-import NewTaskModal from './components/NewTaskModal.jsx';
 import AuthGate from './components/AuthGate.jsx';
+
+// Lazy-loaded views
+const KanbanView = lazy(() => import('./components/KanbanView.jsx'));
+const TimelineView = lazy(() => import('./components/TimelineView.jsx'));
+const CalendarView = lazy(() => import('./components/CalendarView.jsx'));
+const DashboardView = lazy(() => import('./components/DashboardView.jsx'));
+
+// Lazy-loaded modals
+const TaskDetailModal = lazy(() => import('./components/TaskDetailModal.jsx'));
+const ActionDetailModal = lazy(() => import('./components/ActionDetailModal.jsx'));
+const CategoriesManagementModal = lazy(() => import('./components/CategoriesManagementModal.jsx'));
+const NewActionModal = lazy(() => import('./components/NewActionModal.jsx'));
+const NewTaskModal = lazy(() => import('./components/NewTaskModal.jsx'));
+const TrelloImportModal = lazy(() => import('./components/TrelloImportModal.jsx'));
 
 const API_BASE_URL = typeof window !== 'undefined'
     ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
@@ -1545,12 +1549,15 @@ const App = () => {
                         </div>
                     )}
                     <ErrorBoundary>
+                    <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="animate-spin w-8 h-8 border-3 rounded-full" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/></div>}>
                     {currentView === 'kanban' && <KanbanView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={visibleActions} tasks={visibleTasks} members={currentBoard?.members || []}/>}
+                    </Suspense>
                     </ErrorBoundary>
                 </main>
+                <Suspense fallback={null}>
                 {selectedTask && <TaskDetailModal categories={categories} task={tasks.find(t => t.id === selectedTask.id) || selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={currentBoard?.members || []} isReadOnly={isReadOnly} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()}/>}
                 {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={actions.find(a => a.id === selectedAction.id) || selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onOpenTask={handleOpenTask} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={currentBoard?.members || []} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup} onDeleteTaskGroup={handleDeleteTaskGroup}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
@@ -1558,6 +1565,7 @@ const App = () => {
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                 {showTrelloImportModal && <TrelloImportModal onClose={() => setShowTrelloImportModal(false)} onImport={handleTrelloImport}/>}
                 {showTrelloRemapModal && currentBoard?.trelloSync?.trelloBoardId && <TrelloImportModal mappingOnly trelloBoardId={currentBoard.trelloSync.trelloBoardId} existingMappings={currentBoard.trelloSync.labelMappings} onClose={() => setShowTrelloRemapModal(false)} onSaveMappings={(mappings) => handleUpdateTrelloSyncSettings({ labelMappings: mappings })}/>}
+                </Suspense>
                 <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={currentBoard?.members || []} searchInputRef={searchInputRef}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
                 {showOnboarding && <OnboardingOverlay onClose={() => { setShowOnboarding(false); localStorage.setItem('onboarding_done', '1'); }}/>}
