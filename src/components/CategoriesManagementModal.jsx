@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useFocusTrap } from '../hooks/useFocusTrap.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Icon } from './Icons.jsx';
 
 const CategoriesManagementModal = ({categories, onClose, onUpdate, onAdd, onDelete, onReorder}) => {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useFocusTrap } from '../hooks/useFocusTrap.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Icon } from './Icons.jsx';
 import { CONFIG, TRELLO_COLORS, TRELLO_SYNC_MODES } from '../config.js';
 import { fetchTrelloBoards, fetchTrelloBoardFull, checkTrelloConnection } from '../lib/trello.js';

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { CONFIG } from '../config.js';
-import { useFocusTrap } from '../hooks/useFocusTrap.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Icon, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 

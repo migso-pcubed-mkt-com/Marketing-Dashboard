@@ -15,26 +15,21 @@ const FOCUSABLE_SELECTOR = [
  * - On mount: focuses the first focusable element (or the container).
  * - Tab / Shift+Tab cycle through focusable children.
  * - On unmount: restores focus to the element that was focused before the dialog opened.
- *
- * @param {boolean} isOpen — whether the dialog is currently visible
- * @returns {React.RefObject} — attach this ref to the dialog container element
  */
-export function useFocusTrap(isOpen) {
-    const containerRef = useRef(null);
-    const previousFocusRef = useRef(null);
+export function useFocusTrap(isOpen: boolean): React.RefObject<HTMLDivElement | null> {
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const previousFocusRef = useRef<Element | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
 
-        // Remember what was focused before the dialog opened
         previousFocusRef.current = document.activeElement;
 
         const container = containerRef.current;
         if (!container) return;
 
-        // Focus the first focusable element, or the container itself
         const focusFirst = () => {
-            const first = container.querySelector(FOCUSABLE_SELECTOR);
+            const first = container.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
             if (first) {
                 first.focus();
             } else {
@@ -42,26 +37,23 @@ export function useFocusTrap(isOpen) {
             }
         };
 
-        // Small delay to let the DOM render
         const raf = requestAnimationFrame(focusFirst);
 
-        const handleKeyDown = (e) => {
+        const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key !== 'Tab') return;
 
-            const focusable = [...container.querySelectorAll(FOCUSABLE_SELECTOR)];
+            const focusable = [...container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)];
             if (focusable.length === 0) return;
 
             const first = focusable[0];
             const last = focusable[focusable.length - 1];
 
             if (e.shiftKey) {
-                // Shift+Tab: wrap from first → last
                 if (document.activeElement === first || !container.contains(document.activeElement)) {
                     e.preventDefault();
                     last.focus();
                 }
             } else {
-                // Tab: wrap from last → first
                 if (document.activeElement === last || !container.contains(document.activeElement)) {
                     e.preventDefault();
                     first.focus();
@@ -74,9 +66,8 @@ export function useFocusTrap(isOpen) {
         return () => {
             cancelAnimationFrame(raf);
             document.removeEventListener('keydown', handleKeyDown, true);
-            // Restore focus to the previously focused element
-            if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
-                previousFocusRef.current.focus();
+            if (previousFocusRef.current && typeof (previousFocusRef.current as HTMLElement).focus === 'function') {
+                (previousFocusRef.current as HTMLElement).focus();
             }
         };
     }, [isOpen]);

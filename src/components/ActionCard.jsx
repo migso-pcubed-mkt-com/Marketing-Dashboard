@@ -1,7 +1,7 @@
 import { useState, useRef, memo } from 'react';
 import { CONFIG } from '../config.js';
 import { useBoard } from '../context.js';
-import { useTouchDrag } from '../hooks/useTouchDrag.js';
+import { useTouchDrag } from '../hooks/useTouchDrag';
 
 const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderAction, isReadOnly, onUpdateAction}) => {
     const { currentBoard } = useBoard();

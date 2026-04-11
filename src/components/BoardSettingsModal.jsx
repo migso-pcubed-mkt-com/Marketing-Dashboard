@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBoard } from '../context.js';
-import { useFocusTrap } from '../hooks/useFocusTrap.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Icon } from './Icons.jsx';
 import { TRELLO_SYNC_INTERVALS } from '../config.js';
 

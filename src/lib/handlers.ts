@@ -1,14 +1,21 @@
+import type { Task, Action } from '../types';
+
 /**
  * Pure transformation functions for CRUD handlers.
  * These are the lambdas extracted from setTasks(prev => ...) and similar patterns.
  * Each function is pure: (state, ...args) => newState, with no side effects.
  */
 
+interface BatchUpdate {
+    id: string;
+    changes: Partial<Task>;
+}
+
 /**
  * Apply updates to a single task by ID.
  * Recalculates month from dueDate/startDate, sets orderUpdatedAt on order changes.
  */
-export function applyTaskUpdate(tasks, taskId, updates, now = new Date().toISOString()) {
+export function applyTaskUpdate(tasks: Task[], taskId: string, updates: Partial<Task>, now = new Date().toISOString()): Task[] {
     return tasks.map(t => {
         if (t.id !== taskId) return t;
         const newTask = { ...t, ...updates, updatedAt: now };
@@ -26,7 +33,7 @@ export function applyTaskUpdate(tasks, taskId, updates, now = new Date().toISOSt
  * Apply batch updates to multiple tasks atomically.
  * Each entry: { id, changes }
  */
-export function applyBatchTaskUpdate(tasks, updates, now = new Date().toISOString()) {
+export function applyBatchTaskUpdate(tasks: Task[], updates: BatchUpdate[], now = new Date().toISOString()): Task[] {
     return tasks.map(t => {
         const u = updates.find(u => u.id === t.id);
         if (!u) return t;
@@ -44,7 +51,7 @@ export function applyBatchTaskUpdate(tasks, updates, now = new Date().toISOStrin
 /**
  * Apply update to a single action by ID.
  */
-export function applyActionUpdate(actions, actionId, updates, now = new Date().toISOString()) {
+export function applyActionUpdate(actions: Action[], actionId: string, updates: Partial<Action>, now = new Date().toISOString()): Action[] {
     return actions.map(a =>
         a.id === actionId ? { ...a, ...updates, updatedAt: now } : a
     );
@@ -54,7 +61,7 @@ export function applyActionUpdate(actions, actionId, updates, now = new Date().t
  * Compute tag propagation batch updates when action tags/countries change.
  * Returns array of { id, changes } for linked tasks, or empty array if no propagation needed.
  */
-export function computeTagPropagation(oldAction, updates, linkedTasks) {
+export function computeTagPropagation(oldAction: Action | undefined, updates: Partial<Action>, linkedTasks: Task[]): BatchUpdate[] {
     if (!oldAction || (updates.tags === undefined && updates.countries === undefined)) return [];
 
     const oldTags = new Set(oldAction.tags || []);
@@ -68,7 +75,7 @@ export function computeTagPropagation(oldAction, updates, linkedTasks) {
     if (linkedTasks.length === 0) return [];
 
     return linkedTasks.map(task => {
-        const changes = {};
+        const changes: Partial<Task> = {};
         if (tagsChanged) {
             const taskSpecificTags = (task.channels || []).filter(c => !oldTags.has(c));
             changes.channels = [...new Set([...newTags, ...taskSpecificTags])];
@@ -85,7 +92,7 @@ export function computeTagPropagation(oldAction, updates, linkedTasks) {
  * Reorder tasks: move dragged task to target position.
  * Returns the updated tasks array with new order values.
  */
-export function applyTaskReorder(tasks, draggedId, targetId, position) {
+export function applyTaskReorder(tasks: Task[], draggedId: string, targetId: string, position: 'before' | 'after'): Task[] {
     if (draggedId === targetId) return tasks;
 
     const draggedTask = tasks.find(t => t.id === draggedId);
@@ -101,7 +108,7 @@ export function applyTaskReorder(tasks, draggedId, targetId, position) {
         if (isDifferentMonth) {
             updatedDraggedTask.month = targetTask.month;
             const year = targetTask.startDate ? new Date(targetTask.startDate).getFullYear() : 2026;
-            const monthIdx = targetTask.month;
+            const monthIdx = targetTask.month!;
             const startDate = year + '-' + String(monthIdx + 1).padStart(2, '0') + '-01';
             const lastDay = new Date(year, monthIdx + 1, 0).getDate();
             const dueDate = year + '-' + String(monthIdx + 1).padStart(2, '0') + '-' + lastDay;

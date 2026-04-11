@@ -14,7 +14,7 @@ import {
 import { mergeBoardsEntityLevel } from './lib/realtimeMerge.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
 import { mergePostSync } from './lib/postSyncMerge.js';
-import { applyTaskUpdate, applyBatchTaskUpdate, applyActionUpdate, computeTagPropagation, applyTaskReorder } from './lib/handlers.js';
+import { applyTaskUpdate, applyBatchTaskUpdate, applyActionUpdate, computeTagPropagation, applyTaskReorder } from './lib/handlers';
 import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem, deleteTrelloChecklist } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
