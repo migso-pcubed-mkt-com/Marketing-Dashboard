@@ -23,6 +23,7 @@ import { Icon, StatusIcon } from './components/Icons.jsx';
 import FilterSidebar from './components/FilterSidebar.jsx';
 import AuthGate from './components/AuthGate.jsx';
 import { ViewSkeleton } from './components/Skeletons.jsx';
+import { useFilters } from './hooks/useFilters.js';
 
 // Lazy-loaded views
 const KanbanView = lazy(() => import('./components/KanbanView.jsx'));
@@ -50,7 +51,6 @@ const App = () => {
     const [boardData, setBoardData] = useState(null);
     const [currentBoardId, setCurrentBoardId] = useState('board-default');
 
-    const [filters, setFilters] = useState({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
     const [syncing, setSyncing] = useState(false);
     const [savingStatus, setSavingStatus] = useState(null);
     const [selectedTask, setSelectedTask] = useState(null);
@@ -63,7 +63,7 @@ const App = () => {
     const [newTaskInitialValues, setNewTaskInitialValues] = useState(null);
     const [showCreateDropdown, setShowCreateDropdown] = useState(false);
     const [showExportDropdown, setShowExportDropdown] = useState(false);
-    const [showFilterSidebar, setShowFilterSidebar] = useState(false);
+    // (showFilterSidebar, searchInputRef, filteredTasks etc. are in useFilters hook)
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [dataLoaded, setDataLoaded] = useState(false);
     const [fileSha, setFileSha] = useState(() => {
@@ -94,7 +94,6 @@ const App = () => {
     const isUserInteractingRef = useRef(false);
     const justSavedTimestampRef = useRef(0);
     const lastSaveIdRef = useRef(null);
-    const searchInputRef = useRef(null);
 
     // --- Derive active board data ---
     const currentBoard = useMemo(() => {
@@ -107,17 +106,8 @@ const App = () => {
     const tasks = currentBoard?.tasks || DEFAULT_TASKS;
     const boards = boardData?.boards || [];
 
-    // Archived tasks/actions are hidden by default.
-    // User can show them via the "Show archived" filter checkbox.
-    const visibleTasks = useMemo(() => {
-        if (filters.showArchived) return tasks;
-        return tasks.filter(t => !t.trelloArchived);
-    }, [tasks, filters.showArchived]);
-
-    const visibleActions = useMemo(() => {
-        if (filters.showArchived) return actions;
-        return actions.filter(a => !a.trelloArchived);
-    }, [actions, filters.showArchived]);
+    // --- Filters, archive filtering, and derived filter state ---
+    const { filters, setFilters, showFilterSidebar, setShowFilterSidebar, searchInputRef, visibleTasks, visibleActions, activeFilterCount, filteredTasks, filteredBudget, isFiltered } = useFilters(tasks, actions);
 
     // Guest users are read-only on Trello-linked boards (can edit non-Trello boards)
     const isReadOnly = !trelloUser && !!currentBoard?.trelloSync?.trelloBoardId;
@@ -1424,27 +1414,6 @@ const App = () => {
     }, [categories, actions, tasks, currentBoard, showNotification]);
 
     const totalBudget = tasks.reduce((s, t) => s + (t.budget || 0), 0);
-    const completedCount = tasks.filter(t => t.status === 'completed').length;
-    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
-
-    // Filtered tasks for stats — same logic as views (visibleTasks already excludes archived)
-    const filteredTasks = useMemo(() => {
-        if (!activeFilterCount) return visibleTasks;
-        return visibleTasks.filter(t => {
-            const act = actions.find(a => a.id === t.actionId);
-            if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
-            if (filters.status.length > 0 && !filters.status.includes(t.status)) return false;
-            if (filters.category.length > 0 && !filters.category.includes(act?.categoryId)) return false;
-            if (filters.priority.length > 0 && !filters.priority.includes(t.priority)) return false;
-            if (filters.channel?.length > 0 && !(t.channels||[]).some(c => filters.channel.includes(c))) return false;
-            if (filters.country?.length > 0 && !(t.countries||[]).some(c => filters.country.includes(c))) return false;
-            if (filters.otherLabel?.length > 0 && !(t.otherLabels||[]).some(l => filters.otherLabel.includes(l.id))) return false;
-            if (filters.member?.length > 0 && !(t.assignees||[]).some(m => filters.member.includes(m))) return false;
-            return true;
-        });
-    }, [visibleTasks, actions, filters, activeFilterCount]);
-    const filteredBudget = filteredTasks.reduce((s, t) => s + (t.budget || 0), 0);
-    const isFiltered = activeFilterCount > 0;
 
     // --- Context values (split for targeted re-renders) ---
     const boardContextValue = useMemo(() => ({
