@@ -276,9 +276,10 @@ const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDelet
                     console.error('[Trello sync] Failed to push checklist items:', e.message);
                 }
             }
-            // Sync state, name, due, and assignee of existing items
+            // Sync state, name, due, and assignee of existing items (parallel)
             const trelloChecklistFull = card.checklists?.find(c => c.id === existing.id);
             if (trelloChecklistFull?.checkItems) {
+                const itemUpdates = [];
                 for (const localItem of (cl.items || [])) {
                     if (!localItem.text) continue;
                     const trelloItem = localItem.trelloCheckItemId
@@ -302,16 +303,15 @@ const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDelet
                         const trelloMember = trelloItem.idMember || null;
                         if (localAssignee !== trelloMember) updates.idMember = localAssignee;
                         if (Object.keys(updates).length > 0) {
-                            try {
-                                await updateTrelloChecklistItem(task.trelloCardId, trelloItem.id, updates);
-                                pushed.checklists++;
-                                taskModified = true;
-                            } catch (e) {
-                                console.error(`Failed to update checkItem "${localItem.text}":`, e.message);
-                            }
+                            itemUpdates.push(
+                                updateTrelloChecklistItem(task.trelloCardId, trelloItem.id, updates)
+                                    .then(() => { pushed.checklists++; taskModified = true; })
+                                    .catch(e => console.error(`Failed to update checkItem "${localItem.text}":`, e.message))
+                            );
                         }
                     }
                 }
+                if (itemUpdates.length > 0) await Promise.all(itemUpdates);
             }
         } else if (cl.trelloChecklistId) {
             // Checklist had a Trello ID but no longer exists on Trello → deleted on Trello side
@@ -397,48 +397,50 @@ const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDelet
         taskModified = true;
     }
 
-    // Push attachments not yet on Trello (URL-based or file uploads)
+    // Push attachments not yet on Trello (URL-based or file uploads — parallel)
     const trelloAttUrls = new Set((card.attachments || []).map(a => a.url));
+    const attUploads = [];
     for (const att of (task.attachments || [])) {
         if (att.trelloAttachmentId) continue; // Already on Trello
 
-        try {
-            let result = null;
-            if (att.url && !trelloAttUrls.has(att.url)) {
-                // URL attachment — push URL directly
-                result = await addTrelloAttachment(task.trelloCardId, att.url, att.name);
-            } else if (att.data && !att.url) {
-                // Local file upload (base64) — upload file to Trello
-                result = await uploadTrelloAttachment(task.trelloCardId, att.data, att.name, att.type);
-            }
-            if (result?.id) {
-                att.trelloAttachmentId = result.id;
-                if (result.url) att.url = result.url; // Store the Trello URL for future reference
-                taskModified = true;
-                pushed.attachments++;
-            }
-        } catch (e) {
-            console.error('Failed to push attachment:', att.name, e);
+        let uploadFn = null;
+        if (att.url && !trelloAttUrls.has(att.url)) {
+            uploadFn = () => addTrelloAttachment(task.trelloCardId, att.url, att.name);
+        } else if (att.data && !att.url) {
+            uploadFn = () => uploadTrelloAttachment(task.trelloCardId, att.data, att.name, att.type);
+        }
+        if (uploadFn) {
+            attUploads.push(
+                uploadFn()
+                    .then(result => {
+                        if (result?.id) {
+                            att.trelloAttachmentId = result.id;
+                            if (result.url) att.url = result.url;
+                            taskModified = true;
+                            pushed.attachments++;
+                        }
+                    })
+                    .catch(e => console.error('Failed to push attachment:', att.name, e))
+            );
         }
     }
+    if (attUploads.length > 0) await Promise.all(attUploads);
 
-    // Delete checklists/attachments removed locally but still on Trello.
+    // Delete checklists/attachments removed locally but still on Trello (parallel).
     // Skip when both sides changed (skipDeletions=true) — Trello-only items are preserved and merged later.
     if (!skipDeletions) {
+        const deletionOps = [];
         // Safety: only delete if the task actually has local checklists (owns the card's checklists).
         // Tasks with no local checklists should never trigger deletion — avoids wiping card-as-action checklists.
         const localChecklistIds = new Set(taskChecklists.filter(cl => cl.trelloChecklistId).map(cl => cl.trelloChecklistId));
         if (localChecklistIds.size > 0) {
             for (const cl of (card.checklists || [])) {
                 if (!localChecklistIds.has(cl.id)) {
-                    try {
-                        await deleteTrelloChecklist(cl.id);
-                        console.log(`[Trello sync] Deleted checklist "${cl.name}" from Trello`);
-                        pushed.checklists++;
-                        taskModified = true;
-                    } catch (e) {
-                        console.error('Failed to delete checklist:', cl.name, e.message);
-                    }
+                    deletionOps.push(
+                        deleteTrelloChecklist(cl.id)
+                            .then(() => { console.log(`[Trello sync] Deleted checklist "${cl.name}" from Trello`); pushed.checklists++; taskModified = true; })
+                            .catch(e => console.error('Failed to delete checklist:', cl.name, e.message))
+                    );
                 }
             }
         }
@@ -447,16 +449,14 @@ const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDelet
         const localAttIds = new Set((task.attachments || []).filter(a => a.trelloAttachmentId).map(a => a.trelloAttachmentId));
         for (const att of (card.attachments || [])) {
             if (!localAttIds.has(att.id)) {
-                try {
-                    await deleteTrelloAttachment(task.trelloCardId, att.id);
-                    console.log(`[Trello sync] Deleted attachment "${att.name}" from Trello`);
-                    pushed.attachments++;
-                    taskModified = true;
-                } catch (e) {
-                    console.error('Failed to delete attachment:', att.name, e.message);
-                }
+                deletionOps.push(
+                    deleteTrelloAttachment(task.trelloCardId, att.id)
+                        .then(() => { console.log(`[Trello sync] Deleted attachment "${att.name}" from Trello`); pushed.attachments++; taskModified = true; })
+                        .catch(e => console.error('Failed to delete attachment:', att.name, e.message))
+                );
             }
         }
+        if (deletionOps.length > 0) await Promise.all(deletionOps);
     }
 
     return { pushed, taskModified, deletedChecklistIds };
@@ -576,32 +576,30 @@ const pushActionLabelsToTrello = async (action, card, board, mappingConfig) => {
         }
     }
 
-    // Add missing labels to card
+    // Add/remove labels on card (parallel)
     const currentLabelIds = new Set(card.idLabels || []);
+    const labelOps = [];
     for (const labelId of expectedLabelIds) {
         if (!currentLabelIds.has(labelId)) {
-            try {
-                await addTrelloCardLabel(action.trelloCardId, labelId);
-                modified = true;
-            } catch (e) {
-                console.error(`Failed to add label ${labelId} to action card:`, e.message);
-            }
+            labelOps.push(
+                addTrelloCardLabel(action.trelloCardId, labelId)
+                    .then(() => { modified = true; })
+                    .catch(e => console.error(`Failed to add label ${labelId} to action card:`, e.message))
+            );
         }
     }
-
-    // Remove labels no longer expected (only known mapped labels)
     for (const labelId of currentLabelIds) {
         if (!expectedLabelIds.has(labelId)) {
             if (mappingConfig.labelMappings[labelId]) {
-                try {
-                    await removeTrelloCardLabel(action.trelloCardId, labelId);
-                    modified = true;
-                } catch (e) {
-                    console.error(`Failed to remove label ${labelId} from action card:`, e.message);
-                }
+                labelOps.push(
+                    removeTrelloCardLabel(action.trelloCardId, labelId)
+                        .then(() => { modified = true; })
+                        .catch(e => console.error(`Failed to remove label ${labelId} from action card:`, e.message))
+                );
             }
         }
     }
+    if (labelOps.length > 0) await Promise.all(labelOps);
 
     return { labelsModified: modified };
 };
@@ -697,33 +695,31 @@ const pushTaskLabelsToTrello = async (task, card, board, mappingConfig) => {
         }
     }
 
-    // Add missing labels to card
+    // Add/remove labels on card (parallel)
     const currentLabelIds = new Set(card.idLabels || []);
+    const labelOps = [];
     for (const labelId of expectedLabelIds) {
         if (!currentLabelIds.has(labelId)) {
-            try {
-                await addTrelloCardLabel(task.trelloCardId, labelId);
-                modified = true;
-            } catch (e) {
-                console.error(`Failed to add label ${labelId} to card:`, e.message);
-            }
+            labelOps.push(
+                addTrelloCardLabel(task.trelloCardId, labelId)
+                    .then(() => { modified = true; })
+                    .catch(e => console.error(`Failed to add label ${labelId} to card:`, e.message))
+            );
         }
     }
-
-    // Remove labels no longer expected (except action labels — keep those)
     for (const labelId of currentLabelIds) {
         if (!expectedLabelIds.has(labelId)) {
             // Only remove if we know this label from our mapping (don't touch unknown labels)
             if (mappingConfig.labelMappings[labelId]) {
-                try {
-                    await removeTrelloCardLabel(task.trelloCardId, labelId);
-                    modified = true;
-                } catch (e) {
-                    console.error(`Failed to remove label ${labelId} from card:`, e.message);
-                }
+                labelOps.push(
+                    removeTrelloCardLabel(task.trelloCardId, labelId)
+                        .then(() => { modified = true; })
+                        .catch(e => console.error(`Failed to remove label ${labelId} from card:`, e.message))
+                );
             }
         }
     }
+    if (labelOps.length > 0) await Promise.all(labelOps);
 
     return { labelsModified: modified };
 };
@@ -1446,7 +1442,9 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 try {
                     const created = await createTrelloList(trelloSync.trelloBoardId, cat.name, pos);
                     if (created?.id) {
-                        updatedCategories[i] = { ...cat, trelloListId: created.id, trelloListPos: created.pos || pos, trelloLastModified: new Date().toISOString() };
+                        const actualPos = created.pos || pos;
+                        if (actualPos > maxListPos) maxListPos = actualPos; // Track server position
+                        updatedCategories[i] = { ...cat, trelloListId: created.id, trelloListPos: actualPos, trelloLastModified: new Date().toISOString() };
                         catToListId[cat.id] = created.id;
                         listToCatId[created.id] = cat.id;
                         existingListIds.add(created.id);
@@ -1553,6 +1551,9 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     const integrity = validateBoardIntegrity(syncedBoard);
     if (!integrity.valid) {
         result.integrityWarnings = integrity.warnings;
+    }
+    if (integrity.repairs.length > 0) {
+        result.repairs = integrity.repairs;
     }
 
     return { board: integrity.board || syncedBoard, result };
@@ -1672,7 +1673,9 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     const pos = maxListPosCA;
                     const created = await createTrelloList(trelloSync.trelloBoardId, cat.name, pos);
                     if (created?.id) {
-                        updatedCategories[i] = { ...cat, trelloListId: created.id, trelloListPos: created.pos, trelloLastModified: new Date().toISOString() };
+                        const actualPos = created.pos || pos;
+                        if (actualPos > maxListPosCA) maxListPosCA = actualPos; // Track server position
+                        updatedCategories[i] = { ...cat, trelloListId: created.id, trelloListPos: actualPos, trelloLastModified: new Date().toISOString() };
                         catToListId[cat.id] = created.id;
                         listToCatId[created.id] = cat.id;
                         existingListIds.add(created.id);
@@ -2441,6 +2444,9 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     const integrity = validateBoardIntegrity(syncedBoard);
     if (!integrity.valid) {
         result.integrityWarnings = integrity.warnings;
+    }
+    if (integrity.repairs.length > 0) {
+        result.repairs = integrity.repairs;
     }
 
     return { board: integrity.board || syncedBoard, result };
