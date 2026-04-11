@@ -8,6 +8,8 @@ import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './
 import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
+import CommentsSection from './action-detail/CommentsSection.jsx';
+import AttachmentsSection from './action-detail/AttachmentsSection.jsx';
 
 const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onBatchUpdateTasks,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask,onDeleteTaskGroup})=>{
     const { trelloUser } = useBoard();
@@ -37,8 +39,6 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     const[newTaskTitle,setNewTaskTitle]=useState('');
     const[addTaskPickerGroup,setAddTaskPickerGroup]=useState(null);
     const[pendingGroups,setPendingGroups]=useState([]);
-    const commentFileRef=useRef(null);
-    const attachmentFileRef=useRef(null);
     // Drag state for groups and tasks
     const[dragGroupName,setDragGroupName]=useState(null);
     const[dragTaskId,setDragTaskId]=useState(null);
@@ -770,67 +770,9 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         }):<p className="text-center py-4 text-sm" style={{color:'var(--text-muted)'}}>No tasks yet. Create a task group to get started.</p>}
                     </div>
 
-                    {/* Comments */}
-                    <div className="rounded-xl mb-5" style={sectionCard}>
-                        <div style={{...sectionLabel,marginBottom:10}}>💬 Comments ({(form.comments||[]).length})</div>
-                        {!isReadOnly&&<div style={{marginBottom:(form.comments||[]).length>0?12:0}}>
-                            <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)'}}>
-                                <div style={{padding:'4px 8px',borderBottom:'1px solid var(--border)'}}>
-                                    <WysiwygToolbar editableRef={newCommentEditableRef} onAttach={()=>commentFileRef.current?.click()}/>
-                                </div>
-                                <MentionInput editableRef={newCommentEditableRef} members={members} style={{padding:'8px 12px',minHeight:48}} placeholder="Write a comment..." onSubmit={addComment}/>
-                            </div>
-                            <input ref={commentFileRef} type="file" multiple style={{display:'none'}} onChange={handleCommentFileSelect}/>
-                            {commentAttachments.length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
-                                {commentAttachments.map((att,i)=>(
-                                    <span key={i} style={{fontSize:11,padding:'2px 6px',background:'var(--bg-secondary)',borderRadius:4,display:'flex',alignItems:'center',gap:3}}>📎 {att.name}<button onClick={()=>setCommentAttachments(prev=>prev.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',fontSize:10,color:'var(--text-muted)',padding:0}}>&times;</button></span>
-                                ))}
-                            </div>}
-                            <div style={{display:'flex',justifyContent:'flex-end',marginTop:6}}>
-                                <button onClick={addComment} className="px-3 py-1 text-white rounded-lg text-xs font-medium" style={{background:'#d97706'}}>Comment</button>
-                            </div>
-                        </div>}
-                        {(form.comments||[]).length>0&&<div className="space-y-2">
-                            {(form.comments||[]).slice().sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)).map((comment,idx)=>(
-                                <div key={comment.id||idx} className="p-3 rounded-lg" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>
-                                    <div className="flex justify-between mb-2">
-                                        <span className="font-medium text-sm">{comment.author}</span>
-                                        <span className="text-xs" style={{color:'var(--text-muted)'}}>{comment.date?new Date(comment.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</span>
-                                    </div>
-                                    <div style={{fontSize:13,color:'var(--text-secondary)'}}><SimpleMarkdown text={comment.text}/></div>
-                                    {comment.attachments?.length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:6}}>
-                                        {comment.attachments.map(att=>(
-                                            <a key={att.id||att.name} href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',textDecoration:'none'}}>📎 {att.name}</a>
-                                        ))}
-                                    </div>}
-                                </div>
-                            ))}
-                        </div>}
-                    </div>
+                    <CommentsSection comments={form.comments} isReadOnly={isReadOnly} members={members} sectionCard={sectionCard} sectionLabel={sectionLabel} commentAttachments={commentAttachments} setCommentAttachments={setCommentAttachments} onAddComment={addComment} onCommentFileSelect={handleCommentFileSelect} newCommentEditableRef={newCommentEditableRef}/>
 
-                    {/* Attachments */}
-                    <div className="rounded-xl mb-5" style={sectionCard}>
-                        <div className="flex items-center justify-between mb-2">
-                            <span style={sectionLabel}>Attachments ({(form.attachments||[]).length})</span>
-                            {!isReadOnly&&<button onClick={()=>attachmentFileRef.current?.click()} style={{fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}>+ Add</button>}
-                        </div>
-                        <input ref={attachmentFileRef} type="file" multiple style={{display:'none'}} onChange={handleAttachmentFileSelect}/>
-                        {(form.attachments||[]).length>0?<div className="space-y-2">
-                            {(form.attachments||[]).map(att=>{const thumb=att.thumbnailUrl||att.data||null;return(
-                                <div key={att.id||att.name} className="flex items-center gap-3 p-2 rounded" style={{background:'var(--bg-primary)',border:'1px solid var(--border-light)'}}>
-                                    {thumb?<img src={thumb} alt={att.name} style={{width:32,height:32,objectFit:'cover',borderRadius:4,flexShrink:0}}/>:<span style={{fontSize:16,flexShrink:0}}>📎</span>}
-                                    <a href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:'var(--accent)',textDecoration:'none',display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0}}>
-                                        <span className="truncate">{att.name}</span>
-                                    </a>
-                                    <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
-                                        {att.size&&<span style={{fontSize:10,color:'var(--text-muted)'}}>{(att.size/1024).toFixed(0)}KB</span>}
-                                        {att.date&&<span style={{fontSize:10,color:'var(--text-muted)'}}>{new Date(att.date).toLocaleDateString('en-US',{day:'numeric',month:'short'})}</span>}
-                                        {!isReadOnly&&<button onClick={()=>removeAttachment(att.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:2}}>&times;</button>}
-                                    </div>
-                                </div>
-                            );})}
-                        </div>:<p style={{fontSize:12,color:'var(--text-muted)',fontStyle:'italic'}}>No attachments</p>}
-                    </div>
+                    <AttachmentsSection attachments={form.attachments} isReadOnly={isReadOnly} sectionCard={sectionCard} sectionLabel={sectionLabel} onFileSelect={handleAttachmentFileSelect} onRemove={removeAttachment}/>
 
                     {/* Footer */}
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
