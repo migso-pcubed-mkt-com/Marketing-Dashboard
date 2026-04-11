@@ -739,9 +739,11 @@ const App = () => {
         }
     }, [dataLoaded, currentBoard, actions.length]);
 
-    const handleSync = () => saveData();
+    const showNotification = useCallback((msg) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); }, []);
 
-    const handleUpdateTask = (taskId, updates) => {
+    const handleSync = useCallback(() => saveData(), []);
+
+    const handleUpdateTask = useCallback((taskId, updates) => {
         setTasks(prev => prev.map(t => {
             if (t.id !== taskId) return t;
             const now = new Date().toISOString();
@@ -758,9 +760,9 @@ const App = () => {
             return newTask;
         }));
         showNotification('✅ Task updated');
-    };
+    }, [setTasks, showNotification]);
 
-    const handleBatchUpdateTasks = (updates) => {
+    const handleBatchUpdateTasks = useCallback((updates) => {
         // updates: [{id, changes}, ...] — apply all in one atomic setTasks call
         setTasks(prev => prev.map(t => {
             const u = updates.find(u => u.id === t.id);
@@ -775,9 +777,9 @@ const App = () => {
             }
             return newTask;
         }));
-    };
+    }, [setTasks]);
 
-    const handleUpdateAction = (actionId, updates) => {
+    const handleUpdateAction = useCallback((actionId, updates) => {
         const oldAction = actions.find(a => a.id === actionId);
         setActions(prev => prev.map(a => a.id === actionId ? {...a, ...updates, updatedAt: new Date().toISOString()} : a));
         // Propagate tag/country changes to linked tasks (union merge: keep task-specific tags)
@@ -808,9 +810,9 @@ const App = () => {
             }
         }
         showNotification('✅ Action updated');
-    };
+    }, [actions, tasks, setActions, handleBatchUpdateTasks, showNotification]);
 
-    const handleDeleteAction = async (actionId) => {
+    const handleDeleteAction = useCallback(async (actionId) => {
         // No confirm() here — caller (ActionDetailModal) handles confirmation popup
         const action = actions.find(a => a.id === actionId);
         // Prevent deletion of default action in card-as-task mode (would orphan all tasks)
@@ -850,9 +852,9 @@ const App = () => {
         setActions(prev => prev.filter(a => a.id !== actionId));
         setTasks(prev => prev.filter(t => t.actionId !== actionId));
         showNotification('🗑️ Action deleted');
-    };
+    }, [actions, currentBoard, isReadOnly, updateCurrentBoard, setActions, setTasks, showNotification]);
 
-    const handleAddTask = (actionId, customStartDate = null, customDueDate = null) => {
+    const handleAddTask = useCallback((actionId, customStartDate = null, customDueDate = null) => {
         const action = actions.find(a => a.id === actionId);
         const startDate = customStartDate || new Date().toISOString().split('T')[0];
         const month = new Date(startDate).getMonth();
@@ -874,9 +876,9 @@ const App = () => {
         setTasks(prev => [...prev, newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Task created');
-    };
+    }, [actions, tasks, setTasks, setSelectedTask, showNotification]);
 
-    const handleMoveTask = (taskId, direction) => {
+    const handleMoveTask = useCallback((taskId, direction) => {
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
         const sameTasks = tasks.filter(t => {
@@ -895,9 +897,9 @@ const App = () => {
             return t;
         }));
         showNotification(direction === 'up' ? '⬆️ Task moved up' : '⬇️ Task moved down');
-    };
+    }, [tasks, setTasks, showNotification]);
 
-    const handleReorderTask = (draggedId, targetId, position) => {
+    const handleReorderTask = useCallback((draggedId, targetId, position) => {
         if (draggedId === targetId) return;
         const draggedTask = tasks.find(t => t.id === draggedId);
         const targetTask = tasks.find(t => t.id === targetId);
@@ -943,9 +945,9 @@ const App = () => {
             return updated || t;
         }));
         showNotification(isDifferentColumn ? '✅ Task moved to new column' : '✅ Task reordered');
-    };
+    }, [tasks, setTasks, showNotification]);
 
-    const handleMoveAction = (actionId, direction) => {
+    const handleMoveAction = useCallback((actionId, direction) => {
         const action = actions.find(a => a.id === actionId);
         if (!action) return;
         const sameActions = actions.filter(a => a.categoryId === action.categoryId).sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -961,9 +963,9 @@ const App = () => {
             return a;
         }));
         showNotification(direction === 'up' ? '⬆️ Action moved up' : '⬇️ Action moved down');
-    };
+    }, [actions, setActions, showNotification]);
 
-    const handleReorderAction = (draggedId, targetId, position) => {
+    const handleReorderAction = useCallback((draggedId, targetId, position) => {
         if (draggedId === targetId) return;
         const draggedAction = actions.find(a => a.id === draggedId);
         const targetAction = actions.find(a => a.id === targetId);
@@ -1000,9 +1002,9 @@ const App = () => {
             }));
             showNotification('✅ Action reordered');
         }
-    };
+    }, [actions, setActions, showNotification]);
 
-    const handleDeleteTask = async (taskId) => {
+    const handleDeleteTask = useCallback(async (taskId) => {
         const task = tasks.find(t => t.id === taskId);
         // Archive linked Trello card (card-as-task) or delete checklist item (card-as-action)
         if (task && !isReadOnly) {
@@ -1025,24 +1027,24 @@ const App = () => {
         }
         setTasks(prev => prev.filter(t => t.id !== taskId));
         showNotification('🗑️ Task deleted');
-    };
+    }, [tasks, currentBoard, isReadOnly, updateCurrentBoard, setTasks, showNotification]);
 
-    const handleCreateNewTask = (initialValues = null) => { setNewTaskInitialValues(initialValues); setShowNewTaskModal(true); };
+    const handleCreateNewTask = useCallback((initialValues = null) => { setNewTaskInitialValues(initialValues); setShowNewTaskModal(true); }, []);
 
-    const handleOpenTask = (task) => {
+    const handleOpenTask = useCallback((task) => {
         if (task.trelloLinkedCardUrl) {
             window.open(task.trelloLinkedCardUrl, '_blank');
             return;
         }
         setSelectedTask(task);
-    };
+    }, []);
 
-    const handleUpdateCategory = (catId, updates) => {
+    const handleUpdateCategory = useCallback((catId, updates) => {
         setCategories(prev => prev.map(c => c.id === catId ? {...c, ...updates, updatedAt: new Date().toISOString()} : c));
         showNotification('✅ Category updated');
-    };
+    }, [setCategories, showNotification]);
 
-    const handleAddCategory = (newCat) => {
+    const handleAddCategory = useCallback((newCat) => {
         const now = new Date().toISOString();
         if (!newCat.createdAt) newCat.createdAt = now;
         if (!newCat.updatedAt) newCat.updatedAt = now;
@@ -1061,9 +1063,9 @@ const App = () => {
             setActions(prev => [...prev, defaultAction]);
         }
         showNotification('✅ Category created');
-    };
+    }, [currentBoard, setCategories, setActions, showNotification]);
 
-    const handleDeleteCategory = async (catId) => {
+    const handleDeleteCategory = useCallback(async (catId) => {
         const category = categories.find(c => c.id === catId);
         const catActions = actions.filter(a => a.categoryId === catId);
         const affectedTaskCount = tasks.filter(t => catActions.some(a => a.id === t.actionId)).length;
@@ -1092,23 +1094,23 @@ const App = () => {
             catch(e) { console.warn('Failed to archive Trello list:', e); }
         }
         showNotification('🗑️ Category deleted');
-    };
+    }, [categories, actions, tasks, isReadOnly, updateCurrentBoard, showNotification]);
 
-    const handleReorderCategories = (reorderedCategories) => {
+    const handleReorderCategories = useCallback((reorderedCategories) => {
         const now = new Date().toISOString();
         setCategories(reorderedCategories.map((c, i) => ({...c, order: i, updatedAt: now})));
         showNotification('✅ Category order updated');
-    };
+    }, [setCategories, showNotification]);
 
-    const handleAddAction = (newAction) => {
+    const handleAddAction = useCallback((newAction) => {
         const now = new Date().toISOString();
         setActions(prev => [...prev, { ...newAction, createdAt: newAction.createdAt || now, updatedAt: newAction.updatedAt || now }]);
         showNotification('✅ Action created');
-    };
+    }, [setActions, showNotification]);
 
     // Rename checklist group (task category) — updates trelloChecklistName on all tasks in group
     // If oldName is null, creates a new empty group (no tasks to update)
-    const handleRenameChecklistGroup = (oldName, newName) => {
+    const handleRenameChecklistGroup = useCallback((oldName, newName) => {
         if (!oldName) {
             // Creating a new group — nothing to update yet, but we'll use this name when creating tasks
             showNotification(`✅ Group "${newName}" created`);
@@ -1116,10 +1118,10 @@ const App = () => {
         }
         setTasks(prev => prev.map(t => t.trelloChecklistName === oldName ? {...t, trelloChecklistName: newName, updatedAt: new Date().toISOString()} : t));
         showNotification(`✅ Group renamed to "${newName}"`);
-    };
+    }, [setTasks, showNotification]);
 
     // Delete an entire checklist group (all tasks in the group + Trello checklist)
-    const handleDeleteTaskGroup = async (actionId, groupName) => {
+    const handleDeleteTaskGroup = useCallback(async (actionId, groupName) => {
         const groupTasks = tasks.filter(t => t.actionId === actionId && (t.trelloChecklistName || 'Tasks') === groupName);
         const syncMode = currentBoard?.trelloSync?.syncMode;
         if (syncMode === 'card-as-action' && !isReadOnly) {
@@ -1138,10 +1140,10 @@ const App = () => {
         const groupTaskIds = new Set(groupTasks.map(t => t.id));
         setTasks(prev => prev.filter(t => !groupTaskIds.has(t.id)));
         showNotification(`🗑️ Group "${groupName}" deleted (${groupTasks.length} task(s))`);
-    };
+    }, [tasks, currentBoard, isReadOnly, setTasks, showNotification]);
 
     // Add a task within a specific checklist group in an action card
-    const handleAddTaskInGroup = (actionId, groupName, title) => {
+    const handleAddTaskInGroup = useCallback((actionId, groupName, title) => {
         const action = actions.find(a => a.id === actionId);
         const now = new Date().toISOString();
         const startDate = action?.startDate || now.split('T')[0];
@@ -1174,7 +1176,7 @@ const App = () => {
         };
         setTasks(prev => [...prev, newTask]);
         showNotification('✅ Task created');
-    };
+    }, [actions, tasks, setTasks, showNotification]);
 
     // --- Trello import ---
     const handleTrelloImport = useCallback((importData, boardName) => {
@@ -1375,17 +1377,15 @@ const App = () => {
         }));
     }, [updateCurrentBoard]);
 
-    const handleAddNewTask = (newTask) => {
+    const handleAddNewTask = useCallback((newTask) => {
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
         const enriched = enrichNewTaskWithTrelloMetadata({id: newTask.id || `t-${crypto.randomUUID()}`, status: 'todo', priority: 'medium', description: '', checklist: [], comments: [], attachments: [], channels: [], month: new Date().getMonth(), ...newTask, order: maxOrder, createdAt: newTask.createdAt || now, updatedAt: newTask.updatedAt || now}, tasks, actions);
         setTasks(prev => [...prev, enriched]);
         showNotification('✅ Task created');
-    };
+    }, [tasks, actions, setTasks, showNotification]);
 
-    const showNotification = (msg) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); };
-
-    const exportToJSON = () => {
+    const exportToJSON = useCallback(() => {
         const data = {categories, actions, tasks, exportDate: new Date().toISOString()};
         const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
         const url = URL.createObjectURL(blob);
@@ -1395,9 +1395,9 @@ const App = () => {
         a.click();
         URL.revokeObjectURL(url);
         showNotification('📥 JSON export downloaded');
-    };
+    }, [categories, actions, tasks, currentBoard, showNotification]);
 
-    const exportToCSV = () => {
+    const exportToCSV = useCallback(() => {
         const headers = ['ID','Title','Action','Category','Status','Priority','Start date','End date','Budget','Channels','Description'];
         const rows = tasks.map(t => {
             const action = actions.find(a => a.id === t.actionId);
@@ -1420,7 +1420,7 @@ const App = () => {
         a.click();
         URL.revokeObjectURL(url);
         showNotification('📊 CSV export downloaded');
-    };
+    }, [categories, actions, tasks, currentBoard, showNotification]);
 
     const totalBudget = tasks.reduce((s, t) => s + (t.budget || 0), 0);
     const completedCount = tasks.filter(t => t.status === 'completed').length;
