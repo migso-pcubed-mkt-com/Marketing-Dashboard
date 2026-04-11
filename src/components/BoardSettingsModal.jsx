@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useApp } from '../context.js';
+import { useBoard } from '../context.js';
 import { Icon } from './Icons.jsx';
 import { TRELLO_SYNC_INTERVALS } from '../config.js';
 
 const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
-    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus } = useApp();
+    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus } = useBoard();
     const [name, setName] = useState(board.name);
     const isLastBoard = boards.length <= 1;
 

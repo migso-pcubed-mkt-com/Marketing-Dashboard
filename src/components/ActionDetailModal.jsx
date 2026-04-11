@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { CONFIG } from '../config.js';
 import { markdownToHtml, htmlToMarkdown, WysiwygToolbar, SimpleMarkdown } from '../lib/markdown.jsx';
-import { useApp } from '../context.js';
+import { useBoard } from '../context.js';
 import MentionInput from './MentionInput.jsx';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
@@ -9,7 +9,7 @@ import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
 
 const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onBatchUpdateTasks,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask,onDeleteTaskGroup})=>{
-    const { trelloUser } = useApp();
+    const { trelloUser } = useBoard();
     const[form,setForm]=useState({...action, comments: action.comments || [], attachments: action.attachments || []});
     const[showConfirmDelete,setShowConfirmDelete]=useState(false);
     const[confirmDeleteTask,setConfirmDeleteTask]=useState(null);

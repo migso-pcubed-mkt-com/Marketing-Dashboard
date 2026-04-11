@@ -1,10 +1,10 @@
 import { useState, useRef, memo } from 'react';
 import { CONFIG } from '../config.js';
-import { useApp } from '../context.js';
+import { useBoard } from '../context.js';
 import { useTouchDrag } from '../hooks/useTouchDrag.js';
 
 const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderAction, isReadOnly, onUpdateAction}) => {
-    const { currentBoard } = useApp();
+    const { currentBoard } = useBoard();
     const boardMembers = currentBoard?.members || [];
     const [dragOverPosition, setDragOverPosition] = useState(null);
     const cardRef = useRef(null);

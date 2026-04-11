@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { CONFIG, DEFAULT_ACTIONS, DEFAULT_TASKS, GITHUB_CONFIG } from './config.js';
-import { AppContext } from './context.js';
+import { AppContext, BoardContext, FilterContext } from './context.js';
 import { migrateToV2 } from './lib/migration.js';
 import {
     supabaseClient, isSupabaseConfigured, useSupabase,
@@ -1446,16 +1446,14 @@ const App = () => {
     const filteredBudget = filteredTasks.reduce((s, t) => s + (t.budget || 0), 0);
     const isFiltered = activeFilterCount > 0;
 
-    // --- AppContext value ---
-    const contextValue = useMemo(() => ({
+    // --- Context values (split for targeted re-renders) ---
+    const boardContextValue = useMemo(() => ({
         boards,
         currentBoardId,
         currentBoard,
         categories,
         actions,
         tasks,
-        filters,
-        setFilters,
         isReadOnly,
         allCountries,
         onSwitchBoard: handleSwitchBoard,
@@ -1471,13 +1469,27 @@ const App = () => {
         trelloUser,
         onTrelloLogin: handleTrelloLogin,
         onTrelloLogout: handleTrelloLogout
-    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, filters, isReadOnly, allCountries, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
+    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, isReadOnly, allCountries, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
+
+    const filterContextValue = useMemo(() => ({
+        filters,
+        setFilters
+    }), [filters]);
+
+    // Legacy unified context (backward compat — will be removed after migration)
+    const contextValue = useMemo(() => ({
+        ...boardContextValue,
+        filters,
+        setFilters
+    }), [boardContextValue, filters]);
 
     if (!authenticated) return <AuthGate onTrelloLogin={handleTrelloLogin} onValidateToken={handleValidateToken} onGuestLogin={handleGuestLogin}/>;
 
     if (!dataLoaded) return (<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Loading data...</p></div></div>);
 
     return (
+        <BoardContext.Provider value={boardContextValue}>
+        <FilterContext.Provider value={filterContextValue}>
         <AppContext.Provider value={contextValue}>
             <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
                 {isOffline && (
@@ -1572,6 +1584,8 @@ const App = () => {
                 {showOnboarding && <OnboardingOverlay onClose={() => { setShowOnboarding(false); localStorage.setItem('onboarding_done', '1'); }}/>}
             </div>
         </AppContext.Provider>
+        </FilterContext.Provider>
+        </BoardContext.Provider>
     );
 };
 

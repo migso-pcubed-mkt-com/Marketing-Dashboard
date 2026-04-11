@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { useApp } from '../context.js';
+import { useBoard } from '../context.js';
 import { Icon } from './Icons.jsx';
 import BoardSettingsModal from './BoardSettingsModal.jsx';
 
 const BoardSelector = () => {
-    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels } = useApp();
+    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels } = useBoard();
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');

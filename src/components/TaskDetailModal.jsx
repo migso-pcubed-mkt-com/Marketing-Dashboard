@@ -5,7 +5,7 @@ import { CONFIG } from '../config.js';
 import { normalizeTaskChecklists } from '../lib/migration.js';
 import { uploadAttachment, deleteAttachment } from '../lib/storage.js';
 import { markdownToHtml, htmlToMarkdown, WysiwygToolbar, SimpleMarkdown } from '../lib/markdown.jsx';
-import { useApp } from '../context.js';
+import { useBoard } from '../context.js';
 import MentionInput from './MentionInput.jsx';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
@@ -15,7 +15,7 @@ import CountryTags from './CountryTags.jsx';
 
 
 const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory,members=[],isReadOnly=false,availableOtherLabels=[],isTrelloBoard=false,isCardAsTask=false})=>{
-    const { trelloUser } = useApp();
+    const { trelloUser } = useBoard();
     const[form,setForm]=useState(()=>{
         const normalized={...task,checklists:normalizeTaskChecklists(task)};
         delete normalized.checklist; // Remove old format
