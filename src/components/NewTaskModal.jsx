@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { CONFIG } from '../config.js';
+import { useFocusTrap } from '../hooks/useFocusTrap.js';
 import { Icon, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 
 const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAddCategory, initialValues, isCardAsTask=false}) => {
+    const focusTrapRef = useFocusTrap(true);
     const [form, setForm] = useState({title:'',actionId:initialValues?.actionId||actions[0]?.id||'',startDate:initialValues?.startDate||new Date().toISOString().split('T')[0],dueDate:initialValues?.dueDate||'',priority:initialValues?.priority||'medium',status:initialValues?.status||'todo',description:'',budget:0,countries:initialValues?.countries||[]});
     const [showInlineCreate, setShowInlineCreate] = useState(false);
     const [newActionName, setNewActionName] = useState('');
@@ -75,11 +77,11 @@ const NewTaskModal = ({actions, categories, onClose, onAdd, onCreateAction, onAd
 
     return (
         <div className="v11-modal-overlay" onClick={onClose}>
-            <div className="v11-modal animate-slide-up" style={{maxWidth:512}} onClick={e => e.stopPropagation()}>
+            <div ref={focusTrapRef} className="v11-modal animate-slide-up" role="dialog" aria-modal="true" aria-labelledby="new-task-modal-title" style={{maxWidth:512}} onClick={e => e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${actionCategory?.gradient || 'from-gray-400 to-gray-500'}`}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold flex items-center gap-2"><Icon.Check size={18}/> New Task</h2>
+                        <h2 id="new-task-modal-title" className="text-xl font-bold flex items-center gap-2"><Icon.Check size={18}/> New Task</h2>
                         <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">

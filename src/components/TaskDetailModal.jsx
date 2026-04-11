@@ -6,6 +6,7 @@ import { normalizeTaskChecklists } from '../lib/migration.js';
 import { uploadAttachment, deleteAttachment } from '../lib/storage.js';
 import { markdownToHtml, htmlToMarkdown, WysiwygToolbar, SimpleMarkdown } from '../lib/markdown.jsx';
 import { useBoard } from '../context.js';
+import { useFocusTrap } from '../hooks/useFocusTrap.js';
 import MentionInput from './MentionInput.jsx';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
@@ -16,6 +17,7 @@ import CountryTags from './CountryTags.jsx';
 
 const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory,members=[],isReadOnly=false,availableOtherLabels=[],isTrelloBoard=false,isCardAsTask=false})=>{
     const { trelloUser } = useBoard();
+    const focusTrapRef = useFocusTrap(true);
     const[form,setForm]=useState(()=>{
         const normalized={...task,checklists:normalizeTaskChecklists(task)};
         delete normalized.checklist; // Remove old format
@@ -305,7 +307,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     return(
         <React.Fragment>
         <div className="v11-modal-overlay" onClick={handleClose} style={{alignItems:'flex-start',paddingTop:64,overflowY:'auto'}}>
-            <div className="v11-modal animate-slide-up" style={{maxWidth:672,marginBottom:32}} onClick={e=>e.stopPropagation()}>
+            <div ref={focusTrapRef} className="v11-modal animate-slide-up" role="dialog" aria-modal="true" aria-label="Task details" style={{maxWidth:672,marginBottom:32}} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div ref={modalScrollRef} className="p-6" style={{maxHeight:'calc(90vh - 80px)',overflowY:'auto'}}>
                     {/* Header — sticky on scroll */}

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { CONFIG } from '../config.js';
 import { markdownToHtml, htmlToMarkdown, WysiwygToolbar, SimpleMarkdown } from '../lib/markdown.jsx';
 import { useBoard } from '../context.js';
+import { useFocusTrap } from '../hooks/useFocusTrap.js';
 import MentionInput from './MentionInput.jsx';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
@@ -10,6 +11,7 @@ import CountryTags from './CountryTags.jsx';
 
 const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onBatchUpdateTasks,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask,onDeleteTaskGroup})=>{
     const { trelloUser } = useBoard();
+    const focusTrapRef = useFocusTrap(true);
     const[form,setForm]=useState({...action, comments: action.comments || [], attachments: action.attachments || []});
     const[showConfirmDelete,setShowConfirmDelete]=useState(false);
     const[confirmDeleteTask,setConfirmDeleteTask]=useState(null);
@@ -466,7 +468,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 
     return(
         <div className="v11-modal-overlay" onClick={handleClose} style={{alignItems:'flex-start',paddingTop:64,overflowY:'auto'}}>
-            <div className="v11-modal animate-slide-up" style={{maxWidth:640,marginBottom:32}} onClick={e=>e.stopPropagation()}>
+            <div ref={focusTrapRef} className="v11-modal animate-slide-up" role="dialog" aria-modal="true" aria-label="Action details" style={{maxWidth:640,marginBottom:32}} onClick={e=>e.stopPropagation()}>
                 {/* Amber gradient bar */}
                 <div className="h-2 rounded-t-2xl" style={{background:'linear-gradient(to right, #f59e0b, #d97706)'}}/>
                 <div ref={modalScrollRef} className="p-6" style={{maxHeight:'calc(90vh - 80px)',overflowY:'auto'}}>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap.js';
 import { Icon } from './Icons.jsx';
 import { CONFIG, TRELLO_COLORS, TRELLO_SYNC_MODES } from '../config.js';
 import { fetchTrelloBoards, fetchTrelloBoardFull, checkTrelloConnection } from '../lib/trello.js';
@@ -9,6 +10,7 @@ import { buildImportData, buildImportDataCardAsAction, matchLabelToChannel, matc
 // trelloBoardId: the linked Trello board ID (required for mappingOnly)
 // onSaveMappings: callback when saving re-configured mappings (mappingOnly mode)
 const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMappings = null, trelloBoardId = null, onSaveMappings = null }) => {
+    const focusTrapRef = useFocusTrap(true);
     const [step, setStep] = useState('loading'); // loading | boards | mode | mapping | preview | importing | error
     const [error, setError] = useState(null);
     const [boards, setBoards] = useState([]);
@@ -136,6 +138,12 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
         });
     };
 
+    useEffect(() => {
+        const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [onClose]);
+
     // Style constants
     const modalStyle = {
         position: 'fixed', inset: 0, zIndex: 9999,
@@ -180,12 +188,12 @@ const TrelloImportModal = ({ onClose, onImport, mappingOnly = false, existingMap
     return (
         <div style={modalStyle}>
             <div style={overlayStyle} onClick={onClose}/>
-            <div style={panelStyle}>
+            <div ref={focusTrapRef} style={panelStyle} role="dialog" aria-modal="true" aria-labelledby="trello-import-modal-title">
                 {/* Header */}
                 <div style={headerStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <TrelloIcon/>
-                        <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{stepTitle}</h2>
+                        <h2 id="trello-import-modal-title" style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{stepTitle}</h2>
                     </div>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
                         <Icon.Close/>
