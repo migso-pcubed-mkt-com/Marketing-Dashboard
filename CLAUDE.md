@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-07 (post-sync merge, selective checkItem push, handleAddTask checklistName, orderUpdatedAt)
+> Last updated: 2026-04-12 (team members, Excel import/export, undo/redo, multi-board view, connect-to-Trello, audit fixes)
 
 ---
 
@@ -63,14 +63,15 @@ Marketing Project Tracker for MIGSO-PCUBED. Single-page React app managing **Cat
 - **React 18** + **Vite 5** (ES Modules, no CDN/Babel/UMD)
 - **Tailwind CSS 3** via PostCSS (not CDN)
 - **Supabase JS SDK** (`@supabase/supabase-js`)
-- **Vitest** for unit tests (43 tests across 4 files)
+- **SheetJS** (`xlsx`) for Excel import/export
+- **Vitest** for unit tests (418 tests across 11 files)
 - No TypeScript, no ESLint
 
 ### Key Files
 
 ```
 src/
-├── App.jsx              # Central state (~624 lines)
+├── App.jsx              # Central state (~1650 lines)
 ├── config.js            # CONFIG, DEFAULT_*, Supabase/GitHub config — NAMED exports only
 ├── context.js           # AppContext + useApp()
 ├── lib/
@@ -78,14 +79,21 @@ src/
 │   ├── trello.js        # Trello API client (calls /api/trello proxy)
 │   ├── trelloMapping.js # Trello ↔ Dashboard entity conversion
 │   ├── trelloSync.js    # Bidirectional sync engine
-│   └── migration.js     # v1→v2 data migration
+│   ├── migration.js     # v1→v2 data migration
+│   ├── excelMapping.js  # Excel import: grid + list format parsing, auto-detection
+│   └── excelExport.js   # Excel export: Timeline, Kanban, Calendar formats
 ├── components/
 │   ├── ErrorBoundary.jsx # Error boundary wrapper for views
 │   ├── MentionInput.jsx  # @mention autocomplete for comments (contentEditable + dropdown)
-│   └── OnboardingOverlay.jsx # First-run tour (4 steps, localStorage)
-├── __tests__/           # Vitest unit tests (migration, mapping, sync, markdown)
+│   ├── OnboardingOverlay.jsx # First-run tour (4 steps, localStorage)
+│   ├── MemberManagementModal.jsx # Add/edit/delete/import team members for local boards
+│   ├── ExcelImportModal.jsx  # 5-step wizard: upload → sheet → format → mapping → preview
+│   └── TrelloExportModal.jsx # Wizard: connect local board → Trello (push initial data)
+├── __tests__/           # Vitest unit tests (migration, mapping, sync, markdown, excel)
 ├── hooks/
-│   └── useTouchDrag.js  # Reusable touch DnD hook (long-press 300ms, elementFromPoint)
+│   ├── useTouchDrag.js  # Reusable touch DnD hook (long-press 300ms, elementFromPoint)
+│   ├── useUndoRedo.js   # Ring-buffer undo/redo (30 snapshots, JSON-serialized)
+│   └── useMultiBoardData.js # Merge categories/actions/tasks from multiple boards
 api/
 ├── github.js            # Serverless: GitHub API proxy (keeps GITHUB_TOKEN server-side)
 └── trello.js            # Serverless: Trello API proxy (keeps TRELLO_API_KEY server-side)
@@ -96,7 +104,7 @@ api/
 ```bash
 npm run dev       # Vite dev server — port 5173, proxies /api → localhost:3000
 npm run build     # Production build → dist/
-npm test          # Run Vitest tests (43 tests)
+npm test          # Run Vitest tests (418 tests)
 npm run test:watch # Watch mode
 ```
 
@@ -154,10 +162,13 @@ Migration from v1 (flat) → v2 is automatic via `src/lib/migration.js`.
 
 Central state in `App.jsx`:
 - `boardData` — full v2 envelope; `currentBoardId` — active board
-- `categories`, `actions`, `tasks` — derived via `useMemo` from active board
+- `categories`, `actions`, `tasks` — in single-board: derived from active board; in multi-board: merged via `useMultiBoardData`
+- `multiBoardMode`, `selectedBoardIds` — multi-board combined view state
+- `effectiveMembers` — merged members in multi-board, `currentBoard.members` in single-board
+- `useUndoRedo(setBoardData)` — ring buffer of 30 JSON snapshots; `pushState` called before each `updateCurrentBoard` mutation
 - Single `boardDataRef` (replaces old `categoriesRef`/`actionsRef`/`tasksRef`)
 
-`AppContext` (`useApp()`) exposes: `boards`, `currentBoardId`, `currentBoard`, `categories`, `actions`, `tasks`, `filters`, `setFilters`, `isReadOnly`, `allCountries`, `trelloUser`, board CRUD handlers, Trello sync handlers.
+`AppContext` (`useApp()`) exposes: `boards`, `currentBoardId`, `currentBoard`, `categories`, `actions`, `tasks`, `filters`, `setFilters`, `isReadOnly`, `allCountries`, `trelloUser`, `effectiveMembers`, `multiBoardMode`, `selectedBoardIds`, `boardSources`, `onToggleMultiBoard`, board CRUD handlers, Trello sync handlers, `onShowMemberModal`, `onShowExcelImport`, `onShowTrelloExport`.
 
 Props still drilled for view-specific handlers (`onUpdateTask`, `onOpenTask`, etc.).
 
@@ -181,6 +192,9 @@ Props still drilled for view-specific handlers (`onUpdateTask`, `onOpenTask`, et
 - Map Trello labels to "Action" in card-as-task mode (creates mixed `isDefault` conflict in Kanban)
 - Allow action creation UI in card-as-task mode (no "New Action" button, no inline "Create a new action" in modals)
 - Use `startDate` for month/quarter column assignment in Kanban — `getTaskMonth` uses `dueDate||startDate` (dueDate first)
+- Place undo/redo keyboard shortcuts before the input-field guard — they must check `e.target.tagName === 'INPUT' || 'TEXTAREA' || isContentEditable` first, otherwise Ctrl+Z in text fields triggers app undo instead of native browser undo
+- Use `name`/`checked` for Trello checklist items — `api/trello.js` expects `text`/`done` fields
+- Omit `filters.board` from `hasActiveFilter` in KanbanView — without it, actions aren't hidden when only a board filter is active
 
 ---
 
@@ -188,6 +202,7 @@ Props still drilled for view-specific handlers (`onUpdateTask`, `onOpenTask`, et
 
 - **Proxy**: `api/trello.js` keeps `TRELLO_API_KEY` + `TRELLO_TOKEN` server-side
 - **Import wizard**: `TrelloImportModal.jsx` — boards → label mapping → preview → import
+- **Export wizard**: `TrelloExportModal.jsx` — connect local board → Trello (creates board/lists/cards/checklists with 200ms rate limiting)
 - **Sync**: bidirectional, "last write wins" (`dateLastActivity` vs `trelloLastModified`), polling every 1–10 min
 - **Auth**: Trello OAuth via popup (`callback_method=postMessage`) — no return_url needed
 - **Archived cards**: fetched with `filter=all`; `card.closed` → `trelloArchived=true` + `status='paused'`
@@ -242,6 +257,25 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 - `channels`, `countries`, `otherLabels` are synced bidirectionally via label mappings. `mergeTrelloExtrasIntoTask` re-pulls labels after push (union merge). `mergeCardIntoTask` preserves local-only channels/countries (those without a Trello label mapping) via union merge with mapped values. Action labels are pushed via `pushActionLabelsToTrello()` in card-as-action mode.
 - `createCard` supports `start`, `pos`, `idMembers`, `dueComplete` for full field creation.
 - **Action→Task tag inheritance**: `handleUpdateAction` propagates tag/country changes to linked tasks via batch update. Uses union merge: `(new action tags) ∪ (task-specific tags not from old action)`.
+
+---
+
+## Team Members (local boards)
+
+`MemberManagementModal.jsx` — add/edit/delete members on local boards. Members: `{ id, fullName, username, avatarUrl }`. Import members from other boards (Trello or local) with dedup by fullName. Handler: `handleUpdateMembers` in App.jsx. All existing views (TaskCard, ActionCard, FilterSidebar, DashboardView) already consume `board.members` — no view changes needed.
+
+## Excel Import/Export
+
+- **Import** (`ExcelImportModal.jsx` + `excelMapping.js`): 5-step wizard. Auto-detects grid format (months as columns, categories as rows, merged cells = date spans) vs list format (one row per task, column mapping). Uses SheetJS (`xlsx`).
+- **Export** (`excelExport.js`): Timeline (hierarchical rows + monthly columns with colored bars), Kanban (columns = categories, stacked cards), Calendar (7-column weekly grid). Export options in App.jsx dropdown.
+
+## Undo/Redo
+
+`useUndoRedo.js` — ring buffer of 30 JSON-serialized board snapshots. `pushState(boardData, label)` called before each `updateCurrentBoard` mutation. `isUndoRedoRef` prevents recording during restore. Keyboard: `Ctrl+Z` (undo), `Ctrl+Shift+Z`/`Ctrl+Y` (redo) — with input-field guard. UI: toolbar buttons with tooltip labels. NOT recorded: Trello sync, Realtime updates, data loading, board switch.
+
+## Multi-Board Combined View
+
+`useMultiBoardData(selectedBoardIds, allBoards)` merges categories/actions/tasks with `_sourceBoardId`/`_sourceBoardName`/`_sourceBoardColor` metadata. `effectiveMembers` = merged members across boards. Always **read-only** (`isReadOnly = multiBoardMode || ...`). KanbanView: `viewMode='board'` groups columns by board source. FilterSidebar: board filter section. BoardSelector: multi-board toggle + checkbox selection.
 
 ---
 
@@ -425,3 +459,7 @@ When a Trello card is permanently deleted (missing from API response), the local
 - ✅ Phase 2 — Trello integration
 - ✅ Phase 3 — Auth + UI improvements
 - ✅ Phase 4 — File attachments (Supabase Storage with base64 fallback, drag & drop UI)
+- ✅ Phase 5 — Team members, Excel export, Undo/Redo
+- ✅ Phase 6 — Excel import (grid + list formats)
+- ✅ Phase 7 — Connect local board → Trello
+- ✅ Phase 8 — Multi-board combined view (read-only)

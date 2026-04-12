@@ -22,6 +22,19 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-04-12 | Audit fix: move undo/redo keyboard handler after input-field guard | Ctrl+Z in text inputs triggered app undo instead of native browser undo — breaks all text editing |
+| 2026-04-12 | Audit fix: add `filters.board` to `hasActiveFilter` in KanbanView | Board filter alone didn't hide unmatched actions in category view — `hasActiveFilter` was false when only board filter was active |
+| 2026-04-12 | Audit fix: TrelloExportModal `checklistCount` counts groups (not tasks), use dynamic progress | Progress bar stalled before 100% because totalOps counted individual tasks but updateProgress was called once per checklist group |
+| 2026-04-12 | Audit fix: TrelloExportModal checklist fields `name`/`checked` → `text`/`done` | api/trello.js addChecklist handler reads `item.text` and `item.done` — wrong field names caused "undefined" checklist items on Trello |
+| 2026-04-12 | Audit fix: add board filter to KanbanView `filteredTasks` | Board filter worked in App.jsx but was missing in KanbanView's own filteredTasks useMemo — Kanban ignored board filter selection |
+| 2026-04-12 | Audit fix: memoize `onToggleMultiBoard` via `useCallback([])` | Inline arrow in `useMemo` context recreated on every dep change even though it only uses stable React setters |
+| 2026-04-12 | Audit fix: add try-catch on JSON.stringify/parse in useUndoRedo | Corrupted board data could crash the app on undo/redo — now silently skips the snapshot |
+| 2026-04-12 | Add multi-board combined view (Phase 8) — read-only, `useMultiBoardData` hook, board viewMode in Kanban | Users need to see tasks across multiple boards simultaneously — read-only prevents cross-board data corruption |
+| 2026-04-12 | Add connect-local-board-to-Trello wizard (Phase 7) — TrelloExportModal + createBoard API | Local boards had no path to Trello sync — wizard pushes categories/actions/tasks with rate-limited API calls |
+| 2026-04-12 | Add Excel import with auto-detection of grid vs list format (Phase 6) | Users have existing roadmap spreadsheets (months as columns) that don't fit flat-list import — auto-detection handles both |
+| 2026-04-12 | Add undo/redo via useUndoRedo hook with 30-snapshot ring buffer (Phase 5) | No way to recover from accidental edits — ring buffer avoids unbounded memory growth |
+| 2026-04-12 | Add Excel export in 3 formats: Timeline, Kanban, Calendar (Phase 5) | Users need to share project status with stakeholders who don't have app access |
+| 2026-04-12 | Add team member management for local boards via MemberManagementModal (Phase 5) | Local boards couldn't assign tasks to people — all member infrastructure existed but had no creation UI |
 | 2026-04-07 | Add post-sync merge to preserve local edits during Trello sync | Sync replaced entire board, losing user edits (task creation, moves) made during the multi-second sync window |
 | 2026-04-07 | Use buildSelectiveCheckItemUpdate for local-only checkItem push | mapTaskToCheckItemUpdate always sent state, causing "marked incomplete" Trello activity spam on every reorder |
 | 2026-04-07 | Fix handleAddTask to use sibling trelloChecklistName in card-as-action | Hardcoded 'Tasks' created spurious checklists instead of adding items to the action's existing checklist |
