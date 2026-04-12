@@ -154,7 +154,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     return {key:cat.id,name:cat.name,gradient:cat.gradient,items:sortItems(filteredTasks.filter(t=>catTaskIds.has(t.actionId))),directTasks:true};
                 }
                 // Filter actions: only show actions that have at least one matching task (when filters active)
-                const hasActiveFilter = filters.search || filters.status.length > 0 || filters.priority.length > 0 || (filters.channel && filters.channel.length > 0) || (filters.country && filters.country.length > 0) || (filters.member && filters.member.length > 0) || (filters.otherLabel && filters.otherLabel.length > 0) || actionFilters.length > 0;
+                const hasActiveFilter = filters.search || filters.status.length > 0 || filters.priority.length > 0 || (filters.channel && filters.channel.length > 0) || (filters.country && filters.country.length > 0) || (filters.member && filters.member.length > 0) || (filters.otherLabel && filters.otherLabel.length > 0) || (filters.board && filters.board.length > 0) || actionFilters.length > 0;
                 const visibleActions = hasActiveFilter ? catActions.filter(a => filteredTasks.some(t => t.actionId === a.id) || (filters.search && a.name.toLowerCase().includes(filters.search.toLowerCase()))) : catActions;
                 return {key:cat.id,name:cat.name,gradient:cat.gradient,items:sortActionItems(visibleActions)};
             });

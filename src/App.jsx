@@ -369,17 +369,21 @@ const App = () => {
                 return;
             }
             // Ctrl+Z / Cmd+Z = Undo, Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y = Redo
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-                e.preventDefault();
-                const label = undo();
-                if (label) showNotification(`↩ Undo: ${label}`);
-                return;
-            }
-            if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || e.key === 'y')) {
-                e.preventDefault();
-                const label = redo();
-                if (label) showNotification(`↪ Redo: ${label}`);
-                return;
+            // Skip when inside text inputs to preserve native browser undo
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+                if (e.key === 'z' && !e.shiftKey) {
+                    e.preventDefault();
+                    const label = undo();
+                    if (label) showNotification(`↩ Undo: ${label}`);
+                    return;
+                }
+                if (e.key === 'Z' || e.key === 'y') {
+                    e.preventDefault();
+                    const label = redo();
+                    if (label) showNotification(`↪ Redo: ${label}`);
+                    return;
+                }
             }
             // Escape closes filter sidebar even from inputs (search field)
             if (e.key === 'Escape' && showFilterSidebar) {
