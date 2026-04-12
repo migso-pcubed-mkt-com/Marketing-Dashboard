@@ -4,7 +4,7 @@ import { Icon } from './Icons.jsx';
 import BoardSettingsModal from './BoardSettingsModal.jsx';
 
 const BoardSelector = () => {
-    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels, onShowExcelImport } = useApp();
+    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels, onShowExcelImport, multiBoardMode, selectedBoardIds, onToggleMultiBoard } = useApp();
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');
@@ -66,7 +66,7 @@ const BoardSelector = () => {
                     fontWeight: 600,
                     whiteSpace: 'nowrap'
                 }}>
-                    {currentBoard?.name || 'Board'}
+                    {multiBoardMode ? `Multi-board (${selectedBoardIds.length})` : (currentBoard?.name || 'Board')}
                 </span>
                 {currentBoard?.trelloSync?.trelloBoardId && (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{flexShrink:0,opacity:0.6}} title="Synced with Trello">
@@ -94,11 +94,34 @@ const BoardSelector = () => {
                     zIndex: 1000,
                     overflow: 'hidden'
                 }}>
-                    <div style={{ padding: '6px 12px 4px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ padding: '6px 12px 4px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Boards</span>
+                        {boards.length >= 2 && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (multiBoardMode) {
+                                        onToggleMultiBoard(false, []);
+                                    } else {
+                                        onToggleMultiBoard(true, boards.map(b => b.id));
+                                    }
+                                }}
+                                style={{
+                                    fontSize: 10, fontWeight: 600, padding: '2px 8px',
+                                    borderRadius: 'var(--radius-sm)', border: 'none',
+                                    background: multiBoardMode ? 'var(--accent)' : 'var(--bg-tertiary)',
+                                    color: multiBoardMode ? 'white' : 'var(--text-muted)',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                {multiBoardMode ? 'Exit multi-board' : 'Multi-board'}
+                            </button>
+                        )}
                     </div>
                     <div style={{ padding: '4px 0', maxHeight: 300, overflowY: 'auto' }}>
-                        {boards.map(board => (
+                        {boards.map(board => {
+                            const isSelected = multiBoardMode ? selectedBoardIds.includes(board.id) : board.id === currentBoardId;
+                            return (
                             <div
                                 key={board.id}
                                 style={{
@@ -107,21 +130,37 @@ const BoardSelector = () => {
                                     justifyContent: 'space-between',
                                     padding: '8px 12px',
                                     cursor: 'pointer',
-                                    background: board.id === currentBoardId ? 'var(--accent-light)' : 'transparent',
+                                    background: isSelected ? 'var(--accent-light)' : 'transparent',
                                     transition: 'background 0.1s'
                                 }}
-                                onMouseEnter={e => { if (board.id !== currentBoardId) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-                                onMouseLeave={e => { if (board.id !== currentBoardId) e.currentTarget.style.background = 'transparent'; }}
-                                onClick={() => { onSwitchBoard(board.id); setIsOpen(false); }}
+                                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                                onClick={() => {
+                                    if (multiBoardMode) {
+                                        const newIds = isSelected
+                                            ? selectedBoardIds.filter(id => id !== board.id)
+                                            : [...selectedBoardIds, board.id];
+                                        if (newIds.length === 0) {
+                                            onToggleMultiBoard(false, []);
+                                            setIsOpen(false);
+                                        } else {
+                                            onToggleMultiBoard(true, newIds);
+                                        }
+                                    } else {
+                                        onSwitchBoard(board.id); setIsOpen(false);
+                                    }
+                                }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', flex: 1 }}>
-                                    {board.id === currentBoardId && (
+                                    {multiBoardMode ? (
+                                        <input type="checkbox" checked={isSelected} readOnly style={{ accentColor: 'var(--accent)', flexShrink: 0, cursor: 'pointer' }}/>
+                                    ) : isSelected && (
                                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }}/>
                                     )}
                                     <span style={{
                                         fontSize: 13,
-                                        fontWeight: board.id === currentBoardId ? 600 : 400,
-                                        color: board.id === currentBoardId ? 'var(--accent)' : 'var(--text-primary)',
+                                        fontWeight: isSelected ? 600 : 400,
+                                        color: isSelected ? 'var(--accent)' : 'var(--text-primary)',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                         whiteSpace: 'nowrap'
@@ -139,6 +178,7 @@ const BoardSelector = () => {
                                         {board.tasks?.length || 0}
                                     </span>
                                 </div>
+                                {!multiBoardMode && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setSettingsBoard(board); setIsOpen(false); }}
                                     style={{
@@ -156,8 +196,10 @@ const BoardSelector = () => {
                                 >
                                     <Icon.Settings size={13}/>
                                 </button>
+                                )}
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                     <div style={{ borderTop: '1px solid var(--border)', padding: 8 }}>

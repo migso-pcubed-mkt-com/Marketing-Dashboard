@@ -35,6 +35,7 @@ import AuthGate from './components/AuthGate.jsx';
 import MemberManagementModal from './components/MemberManagementModal.jsx';
 import TrelloExportModal from './components/TrelloExportModal.jsx';
 import useUndoRedo from './hooks/useUndoRedo.js';
+import useMultiBoardData from './hooks/useMultiBoardData.js';
 
 const API_BASE_URL = typeof window !== 'undefined'
     ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
@@ -76,6 +77,8 @@ const App = () => {
     const [showMemberModal, setShowMemberModal] = useState(false);
     const [showExcelImportModal, setShowExcelImportModal] = useState(false);
     const [showTrelloExportModal, setShowTrelloExportModal] = useState(false);
+    const [multiBoardMode, setMultiBoardMode] = useState(false);
+    const [selectedBoardIds, setSelectedBoardIds] = useState([]);
     const [trelloSyncStatus, setTrelloSyncStatus] = useState('idle'); // idle | syncing | synced | error
     const [trelloUser, setTrelloUser] = useState(null); // null = guest, or { id, fullName, username, avatarUrl, token }
     const [authenticated, setAuthenticated] = useState(() => {
@@ -105,10 +108,17 @@ const App = () => {
         return boardData.boards.find(b => b.id === currentBoardId) || boardData.boards[0];
     }, [boardData, currentBoardId]);
 
-    const categories = currentBoard?.categories || CONFIG.CATEGORIES;
-    const actions = currentBoard?.actions || DEFAULT_ACTIONS;
-    const tasks = currentBoard?.tasks || DEFAULT_TASKS;
+    const _singleCategories = currentBoard?.categories || CONFIG.CATEGORIES;
+    const _singleActions = currentBoard?.actions || DEFAULT_ACTIONS;
+    const _singleTasks = currentBoard?.tasks || DEFAULT_TASKS;
     const boards = boardData?.boards || [];
+
+    // --- Multi-board merged data ---
+    const multiBoardData = useMultiBoardData(multiBoardMode ? selectedBoardIds : [], boards);
+    const categories = multiBoardMode ? multiBoardData.categories : _singleCategories;
+    const actions = multiBoardMode ? multiBoardData.actions : _singleActions;
+    const tasks = multiBoardMode ? multiBoardData.tasks : _singleTasks;
+    const effectiveMembers = multiBoardMode ? multiBoardData.members : (currentBoard?.members || []);
 
     // Archived tasks/actions are hidden by default.
     // User can show them via the "Show archived" filter checkbox.
@@ -123,7 +133,8 @@ const App = () => {
     }, [actions, filters.showArchived]);
 
     // Guest users are read-only on Trello-linked boards (can edit non-Trello boards)
-    const isReadOnly = !trelloUser && !!currentBoard?.trelloSync?.trelloBoardId;
+    // Multi-board view is always read-only
+    const isReadOnly = multiBoardMode || (!trelloUser && !!currentBoard?.trelloSync?.trelloBoardId);
 
     // --- Undo / Redo ---
     const { pushState: pushUndoState, undo, redo, canUndo, canRedo, isUndoRedoRef } = useUndoRedo(setBoardData);
@@ -1453,7 +1464,7 @@ const App = () => {
 
     const totalBudget = tasks.reduce((s, t) => s + (t.budget || 0), 0);
     const completedCount = tasks.filter(t => t.status === 'completed').length;
-    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
+    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member, filters.board].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
 
     // Filtered tasks for stats — same logic as views (visibleTasks already excludes archived)
     const filteredTasks = useMemo(() => {
@@ -1468,6 +1479,7 @@ const App = () => {
             if (filters.country?.length > 0 && !(t.countries||[]).some(c => filters.country.includes(c))) return false;
             if (filters.otherLabel?.length > 0 && !(t.otherLabels||[]).some(l => filters.otherLabel.includes(l.id))) return false;
             if (filters.member?.length > 0 && !(t.assignees||[]).some(m => filters.member.includes(m))) return false;
+            if (filters.board?.length > 0 && t._sourceBoardId && !filters.board.includes(t._sourceBoardId)) return false;
             return true;
         });
     }, [visibleTasks, actions, filters, activeFilterCount]);
@@ -1500,9 +1512,18 @@ const App = () => {
         onUpdateTrelloSyncSettings: handleUpdateTrelloSyncSettings,
         trelloSyncStatus,
         trelloUser,
+        effectiveMembers,
         onTrelloLogin: handleTrelloLogin,
-        onTrelloLogout: handleTrelloLogout
-    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, filters, isReadOnly, allCountries, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
+        onTrelloLogout: handleTrelloLogout,
+        multiBoardMode,
+        selectedBoardIds,
+        boardSources: multiBoardData.boardSources,
+        onToggleMultiBoard: (enabled, ids) => {
+            setMultiBoardMode(enabled);
+            setSelectedBoardIds(ids || []);
+            if (!enabled) setFilters(f => { const { board, ...rest } = f; return { ...rest }; });
+        }
+    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, filters, isReadOnly, allCountries, effectiveMembers, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout, multiBoardMode, selectedBoardIds, multiBoardData.boardSources]);
 
     if (!authenticated) return <AuthGate onTrelloLogin={handleTrelloLogin} onValidateToken={handleValidateToken} onGuestLogin={handleGuestLogin}/>;
 
@@ -1530,6 +1551,7 @@ const App = () => {
                         </button>
                         {trelloUser && <button className={`filter-btn ${filters.member?.includes(trelloUser.id) ? 'active' : ''}`} onClick={() => { const isMine = filters.member?.includes(trelloUser.id); setFilters({...filters, member: isMine ? filters.member.filter(m => m !== trelloUser.id) : [...(filters.member||[]), trelloUser.id]}); }} style={{fontSize:11,padding:'4px 10px'}} title="Show only my tasks">My tasks</button>}
                         <div className="stats-pills">
+                            {multiBoardMode && <span className="stat-pill" style={{background:'var(--accent-light)',color:'var(--accent)',fontWeight:600}}>{selectedBoardIds.length} boards (read-only)</span>}
                             <span className="stat-pill"><strong>{isFiltered ? `${filteredTasks.length} / ${tasks.length}` : tasks.length}</strong> tasks</span>
                             <span className="stat-pill"><strong>{isFiltered ? `${(filteredBudget/1000).toFixed(0)}k / ${(totalBudget/1000).toFixed(0)}k€` : `${(totalBudget/1000).toFixed(0)}k€`}</strong> budget</span>
                         </div>
@@ -1588,19 +1610,20 @@ const App = () => {
                             {(filters.channel || []).map(c => { const ch = CONFIG.CHANNELS.find(x => x.id === c); return <div key={c} className="filter-chip">{ch?.name}<button onClick={() => setFilters({...filters, channel: filters.channel.filter(x => x !== c)})}>✕</button></div>; })}
                             {(filters.country || []).map(c => { const co = allCountries.find(x => x.id === c); return <div key={c} className="filter-chip">{co?.flag} {co?.name}<button onClick={() => setFilters({...filters, country: filters.country.filter(x => x !== c)})}>✕</button></div>; })}
                             {(filters.otherLabel || []).map(labelId => { const label = tasks.flatMap(t => t.otherLabels || []).find(l => l.id === labelId); return <div key={labelId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:label?.color||'#888',flexShrink:0}}/> {label?.name||'Label'}<button onClick={() => setFilters({...filters, otherLabel: filters.otherLabel.filter(x => x !== labelId)})}>✕</button></div>; })}
-                            {(filters.member || []).map(memberId => { const m = (currentBoard?.members || []).find(x => x.id === memberId); return <div key={memberId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}>{m?.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:14,height:14,borderRadius:'50%'}}/> : null} {m?.fullName||m?.username||'Member'}<button onClick={() => setFilters({...filters, member: filters.member.filter(x => x !== memberId)})}>✕</button></div>; })}
-                            <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
+                            {(filters.member || []).map(memberId => { const m = effectiveMembers.find(x => x.id === memberId); return <div key={memberId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}>{m?.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:14,height:14,borderRadius:'50%'}}/> : null} {m?.fullName||m?.username||'Member'}<button onClick={() => setFilters({...filters, member: filters.member.filter(x => x !== memberId)})}>✕</button></div>; })}
+                            {(filters.board || []).map(bId => { const b = multiBoardData.boardSources.find(x => x.id === bId); return <div key={bId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:2,background:b?.color||'var(--accent)',flexShrink:0}}/> {b?.name||'Board'}<button onClick={() => setFilters({...filters, board: filters.board.filter(x => x !== bId)})}>✕</button></div>; })}
+                            <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],board:[]})}>Clear all</span>
                         </div>
                     )}
                     <ErrorBoundary>
-                    {currentView === 'kanban' && <KanbanView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef}/>}
+                    {currentView === 'kanban' && <KanbanView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef} multiBoardMode={multiBoardMode} boardSources={multiBoardData.boardSources}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={setSelectedTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={setSelectedTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
-                    {currentView === 'dashboard' && <DashboardView categories={categories} actions={visibleActions} tasks={visibleTasks} members={currentBoard?.members || []}/>}
+                    {currentView === 'dashboard' && <DashboardView categories={categories} actions={visibleActions} tasks={visibleTasks} members={effectiveMembers}/>}
                     </ErrorBoundary>
                 </main>
-                {selectedTask && <TaskDetailModal categories={categories} task={tasks.find(t => t.id === selectedTask.id) || selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={currentBoard?.members || []} isReadOnly={isReadOnly} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()}/>}
-                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={actions.find(a => a.id === selectedAction.id) || selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onOpenTask={t => { setSelectedTask(t); }} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={currentBoard?.members || []} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup} onDeleteTaskGroup={handleDeleteTaskGroup}/>}
+                {selectedTask && <TaskDetailModal categories={categories} task={tasks.find(t => t.id === selectedTask.id) || selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={effectiveMembers} isReadOnly={isReadOnly} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()}/>}
+                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={actions.find(a => a.id === selectedAction.id) || selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onOpenTask={t => { setSelectedTask(t); }} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={effectiveMembers} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup} onDeleteTaskGroup={handleDeleteTaskGroup}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction} onAddCategory={handleAddCategory}/>}
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
@@ -1609,7 +1632,7 @@ const App = () => {
                 {showExcelImportModal && <ExcelImportModal onClose={() => setShowExcelImportModal(false)} onImport={handleExcelImport}/>}
                 {showMemberModal && currentBoard && <MemberManagementModal board={currentBoard} onClose={() => setShowMemberModal(false)} onUpdateMembers={handleUpdateMembers}/>}
                 {showTrelloExportModal && currentBoard && <TrelloExportModal board={currentBoard} onClose={() => setShowTrelloExportModal(false)} onConnected={handleConnectToTrello}/>}
-                <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={currentBoard?.members || []} searchInputRef={searchInputRef}/>
+                <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={effectiveMembers} searchInputRef={searchInputRef} boardSources={multiBoardMode ? multiBoardData.boardSources : []}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
                 {showOnboarding && <OnboardingOverlay onClose={() => { setShowOnboarding(false); localStorage.setItem('onboarding_done', '1'); }}/>}
             </div>

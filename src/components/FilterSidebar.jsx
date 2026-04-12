@@ -2,7 +2,7 @@ import { useMemo, useEffect, useRef } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 
-const FilterSidebar = ({show, onClose, filters, setFilters, categories, allCountries, tasks = [], members = [], searchInputRef: externalRef}) => {
+const FilterSidebar = ({show, onClose, filters, setFilters, categories, allCountries, tasks = [], members = [], searchInputRef: externalRef, boardSources = []}) => {
     const internalRef = useRef(null);
     const inputRef = externalRef || internalRef;
 
@@ -53,6 +53,15 @@ const FilterSidebar = ({show, onClose, filters, setFilters, categories, allCount
                 <div className="filter-section-title">Country</div>
                 <div className="filter-options">{allCountries.map(co => (<button key={co.id} onClick={() => { const n = (filters.country || []).includes(co.id) ? (filters.country || []).filter(x => x !== co.id) : [...(filters.country || []), co.id]; setFilters({...filters, country: n}); }} className={`filter-option ${(filters.country || []).includes(co.id) ? 'selected' : ''}`}>{co.flag} {co.name}</button>))}</div>
             </div>
+            {boardSources.length > 0 && (
+                <div className="filter-section">
+                    <div className="filter-section-title">Board</div>
+                    <div className="filter-options">{boardSources.map(b => (<button key={b.id} onClick={() => { const n = (filters.board || []).includes(b.id) ? (filters.board || []).filter(x => x !== b.id) : [...(filters.board || []), b.id]; setFilters({...filters, board: n}); }} className={`filter-option ${(filters.board || []).includes(b.id) ? 'selected' : ''}`} style={{display:'flex',alignItems:'center',gap:5}}>
+                        <div style={{width:8,height:8,borderRadius:2,background:b.color,flexShrink:0}}/>
+                        {b.name}
+                    </button>))}</div>
+                </div>
+            )}
             {members.length > 0 && (
                 <div className="filter-section">
                     <div className="filter-section-title">Members</div>
@@ -78,7 +87,7 @@ const FilterSidebar = ({show, onClose, filters, setFilters, categories, allCount
                 </label>
             </div>
             <div className="sidebar-footer">
-                <button onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false})} className="v11-btn-secondary" style={{flex:1}}>Reset</button>
+                <button onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],board:[],showArchived:false})} className="v11-btn-secondary" style={{flex:1}}>Reset</button>
                 <button onClick={onClose} className="v11-btn-primary" style={{flex:1}}>Apply</button>
             </div>
         </div>

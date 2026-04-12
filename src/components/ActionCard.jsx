@@ -4,8 +4,8 @@ import { useApp } from '../context.js';
 import { useTouchDrag } from '../hooks/useTouchDrag.js';
 
 const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderAction, isReadOnly, onUpdateAction}) => {
-    const { currentBoard } = useApp();
-    const boardMembers = currentBoard?.members || [];
+    const { effectiveMembers } = useApp();
+    const boardMembers = effectiveMembers || [];
     const [dragOverPosition, setDragOverPosition] = useState(null);
     const cardRef = useRef(null);
     const { touchHandlers } = useTouchDrag({
@@ -65,7 +65,7 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
             onClick={(e) => { if (!e.defaultPrevented) onOpen(action); }}
             className={`action-card ${dragOverPosition === 'before' ? 'drop-indicator-before' : dragOverPosition === 'after' ? 'drop-indicator-after' : ''}`}>
             <div className="card-header">
-                <div className="card-title" style={action.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : action.trelloArchived ? {color:'var(--text-muted)'} : {}}>{action.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{action.name}</div>
+                <div className="card-title" style={action.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : action.trelloArchived ? {color:'var(--text-muted)'} : {}}>{action._sourceBoardName && <span style={{fontSize:9,background:action._sourceBoardColor||'var(--accent)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>{action._sourceBoardName}</span>}{action.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{action.name}</div>
                 <div className={`card-priority ${action.priority || 'medium'}`}/>
             </div>
             {action.tags?.length > 0 && <div className="card-tags">{action.tags.slice(0, 3).map(t => { const ch = CONFIG.CHANNELS.find(c => c.id === t); return <span key={t} className={`card-tag ${t}`}>{ch?.name || t}</span>; })}</div>}

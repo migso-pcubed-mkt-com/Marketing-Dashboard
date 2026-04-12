@@ -1,11 +1,15 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
 import TaskCard from './TaskCard.jsx';
 
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onBatchUpdateTasks,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask,onUpdateCategory,onAddCategory,onDeleteCategory,isCardAsTask,isUserInteractingRef})=>{
-    const[viewMode,setViewMode]=useState('category');
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onBatchUpdateTasks,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask,onUpdateCategory,onAddCategory,onDeleteCategory,isCardAsTask,isUserInteractingRef,multiBoardMode,boardSources})=>{
+    const[viewMode,setViewMode]=useState(multiBoardMode?'board':'category');
+    useEffect(()=>{
+        if(multiBoardMode&&viewMode!=='board')setViewMode('board');
+        if(!multiBoardMode&&viewMode==='board')setViewMode('category');
+    },[multiBoardMode]);
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
     const[sortBy,setSortBy]=useState('order');
@@ -193,10 +197,16 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             cols.push({key:'_unassigned',name:'Unassigned',countryFlag:'—',countryColor:'#a1a1aa',items:sortItems(unassigned)});
             return cols;
         }
+        if(viewMode==='board'&&boardSources){
+            return boardSources.map(src=>{
+                const boardTasks=filteredTasks.filter(t=>t._sourceBoardId===src.id);
+                return {key:src.id,name:src.name,boardColor:src.color,items:sortItems(boardTasks)};
+            });
+        }
         return[];
     };
     return getColumns();
-    },[viewMode,sortBy,filteredTasks,categories,actions,selectedAction,isCardAsTask,catOrder,allCountries,countryOrder,selectedYear,filters,actionFilters]);
+    },[viewMode,sortBy,filteredTasks,categories,actions,selectedAction,isCardAsTask,catOrder,allCountries,countryOrder,selectedYear,filters,actionFilters,boardSources]);
 
     const canDragColumns = (viewMode === 'category' || viewMode === 'country') && !isReadOnly;
 
@@ -303,7 +313,11 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             <div className="kanban-toolbar">
                 <div className="kanban-toolbar-left">
                     <div className="view-btn-group">
-                        {[{id:'category',label:isCardAsTask?'Categories (tasks)':'Categories (actions)'},{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
+                        {[
+                            ...(multiBoardMode ? [{id:'board',label:'By Board'}] : []),
+                            {id:'category',label:isCardAsTask?'Categories (tasks)':'Categories (actions)'},
+                            {id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}
+                        ].map(v=>(
                             <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
                         ))}
                     </div>
@@ -429,7 +443,8 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 <div className="column-title">
                                     {canDragColumns && col.key !== '_unassigned' && <span style={{cursor:'grab',opacity:0.4,fontSize:10,marginRight:2}}>⋮⋮</span>}
                                     {col.color&&!col.countryColor&&<StatusIcon statusId={col.key} size={12}/>}
-                                    {col.gradient&&<div style={{background:categories.find(c=>c.id===col.key)?.color||'var(--accent)',width:4,height:20,borderRadius:2,flexShrink:0}}/>}
+                                    {col.boardColor&&<div style={{background:col.boardColor,width:4,height:20,borderRadius:2,flexShrink:0}}/>}
+                                    {col.gradient&&!col.boardColor&&<div style={{background:categories.find(c=>c.id===col.key)?.color||'var(--accent)',width:4,height:20,borderRadius:2,flexShrink:0}}/>}
                                     {col.countryColor&&<span style={{background:col.countryColor,color:'white',fontSize:9,fontWeight:700,padding:'2px 5px',borderRadius:4,letterSpacing:0.3,lineHeight:1}}>{col.countryFlag}</span>}
                                     {viewMode==='category'&&editingCategoryId===col.key&&!isReadOnly?(
                                         <input type="text" value={editingCategoryValue} onChange={e=>setEditingCategoryValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==='Enter'&&editingCategoryValue.trim()){onUpdateCategory(col.key,{name:editingCategoryValue.trim()});setEditingCategoryId(null);}if(e.key==='Escape')setEditingCategoryId(null);}} onBlur={()=>{if(editingCategoryValue.trim()&&editingCategoryValue!==col.name)onUpdateCategory(col.key,{name:editingCategoryValue.trim()});setEditingCategoryId(null);}} onClick={e=>e.stopPropagation()} style={{fontSize:12,fontWeight:600,padding:'2px 4px',border:'1px solid var(--accent)',borderRadius:4,outline:'none',width:'100%'}}/>

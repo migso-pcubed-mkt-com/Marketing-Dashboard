@@ -3,8 +3,8 @@ import { CONFIG } from '../config.js';
 import { useApp } from '../context.js';
 
 const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=false, onTouchDrag, categories, allCountries, isReadOnly}) => {
-    const { currentBoard } = useApp();
-    const boardMembers = currentBoard?.members || [];
+    const { effectiveMembers } = useApp();
+    const boardMembers = effectiveMembers || [];
     const [touching, setTouching] = useState(false);
     const [dragOverPosition, setDragOverPosition] = useState(null);
     const cardRef = useRef(null);
@@ -100,7 +100,7 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
             onClick={() => onOpen(task)}
             className={`kanban-card ${task.status === 'completed' ? 'completed' : ''} ${touching ? 'touch-dragging' : ''} ${dragOverPosition === 'before' ? 'drop-indicator-before' : dragOverPosition === 'after' ? 'drop-indicator-after' : ''}`}>
             <div className="card-header">
-                <div className="card-title" style={task.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : task.trelloArchived ? {color:'var(--text-muted)'} : {}}>{task.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{task.trelloLinkedCardUrl && <span style={{display:'inline-flex',alignItems:'center',marginRight:4,color:'#0079bf',opacity:0.7,verticalAlign:'middle',flexShrink:0}} title="Linked Trello card"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></span>}{task.title}</div>
+                <div className="card-title" style={task.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : task.trelloArchived ? {color:'var(--text-muted)'} : {}}>{task._sourceBoardName && <span style={{fontSize:9,background:task._sourceBoardColor||'var(--accent)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>{task._sourceBoardName}</span>}{task.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{task.trelloLinkedCardUrl && <span style={{display:'inline-flex',alignItems:'center',marginRight:4,color:'#0079bf',opacity:0.7,verticalAlign:'middle',flexShrink:0}} title="Linked Trello card"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></span>}{task.title}</div>
                 <div className={`card-priority ${task.priority}`}/>
             </div>
             {(task.channels || action?.tags || []).length > 0 && <div className="card-tags">
