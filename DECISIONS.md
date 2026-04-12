@@ -22,6 +22,9 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-04-12 | Fix sync lock comment (kept 15s, corrected misleading Vercel reference) | Comment said "aligned with Vercel 10s timeout" but sync runs client-side; benefit of 30s was marginal |
+| 2026-04-12 | Add 19 sync audit tests (syncAudit.test.js) | Prevent regressions on 8 baseline/merge bugs; cover multi-cycle, post-sync merge, multi-user realtime |
+| 2026-04-12 | Fix 8 sync bugs: baseline refresh, null guard, comment attachments | Stale baselines caused re-push loops; null updates crashed API; comment attachments posted before upload |
 | 2026-04-11 | Add loadCompleted flag + save validation + Realtime load guard + sessionStorage saveId persistence | Prevent data loss on deploy: auto-save fired before cloud data loaded; Realtime echoes from previous instance not detected after reload |
 | 2026-04-11 | Setup TypeScript 6 progressive migration (types.ts, handlers.ts, useTouchDrag.ts, useFocusTrap.ts) + tsconfig.json | Type safety for core entities and hooks; allowJs:true + strict:false enables gradual migration without blocking build |
 | 2026-04-11 | Add Kanban virtualization via @tanstack/react-virtual (VirtualKanbanCards.jsx, threshold 50) | Large Kanban columns (50+ cards) caused scroll lag and DOM bloat; virtual rendering keeps DOM light |

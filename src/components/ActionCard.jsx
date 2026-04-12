@@ -50,6 +50,7 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
     const allAssignees = [...new Set([...actionAssignees, ...actionTasks.flatMap(t => t.assignees || [])])].filter(id => boardMembers.some(mb => mb.id === id));
     const totalBudget = (action.budget||0) + actionTasks.reduce((s, t) => s + (t.budget || 0), 0);
     const totalComments = (action.comments?.length || 0) + actionTasks.reduce((s, t) => s + (t.comments?.length || 0), 0);
+    const totalAttachments = (action.attachments?.length || 0) + actionTasks.reduce((s, t) => s + (t.attachments?.length || 0), 0);
 
     return (
         <div
@@ -73,9 +74,10 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
                 <div className="action-progress-bar"><div className={`action-progress-fill ${pct >= 70 ? 'high' : pct >= 40 ? 'medium' : 'low'}`} style={{width:`${pct}%`}}/></div>
                 <div className="action-progress-label"><span className="action-task-count"><strong>{completed}</strong>/{actionTasks.length} tasks</span><span className="action-progress-percent">{pct}%</span></div>
             </div>
-            {(action.dueDate || action.startDate || allAssignees.length > 0 || totalBudget > 0 || totalComments > 0) && <div className="card-footer">
+            {(action.dueDate || action.startDate || allAssignees.length > 0 || totalBudget > 0 || totalComments > 0 || totalAttachments > 0) && <div className="card-footer">
                 {(action.dueDate || action.startDate) && <span className={`card-date ${action.dueDate && new Date(action.dueDate+'T00:00:00') < new Date() && action.status !== 'completed' ? 'overdue' : ''}`}>{action.dueDate ? new Date(action.dueDate+'T00:00:00').toLocaleDateString('en-US',{day:'numeric',month:'short'}) : new Date(action.startDate+'T00:00:00').toLocaleDateString('en-US',{day:'numeric',month:'short'})}</span>}
                 <div style={{display:'flex',alignItems:'center',gap:8,marginLeft:'auto'}}>
+                    {totalAttachments > 0 && <span style={{display:'flex',alignItems:'center',gap:3,fontSize:10,color:'var(--text-muted)'}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>{totalAttachments}</span>}
                     {totalComments > 0 && <span style={{display:'flex',alignItems:'center',gap:3,fontSize:10,color:'var(--text-muted)'}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>{totalComments}</span>}
                     {totalBudget > 0 && <span className="card-budget">{totalBudget.toLocaleString()}€</span>}
                     {allAssignees.length > 0 && <div style={{display:'flex',alignItems:'center'}}>

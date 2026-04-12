@@ -227,7 +227,8 @@ describe('mergeCardIntoTask — _trelloBaseline shape', () => {
             startDate: '2026-04-01',
             dueDate: '2026-04-15',
             status: 'completed',
-            assignees: ['m1', 'm2']
+            assignees: ['m1', 'm2'],
+            checklistItems: {}
         });
     });
 });

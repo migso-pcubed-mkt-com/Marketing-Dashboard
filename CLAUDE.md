@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-11 (refactoring audit 14 steps, data protection fixes, TypeScript migration, Kanban virtualization)
+> Last updated: 2026-04-12 (sync audit: 8 fixes, 19 tests, timeout bump)
 
 ---
 
@@ -63,7 +63,7 @@ Marketing Project Tracker for MIGSO-PCUBED. Single-page React app managing **Cat
 - **React 18** + **Vite 5** (ES Modules, no CDN/Babel/UMD)
 - **Tailwind CSS 3** via PostCSS (not CDN)
 - **Supabase JS SDK** (`@supabase/supabase-js`)
-- **Vitest** for unit tests (517 tests across 16 files)
+- **Vitest** for unit tests (536 tests across 17 files)
 - **TypeScript 6** progressive (`strict:false`, `allowJs:true`, `noEmit:true`) — 4 files migrated so far
 - **ESLint 8** (`.eslintrc.cjs`) — 25 warnings remaining (unused vars)
 - **@tanstack/react-virtual** for Kanban column virtualization
@@ -98,7 +98,7 @@ src/
 │   ├── useFilters.js    # Filter state + derived filter logic (extracted from App.jsx)
 │   ├── useFocusTrap.ts  # Focus trap for modals (TypeScript)
 │   └── useTouchDrag.ts  # Touch DnD hook (long-press 300ms, TypeScript)
-├── __tests__/           # Vitest unit tests (517 tests, 16 files)
+├── __tests__/           # Vitest unit tests (536 tests, 17 files)
 .eslintrc.cjs            # ESLint config
 tsconfig.json            # TypeScript config (noEmit, allowJs, progressive)
 api/
@@ -111,7 +111,7 @@ api/
 ```bash
 npm run dev        # Vite dev server — port 5173, proxies /api → localhost:3000
 npm run build      # Production build → dist/
-npm test           # Run Vitest tests (517 tests, 16 files)
+npm test           # Run Vitest tests (536 tests, 17 files)
 npm run test:watch # Watch mode
 npm run lint       # ESLint check
 npm run typecheck  # TypeScript check (tsc --noEmit)
