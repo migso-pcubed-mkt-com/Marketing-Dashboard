@@ -1486,6 +1486,12 @@ const App = () => {
     const filteredBudget = filteredTasks.reduce((s, t) => s + (t.budget || 0), 0);
     const isFiltered = activeFilterCount > 0;
 
+    const handleToggleMultiBoard = useCallback((enabled, ids) => {
+        setMultiBoardMode(enabled);
+        setSelectedBoardIds(ids || []);
+        if (!enabled) setFilters(f => { const { board, ...rest } = f; return { ...rest }; });
+    }, []);
+
     // --- AppContext value ---
     const contextValue = useMemo(() => ({
         boards,
@@ -1518,12 +1524,8 @@ const App = () => {
         multiBoardMode,
         selectedBoardIds,
         boardSources: multiBoardData.boardSources,
-        onToggleMultiBoard: (enabled, ids) => {
-            setMultiBoardMode(enabled);
-            setSelectedBoardIds(ids || []);
-            if (!enabled) setFilters(f => { const { board, ...rest } = f; return { ...rest }; });
-        }
-    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, filters, isReadOnly, allCountries, effectiveMembers, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout, multiBoardMode, selectedBoardIds, multiBoardData.boardSources]);
+        onToggleMultiBoard: handleToggleMultiBoard
+    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, filters, isReadOnly, allCountries, effectiveMembers, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout, multiBoardMode, selectedBoardIds, multiBoardData.boardSources, handleToggleMultiBoard]);
 
     if (!authenticated) return <AuthGate onTrelloLogin={handleTrelloLogin} onValidateToken={handleValidateToken} onGuestLogin={handleGuestLogin}/>;
 

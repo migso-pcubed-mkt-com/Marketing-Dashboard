@@ -166,7 +166,7 @@ export function parseGrid(sheetData, merges = []) {
     const tasks = [];
 
     // Determine the "label" column (usually column 0 or the one before the first month)
-    const labelCol = monthColumns[0].col > 0 ? 0 : 0;
+    const labelCol = 0;
 
     // Track current category and action
     let currentCategory = null;

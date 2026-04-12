@@ -30,7 +30,9 @@ export default function useUndoRedo(setBoardData) {
         if (isUndoRedoRef.current) return;
         if (!boardData) return;
 
-        const json = JSON.stringify(boardData);
+        let json;
+        try { json = JSON.stringify(boardData); }
+        catch (e) { console.warn('useUndoRedo: failed to serialize state, skipping snapshot', e); return; }
 
         // If we undid some steps and then make a new change, discard the redo branch
         if (indexRef.current < historyRef.current.length - 1) {
@@ -56,7 +58,9 @@ export default function useUndoRedo(setBoardData) {
 
         indexRef.current -= 1;
         const entry = historyRef.current[indexRef.current];
-        const restored = JSON.parse(entry.json);
+        let restored;
+        try { restored = JSON.parse(entry.json); }
+        catch (e) { console.warn('useUndoRedo: failed to parse undo state', e); return null; }
 
         isUndoRedoRef.current = true;
         setBoardData(restored);
@@ -75,7 +79,9 @@ export default function useUndoRedo(setBoardData) {
 
         indexRef.current += 1;
         const entry = historyRef.current[indexRef.current];
-        const restored = JSON.parse(entry.json);
+        let restored;
+        try { restored = JSON.parse(entry.json); }
+        catch (e) { console.warn('useUndoRedo: failed to parse redo state', e); return null; }
 
         isUndoRedoRef.current = true;
         setBoardData(restored);

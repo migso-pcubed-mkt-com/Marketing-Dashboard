@@ -50,13 +50,21 @@ const TrelloExportModal = ({ board, onClose, onConnected }) => {
     }
     const labelCount = uniqueChannels.size + uniqueCountries.size;
 
+    // Count label assignment operations for accurate progress
+    let labelAssignmentCount = 0;
+    if (cardAsTask) {
+        tasks.forEach(t => { labelAssignmentCount += (t.channels || []).length + (t.countries || []).length; });
+    } else {
+        actions.forEach(a => { labelAssignmentCount += (a.tags || []).length + (a.countries || []).length; });
+    }
+
     // ─── Push Logic ──────────────────────────────────────
 
     const handlePush = async () => {
         setStep('pushing');
         setError(null);
 
-        const totalOps = 1 + listCount + labelCount + cardCount + checklistCount;
+        const totalOps = 1 + listCount + labelCount + cardCount + checklistCount + labelAssignmentCount;
         let currentOp = 0;
         const updateProgress = (label) => {
             currentOp++;
@@ -132,12 +140,14 @@ const TrelloExportModal = ({ board, onClose, onConnected }) => {
                     const taskCountries = task.countries || [];
                     for (const ch of taskChannels) {
                         if (channelLabelMap[ch]) {
+                            updateProgress(`Assigning label to card...`);
                             try { await addTrelloCardLabel(card.id, channelLabelMap[ch]); } catch (e) { /* 409 OK */ }
                             await sleep(100);
                         }
                     }
                     for (const co of taskCountries) {
                         if (countryLabelMap[co]) {
+                            updateProgress(`Assigning label to card...`);
                             try { await addTrelloCardLabel(card.id, countryLabelMap[co]); } catch (e) { /* 409 OK */ }
                             await sleep(100);
                         }
@@ -172,12 +182,14 @@ const TrelloExportModal = ({ board, onClose, onConnected }) => {
                     // Assign labels from action tags
                     for (const ch of (action.tags || [])) {
                         if (channelLabelMap[ch]) {
+                            updateProgress(`Assigning label to card...`);
                             try { await addTrelloCardLabel(card.id, channelLabelMap[ch]); } catch (e) { /* 409 OK */ }
                             await sleep(100);
                         }
                     }
                     for (const co of (action.countries || [])) {
                         if (countryLabelMap[co]) {
+                            updateProgress(`Assigning label to card...`);
                             try { await addTrelloCardLabel(card.id, countryLabelMap[co]); } catch (e) { /* 409 OK */ }
                             await sleep(100);
                         }
@@ -204,8 +216,8 @@ const TrelloExportModal = ({ board, onClose, onConnected }) => {
                         const items = groupTasks
                             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                             .map(t => ({
-                                name: t.title,
-                                checked: t.status === 'completed'
+                                text: t.title,
+                                done: t.status === 'completed'
                             }));
                         const checklist = await addTrelloChecklist(card.id, groupName, items);
 

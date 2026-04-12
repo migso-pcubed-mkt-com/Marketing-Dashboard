@@ -51,6 +51,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         if(filters.country&&filters.country.length>0&&!(t.countries||[]).some(c=>filters.country.includes(c)))return false;
         if(filters.otherLabel&&filters.otherLabel.length>0&&!(t.otherLabels||[]).some(l=>filters.otherLabel.includes(l.id)))return false;
         if(filters.member&&filters.member.length>0&&!(t.assignees||[]).some(m=>filters.member.includes(m)))return false;
+        if(filters.board?.length>0&&t._sourceBoardId&&!filters.board.includes(t._sourceBoardId))return false;
         if(actionFilters.length>0&&!actionFilters.includes(t.actionId))return false;
         return true;
     }),[tasks,actions,selectedYear,filters,actionFilters]);
@@ -321,7 +322,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                             <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
                         ))}
                     </div>
-                    <span className="kanban-context-label">{viewMode==='category'?(columns.some(c=>c.directTasks)?`${columns.reduce((s,c)=>s+c.items.length,0)} tasks`:`${columns.reduce((s,c)=>s+c.items.length,0)} actions`):`${columns.reduce((s,c)=>s+c.items.length,0)} tasks`}</span>
+                    <span className="kanban-context-label">{viewMode==='board'?`${columns.reduce((s,c)=>s+c.items.length,0)} tasks in ${columns.length} boards`:viewMode==='category'?(columns.some(c=>c.directTasks)?`${columns.reduce((s,c)=>s+c.items.length,0)} tasks`:`${columns.reduce((s,c)=>s+c.items.length,0)} actions`):`${columns.reduce((s,c)=>s+c.items.length,0)} tasks`}</span>
                 </div>
                 <div className="kanban-toolbar-right">
                     {<><span className="toolbar-label">Sort:</span>
