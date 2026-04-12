@@ -4,7 +4,7 @@ import { Icon } from './Icons.jsx';
 import { TRELLO_SYNC_INTERVALS } from '../config.js';
 
 const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
-    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus, onShowMemberModal } = useApp();
+    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus, onShowMemberModal, onShowTrelloExport, trelloUser } = useApp();
     const [name, setName] = useState(board.name);
     const isLastBoard = boards.length <= 1;
 
@@ -168,6 +168,27 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
                         </div>
                     )}
                 </div>
+
+                {/* Connect to Trello (only for local boards when user is authenticated) */}
+                {!board.trelloSync?.trelloBoardId && trelloUser && (
+                    <button
+                        onClick={() => { onShowTrelloExport(); onClose(); }}
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            width: '100%', padding: '10px 0', marginBottom: 16,
+                            borderRadius: 'var(--radius-md)',
+                            border: '1px solid #0079BF', background: 'white',
+                            color: '#0079BF', fontSize: 13, fontWeight: 500, cursor: 'pointer'
+                        }}
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="#0079BF">
+                            <rect x="1" y="1" width="22" height="22" rx="3" ry="3"/>
+                            <rect x="4" y="4" width="7" height="15" rx="1.5" ry="1.5" fill="white"/>
+                            <rect x="13" y="4" width="7" height="10" rx="1.5" ry="1.5" fill="white"/>
+                        </svg>
+                        Connect to Trello
+                    </button>
+                )}
 
                 {/* Trello Sync */}
                 {board.trelloSync?.trelloBoardId && (

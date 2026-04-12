@@ -535,6 +535,22 @@ export default async function handler(req, res) {
             return res.status(201).json(list);
         }
 
+        // POST /api/trello — action=createBoard — Create a new Trello board
+        if (req.method === 'POST' && action === 'createBoard') {
+            const { name: boardName } = req.body;
+            if (!boardName) return res.status(400).json({ error: 'name required' });
+            console.log(`Creating Trello board "${boardName}"...`);
+            const params = new URLSearchParams({ name: boardName, defaultLists: 'false' });
+            const response = await fetch(`${TRELLO_BASE}/boards?${authParams}&${params.toString()}`, { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello create board error', details: err });
+            }
+            const board = await response.json();
+            console.log(`Created board "${board.name}" (${board.id})`);
+            return res.status(201).json(board);
+        }
+
         return res.status(400).json({
             error: 'Invalid action',
             message: `Action "${action}" with method ${req.method} is not supported. Valid actions: boards (GET), board (GET), updateCard (PUT), createCard (POST), deleteCard (DELETE)`

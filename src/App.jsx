@@ -33,6 +33,7 @@ import NewActionModal from './components/NewActionModal.jsx';
 import NewTaskModal from './components/NewTaskModal.jsx';
 import AuthGate from './components/AuthGate.jsx';
 import MemberManagementModal from './components/MemberManagementModal.jsx';
+import TrelloExportModal from './components/TrelloExportModal.jsx';
 import useUndoRedo from './hooks/useUndoRedo.js';
 
 const API_BASE_URL = typeof window !== 'undefined'
@@ -74,6 +75,7 @@ const App = () => {
     const [showTrelloRemapModal, setShowTrelloRemapModal] = useState(false);
     const [showMemberModal, setShowMemberModal] = useState(false);
     const [showExcelImportModal, setShowExcelImportModal] = useState(false);
+    const [showTrelloExportModal, setShowTrelloExportModal] = useState(false);
     const [trelloSyncStatus, setTrelloSyncStatus] = useState('idle'); // idle | syncing | synced | error
     const [trelloUser, setTrelloUser] = useState(null); // null = guest, or { id, fullName, username, avatarUrl, token }
     const [authenticated, setAuthenticated] = useState(() => {
@@ -1120,6 +1122,18 @@ const App = () => {
         showNotification('✅ Members updated');
     };
 
+    // --- Connect local board to Trello ---
+    const handleConnectToTrello = useCallback(({ categories: cats, actions: acts, tasks: tks, trelloSync: sync }) => {
+        updateCurrentBoard(b => ({
+            ...b,
+            categories: cats,
+            actions: acts,
+            tasks: tks,
+            trelloSync: sync
+        }), 'Connected to Trello');
+        showNotification(`✅ Board connected to Trello`);
+    }, [updateCurrentBoard]);
+
     // --- Excel import ---
     const handleExcelImport = useCallback((importData, boardName) => {
         const newBoard = {
@@ -1481,6 +1495,7 @@ const App = () => {
         onOpenRemapLabels: () => setShowTrelloRemapModal(true),
         onShowMemberModal: () => setShowMemberModal(true),
         onShowExcelImport: () => setShowExcelImportModal(true),
+        onShowTrelloExport: () => setShowTrelloExportModal(true),
         onTrelloSync: handleTrelloSync,
         onUpdateTrelloSyncSettings: handleUpdateTrelloSyncSettings,
         trelloSyncStatus,
@@ -1593,6 +1608,7 @@ const App = () => {
                 {showTrelloRemapModal && currentBoard?.trelloSync?.trelloBoardId && <TrelloImportModal mappingOnly trelloBoardId={currentBoard.trelloSync.trelloBoardId} existingMappings={currentBoard.trelloSync.labelMappings} onClose={() => setShowTrelloRemapModal(false)} onSaveMappings={(mappings) => handleUpdateTrelloSyncSettings({ labelMappings: mappings })}/>}
                 {showExcelImportModal && <ExcelImportModal onClose={() => setShowExcelImportModal(false)} onImport={handleExcelImport}/>}
                 {showMemberModal && currentBoard && <MemberManagementModal board={currentBoard} onClose={() => setShowMemberModal(false)} onUpdateMembers={handleUpdateMembers}/>}
+                {showTrelloExportModal && currentBoard && <TrelloExportModal board={currentBoard} onClose={() => setShowTrelloExportModal(false)} onConnected={handleConnectToTrello}/>}
                 <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={currentBoard?.members || []} searchInputRef={searchInputRef}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
                 {showOnboarding && <OnboardingOverlay onClose={() => { setShowOnboarding(false); localStorage.setItem('onboarding_done', '1'); }}/>}
