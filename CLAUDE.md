@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-07 (post-sync merge, selective checkItem push, handleAddTask checklistName, orderUpdatedAt)
+> Last updated: 2026-04-11 (refactoring audit 14 steps, data protection fixes, TypeScript migration, Kanban virtualization)
 
 ---
 
@@ -63,29 +63,44 @@ Marketing Project Tracker for MIGSO-PCUBED. Single-page React app managing **Cat
 - **React 18** + **Vite 5** (ES Modules, no CDN/Babel/UMD)
 - **Tailwind CSS 3** via PostCSS (not CDN)
 - **Supabase JS SDK** (`@supabase/supabase-js`)
-- **Vitest** for unit tests (43 tests across 4 files)
-- No TypeScript, no ESLint
+- **Vitest** for unit tests (517 tests across 16 files)
+- **TypeScript 6** progressive (`strict:false`, `allowJs:true`, `noEmit:true`) — 4 files migrated so far
+- **ESLint 8** (`.eslintrc.cjs`) — 25 warnings remaining (unused vars)
+- **@tanstack/react-virtual** for Kanban column virtualization
 
 ### Key Files
 
 ```
 src/
-├── App.jsx              # Central state (~624 lines)
+├── App.jsx              # Central state (~1487 lines)
 ├── config.js            # CONFIG, DEFAULT_*, Supabase/GitHub config — NAMED exports only
-├── context.js           # AppContext + useApp()
+├── context.js           # BoardContext + FilterContext + AppContext + useBoard() + useFilter()
+├── types.ts             # Core entity interfaces (Task, Action, Category, Board, Filters…)
 ├── lib/
 │   ├── storage.js       # Supabase + GitHub + localStorage (load/save/snapshots)
+│   ├── handlers.ts      # Pure handler functions (applyTaskUpdate, applyBatchTaskUpdate…)
+│   ├── realtimeMerge.js # Entity-level merge for Realtime + pre-save OCC
+│   ├── postSyncMerge.js # Post-Trello-sync merge preserving local edits
 │   ├── trello.js        # Trello API client (calls /api/trello proxy)
 │   ├── trelloMapping.js # Trello ↔ Dashboard entity conversion
 │   ├── trelloSync.js    # Bidirectional sync engine
+│   ├── trelloAuth.js    # Trello OAuth login/restore/logout
 │   └── migration.js     # v1→v2 data migration
 ├── components/
-│   ├── ErrorBoundary.jsx # Error boundary wrapper for views
-│   ├── MentionInput.jsx  # @mention autocomplete for comments (contentEditable + dropdown)
-│   └── OnboardingOverlay.jsx # First-run tour (4 steps, localStorage)
-├── __tests__/           # Vitest unit tests (migration, mapping, sync, markdown)
+│   ├── ErrorBoundary.jsx       # Error boundary wrapper for views
+│   ├── MentionInput.jsx        # @mention autocomplete for comments
+│   ├── OnboardingOverlay.jsx   # First-run tour (4 steps, localStorage)
+│   ├── Skeletons.jsx           # Loading skeletons for lazy-loaded views (Suspense fallback)
+│   ├── VirtualKanbanCards.jsx  # Virtualized card list (@tanstack/react-virtual, threshold 50)
+│   ├── timeline/               # TimelineHeader.jsx, TimelineBar.jsx, useTimelineHelpers.js
+│   └── action-detail/          # CommentsSection.jsx, AttachmentsSection.jsx
 ├── hooks/
-│   └── useTouchDrag.js  # Reusable touch DnD hook (long-press 300ms, elementFromPoint)
+│   ├── useFilters.js    # Filter state + derived filter logic (extracted from App.jsx)
+│   ├── useFocusTrap.ts  # Focus trap for modals (TypeScript)
+│   └── useTouchDrag.ts  # Touch DnD hook (long-press 300ms, TypeScript)
+├── __tests__/           # Vitest unit tests (517 tests, 16 files)
+.eslintrc.cjs            # ESLint config
+tsconfig.json            # TypeScript config (noEmit, allowJs, progressive)
 api/
 ├── github.js            # Serverless: GitHub API proxy (keeps GITHUB_TOKEN server-side)
 └── trello.js            # Serverless: Trello API proxy (keeps TRELLO_API_KEY server-side)
@@ -94,10 +109,12 @@ api/
 ### Commands
 
 ```bash
-npm run dev       # Vite dev server — port 5173, proxies /api → localhost:3000
-npm run build     # Production build → dist/
-npm test          # Run Vitest tests (43 tests)
+npm run dev        # Vite dev server — port 5173, proxies /api → localhost:3000
+npm run build      # Production build → dist/
+npm test           # Run Vitest tests (517 tests, 16 files)
 npm run test:watch # Watch mode
+npm run lint       # ESLint check
+npm run typecheck  # TypeScript check (tsc --noEmit)
 ```
 
 ---
@@ -156,8 +173,10 @@ Central state in `App.jsx`:
 - `boardData` — full v2 envelope; `currentBoardId` — active board
 - `categories`, `actions`, `tasks` — derived via `useMemo` from active board
 - Single `boardDataRef` (replaces old `categoriesRef`/`actionsRef`/`tasksRef`)
+- `loadCompleted` — true only after cloud/local data fully loaded; gates auto-save to prevent saving empty data on deploy
+- `loadCompletedRef` — ref synced with `loadCompleted` for use inside Realtime callback closures
 
-`AppContext` (`useApp()`) exposes: `boards`, `currentBoardId`, `currentBoard`, `categories`, `actions`, `tasks`, `filters`, `setFilters`, `isReadOnly`, `allCountries`, `trelloUser`, board CRUD handlers, Trello sync handlers.
+`BoardContext` (`useBoard()`) exposes: `boards`, `currentBoardId`, `currentBoard`, `categories`, `actions`, `tasks`, `isReadOnly`, `allCountries`, `trelloUser`, board CRUD handlers, Trello sync handlers. `FilterContext` (`useFilter()`) exposes: `filters`, `setFilters`. Legacy `AppContext` (`useApp()`) still available, combines both.
 
 Props still drilled for view-specific handlers (`onUpdateTask`, `onOpenTask`, etc.).
 
@@ -181,6 +200,8 @@ Props still drilled for view-specific handlers (`onUpdateTask`, `onOpenTask`, et
 - Map Trello labels to "Action" in card-as-task mode (creates mixed `isDefault` conflict in Kanban)
 - Allow action creation UI in card-as-task mode (no "New Action" button, no inline "Create a new action" in modals)
 - Use `startDate` for month/quarter column assignment in Kanban — `getTaskMonth` uses `dueDate||startDate` (dueDate first)
+- Remove `loadCompleted` guard from auto-save — causes data loss on deploy (auto-save fires before cloud data loads)
+- Remove save validation in `saveToSupabase`/`saveToGitHub` — allows empty boardData to overwrite cloud storage
 
 ---
 
@@ -244,6 +265,20 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 - `channels`, `countries`, `otherLabels` are synced bidirectionally via label mappings. `mergeTrelloExtrasIntoTask` re-pulls labels after push (union merge). `mergeCardIntoTask` preserves local-only channels/countries (those without a Trello label mapping) via union merge with mapped values. Action labels are pushed via `pushActionLabelsToTrello()` in card-as-action mode.
 - `createCard` supports `start`, `pos`, `idMembers`, `dueComplete` for full field creation.
 - **Action→Task tag inheritance**: `handleUpdateAction` propagates tag/country changes to linked tasks via batch update. Uses union merge: `(new action tags) ∪ (task-specific tags not from old action)`.
+
+---
+
+## Performance & Code Quality
+
+- **Code splitting**: 10 components lazy-loaded via `React.lazy` (views + modals), 14 chunks in production build
+- **React.memo**: 11 components wrapped (`memo()` import) — TaskCard, ActionCard, KanbanView, TimelineView, CalendarView, DashboardView, FilterSidebar, TimelineHeader, TimelineBar, CommentsSection, AttachmentsSection
+- **useCallback**: ~20 handlers in App.jsx wrapped to stabilize prop references
+- **Kanban virtualization**: `VirtualKanbanCards.jsx` using `@tanstack/react-virtual` — activated when column has 50+ cards. `estimateSize=90`, `overscan=8`, `gap=8`, dynamic height via `measureElement`
+- **Loading states**: `Skeletons.jsx` provides `ViewSkeleton` as Suspense fallback for lazy views
+- **Context split**: `BoardContext` (board CRUD) + `FilterContext` (filters/search) replace monolithic `AppContext`
+- **Extracted hooks**: `useFilters` (filter logic), `useFocusTrap` (modal focus), `useTouchDrag` (touch DnD)
+- **focus-visible + prefers-reduced-motion**: CSS a11y in `index.css`
+- **Focus trap + ARIA**: `role="dialog"` + `aria-modal="true"` + `aria-labelledby` on all 7 modals, context-aware Escape
 
 ---
 
@@ -407,6 +442,15 @@ The "local only changed" push paths (card-as-task line 847, card-as-action line 
 
 ### Card permanent deletion must remove entity, not just pause
 When a Trello card is permanently deleted (missing from API response), the local entity (task or action+tasks) must be set to `null` and filtered out. Do NOT just "unlink" — the user expects deleted cards to disappear from the app entirely. Null entries are filtered via `.filter(Boolean)` when building final arrays (`allTasks`, `allActionsCA`, `allTasksCA`).
+
+### Auto-save must wait for loadCompleted
+`loadCompleted` state is separate from `dataLoaded`. `dataLoaded` fires at 100ms (UI timer), `loadCompleted` fires only after `loadData()` resolves (success, error, or 5s timeout). Auto-save checks both: `if (!dataLoaded || !loadCompleted || ...) return`. Without `loadCompleted`, a deploy/hard-refresh triggers auto-save with empty/default data before Supabase responds. `loadCompletedRef` (ref) is checked inside Realtime handler — events arriving before load completes are queued in `pendingRealtimeRef`.
+
+### Save functions validate boardData before writing
+`saveToSupabase` and `saveToGitHub` check `boardData?.boards?.length > 0` before proceeding. If data is empty or null, save is blocked with a console warning. This prevents overwriting cloud storage with empty state during race conditions or corrupted state.
+
+### lastSaveIdRef persisted in sessionStorage
+`lastSaveIdRef` is initialized from `sessionStorage('mkt_last_save_id')` instead of `null`. Each auto-save writes the new saveId to sessionStorage. This allows the app to detect Realtime echoes from its own previous instance after a page reload/deploy. Without this, the first Realtime event after reload would be treated as a new update and could overwrite freshly loaded data.
 
 ---
 

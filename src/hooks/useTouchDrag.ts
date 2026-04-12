@@ -1,38 +1,40 @@
 import { useRef, useState, useCallback } from 'react';
 
-/**
- * Reusable touch drag-and-drop hook.
- * Works alongside HTML5 Drag API (mouse) without conflict.
- *
- * Usage:
- *   const { touchHandlers, isDragging } = useTouchDrag({
- *       itemAttribute: 'data-task-id',
- *       onReorder: (draggedId, targetId, position) => { ... },
- *       longPressMs: 300,
- *   });
- *   // Spread touchHandlers onto each draggable item
- *
- * For index-based reorder (like CategoriesManagementModal):
- *   const { touchHandlers, isDragging } = useTouchDrag({
- *       itemAttribute: 'data-drag-index',
- *       onReorderByIndex: (fromIndex, toIndex) => { ... },
- *   });
- */
+interface UseTouchDragOptions {
+    itemAttribute?: string;
+    longPressMs?: number;
+    onReorder?: (draggedId: string, targetId: string, position: string) => void;
+    onReorderByIndex?: (fromIndex: number, toIndex: number) => void;
+    onDrop?: (draggedId: string, targetInfo: string) => void;
+    dropAttribute?: string;
+    disabled?: boolean;
+}
+
+interface UseTouchDragReturn {
+    touchHandlers: {
+        onTouchStart: (e: React.TouchEvent) => void;
+        onTouchMove: (e: React.TouchEvent) => void;
+        onTouchEnd: (e: React.TouchEvent) => void;
+    };
+    isDragging: boolean;
+    draggedId: string | null;
+}
+
 export function useTouchDrag({
     itemAttribute = 'data-drag-id',
     longPressMs = 300,
-    onReorder,          // (draggedId, targetId, position) => void
-    onReorderByIndex,   // (fromIndex, toIndex) => void — for index-based reorder
-    onDrop,             // (draggedId, targetInfo) => void — for cross-container drops
-    dropAttribute,      // e.g. 'data-date' for CalendarView drop zones
+    onReorder,
+    onReorderByIndex,
+    onDrop,
+    dropAttribute,
     disabled = false,
-} = {}) {
+}: UseTouchDragOptions = {}): UseTouchDragReturn {
     const [isDragging, setIsDragging] = useState(false);
-    const [draggedId, setDraggedId] = useState(null);
-    const touchTimeoutRef = useRef(null);
-    const draggedIdRef = useRef(null);
-    const startPosRef = useRef(null);
-    const ghostRef = useRef(null);
+    const [draggedId, setDraggedId] = useState<string | null>(null);
+    const touchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const draggedIdRef = useRef<string | null>(null);
+    const startPosRef = useRef<{ x: number; y: number } | null>(null);
+    const ghostRef = useRef<HTMLElement | null>(null);
 
     const cleanup = useCallback(() => {
         if (touchTimeoutRef.current) {
@@ -43,7 +45,6 @@ export function useTouchDrag({
             ghostRef.current.remove();
             ghostRef.current = null;
         }
-        // Remove all drag-over highlights
         document.querySelectorAll('.touch-drag-over').forEach(el =>
             el.classList.remove('touch-drag-over')
         );
@@ -52,9 +53,9 @@ export function useTouchDrag({
         draggedIdRef.current = null;
     }, []);
 
-    const handleTouchStart = useCallback((e) => {
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
         if (disabled) return;
-        const item = e.currentTarget.closest(`[${itemAttribute}]`);
+        const item = (e.currentTarget as HTMLElement).closest(`[${itemAttribute}]`) as HTMLElement | null;
         if (!item) return;
         const id = item.getAttribute(itemAttribute);
         const touch = e.touches[0];
@@ -65,14 +66,12 @@ export function useTouchDrag({
             setDraggedId(id);
             setIsDragging(true);
             if (navigator.vibrate) navigator.vibrate(50);
-            // Prevent scroll while dragging
             item.style.opacity = '0.5';
         }, longPressMs);
     }, [itemAttribute, longPressMs, disabled]);
 
-    const handleTouchMove = useCallback((e) => {
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
         if (!draggedIdRef.current) {
-            // Cancel long-press if finger moved too much before activation
             if (startPosRef.current && touchTimeoutRef.current) {
                 const touch = e.touches[0];
                 const dx = Math.abs(touch.clientX - startPosRef.current.x);
@@ -84,18 +83,16 @@ export function useTouchDrag({
             }
             return;
         }
-        e.preventDefault(); // Prevent scroll while dragging
+        e.preventDefault();
 
         const touch = e.touches[0];
         const el = document.elementFromPoint(touch.clientX, touch.clientY);
         if (!el) return;
 
-        // Remove previous highlights
         document.querySelectorAll('.touch-drag-over').forEach(node =>
             node.classList.remove('touch-drag-over')
         );
 
-        // Cross-container drop (e.g. calendar day cells)
         if (dropAttribute) {
             const dropZone = el.closest(`[${dropAttribute}]`);
             if (dropZone) {
@@ -104,23 +101,20 @@ export function useTouchDrag({
             return;
         }
 
-        // Same-container reorder
-        const target = el.closest(`[${itemAttribute}]`);
+        const target = el.closest(`[${itemAttribute}]`) as HTMLElement | null;
         if (!target) return;
         const targetId = target.getAttribute(itemAttribute);
         if (targetId === draggedIdRef.current) return;
 
         if (onReorderByIndex) {
-            // Index-based: reorder immediately on move
-            const fromIdx = parseInt(draggedIdRef.current);
-            const toIdx = parseInt(targetId);
+            const fromIdx = parseInt(draggedIdRef.current!);
+            const toIdx = parseInt(targetId!);
             if (!isNaN(fromIdx) && !isNaN(toIdx) && fromIdx !== toIdx) {
                 onReorderByIndex(fromIdx, toIdx);
                 draggedIdRef.current = String(toIdx);
                 setDraggedId(String(toIdx));
             }
         } else {
-            // ID-based: show indicator
             const rect = target.getBoundingClientRect();
             const midpoint = rect.top + rect.height / 2;
             const position = touch.clientY < midpoint ? 'before' : 'after';
@@ -129,34 +123,31 @@ export function useTouchDrag({
         }
     }, [itemAttribute, dropAttribute, onReorderByIndex]);
 
-    const handleTouchEnd = useCallback((e) => {
+    const handleTouchEnd = useCallback((e: React.TouchEvent) => {
         const wasDragging = !!draggedIdRef.current;
         const currentDraggedId = draggedIdRef.current;
 
         if (wasDragging) {
-            // Restore opacity on the dragged element
-            const draggedEl = document.querySelector(`[${itemAttribute}="${currentDraggedId}"]`);
+            const draggedEl = document.querySelector(`[${itemAttribute}="${currentDraggedId}"]`) as HTMLElement | null;
             if (draggedEl) draggedEl.style.opacity = '';
 
             if (dropAttribute && onDrop) {
-                // Cross-container drop
                 const touch = e.changedTouches[0];
                 const el = document.elementFromPoint(touch.clientX, touch.clientY);
                 if (el) {
                     const dropZone = el.closest(`[${dropAttribute}]`);
                     if (dropZone) {
                         const dropValue = dropZone.getAttribute(dropAttribute);
-                        onDrop(currentDraggedId, dropValue);
+                        onDrop(currentDraggedId!, dropValue!);
                     }
                 }
             } else if (onReorder) {
-                // Same-container reorder — find target with indicator
                 const target = document.querySelector('.touch-drag-over');
                 if (target) {
                     const targetId = target.getAttribute(itemAttribute);
                     const position = target.getAttribute('data-touch-pos') || 'after';
                     if (targetId && targetId !== currentDraggedId) {
-                        onReorder(currentDraggedId, targetId, position);
+                        onReorder(currentDraggedId!, targetId, position);
                     }
                 }
             }

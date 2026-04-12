@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, memo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 
@@ -85,4 +85,4 @@ const FilterSidebar = ({show, onClose, filters, setFilters, categories, allCount
     );
 };
 
-export default FilterSidebar;
+export default memo(FilterSidebar);

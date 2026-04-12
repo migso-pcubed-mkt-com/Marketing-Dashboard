@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useApp } from '../context.js';
+import { useBoard } from '../context.js';
 import { Icon } from './Icons.jsx';
 import BoardSelector from './BoardSelector.jsx';
 
 const Header = ({currentView, setCurrentView, onSync, syncing, githubConnected, savingStatus, trelloSync, trelloSyncStatus, onTrelloSync, isOffline, realtimeConnected}) => {
-    const { trelloUser, onTrelloLogin, onTrelloLogout } = useApp();
+    const { trelloUser, onTrelloLogin, onTrelloLogout } = useBoard();
     const [mobileMenu, setMobileMenu] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const navItems = [{id:'kanban',icon:Icon.Kanban,label:'Kanban'},{id:'timeline',icon:Icon.Timeline,label:'Timeline'},{id:'calendar',icon:Icon.Calendar,label:'Calendar'},{id:'dashboard',icon:Icon.Dashboard,label:'KPIs'}];

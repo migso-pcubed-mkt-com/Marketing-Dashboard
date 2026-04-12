@@ -1,8 +1,11 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, memo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
 import TaskCard from './TaskCard.jsx';
+import VirtualKanbanCards from './VirtualKanbanCards.jsx';
+
+const VIRTUALIZE_THRESHOLD = 50;
 
 const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onBatchUpdateTasks,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask,onUpdateCategory,onAddCategory,onDeleteCategory,isCardAsTask,isUserInteractingRef})=>{
     const[viewMode,setViewMode]=useState('category');
@@ -327,7 +330,105 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                 </div>
             </div>
             <div className="kanban-board">
-                    {columns.map((col, colIdx)=>(
+                    {columns.map((col, colIdx)=>{
+                    const isActionView = viewMode==='category'&&!col.directTasks;
+                    const useVirtual = col.items.length > VIRTUALIZE_THRESHOLD;
+                    const inlineReorderTask = (viewMode==='country'||viewMode==='month'||viewMode==='quarter'||(viewMode==='category'&&col.directTasks))?(draggedId,targetId,position)=>{
+                                    const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
+                                    const dragIdx=colItems.findIndex(t=>t.id===draggedId);
+                                    if(dragIdx<0){
+                                        const draggedTask=tasks.find(t=>t.id===draggedId);
+                                        if(!draggedTask)return;
+                                        const changes={};
+                                        const targetIdx=colItems.findIndex(t=>t.id===targetId);
+                                        if(targetIdx>=0){
+                                            changes.order=position==='before'?(colItems[targetIdx].order||0)-0.5:(colItems[targetIdx].order||0)+0.5;
+                                        }else{changes.order=colItems.length;}
+                                        if(viewMode==='category'){
+                                            const defaultAction=actions.find(a=>a.categoryId===col.key&&a.isDefault);
+                                            if(defaultAction)changes.actionId=defaultAction.id;
+                                        }else if(viewMode==='month'){
+                                            const mi=col.key;const yr=Number(selectedYear)||new Date().getFullYear();
+                                            const os=draggedTask.startDate?new Date(draggedTask.startDate+'T00:00:00'):null;
+                                            const oe=draggedTask.dueDate?new Date(draggedTask.dueDate+'T00:00:00'):null;
+                                            const ld=new Date(yr,mi+1,0).getDate();
+                                            const sd=os?Math.min(os.getDate(),ld):1;
+                                            const ed=oe?Math.min(oe.getDate(),ld):ld;
+                                            changes.startDate=yr+'-'+String(mi+1).padStart(2,'0')+'-'+String(sd).padStart(2,'0');
+                                            changes.dueDate=yr+'-'+String(mi+1).padStart(2,'0')+'-'+String(ed).padStart(2,'0');
+                                            changes.month=mi;
+                                        }else if(viewMode==='quarter'){
+                                            const qi=col.key;const yr=Number(selectedYear)||new Date().getFullYear();
+                                            const fm=qi*3;const lm=qi*3+2;
+                                            changes.startDate=yr+'-'+String(fm+1).padStart(2,'0')+'-01';
+                                            const ld2=new Date(yr,lm+1,0).getDate();
+                                            changes.dueDate=yr+'-'+String(lm+1).padStart(2,'0')+'-'+ld2;
+                                            changes.month=fm;
+                                        }else if(viewMode==='country'){
+                                            changes.countries=col.key==='_unassigned'?[]:[col.key];
+                                        }
+                                        onUpdateTask(draggedId,changes);
+                                        return;
+                                    }
+                                    const reordered=[...colItems];
+                                    reordered.splice(dragIdx,1);
+                                    const adjustedTargetIdx=reordered.findIndex(t=>t.id===targetId);
+                                    if(adjustedTargetIdx===-1)return;
+                                    const insertAt=position==='before'?adjustedTargetIdx:adjustedTargetIdx+1;
+                                    const draggedTask=tasks.find(t=>t.id===draggedId);
+                                    if(draggedTask)reordered.splice(insertAt,0,draggedTask);
+                                    const batchUpdates=reordered.map((t,i)=>({id:t.id,changes:{order:i}}));
+                                    if(viewMode==='month'){
+                                        const dt=tasks.find(t=>t.id===draggedId);
+                                        if(dt){
+                                            const dm=getTaskMonth(dt);
+                                            if(dm!==col.key){
+                                                const mi=col.key;const yr=Number(selectedYear)||new Date().getFullYear();
+                                                const os=dt.startDate?new Date(dt.startDate+'T00:00:00'):null;
+                                                const oe=dt.dueDate?new Date(dt.dueDate+'T00:00:00'):null;
+                                                const ld=new Date(yr,mi+1,0).getDate();
+                                                const sd=os?Math.min(os.getDate(),ld):1;
+                                                const ed=oe?Math.min(oe.getDate(),ld):ld;
+                                                const startDate=yr+'-'+String(mi+1).padStart(2,'0')+'-'+String(sd).padStart(2,'0');
+                                                const dueDate=yr+'-'+String(mi+1).padStart(2,'0')+'-'+String(ed).padStart(2,'0');
+                                                const bu=batchUpdates.find(u=>u.id===draggedId);
+                                                if(bu){bu.changes.startDate=startDate;bu.changes.dueDate=dueDate;bu.changes.month=mi;}
+                                            }
+                                        }
+                                    }else if(viewMode==='quarter'){
+                                        const dt=tasks.find(t=>t.id===draggedId);
+                                        if(dt){
+                                            const dm=getTaskMonth(dt);const dq=Math.floor(dm/3);
+                                            if(dq!==col.key){
+                                                const qi=col.key;const yr=Number(selectedYear)||new Date().getFullYear();
+                                                const fm=qi*3;const lm=qi*3+2;
+                                                const startDate=yr+'-'+String(fm+1).padStart(2,'0')+'-01';
+                                                const ld2=new Date(yr,lm+1,0).getDate();
+                                                const dueDate=yr+'-'+String(lm+1).padStart(2,'0')+'-'+ld2;
+                                                const bu=batchUpdates.find(u=>u.id===draggedId);
+                                                if(bu){bu.changes.startDate=startDate;bu.changes.dueDate=dueDate;bu.changes.month=fm;}
+                                            }
+                                        }
+                                    }else if(viewMode==='country'){
+                                        const targetCountry=col.key==='_unassigned'?[]:[col.key];
+                                        const bu=batchUpdates.find(u=>u.id===draggedId);
+                                        if(bu)bu.changes.countries=targetCountry;
+                                    }else if(viewMode==='category'){
+                                        const dt=tasks.find(t=>t.id===draggedId);
+                                        if(dt){
+                                            const defaultAction=actions.find(a=>a.categoryId===col.key&&a.isDefault);
+                                            if(defaultAction&&dt.actionId!==defaultAction.id){
+                                                const bu=batchUpdates.find(u=>u.id===draggedId);
+                                                if(bu)bu.changes.actionId=defaultAction.id;
+                                            }
+                                        }
+                                    }
+                                    onBatchUpdateTasks(batchUpdates);
+                                }:onReorderTask;
+                    const renderCard = isActionView
+                        ? (item) => <ActionCard key={item.id} action={item} tasks={filteredTasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:(sortBy==='order'?onMoveAction:null)} onReorderAction={isReadOnly?null:(sortBy==='order'?onReorderAction:null)} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>
+                        : (item) => <TaskCard key={item.id} task={item} action={actions.find(a=>a.id===item.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?inlineReorderTask:null)} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries} isReadOnly={isReadOnly}/>;
+                    return (
                         <div
                             key={col.key}
                             data-col-idx={colIdx}
@@ -423,7 +524,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 }
                             }}
                             className={`kanban-column${dropColIdx === colIdx && dragColIdx !== null ? ' column-drop-target' : ''}`}
-                            style={canDragColumns && col.key !== '_unassigned' ? {cursor:'grab'} : undefined}
+                            style={{...(canDragColumns && col.key !== '_unassigned' ? {cursor:'grab'} : {}), ...(useVirtual ? {overflowY:'hidden'} : {})}}
                         >
                             <div className="column-header">
                                 <div className="column-title">
@@ -439,110 +540,14 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                     <span className="column-count">{col.items.length}</span>
                                 </div>
                                                             </div>
-                            <div className="kanban-cards" onDragStart={(e) => {
+                            <div className="kanban-cards" style={useVirtual ? {minHeight:0} : undefined} onDragStart={(e) => {
                                 // Prevent column drag when dragging cards
                                 e.stopPropagation();
                                 if (isUserInteractingRef) isUserInteractingRef.current = true;
                             }} onDragEnd={() => {
                                 if (isUserInteractingRef) isUserInteractingRef.current = false;
                             }}>
-                                {(viewMode==='category'&&!col.directTasks)?col.items.map(action=><ActionCard key={action.id} action={action} tasks={filteredTasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:(sortBy==='order'?onMoveAction:null)} onReorderAction={isReadOnly?null:(sortBy==='order'?onReorderAction:null)} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>):col.items.map(task=><TaskCard key={task.id} task={task} action={actions.find(a=>a.id===task.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?((viewMode==='country'||viewMode==='month'||viewMode==='quarter'||(viewMode==='category'&&col.directTasks))?((draggedId,targetId,position)=>{
-                                    // Reorder within column — atomic batch update
-                                    const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
-                                    const dragIdx=colItems.findIndex(t=>t.id===draggedId);
-                                    // Cross-column drag: task is not in target column's items
-                                    if(dragIdx<0){
-                                        const draggedTask=tasks.find(t=>t.id===draggedId);
-                                        if(!draggedTask)return;
-                                        const changes={};
-                                        const targetIdx=colItems.findIndex(t=>t.id===targetId);
-                                        if(targetIdx>=0){
-                                            changes.order=position==='before'?(colItems[targetIdx].order||0)-0.5:(colItems[targetIdx].order||0)+0.5;
-                                        }else{changes.order=colItems.length;}
-                                        if(viewMode==='category'){
-                                            const defaultAction=actions.find(a=>a.categoryId===col.key&&a.isDefault);
-                                            if(defaultAction)changes.actionId=defaultAction.id;
-                                        }else if(viewMode==='month'){
-                                            const mi=col.key;const yr=Number(selectedYear)||new Date().getFullYear();
-                                            const os=draggedTask.startDate?new Date(draggedTask.startDate+'T00:00:00'):null;
-                                            const oe=draggedTask.dueDate?new Date(draggedTask.dueDate+'T00:00:00'):null;
-                                            const ld=new Date(yr,mi+1,0).getDate();
-                                            const sd=os?Math.min(os.getDate(),ld):1;
-                                            const ed=oe?Math.min(oe.getDate(),ld):ld;
-                                            changes.startDate=yr+'-'+String(mi+1).padStart(2,'0')+'-'+String(sd).padStart(2,'0');
-                                            changes.dueDate=yr+'-'+String(mi+1).padStart(2,'0')+'-'+String(ed).padStart(2,'0');
-                                            changes.month=mi;
-                                        }else if(viewMode==='quarter'){
-                                            const qi=col.key;const yr=Number(selectedYear)||new Date().getFullYear();
-                                            const fm=qi*3;const lm=qi*3+2;
-                                            changes.startDate=yr+'-'+String(fm+1).padStart(2,'0')+'-01';
-                                            const ld2=new Date(yr,lm+1,0).getDate();
-                                            changes.dueDate=yr+'-'+String(lm+1).padStart(2,'0')+'-'+ld2;
-                                            changes.month=fm;
-                                        }else if(viewMode==='country'){
-                                            changes.countries=col.key==='_unassigned'?[]:[col.key];
-                                        }
-                                        onUpdateTask(draggedId,changes);
-                                        return;
-                                    }
-                                    const reordered=[...colItems];
-                                    reordered.splice(dragIdx,1);
-                                    const adjustedTargetIdx=reordered.findIndex(t=>t.id===targetId);
-                                    if(adjustedTargetIdx===-1)return;
-                                    const insertAt=position==='before'?adjustedTargetIdx:adjustedTargetIdx+1;
-                                    const draggedTask=tasks.find(t=>t.id===draggedId);
-                                    if(draggedTask)reordered.splice(insertAt,0,draggedTask);
-                                    // Build all updates and apply in one atomic call
-                                    const batchUpdates=reordered.map((t,i)=>({id:t.id,changes:{order:i}}));
-                                    // Include date move for cross-column drag
-                                    if(viewMode==='month'){
-                                        const dt=tasks.find(t=>t.id===draggedId);
-                                        if(dt){
-                                            const dm=getTaskMonth(dt);
-                                            if(dm!==col.key){
-                                                const mi=col.key;const yr=Number(selectedYear)||new Date().getFullYear();
-                                                const os=dt.startDate?new Date(dt.startDate+'T00:00:00'):null;
-                                                const oe=dt.dueDate?new Date(dt.dueDate+'T00:00:00'):null;
-                                                const ld=new Date(yr,mi+1,0).getDate();
-                                                const sd=os?Math.min(os.getDate(),ld):1;
-                                                const ed=oe?Math.min(oe.getDate(),ld):ld;
-                                                const startDate=yr+'-'+String(mi+1).padStart(2,'0')+'-'+String(sd).padStart(2,'0');
-                                                const dueDate=yr+'-'+String(mi+1).padStart(2,'0')+'-'+String(ed).padStart(2,'0');
-                                                const bu=batchUpdates.find(u=>u.id===draggedId);
-                                                if(bu){bu.changes.startDate=startDate;bu.changes.dueDate=dueDate;bu.changes.month=mi;}
-                                            }
-                                        }
-                                    }else if(viewMode==='quarter'){
-                                        const dt=tasks.find(t=>t.id===draggedId);
-                                        if(dt){
-                                            const dm=getTaskMonth(dt);const dq=Math.floor(dm/3);
-                                            if(dq!==col.key){
-                                                const qi=col.key;const yr=Number(selectedYear)||new Date().getFullYear();
-                                                const fm=qi*3;const lm=qi*3+2;
-                                                const startDate=yr+'-'+String(fm+1).padStart(2,'0')+'-01';
-                                                const ld2=new Date(yr,lm+1,0).getDate();
-                                                const dueDate=yr+'-'+String(lm+1).padStart(2,'0')+'-'+ld2;
-                                                const bu=batchUpdates.find(u=>u.id===draggedId);
-                                                if(bu){bu.changes.startDate=startDate;bu.changes.dueDate=dueDate;bu.changes.month=fm;}
-                                            }
-                                        }
-                                    }else if(viewMode==='country'){
-                                        const targetCountry=col.key==='_unassigned'?[]:[col.key];
-                                        const bu=batchUpdates.find(u=>u.id===draggedId);
-                                        if(bu)bu.changes.countries=targetCountry;
-                                    }else if(viewMode==='category'){
-                                        // Cross-category move: update actionId to target category's default action
-                                        const dt=tasks.find(t=>t.id===draggedId);
-                                        if(dt){
-                                            const defaultAction=actions.find(a=>a.categoryId===col.key&&a.isDefault);
-                                            if(defaultAction&&dt.actionId!==defaultAction.id){
-                                                const bu=batchUpdates.find(u=>u.id===draggedId);
-                                                if(bu)bu.changes.actionId=defaultAction.id;
-                                            }
-                                        }
-                                    }
-                                    onBatchUpdateTasks(batchUpdates);
-                                }):onReorderTask):null)} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries} isReadOnly={isReadOnly}/>)}
+                                {useVirtual ? <VirtualKanbanCards items={col.items} renderItem={renderCard}/> : col.items.map(renderCard)}
                                 {col.items.length===0&&<div className="column-empty" style={{color:'var(--text-muted)',fontSize:12}}>No tasks yet</div>}
                                 {!isReadOnly&&quickAddCol===col.key?<form onSubmit={e=>{e.preventDefault();const title=quickAddTitle.trim();if(!title)return;
                                     if(viewMode==='category'&&col.directTasks){let defAct=actions.find(a=>a.categoryId===col.key&&a.isDefault);if(!defAct){const now=new Date().toISOString();defAct={id:`a-${crypto.randomUUID()}`,name:col.name,categoryId:col.key,isDefault:true,budget:0,priority:'medium',tags:[],status:'active',createdAt:now,updatedAt:now};onAddAction(defAct);}onAddTask({title,actionId:defAct.id,status:'todo'});}
@@ -600,7 +605,8 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 </button>
                             </div>
                         </div>
-                    ))}
+                    );
+                    })}
                     {viewMode==='category'&&!isReadOnly&&onAddCategory&&(
                         showAddCategory?(
                             <div className="kanban-column" style={{minWidth:200,background:'var(--bg-secondary)',border:'1px dashed var(--border)',borderRadius:8,padding:12}}>
@@ -622,4 +628,4 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
     );
 };
 
-export default KanbanView;
+export default memo(KanbanView);

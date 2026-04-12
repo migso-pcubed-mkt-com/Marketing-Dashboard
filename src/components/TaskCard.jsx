@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, memo } from 'react';
+import { useBoard } from '../context.js';
 import { CONFIG } from '../config.js';
-import { useApp } from '../context.js';
-
 const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=false, onTouchDrag, categories, allCountries, isReadOnly}) => {
-    const { currentBoard } = useApp();
+    const { currentBoard } = useBoard();
     const boardMembers = currentBoard?.members || [];
     const [touching, setTouching] = useState(false);
     const [dragOverPosition, setDragOverPosition] = useState(null);
@@ -132,4 +131,4 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
     );
 };
 
-export default TaskCard;
+export default memo(TaskCard);

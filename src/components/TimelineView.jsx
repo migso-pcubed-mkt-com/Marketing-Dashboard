@@ -1,6 +1,9 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon, PriorityIcon } from './Icons.jsx';
+import { dateToPixel, pixelToDate, getTaskPosition, calculateSwimLanes, getDayHeaders, getWeekHeaders } from './timeline/useTimelineHelpers.js';
+import TimelineHeader from './timeline/TimelineHeader.jsx';
+import TimelineBar from './timeline/TimelineBar.jsx';
 
 const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef,isReadOnly,onRequestNewTask,isCardAsTask})=>{
     const timelineRef=useRef(null);
@@ -27,6 +30,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const now=new Date();const currentWeek=Math.floor(Math.round((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()))/86400000)/7);
 
     const colWidth=zoom==='quarter'?280:zoom==='week'?40:zoom==='day'?60:100;
+    const layoutParams=useMemo(()=>({zoom,colWidth,selectedYear,weekBase}),[zoom,colWidth,selectedYear,weekBase]);
 
     // Calculate the date at the center of the current viewport
     const getCenterDate=useCallback(()=>{
@@ -130,206 +134,12 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     const handleMouseMove=(e)=>{if(!isPanning)return;e.preventDefault();const x=e.pageX-timelineRef.current.offsetLeft;timelineRef.current.scrollLeft=scrollLeft-(x-startX)*2;};
     const handleMouseUp=()=>setIsPanning(false);
 
-    const getWeekNumber=(date)=>{
-        const diff=date-weekBase;
-        return Math.floor(diff/(7*24*60*60*1000));
-    };
+    const getPos=useCallback((task)=>getTaskPosition(task,layoutParams),[layoutParams]);
 
-    const getTaskPosition=(task)=>{
-        if(!task.startDate||!task.dueDate)return null;
-        let start=new Date(task.startDate);
-        let end=new Date(task.dueDate);
+    const calcSwimLanes=useCallback((tasksList,resizingInfo)=>calculateSwimLanes(tasksList,resizingInfo,layoutParams),[layoutParams]);
 
-        // Clamp dates to selectedYear for correct positioning in month/quarter views
-        const yearStart=new Date(selectedYear,0,1);
-        const yearEnd=new Date(selectedYear,11,31);
-        if(start<yearStart)start=yearStart;
-        if(end>yearEnd)end=yearEnd;
-
-        const startMonth=start.getMonth();
-        const endMonth=end.getMonth();
-        const startDay=start.getDate();
-        const endDay=end.getDate();
-        const daysInStartMonth=new Date(selectedYear,startMonth+1,0).getDate();
-        const daysInEndMonth=new Date(selectedYear,endMonth+1,0).getDate();
-
-        if(zoom==='day'){
-            const startDOY=Math.round((Date.UTC(start.getFullYear(),start.getMonth(),start.getDate())-Date.UTC(selectedYear,0,1))/86400000);
-            const endDOY=Math.round((Date.UTC(end.getFullYear(),end.getMonth(),end.getDate())-Date.UTC(selectedYear,0,1))/86400000);
-            const left=startDOY*colWidth;
-            const width=Math.max((endDOY-startDOY+1)*colWidth,colWidth);
-            return{left,width};
-        }
-        if(zoom==='week'){
-            // DST-safe day calculation using Date.UTC
-            const startDays=Math.round((Date.UTC(start.getFullYear(),start.getMonth(),start.getDate())-Date.UTC(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()))/86400000);
-            const endDays=Math.round((Date.UTC(end.getFullYear(),end.getMonth(),end.getDate())-Date.UTC(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()))/86400000);
-            const pixelsPerDay=colWidth/7;
-            const left=startDays*pixelsPerDay;
-            const width=Math.max((endDays-startDays+1)*pixelsPerDay,pixelsPerDay);
-            return{left,width};
-        }
-        if(zoom==='month'){
-            const startOffset=((startDay-1)/daysInStartMonth)*colWidth; // -1 for 0-indexed
-            const totalMonths=endMonth-startMonth;
-            const endOffset=((daysInEndMonth-endDay)/daysInEndMonth)*colWidth;
-            const width=(totalMonths+1)*colWidth-startOffset-endOffset;
-            const minWidth=(1/daysInStartMonth)*colWidth; // At least 1 day width proportional to month
-            return{left:startMonth*colWidth+startOffset,width:Math.max(width,minWidth)};
-        }
-        if(zoom==='quarter'){
-            // Calculate position within quarter view
-            // Each quarter is colWidth (280px), containing 3 months
-            const startQuarter=Math.floor(startMonth/3);
-            const endQuarter=Math.floor(endMonth/3);
-            const quarterWidth=colWidth; // 280px per quarter
-            const monthWidthInQuarter=quarterWidth/3; // ~93px per month
-
-            // Calculate start position
-            const monthInStartQuarter=startMonth%3;
-            const daysInMonth=new Date(selectedYear,startMonth+1,0).getDate();
-            const dayOffset=(startDay-1)/daysInMonth; // 0-1 within the month
-            const startOffset=monthInStartQuarter*monthWidthInQuarter+dayOffset*monthWidthInQuarter;
-            const left=startQuarter*quarterWidth+startOffset;
-
-            // Calculate width
-            const totalQuarters=endQuarter-startQuarter;
-            const monthInEndQuarter=endMonth%3;
-            const daysInEndMonthQ=new Date(selectedYear,endMonth+1,0).getDate();
-            const endDayOffset=endDay/daysInEndMonthQ; // 0-1 within the month
-            const endOffset=monthInEndQuarter*monthWidthInQuarter+endDayOffset*monthWidthInQuarter;
-
-            let width;
-            if(totalQuarters===0){
-                // Same quarter
-                width=endOffset-startOffset;
-            }else{
-                // Spans multiple quarters
-                width=(totalQuarters+1)*quarterWidth-startOffset-(quarterWidth-endOffset);
-            }
-
-            const minWidth=monthWidthInQuarter/30; // At least 1 day width
-            return{left,width:Math.max(width,minWidth)};
-        }
-        return{left:startMonth*colWidth,width:colWidth};
-    };
-
-    // Calculate swim lanes for overlapping tasks (optimized for compactness)
-    // resizingInfo: optional {taskId, originalStart, originalEnd} — freezes resizing task in its original lane
-    const calculateSwimLanes=(tasksList,resizingInfo)=>{
-        const swimLanes={};
-        const lanes=[];
-
-        // Sort tasks by start date (primary), order as tiebreaker for same-day tasks
-        // For the resizing task, use original dates for sorting too — otherwise the changed
-        // startDate shifts sort order which cascades into different lane assignments
-        const sortedTasks=[...tasksList].sort((a,b)=>{
-            const aStart=(resizingInfo&&a.id===resizingInfo.taskId)?resizingInfo.originalStart:a.startDate;
-            const bStart=(resizingInfo&&b.id===resizingInfo.taskId)?resizingInfo.originalStart:b.startDate;
-            if(!aStart||!bStart)return 0;
-            const dateDiff=new Date(aStart)-new Date(bStart);
-            if(dateDiff!==0)return dateDiff;
-            return(a.order||0)-(b.order||0);
-        });
-
-        sortedTasks.forEach(task=>{
-            if(!task.startDate||!task.dueDate){
-                swimLanes[task.id]=0;
-                return;
-            }
-
-            // For resizing task, use original (pre-resize) dates for lane calculation
-            // so the task doesn't jump swim lanes during resize — only recalculates on mouseup
-            const pos=(resizingInfo&&task.id===resizingInfo.taskId)
-                ?getTaskPosition({...task,startDate:resizingInfo.originalStart,dueDate:resizingInfo.originalEnd})
-                :getTaskPosition(task);
-            if(!pos){
-                swimLanes[task.id]=0;
-                return;
-            }
-
-            const taskStart=pos.left;
-            const taskEnd=pos.left+pos.width;
-
-            // Find first available lane where this task doesn't overlap
-            let assignedLane=-1;
-            for(let i=0;i<lanes.length;i++){
-                let canFit=true;
-                for(const existingTask of lanes[i]){
-                    // Standard interval overlap check (no buffer — adjacent tasks share the same lane)
-                    if(taskStart<existingTask.end&&taskEnd>existingTask.start){
-                        canFit=false;
-                        break;
-                    }
-                }
-                if(canFit){
-                    assignedLane=i;
-                    lanes[i].push({id:task.id,start:taskStart,end:taskEnd});
-                    break;
-                }
-            }
-
-            // No existing lane can fit this task — create a new one
-            if(assignedLane===-1){
-                assignedLane=lanes.length;
-                lanes.push([{id:task.id,start:taskStart,end:taskEnd}]);
-            }
-
-            swimLanes[task.id]=assignedLane;
-        });
-
-        const maxLanes=lanes.length;
-        return{swimLanes,maxLanes:Math.max(maxLanes,1)};
-    };
-
-    // Shared pixel<->date conversion (used by both preview and drop for perfect consistency)
-    const dateToPixel=(d)=>{
-        const m=d.getMonth();const day=d.getDate();
-        const dim=new Date(selectedYear,m+1,0).getDate();
-        if(zoom==='day'){
-            const doy=Math.floor((d-new Date(selectedYear,0,1))/(86400000));
-            return doy*colWidth;
-        }else if(zoom==='week'){
-            // DST-safe day calculation using Date.UTC
-            const daysFromBase=Math.round((Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())-Date.UTC(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()))/86400000);
-            return daysFromBase*(colWidth/7);
-        }else if(zoom==='month'){
-            return m*colWidth+((day-1)/dim)*colWidth;
-        }else{
-            const q=Math.floor(m/3);const miq=m%3;const mw=colWidth/3;
-            return q*colWidth+miq*mw+((day-1)/dim)*mw;
-        }
-    };
-
-    const pixelToDate=(absX)=>{
-        const year=selectedYear;
-        if(zoom==='day'){
-            const dayIdx=Math.round(absX/colWidth);
-            return new Date(year,0,1+Math.max(0,dayIdx));
-        }else if(zoom==='week'){
-            const pixelsPerDay=colWidth/7;
-            const dayIdx=Math.round(absX/pixelsPerDay);
-            // Snap to week boundary (Monday) if very close (within 1 day)
-            const nearestWeekDay=Math.round(dayIdx/7)*7;
-            const snappedDay=Math.abs(dayIdx-nearestWeekDay)<=1?nearestWeekDay:dayIdx;
-            return new Date(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()+Math.max(0,snappedDay));
-        }else if(zoom==='month'){
-            const monthIdx=Math.max(0,Math.min(11,Math.floor(absX/colWidth)));
-            const monthFrac=Math.max(0,(absX-monthIdx*colWidth)/colWidth);
-            const dim=new Date(year,monthIdx+1,0).getDate();
-            const day=Math.max(1,Math.round(monthFrac*dim));
-            return new Date(year,monthIdx,day);
-        }else{
-            const qIdx=Math.max(0,Math.min(3,Math.floor(absX/colWidth)));
-            const qFrac=Math.max(0,(absX-qIdx*colWidth)/colWidth);
-            const miq=Math.min(2,Math.floor(qFrac*3));
-            const mFrac=(qFrac*3)-miq;
-            const targetMonth=qIdx*3+miq;
-            const dim=new Date(year,targetMonth+1,0).getDate();
-            const day=Math.max(1,Math.round(mFrac*dim));
-            return new Date(year,targetMonth,Math.min(day,dim));
-        }
-    };
+    const d2p=useCallback((d)=>dateToPixel(d,layoutParams),[layoutParams]);
+    const p2d=useCallback((absX)=>pixelToDate(absX,layoutParams),[layoutParams]);
 
     // Resize handlers with useCallback to avoid recreating on every render
     const startResize=useCallback((taskId,handle,clientX,task)=>{
@@ -583,7 +393,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         document.body.appendChild(ghost);
         e.dataTransfer.setDragImage(ghost,0,0);
         setTimeout(()=>document.body.removeChild(ghost),0);
-        const pos=getTaskPosition(task);
+        const pos=getPos(task);
         const grabOffset=e.clientX-e.currentTarget.getBoundingClientRect().left;
 
         setDragging({taskId:task.id,task:task,startX:e.clientX,startY:e.clientY,originalLeft:pos?.left||0,grabOffset:grabOffset||0});
@@ -726,64 +536,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         setDragOverAction(null);
     };
 
-    const getDayHeaders=()=>{
-        const days=[];
-        const months=[];
-        let currentMonth=-1;
-        let dayCounter=0;
-        for(let m=0;m<12;m++){
-            const daysInMonth=new Date(selectedYear,m+1,0).getDate();
-            const monthStart=dayCounter;
-            for(let d=1;d<=daysInMonth;d++){
-                days.push({day:dayCounter,date:d,month:m,label:d.toString()});
-                dayCounter++;
-            }
-            months.push({month:m,label:CONFIG.MONTHS[m],startDay:monthStart,endDay:dayCounter-1,days:daysInMonth});
-        }
-        return{days,months};
-    };
-
-    const getWeekHeaders=()=>{
-        const weeks=[];
-        const months=[];
-        const monthBoundaries=[];
-        const dec31=new Date(selectedYear,11,31);
-        let lastMonth=-1;
-        for(let w=0;w<54;w++){
-            const weekStart=new Date(weekBase.getFullYear(),weekBase.getMonth(),weekBase.getDate()+w*7);
-            if(weekStart>dec31)break;
-            // ISO week number for label
-            const thu=new Date(weekStart.getFullYear(),weekStart.getMonth(),weekStart.getDate()+3);
-            const isoD=new Date(Date.UTC(thu.getFullYear(),thu.getMonth(),thu.getDate()));
-            isoD.setUTCDate(isoD.getUTCDate()+4-(isoD.getUTCDay()||7));
-            const isoYS=new Date(Date.UTC(isoD.getUTCFullYear(),0,1));
-            const isoWeek=Math.ceil(((isoD-isoYS)/86400000+1)/7);
-            const weekObj={week:w,label:isoWeek.toString(),monthStart:null,monthLabel:null};
-            // Month grouping: use Monday date, but assign to Jan if in previous year
-            const monthIdx=weekStart.getFullYear()<selectedYear?0:weekStart.getMonth();
-            weekObj.monthLabel=CONFIG.MONTHS[monthIdx];
-            if(monthIdx!==lastMonth){
-                if(months.length>0)months[months.length-1].endWeek=w;
-                months.push({month:monthIdx,label:CONFIG.MONTHS[monthIdx],startWeek:w,endWeek:w+1});
-                lastMonth=monthIdx;
-                // Compute month boundary line position (1st of month within this week)
-                if(w>0||monthIdx>0){
-                    const firstOfMonth=new Date(selectedYear,monthIdx,1);
-                    const dayOffset=Math.round((firstOfMonth-weekStart)/86400000);
-                    if(dayOffset>=0&&dayOffset<7){
-                        monthBoundaries.push({weekIndex:w,dayOffset,label:CONFIG.MONTHS[monthIdx]});
-                        weekObj.monthStart=CONFIG.MONTHS[monthIdx];
-                    }
-                }
-            }
-            weeks.push(weekObj);
-        }
-        if(months.length>0)months[months.length-1].endWeek=weeks.length;
-        return{weeks,months,monthBoundaries};
-    };
-
-    const weekHeadersCache=zoom==='week'?getWeekHeaders():null;
-    const dayHeadersCache=zoom==='day'?getDayHeaders():null;
+    const weekHeadersCache=zoom==='week'?getWeekHeaders(selectedYear,weekBase):null;
+    const dayHeadersCache=zoom==='day'?getDayHeaders(selectedYear):null;
     const headers=zoom==='quarter'?[{q:1,label:'Q1',months:[0,1,2]},{q:2,label:'Q2',months:[3,4,5]},{q:3,label:'Q3',months:[6,7,8]},{q:4,label:'Q4',months:[9,10,11]}]:zoom==='week'?weekHeadersCache.weeks:zoom==='day'?dayHeadersCache.days:CONFIG.MONTHS.map((m,i)=>({month:i,label:m}));
     const monthHeaders=zoom==='week'?weekHeadersCache.months:zoom==='day'?dayHeadersCache.months:null;
     const monthBoundaryLines=zoom==='week'?(weekHeadersCache.monthBoundaries||[]):[];
@@ -998,7 +752,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
         // Apply grab offset — same logic as preview for exact match
         const adjustedX=absX-(dragging?.grabOffset||0);
-        const snapDate=pixelToDate(adjustedX);
+        const snapDate=p2d(adjustedX);
 
         const endDate=new Date(snapDate);
         endDate.setDate(endDate.getDate()+duration-1);
@@ -1041,20 +795,20 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
                 // Apply grab offset so the task stays "attached" at the grab point
                 const adjustedX=absX-(dragging.grabOffset||0);
-                const snapDate=pixelToDate(adjustedX);
+                const snapDate=p2d(adjustedX);
 
                 const endDate=new Date(snapDate);
                 endDate.setDate(endDate.getDate()+duration-1);
 
                 const dayAfterEnd=new Date(endDate);
                 dayAfterEnd.setDate(dayAfterEnd.getDate()+1);
-                const previewLeft=dateToPixel(snapDate);
-                const previewWidth=Math.max(dateToPixel(dayAfterEnd)-previewLeft,20);
+                const previewLeft=d2p(snapDate);
+                const previewWidth=Math.max(d2p(dayAfterEnd)-previewLeft,20);
 
                 // Use mouse Y position to determine preview lane, capped to existing lanes
                 // This prevents rows from expanding during drag
                 const targetTasks=tasks.filter(t=>t.actionId===targetAction.id);
-                const{maxLanes:actionMaxLanes}=calculateSwimLanes(targetTasks,resizing);
+                const{maxLanes:actionMaxLanes}=calcSwimLanes(targetTasks,resizing);
                 const mouseY=e.clientY-rect.top;
                 const previewLane=Math.min(Math.max(0,Math.floor((mouseY-8)/34)),Math.max(actionMaxLanes-1,0));
                 const previewTop=8+previewLane*34;
@@ -1197,23 +951,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     return(
         <div className="animate-slide-in">
             <div className="timeline-container">
-                <div className="timeline-header">
-                    <div className="timeline-header-left">
-                        <div className="view-btn-group">
-                            {[{id:'week',label:'Week'},{id:'month',label:'Month'},{id:'quarter',label:'Quarter'}].map(z=>(
-                                <button key={z.id} onClick={()=>handleZoomChange(z.id)} className={`view-btn ${zoom===z.id?'active':''}`}>{z.label}</button>
-                            ))}
-                        </div>
-                        <div className="quarter-nav-group">
-                            {[1,2,3,4].map(q=>(<button key={q} onClick={()=>scrollToQuarter(q)} className="quarter-btn">Q{q}</button>))}
-                        </div>
-                    </div>
-                    <div className="timeline-nav">
-                        <button className="timeline-nav-btn" onClick={()=>onYearChange&&onYearChange(selectedYear-1)}>◀</button>
-                        <span className="timeline-current">{selectedYear}</span>
-                        <button className="timeline-nav-btn" onClick={()=>onYearChange&&onYearChange(selectedYear+1)}>▶</button>
-                    </div>
-                </div>
+                <TimelineHeader zoom={zoom} selectedYear={selectedYear} onZoomChange={handleZoomChange} onScrollToQuarter={scrollToQuarter} onYearChange={onYearChange}/>
                 <div ref={timelineRef} className={`overflow-x-scroll ${spacePressed?'cursor-grab':''} ${isPanning?'cursor-grabbing':''}`} style={{scrollbarWidth:'thin',overflowX:'scroll',flex:1,overflowY:'auto'}} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
                     <div style={{minWidth:`${headers.length*colWidth+250}px`,position:'relative'}}>
                         {(zoom==='week'||zoom==='day')&&monthHeaders&&(
@@ -1261,7 +999,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                 {catActions.sort((a,b)=>(a.action.order||0)-(b.action.order||0)).map(({action,tasks:actionTasks})=>{
                                     const isDragOverAction=dragOverAction?.actionId===action.id;
                                     const dragOverActionClass=isDragOverAction?(dragOverAction.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
-                                    const{swimLanes,maxLanes}=calculateSwimLanes(actionTasks,resizing);
+                                    const{swimLanes,maxLanes}=calcSwimLanes(actionTasks,resizing);
                                     const rowHeight=Math.max(48,maxLanes*34+16);
                                     return(
                                     <div key={action.id} onDragOver={(e)=>handleActionDragOver(e,action)} onDragLeave={handleActionDragLeave} onDrop={(e)=>handleActionDrop(e,action)} className={`flex group relative ${dragOverActionClass}`} style={{borderBottom:'1px solid var(--border-light)'}}>
@@ -1289,7 +1027,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 // Find first swim lane that doesn't overlap with existing tasks
                                                 const occupiedLanes=new Set();
                                                 actionTasks.forEach(t=>{
-                                                    const p=getTaskPosition(t);
+                                                    const p=getPos(t);
                                                     if(!p)return;
                                                     if(previewLeft<p.left+p.width&&previewRight>p.left){
                                                         occupiedLanes.add(swimLanes[t.id]||0);
@@ -1303,30 +1041,16 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                 </div>);
                                             })()}
                                             {actionTasks.sort((a,b)=>(a.order||0)-(b.order||0)).map(task=>{
-                                                const pos=getTaskPosition(task);
+                                                const pos=getPos(task);
                                                 if(!pos)return null;
-                                                const status=CONFIG.STATUSES.find(s=>s.id===task.status);
-                                                const isDragOver=dragOverTask?.taskId===task.id;
-                                                const isResizing=resizing?.taskId===task.id;
-                                                const dragOverClass=isDragOver?(dragOverTask.position==='before'?'drop-indicator-before':'drop-indicator-after'):'';
-                                                const swimLane=swimLanes[task.id]||0;
-                                                const topOffset=8+swimLane*34;
-                                                const resizingStyle=isResizing?{boxShadow:'0 0 0 3px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.3)',transform:'scale(1.02)',zIndex:30}:{};
-                                                const channels=task.channels||action?.tags||[];
-                                                const mainChannel=channels[0]||'';
-                                                const channelColors={social:'#60a5fa',gads:'#fbbf24',lads:'#818cf8',events:'#f472b6',seo:'#4ade80',press:'#c4b5fd',email:'#fbbf24',web:'#818cf8',video:'#f87171',lp:'#2dd4bf',ia:'#c4b5fd',auto:'#fb923c'};
-                                                const barColor=channelColors[mainChannel]||status?.color||'#94a3b8';
-                                                const darkChannels=['gads','email'];
-                                                const textColor=darkChannels.includes(mainChannel)?'#78350f':'white';
-                                                const isCompleted=task.status==='completed';
                                                 return(
-                                                    <div key={task.id} draggable={!isReadOnly&&!resizing} onClick={()=>!isResizing&&!justResized&&onOpenTask(task)} onDragStart={(e)=>handleTaskDragStart(e,task)} onDragEnd={handleTaskDragEnd} onDragOver={(e)=>handleTaskDragOver(e,task)} onDragLeave={handleTaskDragLeave} onDrop={(e)=>handleTaskDrop(e,task)} className={`timeline-bar absolute flex items-center overflow-visible ${isResizing?'':'cursor-move'} ${dragOverClass}`} style={{left:pos.left,width:Math.max(pos.width-2,4),top:`${topOffset}px`,height:26,borderRadius:5,padding:'0 8px',fontSize:10,fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',backgroundColor:barColor,color:textColor,zIndex:1,transition:'transform 0.15s, box-shadow 0.15s',opacity:isCompleted?0.45:1,...resizingStyle}} title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.budget>0?'\nBudget: '+task.budget+'€':''}`}>
-                                                        {!isReadOnly&&<div className="resize-handle resize-handle-left" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'left',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false}/>}
-                                                        <span className="truncate flex-1 pointer-events-none" style={isCompleted?{textDecoration:'line-through'}:{}}>{task.title}</span>
-                                                        {task.budget>0&&(zoom==='month'||zoom==='quarter')&&<span style={{marginLeft:4,opacity:0.8,fontSize:9}} className="pointer-events-none">({(task.budget/1000).toFixed(0)}k)</span>}
-                                                        {pos.width<60&&<div className="timeline-bar-tooltip">{task.title}</div>}
-                                                        {!isReadOnly&&<div className="resize-handle resize-handle-right" onClick={(e)=>{e.stopPropagation();e.preventDefault();}} onMouseDown={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.clientX,task);}} onTouchStart={(e)=>{e.stopPropagation();e.preventDefault();startResize(task.id,'right',e.touches[0].clientX,task);}} onDragStart={(e)=>{e.preventDefault();e.stopPropagation();return false;}} draggable={false}/>}
-                                                    </div>
+                                                    <TimelineBar key={task.id} task={task} pos={pos} action={action} zoom={zoom}
+                                                        swimLane={swimLanes[task.id]||0} isReadOnly={isReadOnly}
+                                                        isResizing={resizing?.taskId===task.id} justResized={justResized}
+                                                        isDragOver={dragOverTask?.taskId===task.id} dragOverPosition={dragOverTask?.taskId===task.id?dragOverTask.position:null}
+                                                        onOpenTask={onOpenTask} onDragStart={handleTaskDragStart} onDragEnd={handleTaskDragEnd}
+                                                        onDragOver={handleTaskDragOver} onDragLeave={handleTaskDragLeave} onDrop={handleTaskDrop}
+                                                        onStartResize={startResize}/>
                                                 );
                                             })}
                                         </div>
@@ -1342,4 +1066,4 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
     );
 };
 
-export default TimelineView;
+export default memo(TimelineView);

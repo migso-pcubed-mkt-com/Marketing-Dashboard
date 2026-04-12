@@ -22,6 +22,10 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-04-11 | Add loadCompleted flag + save validation + Realtime load guard + sessionStorage saveId persistence | Prevent data loss on deploy: auto-save fired before cloud data loaded; Realtime echoes from previous instance not detected after reload |
+| 2026-04-11 | Setup TypeScript 6 progressive migration (types.ts, handlers.ts, useTouchDrag.ts, useFocusTrap.ts) + tsconfig.json | Type safety for core entities and hooks; allowJs:true + strict:false enables gradual migration without blocking build |
+| 2026-04-11 | Add Kanban virtualization via @tanstack/react-virtual (VirtualKanbanCards.jsx, threshold 50) | Large Kanban columns (50+ cards) caused scroll lag and DOM bloat; virtual rendering keeps DOM light |
+| 2026-04-11 | 14-step refactoring: ESLint, a11y CSS, code splitting (React.lazy), React.memo (11 components), useCallback (~20 handlers), Skeletons, context split (BoardContext+FilterContext), useFilters extraction, TimelineView decomposition, ActionDetailModal decomposition, CRUD handler tests (517 tests), focus trap + ARIA on 7 modals | Comprehensive code quality, performance, accessibility and maintainability audit |
 | 2026-04-10 | Add _recentlyDeletedCardIds/_recentlyDeletedListIds to both sync modes | Async archive race condition: sync imports card/list as new entity before archiveTrelloCard completes |
 | 2026-04-10 | Add _trelloBaseline + fix trelloLastModified timing in card-as-action new push | New actions/items lacked baseline for selective push; trelloLastModified set before checklist creation caused false conflict on next sync |
 | 2026-04-10 | Update handleDeleteAction to track deleted card IDs via updateCurrentBoard | Card-as-action action deletion had same re-import race condition as card-as-task task deletion |

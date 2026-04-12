@@ -27,7 +27,7 @@ vi.mock('../lib/trello.js', () => ({
     fetchTrelloCard: vi.fn().mockRejectedValue(new Error('Not found'))
 }));
 
-import { syncWithTrello, isSyncInProgress } from '../lib/trelloSync.js';
+import { syncWithTrello } from '../lib/trelloSync.js';
 import {
     fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, createTrelloList, updateTrelloList,
     updateTrelloChecklist, updateTrelloChecklistItem, addTrelloCardLabel, removeTrelloCardLabel,
@@ -1868,7 +1868,7 @@ describe('syncWithTrello — card-as-task', () => {
             cards: [makeCard({ id: 'card-1', name: 'Card on Trello', dateLastActivity: T.NEW })]
         }));
 
-        const { board: synced, result } = await syncWithTrello(board, { labelMappings: {} });
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
 
         // Task should not have been updated (title stays the same)
         const task = synced.tasks.find(t => t.id === 't-corrupted');

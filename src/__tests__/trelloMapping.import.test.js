@@ -381,7 +381,6 @@ describe('buildImportData', () => {
     it('assigns task to default action when no label mapping', () => {
         const result = buildImportData(makeTrelloData(), mappingConfig);
         const taskB = result.tasks.find(t => t.title === 'Task B');
-        const defaultAction = result.actions.find(a => a.isDefault);
         expect(taskB.actionId).toBeDefined();
     });
 

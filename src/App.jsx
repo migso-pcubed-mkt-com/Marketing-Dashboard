@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { CONFIG, DEFAULT_ACTIONS, DEFAULT_TASKS, GITHUB_CONFIG } from './config.js';
-import { AppContext } from './context.js';
+import { AppContext, BoardContext, FilterContext } from './context.js';
 import { migrateToV2 } from './lib/migration.js';
 import {
     supabaseClient, isSupabaseConfigured, useSupabase,
@@ -14,24 +14,31 @@ import {
 import { mergeBoardsEntityLevel } from './lib/realtimeMerge.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
 import { mergePostSync } from './lib/postSyncMerge.js';
+import { applyTaskUpdate, applyBatchTaskUpdate, applyActionUpdate, computeTagPropagation, applyTaskReorder } from './lib/handlers';
 import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem, deleteTrelloChecklist } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import OnboardingOverlay from './components/OnboardingOverlay.jsx';
-import TrelloImportModal from './components/TrelloImportModal.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
-import KanbanView from './components/KanbanView.jsx';
-import TimelineView from './components/TimelineView.jsx';
-import DashboardView from './components/DashboardView.jsx';
-import CalendarView from './components/CalendarView.jsx';
 import FilterSidebar from './components/FilterSidebar.jsx';
-import TaskDetailModal from './components/TaskDetailModal.jsx';
-import ActionDetailModal from './components/ActionDetailModal.jsx';
-import CategoriesManagementModal from './components/CategoriesManagementModal.jsx';
-import NewActionModal from './components/NewActionModal.jsx';
-import NewTaskModal from './components/NewTaskModal.jsx';
 import AuthGate from './components/AuthGate.jsx';
+import { ViewSkeleton } from './components/Skeletons.jsx';
+import { useFilters } from './hooks/useFilters.js';
+
+// Lazy-loaded views
+const KanbanView = lazy(() => import('./components/KanbanView.jsx'));
+const TimelineView = lazy(() => import('./components/TimelineView.jsx'));
+const CalendarView = lazy(() => import('./components/CalendarView.jsx'));
+const DashboardView = lazy(() => import('./components/DashboardView.jsx'));
+
+// Lazy-loaded modals
+const TaskDetailModal = lazy(() => import('./components/TaskDetailModal.jsx'));
+const ActionDetailModal = lazy(() => import('./components/ActionDetailModal.jsx'));
+const CategoriesManagementModal = lazy(() => import('./components/CategoriesManagementModal.jsx'));
+const NewActionModal = lazy(() => import('./components/NewActionModal.jsx'));
+const NewTaskModal = lazy(() => import('./components/NewTaskModal.jsx'));
+const TrelloImportModal = lazy(() => import('./components/TrelloImportModal.jsx'));
 
 const API_BASE_URL = typeof window !== 'undefined'
     ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
@@ -45,7 +52,6 @@ const App = () => {
     const [boardData, setBoardData] = useState(null);
     const [currentBoardId, setCurrentBoardId] = useState('board-default');
 
-    const [filters, setFilters] = useState({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
     const [syncing, setSyncing] = useState(false);
     const [savingStatus, setSavingStatus] = useState(null);
     const [selectedTask, setSelectedTask] = useState(null);
@@ -58,9 +64,10 @@ const App = () => {
     const [newTaskInitialValues, setNewTaskInitialValues] = useState(null);
     const [showCreateDropdown, setShowCreateDropdown] = useState(false);
     const [showExportDropdown, setShowExportDropdown] = useState(false);
-    const [showFilterSidebar, setShowFilterSidebar] = useState(false);
+    // (showFilterSidebar, searchInputRef, filteredTasks etc. are in useFilters hook)
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [dataLoaded, setDataLoaded] = useState(false);
+    const [loadCompleted, setLoadCompleted] = useState(false); // true only after cloud/local data fully loaded — gates auto-save
     const [fileSha, setFileSha] = useState(() => {
         return localStorage.getItem('github_file_sha') || '';
     });
@@ -88,8 +95,9 @@ const App = () => {
     const fileShaRef = useRef(fileSha);
     const isUserInteractingRef = useRef(false);
     const justSavedTimestampRef = useRef(0);
-    const lastSaveIdRef = useRef(null);
-    const searchInputRef = useRef(null);
+    // Restore last save ID from sessionStorage to detect echoes after page reload
+    const lastSaveIdRef = useRef(sessionStorage.getItem('mkt_last_save_id') || null);
+    const loadCompletedRef = useRef(false);
 
     // --- Derive active board data ---
     const currentBoard = useMemo(() => {
@@ -102,17 +110,8 @@ const App = () => {
     const tasks = currentBoard?.tasks || DEFAULT_TASKS;
     const boards = boardData?.boards || [];
 
-    // Archived tasks/actions are hidden by default.
-    // User can show them via the "Show archived" filter checkbox.
-    const visibleTasks = useMemo(() => {
-        if (filters.showArchived) return tasks;
-        return tasks.filter(t => !t.trelloArchived);
-    }, [tasks, filters.showArchived]);
-
-    const visibleActions = useMemo(() => {
-        if (filters.showArchived) return actions;
-        return actions.filter(a => !a.trelloArchived);
-    }, [actions, filters.showArchived]);
+    // --- Filters, archive filtering, and derived filter state ---
+    const { filters, setFilters, showFilterSidebar, setShowFilterSidebar, searchInputRef, visibleTasks, visibleActions, activeFilterCount, filteredTasks, filteredBudget, isFiltered } = useFilters(tasks, actions);
 
     // Guest users are read-only on Trello-linked boards (can edit non-Trello boards)
     const isReadOnly = !trelloUser && !!currentBoard?.trelloSync?.trelloBoardId;
@@ -370,11 +369,9 @@ const App = () => {
 
     // Data loading on mount
     useEffect(() => {
-        console.log('🚀 Loading data...', useSupabase ? '(Supabase)' : '(GitHub fallback)');
         setGithubToken(useSupabase ? 'supabase' : 'vercel-api');
 
         const mountTimer = setTimeout(() => {
-            console.log('✅ App mounted, activating interface');
             setDataLoaded(true);
         }, 100);
 
@@ -385,6 +382,7 @@ const App = () => {
                 setBoardData(fallbackData);
                 setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
             }
+            setLoadCompleted(true);
         }, 5000);
 
         const loadData = async () => {
@@ -403,6 +401,7 @@ const App = () => {
                     saveToLocalStorage();
                 }
                 clearTimeout(timeoutId);
+                setLoadCompleted(true);
             } catch (err) {
                 console.error('Error loading data:', err);
                 clearTimeout(timeoutId);
@@ -411,6 +410,7 @@ const App = () => {
                     setBoardData(fallbackData);
                     setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
                 }
+                setLoadCompleted(true);
             }
         };
         loadData();
@@ -465,30 +465,27 @@ const App = () => {
         else { localStorage.removeItem('github_file_sha'); }
     }, [fileSha]);
 
-    // Keep boardDataRef in sync
+    // Keep refs in sync with state
     useEffect(() => { boardDataRef.current = boardData; }, [boardData]);
     useEffect(() => { fileShaRef.current = fileSha; }, [fileSha]);
+    useEffect(() => { loadCompletedRef.current = loadCompleted; }, [loadCompleted]);
 
     // Auto-save with debounce
     useEffect(() => {
-        if (!dataLoaded || !boardData || isReceivingRealtimeRef.current) return;
-        console.log('🔄 Data modified, auto-save...');
+        if (!dataLoaded || !loadCompleted || !boardData || isReceivingRealtimeRef.current) return;
         setSavingStatus('saving');
         if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); }
         const delay = useSupabase ? 1000 : 2000;
         const doSave = async () => {
             if (isUserInteractingRef.current || isSyncInProgress()) {
-                console.log('⏳ User interacting or sync in progress, delaying save...');
                 autoSaveTimeoutRef.current = setTimeout(doSave, 500);
                 return;
             }
-            console.log('💾 Auto-save triggered...');
             // Pre-save conflict check: detect if another user saved since our last sync
             if (useSupabase && serverUpdatedAtRef.current) {
                 try {
                     const server = await fetchServerState();
                     if (server && server.updated_at !== serverUpdatedAtRef.current && server.board_data?.version === 2) {
-                        console.log('🔄 Pre-save: merging with server changes before saving');
                         boardDataRef.current = mergeBoardsEntityLevel(boardDataRef.current, server.board_data);
                         serverUpdatedAtRef.current = server.updated_at;
                     }
@@ -499,6 +496,7 @@ const App = () => {
             // Stamp a save ID so Realtime can detect our own echo
             const saveId = crypto.randomUUID();
             lastSaveIdRef.current = saveId;
+            try { sessionStorage.setItem('mkt_last_save_id', saveId); } catch (_) {}
             boardDataRef.current = { ...boardDataRef.current, _saveId: saveId };
             const success = await saveData();
             setSavingStatus(success ? 'saved' : 'error');
@@ -522,7 +520,7 @@ const App = () => {
         };
         autoSaveTimeoutRef.current = setTimeout(doSave, delay);
         return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); };
-    }, [boardData, dataLoaded, githubToken]);
+    }, [boardData, dataLoaded, loadCompleted, githubToken]);
 
     // Flush pending save on tab close / navigation away
     useEffect(() => {
@@ -602,7 +600,6 @@ const App = () => {
     // Process a Realtime payload: validate, entity-level merge, save backup
     const processRealtimePayload = (payload) => {
         const d = payload.new;
-        console.log('🔄 Realtime update received from Supabase');
         isReceivingRealtimeRef.current = true;
         let incoming = null;
         if (d.board_data && d.board_data.version === 2) {
@@ -636,19 +633,21 @@ const App = () => {
         if (!dataLoaded) return;
 
         if (useSupabase) {
-            console.log('🔄 Supabase Realtime subscription enabled');
             const channel = supabaseClient.channel('app_data_changes')
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data', filter: 'id=eq.default' }, (payload) => {
                     const d = payload.new;
                     // Skip our own echo — compare _saveId (always check, regardless of guards)
                     const incomingSaveId = d.board_data?._saveId;
                     if (incomingSaveId && incomingSaveId === lastSaveIdRef.current) {
-                        console.log('🔄 Realtime: skipping own echo (saveId match)');
+                        return;
+                    }
+                    // Guard: queue events arriving before initial load completes
+                    if (!loadCompletedRef.current) {
+                        pendingRealtimeRef.current = payload;
                         return;
                     }
                     // Guards active → queue event for later instead of dropping it
                     if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) {
-                        console.log('🔄 Realtime: guards active, queuing event for later');
                         pendingRealtimeRef.current = payload;
                         return;
                     }
@@ -663,7 +662,6 @@ const App = () => {
         }
 
         if (githubToken) {
-            console.log('🔄 GitHub polling enabled (15s)');
             const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin;
             const checkForUpdates = async () => {
                 if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isReceivingRealtimeRef.current || isUserInteractingRef.current || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
@@ -682,7 +680,7 @@ const App = () => {
                             showNotification('✅ Synced with team');
                         }
                     }
-                } catch (e) { console.log('⚠️ Polling error (silent):', e.message); }
+                } catch (_) { /* polling error — silent */ }
             };
             const interval = setInterval(checkForUpdates, 15000);
             return () => clearInterval(interval);
@@ -701,7 +699,6 @@ const App = () => {
             // Re-verify echo (our save might have completed while queued)
             const incomingSaveId = payload.new?.board_data?._saveId;
             if (incomingSaveId && incomingSaveId === lastSaveIdRef.current) return true;
-            console.log('🔄 Realtime: processing queued event');
             processRealtimePayload(payload);
             return true;
         };
@@ -717,7 +714,6 @@ const App = () => {
         const needsOrder = tasks.some(t => t.order === undefined);
         const needsCreatedAt = tasks.some(t => !t.createdAt);
         if (needsOrder || needsCreatedAt) {
-            console.log('🔢 Initializing task properties...');
             setTasks(prev => prev.map((t, idx) => ({
                 ...t,
                 order: t.order !== undefined ? t.order : idx,
@@ -730,83 +726,33 @@ const App = () => {
         if (!dataLoaded || !currentBoard) return;
         const needsOrder = actions.some(a => a.order === undefined);
         if (needsOrder) {
-            console.log('🔢 Initializing action order...');
             setActions(prev => prev.map((a, idx) => ({...a, order: a.order !== undefined ? a.order : idx})));
         }
     }, [dataLoaded, currentBoard, actions.length]);
 
-    const handleSync = () => saveData();
+    const showNotification = useCallback((msg) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); }, []);
 
-    const handleUpdateTask = (taskId, updates) => {
-        setTasks(prev => prev.map(t => {
-            if (t.id !== taskId) return t;
-            const now = new Date().toISOString();
-            const newTask = {...t, ...updates, updatedAt: now};
-            if (updates.dueDate) {
-                const d = new Date(updates.dueDate);
-                newTask.month = d.getMonth();
-            } else if (updates.startDate) {
-                const d = new Date(updates.startDate);
-                newTask.month = d.getMonth();
-            }
-            // Set orderUpdatedAt when order changes (mirrors handleBatchUpdateTasks)
-            if (updates.order !== undefined) newTask.orderUpdatedAt = now;
-            return newTask;
-        }));
+    const handleSync = useCallback(() => saveData(), []);
+
+    const handleUpdateTask = useCallback((taskId, updates) => {
+        setTasks(prev => applyTaskUpdate(prev, taskId, updates));
         showNotification('✅ Task updated');
-    };
+    }, [setTasks, showNotification]);
 
-    const handleBatchUpdateTasks = (updates) => {
-        // updates: [{id, changes}, ...] — apply all in one atomic setTasks call
-        setTasks(prev => prev.map(t => {
-            const u = updates.find(u => u.id === t.id);
-            if (!u) return t;
-            const now = new Date().toISOString();
-            const newTask = {...t, ...u.changes, updatedAt: now};
-            if (u.changes.order !== undefined) newTask.orderUpdatedAt = now;
-            if (u.changes.dueDate) {
-                newTask.month = new Date(u.changes.dueDate).getMonth();
-            } else if (u.changes.startDate) {
-                newTask.month = new Date(u.changes.startDate).getMonth();
-            }
-            return newTask;
-        }));
-    };
+    const handleBatchUpdateTasks = useCallback((updates) => {
+        setTasks(prev => applyBatchTaskUpdate(prev, updates));
+    }, [setTasks]);
 
-    const handleUpdateAction = (actionId, updates) => {
+    const handleUpdateAction = useCallback((actionId, updates) => {
         const oldAction = actions.find(a => a.id === actionId);
-        setActions(prev => prev.map(a => a.id === actionId ? {...a, ...updates, updatedAt: new Date().toISOString()} : a));
-        // Propagate tag/country changes to linked tasks (union merge: keep task-specific tags)
-        if (oldAction && (updates.tags !== undefined || updates.countries !== undefined)) {
-            const oldTags = new Set(oldAction.tags || []);
-            const oldCountries = new Set(oldAction.countries || []);
-            const newTags = updates.tags !== undefined ? updates.tags : (oldAction.tags || []);
-            const newCountries = updates.countries !== undefined ? updates.countries : (oldAction.countries || []);
-            const tagsChanged = updates.tags !== undefined && JSON.stringify([...(oldAction.tags || [])].sort()) !== JSON.stringify([...newTags].sort());
-            const countriesChanged = updates.countries !== undefined && JSON.stringify([...(oldAction.countries || [])].sort()) !== JSON.stringify([...newCountries].sort());
-            if (tagsChanged || countriesChanged) {
-                const linkedTasks = tasks.filter(t => t.actionId === actionId);
-                if (linkedTasks.length > 0) {
-                    const batchUpdates = linkedTasks.map(task => {
-                        const changes = {};
-                        if (tagsChanged) {
-                            const taskSpecificTags = (task.channels || []).filter(c => !oldTags.has(c));
-                            changes.channels = [...new Set([...newTags, ...taskSpecificTags])];
-                        }
-                        if (countriesChanged) {
-                            const taskSpecificCountries = (task.countries || []).filter(c => !oldCountries.has(c));
-                            changes.countries = [...new Set([...newCountries, ...taskSpecificCountries])];
-                        }
-                        return { id: task.id, changes };
-                    });
-                    handleBatchUpdateTasks(batchUpdates);
-                }
-            }
-        }
+        setActions(prev => applyActionUpdate(prev, actionId, updates));
+        const linkedTasks = tasks.filter(t => t.actionId === actionId);
+        const batchUpdates = computeTagPropagation(oldAction, updates, linkedTasks);
+        if (batchUpdates.length > 0) handleBatchUpdateTasks(batchUpdates);
         showNotification('✅ Action updated');
-    };
+    }, [actions, tasks, setActions, handleBatchUpdateTasks, showNotification]);
 
-    const handleDeleteAction = async (actionId) => {
+    const handleDeleteAction = useCallback(async (actionId) => {
         // No confirm() here — caller (ActionDetailModal) handles confirmation popup
         const action = actions.find(a => a.id === actionId);
         // Prevent deletion of default action in card-as-task mode (would orphan all tasks)
@@ -846,9 +792,9 @@ const App = () => {
         setActions(prev => prev.filter(a => a.id !== actionId));
         setTasks(prev => prev.filter(t => t.actionId !== actionId));
         showNotification('🗑️ Action deleted');
-    };
+    }, [actions, currentBoard, isReadOnly, updateCurrentBoard, setActions, setTasks, showNotification]);
 
-    const handleAddTask = (actionId, customStartDate = null, customDueDate = null) => {
+    const handleAddTask = useCallback((actionId, customStartDate = null, customDueDate = null) => {
         const action = actions.find(a => a.id === actionId);
         const startDate = customStartDate || new Date().toISOString().split('T')[0];
         const month = new Date(startDate).getMonth();
@@ -870,9 +816,9 @@ const App = () => {
         setTasks(prev => [...prev, newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Task created');
-    };
+    }, [actions, tasks, setTasks, setSelectedTask, showNotification]);
 
-    const handleMoveTask = (taskId, direction) => {
+    const handleMoveTask = useCallback((taskId, direction) => {
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
         const sameTasks = tasks.filter(t => {
@@ -891,57 +837,19 @@ const App = () => {
             return t;
         }));
         showNotification(direction === 'up' ? '⬆️ Task moved up' : '⬇️ Task moved down');
-    };
+    }, [tasks, setTasks, showNotification]);
 
-    const handleReorderTask = (draggedId, targetId, position) => {
-        if (draggedId === targetId) return;
+    const handleReorderTask = useCallback((draggedId, targetId, position) => {
         const draggedTask = tasks.find(t => t.id === draggedId);
         const targetTask = tasks.find(t => t.id === targetId);
-        if (!draggedTask || !targetTask) return;
-        const isDifferentMonth = (draggedTask.month !== undefined && targetTask.month !== undefined && draggedTask.month !== targetTask.month);
-        const isDifferentStatus = (draggedTask.status !== undefined && targetTask.status !== undefined && draggedTask.status !== targetTask.status);
-        const isDifferentColumn = isDifferentMonth || isDifferentStatus;
-        let updatedDraggedTask = {...draggedTask};
-        if (isDifferentColumn) {
-            if (isDifferentMonth) {
-                updatedDraggedTask.month = targetTask.month;
-                const year = targetTask.startDate ? new Date(targetTask.startDate).getFullYear() : 2026;
-                const monthIdx = targetTask.month;
-                const startDate = year + '-' + String(monthIdx + 1).padStart(2, '0') + '-01';
-                const lastDay = new Date(year, monthIdx + 1, 0).getDate();
-                const dueDate = year + '-' + String(monthIdx + 1).padStart(2, '0') + '-' + lastDay;
-                updatedDraggedTask.startDate = startDate;
-                updatedDraggedTask.dueDate = dueDate;
-            }
-            if (isDifferentStatus) {
-                updatedDraggedTask.status = targetTask.status;
-            }
-            updatedDraggedTask.updatedAt = new Date().toISOString();
-        }
-        const targetColumnTasks = tasks.filter(t => {
-            if (t.id === draggedId) return true;
-            if (targetTask.month !== undefined) return t.month === targetTask.month;
-            return t.status === targetTask.status;
-        }).map(t => t.id === draggedId ? updatedDraggedTask : t).sort((a, b) => (a.order || 0) - (b.order || 0));
-        const draggedIndex = targetColumnTasks.findIndex(t => t.id === draggedId);
-        const targetIndex = targetColumnTasks.findIndex(t => t.id === targetId);
-        if (draggedIndex === -1 || targetIndex === -1) return;
-        const reordered = [...targetColumnTasks];
-        const [removed] = reordered.splice(draggedIndex, 1);
-        // Recalculate target index AFTER removal (indices shifted)
-        const adjustedTargetIdx = reordered.findIndex(t => t.id === targetId);
-        if (adjustedTargetIdx === -1) return;
-        const insertIndex = position === 'before' ? adjustedTargetIdx : adjustedTargetIdx + 1;
-        reordered.splice(insertIndex, 0, removed);
-        const updatedTasks = reordered.map((t, idx) => ({...t, order: idx}));
-        setTasks(prev => prev.map(t => {
-            const updated = updatedTasks.find(ut => ut.id === t.id);
-            return updated || t;
-        }));
+        if (!draggedTask || !targetTask || draggedId === targetId) return;
+        const isDifferentColumn = (draggedTask.month !== undefined && targetTask.month !== undefined && draggedTask.month !== targetTask.month) ||
+            (draggedTask.status !== undefined && targetTask.status !== undefined && draggedTask.status !== targetTask.status);
+        setTasks(prev => applyTaskReorder(prev, draggedId, targetId, position));
         showNotification(isDifferentColumn ? '✅ Task moved to new column' : '✅ Task reordered');
-    };
+    }, [tasks, setTasks, showNotification]);
 
-    const handleMoveAction = (actionId, direction) => {
+    const handleMoveAction = useCallback((actionId, direction) => {
         const action = actions.find(a => a.id === actionId);
         if (!action) return;
         const sameActions = actions.filter(a => a.categoryId === action.categoryId).sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -957,9 +865,9 @@ const App = () => {
             return a;
         }));
         showNotification(direction === 'up' ? '⬆️ Action moved up' : '⬇️ Action moved down');
-    };
+    }, [actions, setActions, showNotification]);
 
-    const handleReorderAction = (draggedId, targetId, position) => {
+    const handleReorderAction = useCallback((draggedId, targetId, position) => {
         if (draggedId === targetId) return;
         const draggedAction = actions.find(a => a.id === draggedId);
         const targetAction = actions.find(a => a.id === targetId);
@@ -996,9 +904,9 @@ const App = () => {
             }));
             showNotification('✅ Action reordered');
         }
-    };
+    }, [actions, setActions, showNotification]);
 
-    const handleDeleteTask = async (taskId) => {
+    const handleDeleteTask = useCallback(async (taskId) => {
         const task = tasks.find(t => t.id === taskId);
         // Archive linked Trello card (card-as-task) or delete checklist item (card-as-action)
         if (task && !isReadOnly) {
@@ -1021,24 +929,24 @@ const App = () => {
         }
         setTasks(prev => prev.filter(t => t.id !== taskId));
         showNotification('🗑️ Task deleted');
-    };
+    }, [tasks, currentBoard, isReadOnly, updateCurrentBoard, setTasks, showNotification]);
 
-    const handleCreateNewTask = (initialValues = null) => { setNewTaskInitialValues(initialValues); setShowNewTaskModal(true); };
+    const handleCreateNewTask = useCallback((initialValues = null) => { setNewTaskInitialValues(initialValues); setShowNewTaskModal(true); }, []);
 
-    const handleOpenTask = (task) => {
+    const handleOpenTask = useCallback((task) => {
         if (task.trelloLinkedCardUrl) {
             window.open(task.trelloLinkedCardUrl, '_blank');
             return;
         }
         setSelectedTask(task);
-    };
+    }, []);
 
-    const handleUpdateCategory = (catId, updates) => {
+    const handleUpdateCategory = useCallback((catId, updates) => {
         setCategories(prev => prev.map(c => c.id === catId ? {...c, ...updates, updatedAt: new Date().toISOString()} : c));
         showNotification('✅ Category updated');
-    };
+    }, [setCategories, showNotification]);
 
-    const handleAddCategory = (newCat) => {
+    const handleAddCategory = useCallback((newCat) => {
         const now = new Date().toISOString();
         if (!newCat.createdAt) newCat.createdAt = now;
         if (!newCat.updatedAt) newCat.updatedAt = now;
@@ -1057,9 +965,9 @@ const App = () => {
             setActions(prev => [...prev, defaultAction]);
         }
         showNotification('✅ Category created');
-    };
+    }, [currentBoard, setCategories, setActions, showNotification]);
 
-    const handleDeleteCategory = async (catId) => {
+    const handleDeleteCategory = useCallback(async (catId) => {
         const category = categories.find(c => c.id === catId);
         const catActions = actions.filter(a => a.categoryId === catId);
         const affectedTaskCount = tasks.filter(t => catActions.some(a => a.id === t.actionId)).length;
@@ -1088,23 +996,23 @@ const App = () => {
             catch(e) { console.warn('Failed to archive Trello list:', e); }
         }
         showNotification('🗑️ Category deleted');
-    };
+    }, [categories, actions, tasks, isReadOnly, updateCurrentBoard, showNotification]);
 
-    const handleReorderCategories = (reorderedCategories) => {
+    const handleReorderCategories = useCallback((reorderedCategories) => {
         const now = new Date().toISOString();
         setCategories(reorderedCategories.map((c, i) => ({...c, order: i, updatedAt: now})));
         showNotification('✅ Category order updated');
-    };
+    }, [setCategories, showNotification]);
 
-    const handleAddAction = (newAction) => {
+    const handleAddAction = useCallback((newAction) => {
         const now = new Date().toISOString();
         setActions(prev => [...prev, { ...newAction, createdAt: newAction.createdAt || now, updatedAt: newAction.updatedAt || now }]);
         showNotification('✅ Action created');
-    };
+    }, [setActions, showNotification]);
 
     // Rename checklist group (task category) — updates trelloChecklistName on all tasks in group
     // If oldName is null, creates a new empty group (no tasks to update)
-    const handleRenameChecklistGroup = (oldName, newName) => {
+    const handleRenameChecklistGroup = useCallback((oldName, newName) => {
         if (!oldName) {
             // Creating a new group — nothing to update yet, but we'll use this name when creating tasks
             showNotification(`✅ Group "${newName}" created`);
@@ -1112,10 +1020,10 @@ const App = () => {
         }
         setTasks(prev => prev.map(t => t.trelloChecklistName === oldName ? {...t, trelloChecklistName: newName, updatedAt: new Date().toISOString()} : t));
         showNotification(`✅ Group renamed to "${newName}"`);
-    };
+    }, [setTasks, showNotification]);
 
     // Delete an entire checklist group (all tasks in the group + Trello checklist)
-    const handleDeleteTaskGroup = async (actionId, groupName) => {
+    const handleDeleteTaskGroup = useCallback(async (actionId, groupName) => {
         const groupTasks = tasks.filter(t => t.actionId === actionId && (t.trelloChecklistName || 'Tasks') === groupName);
         const syncMode = currentBoard?.trelloSync?.syncMode;
         if (syncMode === 'card-as-action' && !isReadOnly) {
@@ -1134,10 +1042,10 @@ const App = () => {
         const groupTaskIds = new Set(groupTasks.map(t => t.id));
         setTasks(prev => prev.filter(t => !groupTaskIds.has(t.id)));
         showNotification(`🗑️ Group "${groupName}" deleted (${groupTasks.length} task(s))`);
-    };
+    }, [tasks, currentBoard, isReadOnly, setTasks, showNotification]);
 
     // Add a task within a specific checklist group in an action card
-    const handleAddTaskInGroup = (actionId, groupName, title) => {
+    const handleAddTaskInGroup = useCallback((actionId, groupName, title) => {
         const action = actions.find(a => a.id === actionId);
         const now = new Date().toISOString();
         const startDate = action?.startDate || now.split('T')[0];
@@ -1170,7 +1078,7 @@ const App = () => {
         };
         setTasks(prev => [...prev, newTask]);
         showNotification('✅ Task created');
-    };
+    }, [actions, tasks, setTasks, showNotification]);
 
     // --- Trello import ---
     const handleTrelloImport = useCallback((importData, boardName) => {
@@ -1305,7 +1213,6 @@ const App = () => {
                             const localBoardIds = new Set(boardDataRef.current?.boards?.map(b => b.id) || []);
                             const hasNewBoards = freshData.boards.some(b => !localBoardIds.has(b.id));
                             if (hasNewBoards) {
-                                console.log('[Post-sync refresh] Found new boards from Supabase');
                                 isReceivingRealtimeRef.current = true;
                                 setBoardData(freshData);
                                 setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
@@ -1313,7 +1220,6 @@ const App = () => {
                         }
                     } catch (e) {
                         // Silent — best effort refresh
-                        console.log('[Post-sync refresh] Skipped:', e.message);
                     }
                 }, 4000);
             }
@@ -1324,7 +1230,6 @@ const App = () => {
             try {
                 const snapshot = JSON.parse(localStorage.getItem('trello_sync_snapshot'));
                 if (snapshot?.board && Date.now() - snapshot.timestamp < 86400000) {
-                    console.log('[Trello sync] Restoring board from pre-sync snapshot');
                     setBoardData(prev => ({
                         ...prev,
                         boards: prev.boards.map(b => b.id === snapshot.board.id ? snapshot.board : b)
@@ -1356,7 +1261,6 @@ const App = () => {
         // Start polling if current board has Trello sync enabled
         if (currentBoard?.trelloSync?.syncEnabled && currentBoard?.trelloSync?.trelloBoardId) {
             const intervalMs = currentBoard.trelloSync.pollIntervalMs || 60000;
-            console.log(`Trello polling started (${intervalMs / 1000}s)`);
             trelloSyncIntervalRef.current = setInterval(() => handleTrelloSyncRef.current(), intervalMs);
         }
         return () => {
@@ -1371,17 +1275,15 @@ const App = () => {
         }));
     }, [updateCurrentBoard]);
 
-    const handleAddNewTask = (newTask) => {
+    const handleAddNewTask = useCallback((newTask) => {
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
         const enriched = enrichNewTaskWithTrelloMetadata({id: newTask.id || `t-${crypto.randomUUID()}`, status: 'todo', priority: 'medium', description: '', checklist: [], comments: [], attachments: [], channels: [], month: new Date().getMonth(), ...newTask, order: maxOrder, createdAt: newTask.createdAt || now, updatedAt: newTask.updatedAt || now}, tasks, actions);
         setTasks(prev => [...prev, enriched]);
         showNotification('✅ Task created');
-    };
+    }, [tasks, actions, setTasks, showNotification]);
 
-    const showNotification = (msg) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); };
-
-    const exportToJSON = () => {
+    const exportToJSON = useCallback(() => {
         const data = {categories, actions, tasks, exportDate: new Date().toISOString()};
         const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
         const url = URL.createObjectURL(blob);
@@ -1391,9 +1293,9 @@ const App = () => {
         a.click();
         URL.revokeObjectURL(url);
         showNotification('📥 JSON export downloaded');
-    };
+    }, [categories, actions, tasks, currentBoard, showNotification]);
 
-    const exportToCSV = () => {
+    const exportToCSV = useCallback(() => {
         const headers = ['ID','Title','Action','Category','Status','Priority','Start date','End date','Budget','Channels','Description'];
         const rows = tasks.map(t => {
             const action = actions.find(a => a.id === t.actionId);
@@ -1416,41 +1318,18 @@ const App = () => {
         a.click();
         URL.revokeObjectURL(url);
         showNotification('📊 CSV export downloaded');
-    };
+    }, [categories, actions, tasks, currentBoard, showNotification]);
 
     const totalBudget = tasks.reduce((s, t) => s + (t.budget || 0), 0);
-    const completedCount = tasks.filter(t => t.status === 'completed').length;
-    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
 
-    // Filtered tasks for stats — same logic as views (visibleTasks already excludes archived)
-    const filteredTasks = useMemo(() => {
-        if (!activeFilterCount) return visibleTasks;
-        return visibleTasks.filter(t => {
-            const act = actions.find(a => a.id === t.actionId);
-            if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
-            if (filters.status.length > 0 && !filters.status.includes(t.status)) return false;
-            if (filters.category.length > 0 && !filters.category.includes(act?.categoryId)) return false;
-            if (filters.priority.length > 0 && !filters.priority.includes(t.priority)) return false;
-            if (filters.channel?.length > 0 && !(t.channels||[]).some(c => filters.channel.includes(c))) return false;
-            if (filters.country?.length > 0 && !(t.countries||[]).some(c => filters.country.includes(c))) return false;
-            if (filters.otherLabel?.length > 0 && !(t.otherLabels||[]).some(l => filters.otherLabel.includes(l.id))) return false;
-            if (filters.member?.length > 0 && !(t.assignees||[]).some(m => filters.member.includes(m))) return false;
-            return true;
-        });
-    }, [visibleTasks, actions, filters, activeFilterCount]);
-    const filteredBudget = filteredTasks.reduce((s, t) => s + (t.budget || 0), 0);
-    const isFiltered = activeFilterCount > 0;
-
-    // --- AppContext value ---
-    const contextValue = useMemo(() => ({
+    // --- Context values (split for targeted re-renders) ---
+    const boardContextValue = useMemo(() => ({
         boards,
         currentBoardId,
         currentBoard,
         categories,
         actions,
         tasks,
-        filters,
-        setFilters,
         isReadOnly,
         allCountries,
         onSwitchBoard: handleSwitchBoard,
@@ -1466,13 +1345,27 @@ const App = () => {
         trelloUser,
         onTrelloLogin: handleTrelloLogin,
         onTrelloLogout: handleTrelloLogout
-    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, filters, isReadOnly, allCountries, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
+    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, isReadOnly, allCountries, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
+
+    const filterContextValue = useMemo(() => ({
+        filters,
+        setFilters
+    }), [filters]);
+
+    // Legacy unified context (backward compat — will be removed after migration)
+    const contextValue = useMemo(() => ({
+        ...boardContextValue,
+        filters,
+        setFilters
+    }), [boardContextValue, filters]);
 
     if (!authenticated) return <AuthGate onTrelloLogin={handleTrelloLogin} onValidateToken={handleValidateToken} onGuestLogin={handleGuestLogin}/>;
 
     if (!dataLoaded) return (<div className="min-h-screen flex items-center justify-center" style={{background:'var(--bg-page)'}}><div className="text-center" style={{color:'var(--text-primary)'}}><div className="animate-spin w-12 h-12 border-4 rounded-full mx-auto mb-4" style={{borderColor:'var(--accent)',borderTopColor:'transparent'}}/><p>Loading data...</p></div></div>);
 
     return (
+        <BoardContext.Provider value={boardContextValue}>
+        <FilterContext.Provider value={filterContextValue}>
         <AppContext.Provider value={contextValue}>
             <div className="min-h-screen" style={{background:'var(--bg-page)'}}>
                 {isOffline && (
@@ -1545,12 +1438,15 @@ const App = () => {
                         </div>
                     )}
                     <ErrorBoundary>
+                    <Suspense fallback={<ViewSkeleton view={currentView} />}>
                     {currentView === 'kanban' && <KanbanView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={visibleActions} tasks={visibleTasks} members={currentBoard?.members || []}/>}
+                    </Suspense>
                     </ErrorBoundary>
                 </main>
+                <Suspense fallback={null}>
                 {selectedTask && <TaskDetailModal categories={categories} task={tasks.find(t => t.id === selectedTask.id) || selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={currentBoard?.members || []} isReadOnly={isReadOnly} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()}/>}
                 {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={actions.find(a => a.id === selectedAction.id) || selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onOpenTask={handleOpenTask} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={currentBoard?.members || []} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup} onDeleteTaskGroup={handleDeleteTaskGroup}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
@@ -1558,11 +1454,14 @@ const App = () => {
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                 {showTrelloImportModal && <TrelloImportModal onClose={() => setShowTrelloImportModal(false)} onImport={handleTrelloImport}/>}
                 {showTrelloRemapModal && currentBoard?.trelloSync?.trelloBoardId && <TrelloImportModal mappingOnly trelloBoardId={currentBoard.trelloSync.trelloBoardId} existingMappings={currentBoard.trelloSync.labelMappings} onClose={() => setShowTrelloRemapModal(false)} onSaveMappings={(mappings) => handleUpdateTrelloSyncSettings({ labelMappings: mappings })}/>}
+                </Suspense>
                 <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={currentBoard?.members || []} searchInputRef={searchInputRef}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
                 {showOnboarding && <OnboardingOverlay onClose={() => { setShowOnboarding(false); localStorage.setItem('onboarding_done', '1'); }}/>}
             </div>
         </AppContext.Provider>
+        </FilterContext.Provider>
+        </BoardContext.Provider>
     );
 };
 

@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { useApp } from '../context.js';
+import { useState, useEffect } from 'react';
+import { useBoard } from '../context.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Icon } from './Icons.jsx';
 import { TRELLO_SYNC_INTERVALS } from '../config.js';
 
 const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
-    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus } = useApp();
+    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus } = useBoard();
+    const focusTrapRef = useFocusTrap(true);
     const [name, setName] = useState(board.name);
     const isLastBoard = boards.length <= 1;
 
@@ -33,6 +35,12 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
         return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     };
 
+    useEffect(() => {
+        const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [onClose]);
+
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 9999,
@@ -42,7 +50,7 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
                 style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }}
                 onClick={onClose}
             />
-            <div style={{
+            <div ref={focusTrapRef} role="dialog" aria-modal="true" aria-labelledby="board-settings-modal-title" style={{
                 position: 'relative',
                 background: 'var(--bg-primary)',
                 borderRadius: 'var(--radius-xl)',
@@ -54,7 +62,7 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
             }}>
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Board Settings</h2>
+                    <h2 id="board-settings-modal-title" style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Board Settings</h2>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
                         <Icon.Close/>
                     </button>

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { CONFIG } from '../config.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Icon, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 
 const NewActionModal = ({categories, onClose, onAdd, onAddCategory}) => {
+    const focusTrapRef = useFocusTrap(true);
     const [form, setForm] = useState({name:'',categoryId:categories[0]?.id||'',budget:0,priority:'medium',tags:[]});
     const [showInlineCreateCategory, setShowInlineCreateCategory] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState('');
@@ -40,11 +42,11 @@ const NewActionModal = ({categories, onClose, onAdd, onAddCategory}) => {
 
     return (
         <div className="v11-modal-overlay" onClick={onClose}>
-            <div className="v11-modal animate-slide-up" style={{maxWidth:512}} onClick={e => e.stopPropagation()}>
+            <div ref={focusTrapRef} className="v11-modal animate-slide-up" role="dialog" aria-modal="true" aria-labelledby="new-action-modal-title" style={{maxWidth:512}} onClick={e => e.stopPropagation()}>
                 <div style={{height:3,background:'var(--accent)',borderRadius:'var(--radius-lg) var(--radius-lg) 0 0'}}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold flex items-center gap-2"><Icon.List size={18}/> New Action</h2>
+                        <h2 id="new-action-modal-title" className="text-xl font-bold flex items-center gap-2"><Icon.List size={18}/> New Action</h2>
                         <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-4">

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, CONFIG, DEFAULT_ACTIONS, DEFAULT_TASKS, GITHUB_CONFIG } from '../config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../config.js';
 import { migrateToV2 } from './migration.js';
 
 // Initialize Supabase client
@@ -7,7 +7,6 @@ const isSupabaseConfigured = SUPABASE_URL !== 'https://YOUR_PROJECT_ID.supabase.
 let supabaseClient = null;
 if (isSupabaseConfigured) {
     supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    console.log('✅ Supabase client initialized');
 } else {
     console.warn('⚠️ Supabase not configured - falling back to GitHub/localStorage storage');
 }
@@ -55,11 +54,9 @@ export const base64DecodeUnicode = (str) => {
 
 export const loadFromSupabase = async (showNotification) => {
     try {
-        console.log('📥 Loading from Supabase...');
         const { data, error } = await supabaseClient.from('app_data').select('*').eq('id', 'default').single();
         if (error) {
             if (error.code === 'PGRST116') {
-                console.log('📝 No data in Supabase, inserting defaults...');
                 const defaultV2 = migrateToV2(null);
                 const defaultData = {
                     id: 'default',
@@ -88,8 +85,6 @@ export const loadFromSupabase = async (showNotification) => {
                     tasks: data.tasks
                 });
             }
-            const board = boardData.boards[0];
-            console.log('✅ Supabase loaded. Boards:', boardData.boards.length, 'Categories:', board?.categories?.length, 'Actions:', board?.actions?.length, 'Tasks:', board?.tasks?.length);
             showNotification('✅ Data loaded from Supabase');
             return boardData;
         }
@@ -103,9 +98,14 @@ export const loadFromSupabase = async (showNotification) => {
 
 export const saveToSupabase = async (boardDataRef, setSyncing, showNotification, serverUpdatedAtRef) => {
     if (!supabaseClient) return false;
+    // Guard: never overwrite cloud with empty/invalid data
+    const boardData = boardDataRef.current;
+    if (!boardData?.boards?.length) {
+        console.warn('⛔ saveToSupabase blocked: boardData is empty or has no boards');
+        return false;
+    }
     setSyncing(true);
     try {
-        const boardData = boardDataRef.current;
         // Find active board for backward-compatible legacy columns
         const activeBoard = boardData.boards.find(b => b.id === boardData.currentBoardId) || boardData.boards[0];
         // Try full save with board_data column — capture updated_at for OCC
@@ -135,7 +135,6 @@ export const saveToSupabase = async (boardDataRef, setSyncing, showNotification,
             serverUpdatedAtRef.current = data.updated_at;
         }
 
-        console.log('✅ Supabase save successful');
         return true;
     } catch (e) {
         console.error('Error saving to Supabase:', e);
@@ -165,7 +164,6 @@ export const fetchServerState = async () => {
 
 export const loadDataFromGitHub = async (setFileSha, showNotification, loadFromLocalStorageFn) => {
     try {
-        console.log('📥 Loading from GitHub via Vercel API...');
         const url = `${API_BASE_URL}/api/github`;
         const response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
         if (response.ok) {
@@ -209,9 +207,15 @@ export const loadDataFromGitHub = async (setFileSha, showNotification, loadFromL
 };
 
 export const saveToGitHub = async (boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification) => {
+    // Guard: never overwrite cloud with empty/invalid data
+    const boardData = boardDataRef.current;
+    if (!boardData?.boards?.length) {
+        console.warn('⛔ saveToGitHub blocked: boardData is empty or has no boards');
+        return false;
+    }
     setSyncing(true);
     try {
-        const jsonString = JSON.stringify(boardDataRef.current, null, 2);
+        const jsonString = JSON.stringify(boardData, null, 2);
         const content = base64EncodeUnicode(jsonString);
         const body = { message: `Update data from Marketing Tracker - ${new Date().toISOString()}`, content, sha: fileShaRef.current || undefined };
         const url = `${API_BASE_URL}/api/github`;

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, memo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 
@@ -550,4 +550,4 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
     );
 };
 
-export default CalendarView;
+export default memo(CalendarView);
