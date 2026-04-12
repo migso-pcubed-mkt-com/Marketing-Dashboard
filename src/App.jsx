@@ -12,6 +12,7 @@ import {
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
+import { exportTimelineXlsx, exportKanbanXlsx, exportCalendarXlsx } from './lib/excelExport.js';
 import { archiveTrelloList, archiveTrelloCard, deleteTrelloChecklistItem, deleteTrelloChecklist } from './lib/trello.js';
 import { startTrelloLogin, validateAndLogin, restoreTrelloUser, trelloLogout } from './lib/trelloAuth.js';
 import Header from './components/Header.jsx';
@@ -30,6 +31,8 @@ import CategoriesManagementModal from './components/CategoriesManagementModal.js
 import NewActionModal from './components/NewActionModal.jsx';
 import NewTaskModal from './components/NewTaskModal.jsx';
 import AuthGate from './components/AuthGate.jsx';
+import MemberManagementModal from './components/MemberManagementModal.jsx';
+import useUndoRedo from './hooks/useUndoRedo.js';
 
 const API_BASE_URL = typeof window !== 'undefined'
     ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
@@ -68,6 +71,7 @@ const App = () => {
     });
     const [showTrelloImportModal, setShowTrelloImportModal] = useState(false);
     const [showTrelloRemapModal, setShowTrelloRemapModal] = useState(false);
+    const [showMemberModal, setShowMemberModal] = useState(false);
     const [trelloSyncStatus, setTrelloSyncStatus] = useState('idle'); // idle | syncing | synced | error
     const [trelloUser, setTrelloUser] = useState(null); // null = guest, or { id, fullName, username, avatarUrl, token }
     const [authenticated, setAuthenticated] = useState(() => {
@@ -117,8 +121,15 @@ const App = () => {
     // Guest users are read-only on Trello-linked boards (can edit non-Trello boards)
     const isReadOnly = !trelloUser && !!currentBoard?.trelloSync?.trelloBoardId;
 
+    // --- Undo / Redo ---
+    const { pushState: pushUndoState, undo, redo, canUndo, canRedo, isUndoRedoRef } = useUndoRedo(setBoardData);
+
     // --- Board-aware setters (wrapper functions) ---
-    const updateCurrentBoard = useCallback((updater) => {
+    const updateCurrentBoard = useCallback((updater, undoLabel) => {
+        // Capture snapshot before mutation for undo (skip if this is an undo/redo itself)
+        if (!isUndoRedoRef.current && boardDataRef.current) {
+            pushUndoState(boardDataRef.current, undoLabel || 'Board updated');
+        }
         setBoardData(prev => {
             if (!prev) return prev;
             return {
@@ -130,27 +141,27 @@ const App = () => {
                 )
             };
         });
-    }, [currentBoardId]);
+    }, [currentBoardId, pushUndoState]);
 
-    const setCategories = useCallback((v) => {
+    const setCategories = useCallback((v, undoLabel) => {
         updateCurrentBoard(b => ({
             ...b,
             categories: typeof v === 'function' ? v(b.categories) : v
-        }));
+        }), undoLabel);
     }, [updateCurrentBoard]);
 
-    const setActions = useCallback((v) => {
+    const setActions = useCallback((v, undoLabel) => {
         updateCurrentBoard(b => ({
             ...b,
             actions: typeof v === 'function' ? v(b.actions) : v
-        }));
+        }), undoLabel);
     }, [updateCurrentBoard]);
 
-    const setTasks = useCallback((v) => {
+    const setTasks = useCallback((v, undoLabel) => {
         updateCurrentBoard(b => ({
             ...b,
             tasks: typeof v === 'function' ? v(b.tasks) : v
-        }));
+        }), undoLabel);
     }, [updateCurrentBoard]);
 
     // --- Board management functions ---
@@ -340,6 +351,19 @@ const App = () => {
                     setShowFilterSidebar(true);
                     setTimeout(() => searchInputRef.current?.focus(), 100);
                 }
+                return;
+            }
+            // Ctrl+Z / Cmd+Z = Undo, Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y = Redo
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                const label = undo();
+                if (label) showNotification(`↩ Undo: ${label}`);
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || e.key === 'y')) {
+                e.preventDefault();
+                const label = redo();
+                if (label) showNotification(`↪ Redo: ${label}`);
                 return;
             }
             // Escape closes filter sidebar even from inputs (search field)
@@ -720,7 +744,7 @@ const App = () => {
             // Set orderUpdatedAt when order changes (mirrors handleBatchUpdateTasks)
             if (updates.order !== undefined) newTask.orderUpdatedAt = now;
             return newTask;
-        }));
+        }), 'Task updated');
         showNotification('✅ Task updated');
     };
 
@@ -743,7 +767,7 @@ const App = () => {
 
     const handleUpdateAction = (actionId, updates) => {
         const oldAction = actions.find(a => a.id === actionId);
-        setActions(prev => prev.map(a => a.id === actionId ? {...a, ...updates, updatedAt: new Date().toISOString()} : a));
+        setActions(prev => prev.map(a => a.id === actionId ? {...a, ...updates, updatedAt: new Date().toISOString()} : a), 'Action updated');
         // Propagate tag/country changes to linked tasks (union merge: keep task-specific tags)
         if (oldAction && (updates.tags !== undefined || updates.countries !== undefined)) {
             const oldTags = new Set(oldAction.tags || []);
@@ -787,7 +811,7 @@ const App = () => {
             try { await archiveTrelloCard(action.trelloCardId); }
             catch(e) { console.warn('Failed to archive Trello card:', e); }
         }
-        setActions(prev => prev.filter(a => a.id !== actionId));
+        setActions(prev => prev.filter(a => a.id !== actionId), 'Action deleted');
         setTasks(prev => prev.filter(t => t.actionId !== actionId));
         showNotification('🗑️ Action deleted');
     };
@@ -810,7 +834,7 @@ const App = () => {
         const trelloChecklistName = siblingTask?.trelloChecklistName || 'Tasks';
         const trelloChecklistId = siblingTask?.trelloChecklistId || null;
         const newTask = { id: `t-${crypto.randomUUID()}`, actionId, month, startDate, title: 'New task', description: '', status: 'todo', priority: 'medium', dueDate, budget: 0, channels: action?.tags || [], checklist: [], comments: [], attachments: [], order: maxOrder, createdAt: now, updatedAt: now, trelloChecklistName, trelloCardId: siblingTask?.trelloCardId || action?.trelloCardId || null, trelloChecklistId };
-        setTasks(prev => [...prev, newTask]);
+        setTasks(prev => [...prev, newTask], 'Task created');
         setSelectedTask(newTask);
         showNotification('✅ Task created');
     };
@@ -954,14 +978,14 @@ const App = () => {
                 catch(e) { console.warn('Failed to delete Trello checklist item:', e); }
             }
         }
-        setTasks(prev => prev.filter(t => t.id !== taskId));
+        setTasks(prev => prev.filter(t => t.id !== taskId), 'Task deleted');
         showNotification('🗑️ Task deleted');
     };
 
     const handleCreateNewTask = (initialValues = null) => { setNewTaskInitialValues(initialValues); setShowNewTaskModal(true); };
 
     const handleUpdateCategory = (catId, updates) => {
-        setCategories(prev => prev.map(c => c.id === catId ? {...c, ...updates, updatedAt: new Date().toISOString()} : c));
+        setCategories(prev => prev.map(c => c.id === catId ? {...c, ...updates, updatedAt: new Date().toISOString()} : c), 'Category updated');
         showNotification('✅ Category updated');
     };
 
@@ -969,7 +993,7 @@ const App = () => {
         const now = new Date().toISOString();
         if (!newCat.createdAt) newCat.createdAt = now;
         if (!newCat.updatedAt) newCat.updatedAt = now;
-        setCategories(prev => [...prev, newCat]);
+        setCategories(prev => [...prev, newCat], 'Category created');
         // Auto-create default action for card-as-task boards so directTasks works
         if (currentBoard?.trelloSync?.syncMode === 'card-as-task') {
             const defaultAction = {
@@ -1000,7 +1024,7 @@ const App = () => {
             catch(e) { console.warn('Failed to archive Trello list:', e); }
         }
         const actionIds = new Set(catActions.map(a => a.id));
-        setCategories(prev => prev.filter(c => c.id !== catId));
+        setCategories(prev => prev.filter(c => c.id !== catId), 'Category deleted');
         setActions(prev => prev.filter(a => a.categoryId !== catId));
         setTasks(prev => prev.filter(t => !actionIds.has(t.actionId)));
         showNotification('🗑️ Category deleted');
@@ -1014,7 +1038,7 @@ const App = () => {
 
     const handleAddAction = (newAction) => {
         const now = new Date().toISOString();
-        setActions(prev => [...prev, { ...newAction, createdAt: newAction.createdAt || now, updatedAt: newAction.updatedAt || now }]);
+        setActions(prev => [...prev, { ...newAction, createdAt: newAction.createdAt || now, updatedAt: newAction.updatedAt || now }], 'Action created');
         showNotification('✅ Action created');
     };
 
@@ -1086,6 +1110,12 @@ const App = () => {
         };
         setTasks(prev => [...prev, newTask]);
         showNotification('✅ Task created');
+    };
+
+    // --- Member management ---
+    const handleUpdateMembers = (newMembers) => {
+        updateCurrentBoard(b => ({ ...b, members: newMembers }), 'Members updated');
+        showNotification('✅ Members updated');
     };
 
     // --- Trello import ---
@@ -1340,7 +1370,7 @@ const App = () => {
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
         const enriched = enrichNewTaskWithTrelloMetadata({...newTask, order: maxOrder, createdAt: newTask.createdAt || now, updatedAt: newTask.updatedAt || now}, tasks, actions);
-        setTasks(prev => [...prev, enriched]);
+        setTasks(prev => [...prev, enriched], 'Task created');
         showNotification('✅ Task created');
     };
 
@@ -1425,6 +1455,7 @@ const App = () => {
         onDuplicateBoard: handleDuplicateBoard,
         onShowTrelloImport: () => setShowTrelloImportModal(true),
         onOpenRemapLabels: () => setShowTrelloRemapModal(true),
+        onShowMemberModal: () => setShowMemberModal(true),
         onTrelloSync: handleTrelloSync,
         onUpdateTrelloSyncSettings: handleUpdateTrelloSyncSettings,
         trelloSyncStatus,
@@ -1463,11 +1494,23 @@ const App = () => {
                             <span className="stat-pill"><strong>{isFiltered ? `${(filteredBudget/1000).toFixed(0)}k / ${(totalBudget/1000).toFixed(0)}k€` : `${(totalBudget/1000).toFixed(0)}k€`}</strong> budget</span>
                         </div>
                         <div className="toolbar-spacer"/>
+                        <div style={{display:'flex',gap:2,marginRight:8}}>
+                            <button onClick={() => { const label = undo(); if (label) showNotification(`↩ Undo: ${label}`); }} disabled={!canUndo} title={canUndo ? 'Undo (Ctrl+Z)' : 'Nothing to undo'} style={{padding:'6px 8px',borderRadius:'var(--radius-md)',border:'1px solid var(--border)',background:canUndo ? 'var(--bg-primary)' : 'var(--bg-secondary)',color:canUndo ? 'var(--text-primary)' : 'var(--text-muted)',cursor:canUndo ? 'pointer' : 'default',fontSize:13,lineHeight:1,opacity:canUndo ? 1 : 0.5}}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                            </button>
+                            <button onClick={() => { const label = redo(); if (label) showNotification(`↪ Redo: ${label}`); }} disabled={!canRedo} title={canRedo ? 'Redo (Ctrl+Shift+Z)' : 'Nothing to redo'} style={{padding:'6px 8px',borderRadius:'var(--radius-md)',border:'1px solid var(--border)',background:canRedo ? 'var(--bg-primary)' : 'var(--bg-secondary)',color:canRedo ? 'var(--text-primary)' : 'var(--text-muted)',cursor:canRedo ? 'pointer' : 'default',fontSize:13,lineHeight:1,opacity:canRedo ? 1 : 0.5}}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10"/></svg>
+                            </button>
+                        </div>
                         <div className="new-btn-container" ref={exportDropdownRef}>
                             <button className="v11-btn-secondary" onClick={() => {setShowCreateDropdown(false);setShowExportDropdown(!showExportDropdown);}}><Icon.Download size={13}/><span>Export</span></button>
                             {showExportDropdown && <div className="dropdown-menu open" style={{minWidth:160}}>
                                 <button onClick={() => {setShowExportDropdown(false);exportToJSON();}} className="dropdown-item">Export JSON</button>
                                 <button onClick={() => {setShowExportDropdown(false);exportToCSV();}} className="dropdown-item">Export CSV</button>
+                                <div style={{height:1,background:'var(--border)',margin:'4px 0'}}/>
+                                <button onClick={() => {setShowExportDropdown(false);exportTimelineXlsx(categories,actions,tasks,selectedYear,currentBoard?.name);showNotification('📊 Timeline Excel exported');}} className="dropdown-item">Export Timeline (Excel)</button>
+                                <button onClick={() => {setShowExportDropdown(false);exportKanbanXlsx(categories,actions,tasks,currentBoard?.name);showNotification('📊 Kanban Excel exported');}} className="dropdown-item">Export Kanban (Excel)</button>
+                                <button onClick={() => {setShowExportDropdown(false);exportCalendarXlsx(tasks,selectedYear,currentBoard?.name);showNotification('📊 Calendar Excel exported');}} className="dropdown-item">Export Calendar (Excel)</button>
                             </div>}
                         </div>
                         {!isReadOnly && <div className="new-btn-container" ref={createDropdownRef}>
@@ -1523,6 +1566,7 @@ const App = () => {
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                 {showTrelloImportModal && <TrelloImportModal onClose={() => setShowTrelloImportModal(false)} onImport={handleTrelloImport}/>}
                 {showTrelloRemapModal && currentBoard?.trelloSync?.trelloBoardId && <TrelloImportModal mappingOnly trelloBoardId={currentBoard.trelloSync.trelloBoardId} existingMappings={currentBoard.trelloSync.labelMappings} onClose={() => setShowTrelloRemapModal(false)} onSaveMappings={(mappings) => handleUpdateTrelloSyncSettings({ labelMappings: mappings })}/>}
+                {showMemberModal && currentBoard && <MemberManagementModal board={currentBoard} onClose={() => setShowMemberModal(false)} onUpdateMembers={handleUpdateMembers}/>}
                 <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={currentBoard?.members || []} searchInputRef={searchInputRef}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
                 {showOnboarding && <OnboardingOverlay onClose={() => { setShowOnboarding(false); localStorage.setItem('onboarding_done', '1'); }}/>}

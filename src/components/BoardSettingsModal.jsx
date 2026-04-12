@@ -4,7 +4,7 @@ import { Icon } from './Icons.jsx';
 import { TRELLO_SYNC_INTERVALS } from '../config.js';
 
 const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
-    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus } = useApp();
+    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus, onShowMemberModal } = useApp();
     const [name, setName] = useState(board.name);
     const isLastBoard = boards.length <= 1;
 
@@ -134,15 +134,27 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
                 </div>
 
                 {/* Members */}
-                {(board.members || []).length > 0 && (
-                    <div style={{
-                        background: 'var(--bg-secondary)',
-                        borderRadius: 'var(--radius-md)',
-                        padding: 12,
-                        marginBottom: 16,
-                        fontSize: 12
-                    }}>
-                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Members</div>
+                <div style={{
+                    background: 'var(--bg-secondary)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: 12,
+                    marginBottom: 16,
+                    fontSize: 12
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: (board.members || []).length > 0 ? 8 : 0 }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Members ({(board.members || []).length})</span>
+                        <button
+                            onClick={() => { onShowMemberModal(); onClose(); }}
+                            style={{
+                                padding: '3px 10px', borderRadius: 'var(--radius-sm)', border: 'none',
+                                background: 'var(--accent)', color: 'white',
+                                fontSize: 11, fontWeight: 500, cursor: 'pointer'
+                            }}
+                        >
+                            Manage
+                        </button>
+                    </div>
+                    {(board.members || []).length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                             {board.members.map(m => (
                                 <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -154,8 +166,8 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
                                 </div>
                             ))}
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
 
                 {/* Trello Sync */}
                 {board.trelloSync?.trelloBoardId && (
