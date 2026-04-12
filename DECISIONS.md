@@ -22,7 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
-| 2026-04-12 | Increase sync lock timeout 15s → 30s | 15s was aligned with Vercel proxy timeout (wrong); 30s is safety valve for hung client-side syncs |
+| 2026-04-12 | Fix sync lock comment (kept 15s, corrected misleading Vercel reference) | Comment said "aligned with Vercel 10s timeout" but sync runs client-side; benefit of 30s was marginal |
 | 2026-04-12 | Add 19 sync audit tests (syncAudit.test.js) | Prevent regressions on 8 baseline/merge bugs; cover multi-cycle, post-sync merge, multi-user realtime |
 | 2026-04-12 | Fix 8 sync bugs: baseline refresh, null guard, comment attachments | Stale baselines caused re-push loops; null updates crashed API; comment attachments posted before upload |
 | 2026-04-11 | Add loadCompleted flag + save validation + Realtime load guard + sessionStorage saveId persistence | Prevent data loss on deploy: auto-save fired before cloud data loaded; Realtime echoes from previous instance not detected after reload |

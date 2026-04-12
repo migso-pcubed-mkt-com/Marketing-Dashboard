@@ -2583,8 +2583,8 @@ describe('syncWithTrello — card-as-action', () => {
         // Start first sync (don't await — it will hang)
         const firstSync = syncWithTrello(board, {});
 
-        // Advance past the lock timeout (30s)
-        vi.advanceTimersByTime(31000);
+        // Advance past the lock timeout (15s)
+        vi.advanceTimersByTime(16000);
 
         // Second sync: proper response
         fetchTrelloBoardFull.mockResolvedValueOnce(makeTrelloResponse({
