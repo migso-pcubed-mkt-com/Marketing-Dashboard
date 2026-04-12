@@ -1829,7 +1829,14 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 const listId = catToListId[action.categoryId];
                 const updates = buildSelectiveActionUpdate(action, listId);
                 const pushedActionCard = await updateTrelloCard(action.trelloCardId, updates);
-                updatedActions[i] = { ...action, _pushedCardTs: pushedActionCard?.dateLastActivity };
+                // Merge extras (comments, attachments) from Trello that may have been added since last sync
+                const mergedExtras = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+                updatedActions[i] = {
+                    ...action,
+                    attachments: mergedExtras.attachments,
+                    comments: mergedExtras.comments,
+                    _pushedCardTs: pushedActionCard?.dateLastActivity
+                };
                 result.pushed++;
             } catch (e) {
                 console.error(`Failed to push action "${action.name}" to Trello:`, e);
@@ -1859,6 +1866,9 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     if (action.dueDate === baseline.dueDate) merged.dueDate = mergedFromTrello.dueDate;
                     if ((action.status === 'completed') === (baseline.status === 'completed')) merged.status = mergedFromTrello.status;
                     if (JSON.stringify(action.assignees || []) === JSON.stringify(baseline.assignees || [])) merged.assignees = mergedFromTrello.assignees;
+                    // Always pull extras (attachments, comments) from Trello — they're additive, not conflicting
+                    merged.attachments = mergedFromTrello.attachments;
+                    merged.comments = mergedFromTrello.comments;
                     merged._trelloBaseline = mergedFromTrello._trelloBaseline;
                     merged._pushedCardTs = pushedActionCard2?.dateLastActivity;
                     updatedActions[i] = merged;
