@@ -19,6 +19,7 @@ import Header from './components/Header.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import OnboardingOverlay from './components/OnboardingOverlay.jsx';
 import TrelloImportModal from './components/TrelloImportModal.jsx';
+import ExcelImportModal from './components/ExcelImportModal.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
 import KanbanView from './components/KanbanView.jsx';
 import TimelineView from './components/TimelineView.jsx';
@@ -72,6 +73,7 @@ const App = () => {
     const [showTrelloImportModal, setShowTrelloImportModal] = useState(false);
     const [showTrelloRemapModal, setShowTrelloRemapModal] = useState(false);
     const [showMemberModal, setShowMemberModal] = useState(false);
+    const [showExcelImportModal, setShowExcelImportModal] = useState(false);
     const [trelloSyncStatus, setTrelloSyncStatus] = useState('idle'); // idle | syncing | synced | error
     const [trelloUser, setTrelloUser] = useState(null); // null = guest, or { id, fullName, username, avatarUrl, token }
     const [authenticated, setAuthenticated] = useState(() => {
@@ -1118,6 +1120,28 @@ const App = () => {
         showNotification('✅ Members updated');
     };
 
+    // --- Excel import ---
+    const handleExcelImport = useCallback((importData, boardName) => {
+        const newBoard = {
+            id: `board-${crypto.randomUUID()}`,
+            name: boardName || 'Excel Import',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            categories: importData.categories,
+            actions: importData.actions,
+            tasks: importData.tasks,
+            members: []
+        };
+        setBoardData(prev => ({
+            ...prev,
+            currentBoardId: newBoard.id,
+            boards: [...prev.boards, newBoard]
+        }));
+        setCurrentBoardId(newBoard.id);
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
+        showNotification(`✅ Imported "${boardName}" from Excel (${importData.tasks.length} tasks)`);
+    }, []);
+
     // --- Trello import ---
     const handleTrelloImport = useCallback((importData, boardName) => {
         const newBoard = {
@@ -1456,6 +1480,7 @@ const App = () => {
         onShowTrelloImport: () => setShowTrelloImportModal(true),
         onOpenRemapLabels: () => setShowTrelloRemapModal(true),
         onShowMemberModal: () => setShowMemberModal(true),
+        onShowExcelImport: () => setShowExcelImportModal(true),
         onTrelloSync: handleTrelloSync,
         onUpdateTrelloSyncSettings: handleUpdateTrelloSyncSettings,
         trelloSyncStatus,
@@ -1566,6 +1591,7 @@ const App = () => {
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                 {showTrelloImportModal && <TrelloImportModal onClose={() => setShowTrelloImportModal(false)} onImport={handleTrelloImport}/>}
                 {showTrelloRemapModal && currentBoard?.trelloSync?.trelloBoardId && <TrelloImportModal mappingOnly trelloBoardId={currentBoard.trelloSync.trelloBoardId} existingMappings={currentBoard.trelloSync.labelMappings} onClose={() => setShowTrelloRemapModal(false)} onSaveMappings={(mappings) => handleUpdateTrelloSyncSettings({ labelMappings: mappings })}/>}
+                {showExcelImportModal && <ExcelImportModal onClose={() => setShowExcelImportModal(false)} onImport={handleExcelImport}/>}
                 {showMemberModal && currentBoard && <MemberManagementModal board={currentBoard} onClose={() => setShowMemberModal(false)} onUpdateMembers={handleUpdateMembers}/>}
                 <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={currentBoard?.members || []} searchInputRef={searchInputRef}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}

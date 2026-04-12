@@ -4,7 +4,7 @@ import { Icon } from './Icons.jsx';
 import BoardSettingsModal from './BoardSettingsModal.jsx';
 
 const BoardSelector = () => {
-    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels } = useApp();
+    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels, onShowExcelImport } = useApp();
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');
@@ -246,6 +246,31 @@ const BoardSelector = () => {
                                 <rect x="13" y="4" width="7" height="10" rx="1.5" ry="1.5" fill="white"/>
                             </svg>
                             Import from Trello
+                        </button>
+                        <button
+                            onClick={() => { setIsOpen(false); onShowExcelImport(); }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: 'var(--radius-sm)',
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#16a34a',
+                                fontSize: 13,
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                textAlign: 'left'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+                            </svg>
+                            Import from Excel
                         </button>
                     </div>
                 </div>
