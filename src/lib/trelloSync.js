@@ -171,10 +171,12 @@ const buildSelectiveCheckItemUpdate = (task) => {
 // Push comments, checklists, attachments that don't already exist on Trello.
 // isPushWinner: true = local wins (push positions to Trello), false = pull Trello positions into local order.
 // Returns { pushed, taskModified, deletedChecklistIds } — deletedChecklistIds lists checklists deleted on Trello.
-const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDeletions = false) => {
+const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDeletions = false, baselineItems = null) => {
     const pushed = { comments: 0, checklists: 0, attachments: 0 };
     let taskModified = false;
     const deletedChecklistIds = []; // Track checklists deleted on Trello (had ID but not found)
+    const pushedItemIds = new Set(); // Track which checklist items were actually pushed (for per-item merge)
+    const errors = []; // Track individual operation errors
 
     // Push new comments (those without trelloCommentId)
     // Build set of existing Trello comment texts for dedup
@@ -262,7 +264,10 @@ const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDelet
                 }
             }
             // Push only truly new items (no trelloCheckItemId AND name not on Trello)
-            const newItems = (cl.items || []).filter(item => item.text && !item.trelloCheckItemId && !existing.itemNames.has(item.text));
+            // Use trelloLinkedCardUrl as text when available (preserve card link format on Trello)
+            const newItems = (cl.items || [])
+                .filter(item => item.text && !item.trelloCheckItemId && !existing.itemNames.has(item.trelloLinkedCardUrl || item.text))
+                .map(item => item.trelloLinkedCardUrl ? { ...item, text: item.trelloLinkedCardUrl } : item);
             if (newItems.length > 0) {
                 try {
                     const result = await addTrelloChecklistItems(existing.id, newItems);
@@ -289,21 +294,40 @@ const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDelet
                             taskModified = true;
                         }
                         // Build update payload for changed fields
+                        // When baselineItems is provided (both-changed path), use baseline comparison
+                        // to determine which fields were LOCALLY changed vs changed on Trello
+                        const baseline = baselineItems?.[trelloItem.id];
                         const updates = {};
                         const localState = localItem.done ? 'complete' : 'incomplete';
-                        if (trelloItem.state !== localState) updates.state = localState;
-                        if (localItem.text !== trelloItem.name) updates.name = localItem.text;
-                        const localDue = localItem.due || null;
-                        const trelloDue = trelloItem.due ? trelloItem.due.split('T')[0] : null;
-                        if (localDue !== trelloDue) updates.due = localDue;
-                        const localAssignee = localItem.assignee || null;
-                        const trelloMember = trelloItem.idMember || null;
-                        if (localAssignee !== trelloMember) updates.idMember = localAssignee;
+                        if (baseline) {
+                            // Per-item baseline: only push fields that differ from baseline (locally modified)
+                            // Fields matching baseline were NOT locally changed → accept Trello state
+                            if (localState !== baseline.state && trelloItem.state !== localState) updates.state = localState;
+                            const nameForTrello = localItem.trelloLinkedCardUrl || localItem.text;
+                            const baselineName = baseline.name || '';
+                            if (nameForTrello !== baselineName && nameForTrello !== trelloItem.name) updates.name = nameForTrello;
+                            const localDue = localItem.due || null;
+                            if (localDue !== (baseline.due || null) && localDue !== (trelloItem.due ? trelloItem.due.split('T')[0] : null)) updates.due = localDue;
+                            const localAssignee = localItem.assignee || null;
+                            if (localAssignee !== (baseline.idMember || null) && localAssignee !== (trelloItem.idMember || null)) updates.idMember = localAssignee;
+                        } else {
+                            // No baseline — compare directly against Trello (legacy behavior)
+                            if (trelloItem.state !== localState) updates.state = localState;
+                            const nameForTrello = localItem.trelloLinkedCardUrl || localItem.text;
+                            if (nameForTrello !== trelloItem.name) updates.name = nameForTrello;
+                            const localDue = localItem.due || null;
+                            const trelloDue = trelloItem.due ? trelloItem.due.split('T')[0] : null;
+                            if (localDue !== trelloDue) updates.due = localDue;
+                            const localAssignee = localItem.assignee || null;
+                            const trelloMember = trelloItem.idMember || null;
+                            if (localAssignee !== trelloMember) updates.idMember = localAssignee;
+                        }
                         if (Object.keys(updates).length > 0) {
+                            const itemId = localItem.trelloCheckItemId || trelloItem.id;
                             itemUpdates.push(
                                 updateTrelloChecklistItem(task.trelloCardId, trelloItem.id, updates)
-                                    .then(() => { pushed.checklists++; taskModified = true; })
-                                    .catch(e => console.error(`Failed to update checkItem "${localItem.text}":`, e.message))
+                                    .then(() => { pushed.checklists++; taskModified = true; pushedItemIds.add(itemId); })
+                                    .catch(e => { errors.push({ item: localItem.text, error: e.message }); })
                             );
                         }
                     }
@@ -316,7 +340,9 @@ const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDelet
             taskModified = true;
         } else {
             // New checklist (never on Trello) — create on Trello
-            const items = (cl.items || []).filter(item => item.text);
+            // Use trelloLinkedCardUrl as text when available (preserve card link format on Trello)
+            const items = (cl.items || []).filter(item => item.text)
+                .map(item => item.trelloLinkedCardUrl ? { ...item, text: item.trelloLinkedCardUrl } : item);
             if (items.length > 0 || cl.name) {
                 try {
                     const result = await addTrelloChecklist(task.trelloCardId, cl.name || 'Checklist', items);
@@ -453,7 +479,7 @@ const pushTaskExtrasToTrello = async (task, card, isPushWinner = true, skipDelet
         if (deletionOps.length > 0) await Promise.all(deletionOps);
     }
 
-    return { pushed, taskModified, deletedChecklistIds };
+    return { pushed, taskModified, deletedChecklistIds, pushedItemIds, errors };
 };
 
 // Push ONLY comments and attachments for actions (card-as-action mode).
@@ -942,11 +968,18 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     const pushedCard = await updateTrelloCard(task.trelloCardId, updates);
                     // Also push comments, checklists, attachments — capture Trello IDs
                     // isPushWinner=true: local wins, push positions to Trello
-                    const { deletedChecklistIds } = await pushTaskExtrasToTrello(task, card, true);
+                    const { deletedChecklistIds, pushedItemIds, errors: extrasErrors1 } = await pushTaskExtrasToTrello(task, card, true);
                     // Remove checklists that were deleted on Trello
                     if (deletedChecklistIds.length > 0) {
                         const delSet = new Set(deletedChecklistIds);
                         task.checklists = (task.checklists || []).filter(cl => !delSet.has(cl.id));
+                    }
+                    // Report checklist item errors
+                    if (extrasErrors1?.length > 0) {
+                        result.errors += extrasErrors1.length;
+                        for (const err of extrasErrors1) {
+                            result.errorDetails.push({ name: err.item, op: 'push checkItem', error: err.error });
+                        }
                     }
                     // Check if labels were explicitly changed locally vs baseline
                     const labelsChangedLocally =
@@ -960,8 +993,8 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     // Check if assignees changed locally vs baseline
                     const assigneesChangedLocally = JSON.stringify(task.assignees || []) !== JSON.stringify(task._trelloBaseline?.assignees || []);
                     // After push, also pull any new Trello extras (checklists, items) into local task
-                    // preserveLocalState=true: card object is stale (pre-push) — keep local done/text for existing items
-                    const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards, true);
+                    // preserveLocalState=true: card object is stale (pre-push) — keep local done/text for pushed items only
+                    const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards, true, pushedItemIds);
                     // Re-fetch merged labels from Trello if not changed locally
                     const mergedForLabels = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions, cards);
                     // Use server timestamp + 2s buffer to absorb clock drift + extras push delay
@@ -995,10 +1028,18 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     const updates = buildSelectiveTaskUpdate(task, listId);
                     const pushedCard2 = await updateTrelloCard(task.trelloCardId, updates);
                     // isPushWinner=true: local wins the conflict. skipDeletions=true: preserve Trello-only checklists/attachments
-                    const { deletedChecklistIds } = await pushTaskExtrasToTrello(task, card, true, true);
+                    const baselineItems = task._trelloBaseline?.checklistItems || null;
+                    const { deletedChecklistIds, pushedItemIds: pushedItemIds2, errors: extrasErrors } = await pushTaskExtrasToTrello(task, card, true, true, baselineItems);
                     if (deletedChecklistIds.length > 0) {
                         const delSet = new Set(deletedChecklistIds);
                         task.checklists = (task.checklists || []).filter(cl => !delSet.has(cl.id));
+                    }
+                    // Report checklist item errors
+                    if (extrasErrors?.length > 0) {
+                        result.errors += extrasErrors.length;
+                        for (const err of extrasErrors) {
+                            result.errorDetails.push({ name: err.item, op: 'push checkItem', error: err.error });
+                        }
                     }
                     // When both changed, check if labels were specifically changed locally
                     // If not, pull Trello's label state instead of pushing stale labels
@@ -1021,9 +1062,8 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     // Merge non-pushed fields from Trello (selective push preserved Trello's changes for those fields)
                     const mergedFromTrello = mergeCardIntoTask(task, card, mappingConfig, listToCatId, board.actions, cards);
                     // After push, also pull any new Trello extras (checklists, items) into local task
-                    // Preserve pushed labels — mergeTrelloExtrasIntoTask unions stale card.idLabels
-                    // preserveLocalState=true: card object is stale (pre-push) — keep local done/text for existing items
-                    const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards, true);
+                    // Per-item merge: only preserve items that were actually pushed, accept Trello state for untouched items
+                    const mergedTask = mergeTrelloExtrasIntoTask(task, card, mappingConfig, cards, true, pushedItemIds2);
                     // Build final task: start from merged Trello values, overlay locally-changed fields
                     const baseline = task._trelloBaseline || {};
                     const finalTask = { ...mergedTask };
@@ -1089,7 +1129,16 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 startDate: card.start ? card.start.split('T')[0] : null,
                 dueDate: card.due ? card.due.split('T')[0] : null,
                 status: card.dueComplete ? 'completed' : null,
-                assignees: card.idMembers || []
+                assignees: card.idMembers || [],
+                checklistItems: (() => {
+                    const items = {};
+                    for (const cl of (card.checklists || [])) {
+                        for (const ci of (cl.checkItems || [])) {
+                            items[ci.id] = { name: ci.name, state: ci.state, due: ci.due ? ci.due.split('T')[0] : null, idMember: ci.idMember || null };
+                        }
+                    }
+                    return items;
+                })()
             };
             // Check if anything actually changed
             const extrasChanged = JSON.stringify(mergedTask.checklists) !== checklistsBefore ||

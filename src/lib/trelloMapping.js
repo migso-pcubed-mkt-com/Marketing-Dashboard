@@ -766,7 +766,7 @@ export const mapTaskToTrelloCardUpdate = (task, listId) => {
 // --- After push: merge new Trello extras (checklists, attachments, labels) into local task ---
 // This ensures items added on Trello side are preserved even when "push wins".
 // mappingConfig is optional — if provided, also re-pulls channels/countries/otherLabels from card labels.
-export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig, allCards, preserveLocalState = false) => {
+export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig, allCards, preserveLocalState = false, pushedItemIds = null) => {
     if (!card) return task;
     const updated = { ...task };
 
@@ -812,9 +812,12 @@ export const mergeTrelloExtrasIntoTask = (task, card, mappingConfig, allCards, p
                     const resolvedItem = allCards ? resolveTrelloCardUrl(trelloItem.name, allCards) : null;
                     const linkedUrl = resolvedItem?.trelloLinkedCardUrl || item.trelloLinkedCardUrl;
                     // When preserveLocalState is true (after local push), keep local text/done — card object is stale (pre-push)
-                    const updatedText = preserveLocalState && item.trelloCheckItemId ? item.text : (resolvedItem ? resolvedItem.title : (trelloItem.name || item.text));
-                    const updatedDone = preserveLocalState && item.trelloCheckItemId ? item.done : (trelloItem.state === 'complete');
-                    return { ...item, text: updatedText, done: updatedDone, trelloCheckItemId: trelloItem.id, due: preserveLocalState && item.trelloCheckItemId ? item.due : (trelloItem.due ? trelloItem.due.split('T')[0] : item.due), assignee: preserveLocalState && item.trelloCheckItemId ? item.assignee : (trelloItem.idMember || item.assignee), order: trelloItem.pos != null ? trelloItem.pos : item.order, ...(linkedUrl ? { trelloLinkedCardUrl: linkedUrl } : {}) };
+                    // If pushedItemIds is provided, only preserve items that were actually pushed; accept Trello state for untouched items
+                    const itemWasPushed = pushedItemIds ? pushedItemIds.has(item.trelloCheckItemId) : true;
+                    const shouldPreserve = preserveLocalState && item.trelloCheckItemId && itemWasPushed;
+                    const updatedText = shouldPreserve ? item.text : (resolvedItem ? resolvedItem.title : (trelloItem.name || item.text));
+                    const updatedDone = shouldPreserve ? item.done : (trelloItem.state === 'complete');
+                    return { ...item, text: updatedText, done: updatedDone, trelloCheckItemId: trelloItem.id, due: shouldPreserve ? item.due : (trelloItem.due ? trelloItem.due.split('T')[0] : item.due), assignee: shouldPreserve ? item.assignee : (trelloItem.idMember || item.assignee), order: trelloItem.pos != null ? trelloItem.pos : item.order, ...(linkedUrl ? { trelloLinkedCardUrl: linkedUrl } : {}) };
                 }
                 return item;
             });
@@ -1171,7 +1174,22 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig, listToCatId
             startDate: card.start ? card.start.split('T')[0] : null,
             dueDate: card.due ? card.due.split('T')[0] : null,
             status: card.dueComplete ? 'completed' : null,
-            assignees: card.idMembers || []
+            assignees: card.idMembers || [],
+            // Lightweight checklist item snapshot for per-item conflict detection
+            checklistItems: (() => {
+                const items = {};
+                for (const cl of (card.checklists || [])) {
+                    for (const ci of (cl.checkItems || [])) {
+                        items[ci.id] = {
+                            name: ci.name,
+                            state: ci.state,
+                            due: ci.due ? ci.due.split('T')[0] : null,
+                            idMember: ci.idMember || null
+                        };
+                    }
+                }
+                return items;
+            })()
         },
         updatedAt: card.dateLastActivity,
         trelloLastModified: card.dateLastActivity

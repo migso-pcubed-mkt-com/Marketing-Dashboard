@@ -100,7 +100,7 @@ export default async function handler(req, res) {
                 fetch(`${TRELLO_BASE}/boards/${boardId}?${authParams}&fields=name,desc,dateLastActivity,url`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/lists?${authParams}&fields=name,pos,closed&filter=open`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/labels?${authParams}&fields=name,color`),
-                fetch(`${TRELLO_BASE}/boards/${boardId}/cards?${authParams}&fields=name,desc,due,start,dueComplete,dateLastActivity,idList,idLabels,idMembers,pos,closed,shortLink&filter=all&checklists=all&attachments=true&attachment_fields=name,url,mimeType,date`),
+                fetch(`${TRELLO_BASE}/boards/${boardId}/cards?${authParams}&fields=name,desc,due,start,dueComplete,dateLastActivity,idList,idLabels,idMembers,pos,closed,shortLink&filter=all&checklists=all&attachments=true&attachment_fields=name,url,mimeType,date,previews`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/members?${authParams}&fields=fullName,username,avatarUrl`)
             ]);
 
@@ -119,17 +119,33 @@ export default async function handler(req, res) {
             const members = membersRes.ok ? await membersRes.json() : [];
 
             // Fetch comments for each card (Trello API requires per-card fetch for actions)
-            // Batch in groups of 10 to respect rate limits
+            // Batch in groups of 5 to respect rate limits (reduced from 10 for reliability)
             const cardComments = {};
-            const batchSize = 10;
+            const batchSize = 5;
             for (let i = 0; i < cards.length; i += batchSize) {
                 const batch = cards.slice(i, i + batchSize);
                 const commentResults = await Promise.all(
-                    batch.map(card =>
-                        fetch(`${TRELLO_BASE}/cards/${card.id}/actions?${authParams}&filter=commentCard&fields=data,date,memberCreator`)
-                            .then(r => r.ok ? r.json() : [])
-                            .catch(() => [])
-                    )
+                    batch.map(async card => {
+                        // Retry once on failure for comment fetches
+                        for (let attempt = 0; attempt < 2; attempt++) {
+                            try {
+                                const r = await fetch(`${TRELLO_BASE}/cards/${card.id}/actions?${authParams}&filter=commentCard&fields=data,date,memberCreator&memberCreator_fields=fullName,username`);
+                                if (r.ok) return await r.json();
+                                if (r.status === 429 && attempt === 0) {
+                                    await new Promise(resolve => setTimeout(resolve, 1000));
+                                    continue;
+                                }
+                                return [];
+                            } catch {
+                                if (attempt === 0) {
+                                    await new Promise(resolve => setTimeout(resolve, 500));
+                                    continue;
+                                }
+                                return [];
+                            }
+                        }
+                        return [];
+                    })
                 );
                 batch.forEach((card, idx) => {
                     cardComments[card.id] = commentResults[idx];
