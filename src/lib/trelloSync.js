@@ -498,6 +498,33 @@ const pushActionExtrasToTrello = async (action, card) => {
                 continue;
             }
             try {
+                // Upload comment attachments as card-level attachments first
+                if (comment.attachments?.length > 0) {
+                    for (const att of comment.attachments) {
+                        if (att.trelloAttachmentId) continue;
+                        try {
+                            let attResult = null;
+                            if (att.data) {
+                                attResult = await uploadTrelloAttachment(action.trelloCardId, att.data, att.name, att.type);
+                            } else if (att.url) {
+                                attResult = await addTrelloAttachment(action.trelloCardId, att.url, att.name);
+                            }
+                            if (attResult?.id) {
+                                att.trelloAttachmentId = attResult.id;
+                                if (attResult.url) att.url = attResult.url;
+                                // Also update matching action-level attachment copy
+                                const actionAtt = (action.attachments || []).find(a => a.id === att.id);
+                                if (actionAtt) {
+                                    actionAtt.trelloAttachmentId = attResult.id;
+                                    if (attResult.url) actionAtt.url = attResult.url;
+                                }
+                                actionModified = true;
+                            }
+                        } catch (attErr) {
+                            console.error('Failed to upload action comment attachment:', att.name, attErr);
+                        }
+                    }
+                }
                 const result = await addTrelloComment(action.trelloCardId, comment.text);
                 if (result?.id) { comment.trelloCommentId = result.id; actionModified = true; }
             } catch (e) {
@@ -1000,6 +1027,17 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                     // Use server timestamp + 2s buffer to absorb clock drift + extras push delay
                     const serverTs = pushedCard?.dateLastActivity || new Date().toISOString();
                     const bufferedTs = new Date(new Date(serverTs).getTime() + 2000).toISOString();
+                    // Build refreshed baseline reflecting post-push state on Trello:
+                    // Pushed fields = task's current values, non-pushed = card's values (unchanged)
+                    const postPushBaseline = {
+                        title: task.title || '',
+                        description: task.description || '',
+                        startDate: task.startDate || null,
+                        dueDate: task.dueDate || null,
+                        status: task.status === 'completed' ? 'completed' : null,
+                        assignees: task.assignees || [],
+                        checklistItems: mergedForLabels._trelloBaseline?.checklistItems || {}
+                    };
                     updatedTasks[i] = {
                         ...mergedTask,
                         channels: labelsChangedLocally ? task.channels : mergedForLabels.channels,
@@ -1009,6 +1047,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                         _inheritCountries: labelsChangedLocally ? (task.countries || []) : (mergedForLabels._inheritCountries || []),
                         _inheritOtherLabels: labelsChangedLocally ? (task.otherLabels || []) : (mergedForLabels._inheritOtherLabels || []),
                         assignees: assigneesChangedLocally ? task.assignees : mergedForLabels.assignees,
+                        _trelloBaseline: postPushBaseline,
                         trelloLastModified: bufferedTs, updatedAt: task.updatedAt
                     };
                     result.pushed++;
@@ -1305,7 +1344,16 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 startDate,
                 dueDate: dueDate || startDate,
                 status: card.dueComplete ? 'completed' : 'todo',
-                assignees: card.idMembers || []
+                assignees: card.idMembers || [],
+                checklistItems: (() => {
+                    const items = {};
+                    for (const cl of (card.checklists || [])) {
+                        for (const ci of (cl.checkItems || [])) {
+                            items[ci.id] = { name: ci.name, state: ci.state, due: ci.due ? ci.due.split('T')[0] : null, idMember: ci.idMember || null };
+                        }
+                    }
+                    return items;
+                })()
             },
             order: card.pos || 0,
             createdAt: new Date().toISOString(),
@@ -1355,10 +1403,25 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
                 updatedTasks[i]._inheritCountries = updatedTasks[i].countries || [];
                 updatedTasks[i]._inheritOtherLabels = updatedTasks[i].otherLabels || [];
                 // Set _trelloBaseline so next sync uses selective push (not full push)
+                // Include checklistItems from the pushed checklists
+                const pushedChecklistItems = {};
+                for (const cl of (updatedTasks[i].checklists || [])) {
+                    for (const it of (cl.items || [])) {
+                        if (it.trelloCheckItemId) {
+                            pushedChecklistItems[it.trelloCheckItemId] = {
+                                name: it.trelloLinkedCardUrl || it.text,
+                                state: it.done ? 'complete' : 'incomplete',
+                                due: it.due || null,
+                                idMember: it.assignee || null
+                            };
+                        }
+                    }
+                }
                 updatedTasks[i]._trelloBaseline = {
                     title: task.title, description: task.description || '',
                     startDate: task.startDate, dueDate: task.dueDate,
-                    status: task.status, assignees: task.assignees || []
+                    status: task.status, assignees: task.assignees || [],
+                    checklistItems: pushedChecklistItems
                 };
                 // Update trelloLastModified AFTER all push operations to prevent false "Trello changed"
                 // Use server timestamp + 2s buffer to absorb clock drift
@@ -1831,10 +1894,20 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 const pushedActionCard = await updateTrelloCard(action.trelloCardId, updates);
                 // Merge extras (comments, attachments) from Trello that may have been added since last sync
                 const mergedExtras = mergeCardIntoAction(action, card, listToCatId, mappingConfig);
+                // Build refreshed baseline reflecting post-push state on Trello
+                const postPushActionBaseline = {
+                    name: action.name || '',
+                    description: action.description || '',
+                    startDate: action.startDate || null,
+                    dueDate: action.dueDate || null,
+                    status: action.status === 'completed' ? 'completed' : null,
+                    assignees: action.assignees || []
+                };
                 updatedActions[i] = {
                     ...action,
                     attachments: mergedExtras.attachments,
                     comments: mergedExtras.comments,
+                    _trelloBaseline: postPushActionBaseline,
                     _pushedCardTs: pushedActionCard?.dateLastActivity
                 };
                 result.pushed++;
@@ -2016,7 +2089,14 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                             result.pushed++;
                         }
                         const caBufferedTs = new Date(new Date(card.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
-                        const pushed = { ...task, trelloLastModified: caBufferedTs };
+                        // Build refreshed baseline reflecting post-push state
+                        const postPushItemBaseline = {
+                            title: task.title || '',
+                            dueDate: task.dueDate || null,
+                            status: task.status === 'completed' ? 'completed' : 'todo',
+                            assignees: task.assignees || []
+                        };
+                        const pushed = { ...task, trelloLastModified: caBufferedTs, _trelloBaseline: postPushItemBaseline };
                         // Sync position from Trello unless user explicitly reordered
                         if (!orderWasLocallyChanged && trelloCompositeOrder !== null) pushed.order = trelloCompositeOrder;
                         updatedTasks[j] = pushed;
@@ -2032,7 +2112,9 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     try {
                         // Selective push: only push fields that changed locally vs baseline
                         const updates = buildSelectiveCheckItemUpdate(task);
-                        await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, updates);
+                        if (updates) {
+                            await updateTrelloChecklistItem(task.trelloCardId, task.trelloCheckItemId, updates);
+                        }
                         // Merge non-pushed fields from Trello
                         const mergedFromTrello = mergeCheckItemIntoTask(task, item, card, cards);
                         const baseline = task._trelloBaseline || {};
@@ -2216,7 +2298,20 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 // Re-link existing task instead of creating duplicate
                 const idx = updatedTasks.indexOf(existingTask);
                 const relinkBufferedTs = new Date(new Date(card.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
-                updatedTasks[idx] = { ...existingTask, trelloCheckItemId: itemId, trelloChecklistId: checklistId, trelloChecklistName: checklistName, trelloCardId: card.id, trelloLastModified: relinkBufferedTs };
+                updatedTasks[idx] = {
+                    ...existingTask,
+                    trelloCheckItemId: itemId,
+                    trelloChecklistId: checklistId,
+                    trelloChecklistName: checklistName,
+                    trelloCardId: card.id,
+                    trelloLastModified: relinkBufferedTs,
+                    _trelloBaseline: {
+                        title: existingTask.title || '',
+                        dueDate: (item.due || card.due) ? (item.due || card.due).split('T')[0] : null,
+                        status: item.state === 'complete' ? 'completed' : 'todo',
+                        assignees: item.idMember ? [item.idMember] : []
+                    }
+                };
                 result.updated++;
             } else {
                 // Check if this checklist item belongs to a task moved to another action
