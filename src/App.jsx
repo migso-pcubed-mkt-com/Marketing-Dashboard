@@ -27,7 +27,6 @@ import { ViewSkeleton } from './components/Skeletons.jsx';
 import { useFilters } from './hooks/useFilters.js';
 import useUndoRedo from './hooks/useUndoRedo.js';
 import useMultiBoardData from './hooks/useMultiBoardData.js';
-import { exportTimelineXlsx, exportKanbanXlsx, exportCalendarXlsx } from './lib/excelExport.js';
 
 // Lazy-loaded views
 const KanbanView = lazy(() => import('./components/KanbanView.jsx'));
@@ -1509,9 +1508,9 @@ const App = () => {
                                 <button onClick={() => {setShowExportDropdown(false);exportToJSON();}} className="dropdown-item">Export JSON</button>
                                 <button onClick={() => {setShowExportDropdown(false);exportToCSV();}} className="dropdown-item">Export CSV</button>
                                 <div className="dropdown-divider"/>
-                                <button onClick={() => {setShowExportDropdown(false);exportTimelineXlsx(categories, actions, tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Timeline (Excel)</button>
-                                <button onClick={() => {setShowExportDropdown(false);exportKanbanXlsx(categories, actions, tasks, currentBoard?.name);}} className="dropdown-item">Export Kanban (Excel)</button>
-                                <button onClick={() => {setShowExportDropdown(false);exportCalendarXlsx(tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Calendar (Excel)</button>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportTimelineXlsx } = await import('./lib/excelExport.js'); exportTimelineXlsx(categories, actions, tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Timeline (Excel)</button>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name);}} className="dropdown-item">Export Kanban (Excel)</button>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportCalendarXlsx } = await import('./lib/excelExport.js'); exportCalendarXlsx(tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Calendar (Excel)</button>
                                 <div className="dropdown-divider"/>
                                 <button onClick={() => {setShowExportDropdown(false);setShowExcelImport(true);}} className="dropdown-item">Import from Excel</button>
                             </div>}
