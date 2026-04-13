@@ -5,7 +5,7 @@ import { Icon } from './Icons.jsx';
 import { TRELLO_SYNC_INTERVALS } from '../config.js';
 
 const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
-    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus, onShowTrelloExport, trelloUser } = useBoard();
+    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus } = useBoard();
     const focusTrapRef = useFocusTrap(true);
     const [name, setName] = useState(board.name);
     const isLastBoard = boards.length <= 1;
@@ -267,15 +267,6 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
                                 Re-configure Labels
                             </button>
                         )}
-                    </div>
-                )}
-
-                {!board.trelloSync?.trelloBoardId && trelloUser && (
-                    <div style={{ marginBottom: 16 }}>
-                        <button onClick={() => { onShowTrelloExport(); onClose(); }} className="v11-btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                            Connect to Trello
-                        </button>
                     </div>
                 )}
 
