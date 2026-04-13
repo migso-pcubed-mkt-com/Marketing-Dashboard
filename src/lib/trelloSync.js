@@ -804,13 +804,21 @@ export const resolveCrossBoardCardUrls = async (tasks, fetchCardFn = fetchTrello
 
     if (shortLinksToFetch.size === 0) return tasks;
 
-    // Batch-fetch card names
+    // Batch-fetch card names (parallel — all fetches are independent reads)
     const cardNameMap = new Map();
-    for (const sl of shortLinksToFetch) {
-        try {
-            const card = await fetchCardFn(sl);
-            if (card?.name) cardNameMap.set(sl, card.name);
-        } catch (e) { console.warn(`[Trello sync] Cross-board card URL resolution failed for shortLink "${sl}":`, e.message); }
+    const fetchResults = await Promise.all(
+        [...shortLinksToFetch].map(async sl => {
+            try {
+                const card = await fetchCardFn(sl);
+                return card?.name ? { sl, name: card.name } : null;
+            } catch (e) {
+                console.warn(`[Trello sync] Cross-board card URL resolution failed for shortLink "${sl}":`, e.message);
+                return null;
+            }
+        })
+    );
+    for (const r of fetchResults) {
+        if (r) cardNameMap.set(r.sl, r.name);
     }
 
     if (cardNameMap.size === 0) return tasks;
