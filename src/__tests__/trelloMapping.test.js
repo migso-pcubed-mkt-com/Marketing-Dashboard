@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchLabelToChannel, matchLabelToCountry, mapTrelloListToCategory, mapTrelloLabelToAction, trelloColorToHex, trelloColorToGradient, mapTrelloCardToTask } from '../lib/trelloMapping.js';
+import { matchLabelToChannel, matchLabelToCountry, mapTrelloListToCategory, mapTrelloLabelToAction, trelloColorToHex, mapTrelloCardToTask } from '../lib/trelloMapping.js';
 
 describe('trelloColorToHex', () => {
     it('maps known Trello colors to hex', () => {
