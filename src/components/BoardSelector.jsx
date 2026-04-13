@@ -4,7 +4,7 @@ import { Icon } from './Icons.jsx';
 import BoardSettingsModal from './BoardSettingsModal.jsx';
 
 const BoardSelector = () => {
-    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels, multiBoardMode, selectedBoardIds, onToggleMultiBoard } = useBoard();
+    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels } = useBoard();
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');
@@ -112,12 +112,10 @@ const BoardSelector = () => {
                                 }}
                                 onMouseEnter={e => { if (board.id !== currentBoardId) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
                                 onMouseLeave={e => { if (board.id !== currentBoardId) e.currentTarget.style.background = 'transparent'; }}
-                                onClick={() => { if (multiBoardMode) { const ids = selectedBoardIds?.includes(board.id) ? selectedBoardIds.filter(id => id !== board.id) : [...(selectedBoardIds || []), board.id]; if (ids.length === 0) { onToggleMultiBoard(false, []); } else { onToggleMultiBoard(true, ids); } } else { onSwitchBoard(board.id); setIsOpen(false); } }}
+                                onClick={() => { onSwitchBoard(board.id); setIsOpen(false); }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', flex: 1 }}>
-                                    {multiBoardMode ? (
-                                        <input type="checkbox" checked={selectedBoardIds?.includes(board.id)} readOnly style={{ accentColor: 'var(--accent)', flexShrink: 0 }}/>
-                                    ) : board.id === currentBoardId && (
+                                    {board.id === currentBoardId && (
                                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }}/>
                                     )}
                                     <span style={{
@@ -163,11 +161,6 @@ const BoardSelector = () => {
                     </div>
 
                     <div style={{ borderTop: '1px solid var(--border)', padding: 8 }}>
-                        {boards.length >= 2 && (
-                            <button onClick={() => { if (multiBoardMode) { onToggleMultiBoard(false, []); } else { onToggleMultiBoard(true, boards.map(b => b.id)); } setIsOpen(false); }} style={{ width: '100%', padding: '6px 8px', marginBottom: 6, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: multiBoardMode ? 'var(--accent)' : 'var(--bg-secondary)', color: multiBoardMode ? 'white' : 'var(--text-primary)', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
-                                {multiBoardMode ? 'Exit multi-board' : 'Multi-board view'}
-                            </button>
-                        )}
                         {isCreating ? (
                             <div style={{ display: 'flex', gap: 6 }}>
                                 <input
