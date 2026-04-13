@@ -369,14 +369,14 @@ const App = () => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
                 e.preventDefault();
                 const label = undo();
-                if (label) showNotification('↩ Undo: ' + label);
+                if (label) { setNotification('↩ Undo: ' + label); setTimeout(() => setNotification(null), 3000); }
                 return;
             }
             // Redo: Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y / Cmd+Y
             if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
                 e.preventDefault();
                 const label = redo();
-                if (label) showNotification('↪ Redo: ' + label);
+                if (label) { setNotification('↪ Redo: ' + label); setTimeout(() => setNotification(null), 3000); }
                 return;
             }
             // Escape closes filter sidebar even from inputs (search field)
@@ -401,7 +401,7 @@ const App = () => {
         };
         document.addEventListener('keydown', handleKeyPress);
         return () => document.removeEventListener('keydown', handleKeyPress);
-    }, [selectedTask, selectedAction, showCategoriesModal, showNewActionModal, showNewTaskModal, showFilterSidebar, showCreateDropdown, undo, redo, showNotification]);
+    }, [selectedTask, selectedAction, showCategoriesModal, showNewActionModal, showNewTaskModal, showFilterSidebar, showCreateDropdown, undo, redo]);
 
     // Data loading on mount
     useEffect(() => {
