@@ -957,9 +957,10 @@ describe('syncWithTrello — card-as-action', () => {
         // Feedback loop prevention: trelloLastModified should be updated
         const t1 = synced.tasks.find(t => t.id === 't1');
         const t2 = synced.tasks.find(t => t.id === 't2');
-        // Both tasks should have trelloLastModified >= T.NEW (updated after position push)
-        expect(new Date(t1.trelloLastModified).getTime()).toBeGreaterThanOrEqual(new Date(T.NEW).getTime());
-        expect(new Date(t2.trelloLastModified).getTime()).toBeGreaterThanOrEqual(new Date(T.MID).getTime());
+        // Both tasks should have trelloLastModified > card.dateLastActivity (T.MID)
+        // (uses server timestamp + 2s buffer to prevent feedback loop)
+        expect(new Date(t1.trelloLastModified).getTime()).toBeGreaterThan(new Date(T.MID).getTime());
+        expect(new Date(t2.trelloLastModified).getTime()).toBeGreaterThan(new Date(T.MID).getTime());
     });
 
     // ════════════════════════════════════════════════════════
@@ -1003,7 +1004,7 @@ describe('syncWithTrello — card-as-action', () => {
             })]
         }));
 
-        const { board: synced, result } = await syncWithTrello(board, { labelMappings: {} });
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
 
         // Task should be recreated as a checklist item
         expect(addTrelloChecklistItems).toHaveBeenCalled();
