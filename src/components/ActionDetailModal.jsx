@@ -1,15 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { CONFIG } from '../config.js';
 import { markdownToHtml, htmlToMarkdown, WysiwygToolbar, SimpleMarkdown } from '../lib/markdown.jsx';
-import { useApp } from '../context.js';
+import { useBoard } from '../context.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import MentionInput from './MentionInput.jsx';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
 import ChannelTags from './ChannelTags.jsx';
 import CountryTags from './CountryTags.jsx';
+import CommentsSection from './action-detail/CommentsSection.jsx';
+import AttachmentsSection from './action-detail/AttachmentsSection.jsx';
 
 const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdateTask,onBatchUpdateTasks,onOpenTask,onAddTask,onDeleteAction,members=[],allCountries,onAddCustomCountry,availableOtherLabels=[],isTrelloBoard=false,isReadOnly=false,onRenameChecklistGroup,onAddTaskInGroup,onDeleteTask,onDeleteTaskGroup})=>{
-    const { trelloUser } = useApp();
+    const { trelloUser } = useBoard();
+    const focusTrapRef = useFocusTrap(true);
     const[form,setForm]=useState({...action, comments: action.comments || [], attachments: action.attachments || []});
     const[showConfirmDelete,setShowConfirmDelete]=useState(false);
     const[confirmDeleteTask,setConfirmDeleteTask]=useState(null);
@@ -35,8 +39,6 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
     const[newTaskTitle,setNewTaskTitle]=useState('');
     const[addTaskPickerGroup,setAddTaskPickerGroup]=useState(null);
     const[pendingGroups,setPendingGroups]=useState([]);
-    const commentFileRef=useRef(null);
-    const attachmentFileRef=useRef(null);
     // Drag state for groups and tasks
     const[dragGroupName,setDragGroupName]=useState(null);
     const[dragTaskId,setDragTaskId]=useState(null);
@@ -466,7 +468,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
 
     return(
         <div className="v11-modal-overlay" onClick={handleClose} style={{alignItems:'flex-start',paddingTop:64,overflowY:'auto'}}>
-            <div className="v11-modal animate-slide-up" style={{maxWidth:640,marginBottom:32}} onClick={e=>e.stopPropagation()}>
+            <div ref={focusTrapRef} className="v11-modal animate-slide-up" role="dialog" aria-modal="true" aria-label="Action details" style={{maxWidth:640,marginBottom:32}} onClick={e=>e.stopPropagation()}>
                 {/* Amber gradient bar */}
                 <div className="h-2 rounded-t-2xl" style={{background:'linear-gradient(to right, #f59e0b, #d97706)'}}/>
                 <div ref={modalScrollRef} className="p-6" style={{maxHeight:'calc(90vh - 80px)',overflowY:'auto'}}>
@@ -700,8 +702,8 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                                                         {!isReadOnly&&<span style={{cursor:'grab',opacity:0.3,fontSize:10,flexShrink:0}}>⋮⋮</span>}
                                                         <IconSelect value={task.status} options={CONFIG.STATUSES} onChange={v=>handleStatusChange(task.id,v)} renderOption={o=><StatusOption status={o}/>} style={{minWidth:110,flexShrink:0}} disabled={isReadOnly}/>
                                                         <div className="flex-1 min-w-0 flex items-center gap-1.5" style={{cursor:'pointer'}}>
+                                                            {task.trelloLinkedCardUrl&&<a href={task.trelloLinkedCardUrl} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} title="Open linked Trello card" style={{flexShrink:0,display:'inline-flex',alignItems:'center',padding:'2px 4px',borderRadius:3,color:'#0079bf',opacity:0.7}} onMouseEnter={e=>{e.currentTarget.style.opacity='1';e.currentTarget.style.background='rgba(0,121,191,0.1)';}} onMouseLeave={e=>{e.currentTarget.style.opacity='0.7';e.currentTarget.style.background='none';}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></a>}
                                                             <p className="font-medium text-sm truncate" style={{color:task.status==='completed'?'var(--text-muted)':'var(--accent)',textDecoration:task.status==='completed'?'line-through':'none',flex:'1 1 auto',minWidth:0}} onClick={()=>handleOpenTask(task)} onMouseEnter={e=>{if(task.status!=='completed')e.target.style.textDecoration='underline';}} onMouseLeave={e=>{e.target.style.textDecoration=task.status==='completed'?'line-through':'none';}}>{task.title}</p>
-                                                            {task.trelloLinkedCardUrl&&<a href={task.trelloLinkedCardUrl} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} title="Open linked Trello card" style={{flexShrink:0,display:'inline-flex',alignItems:'center',padding:'2px 4px',borderRadius:3,color:'#0079bf',opacity:0.7}} onMouseEnter={e=>{e.currentTarget.style.opacity='1';e.currentTarget.style.background='rgba(0,121,191,0.1)';}} onMouseLeave={e=>{e.currentTarget.style.opacity='0.7';e.currentTarget.style.background='none';}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></a>}
                                                         </div>
                                                         <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
                                                             {/* Inline due date — click opens calendar directly */}
@@ -768,66 +770,9 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                         }):<p className="text-center py-4 text-sm" style={{color:'var(--text-muted)'}}>No tasks yet. Create a task group to get started.</p>}
                     </div>
 
-                    {/* Comments */}
-                    <div className="rounded-xl mb-5" style={sectionCard}>
-                        <div style={{...sectionLabel,marginBottom:10}}>💬 Comments ({(form.comments||[]).length})</div>
-                        {!isReadOnly&&<div style={{marginBottom:(form.comments||[]).length>0?12:0}}>
-                            <div style={{border:'1px solid var(--border)',borderRadius:'var(--radius-md)',background:'var(--bg-primary)'}}>
-                                <div style={{padding:'4px 8px',borderBottom:'1px solid var(--border)'}}>
-                                    <WysiwygToolbar editableRef={newCommentEditableRef} onAttach={()=>commentFileRef.current?.click()}/>
-                                </div>
-                                <MentionInput editableRef={newCommentEditableRef} members={members} style={{padding:'8px 12px',minHeight:48}} placeholder="Write a comment..." onSubmit={addComment}/>
-                            </div>
-                            <input ref={commentFileRef} type="file" multiple style={{display:'none'}} onChange={handleCommentFileSelect}/>
-                            {commentAttachments.length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:4}}>
-                                {commentAttachments.map((att,i)=>(
-                                    <span key={i} style={{fontSize:11,padding:'2px 6px',background:'var(--bg-secondary)',borderRadius:4,display:'flex',alignItems:'center',gap:3}}>📎 {att.name}<button onClick={()=>setCommentAttachments(prev=>prev.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',fontSize:10,color:'var(--text-muted)',padding:0}}>&times;</button></span>
-                                ))}
-                            </div>}
-                            <div style={{display:'flex',justifyContent:'flex-end',marginTop:6}}>
-                                <button onClick={addComment} className="px-3 py-1 text-white rounded-lg text-xs font-medium" style={{background:'#d97706'}}>Comment</button>
-                            </div>
-                        </div>}
-                        {(form.comments||[]).length>0&&<div className="space-y-2">
-                            {(form.comments||[]).slice().sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)).map((comment,idx)=>(
-                                <div key={comment.id||idx} className="p-3 rounded-lg" style={{background:'var(--bg-primary)',border:'1px solid var(--border)'}}>
-                                    <div className="flex justify-between mb-2">
-                                        <span className="font-medium text-sm">{comment.author}</span>
-                                        <span className="text-xs" style={{color:'var(--text-muted)'}}>{comment.date?new Date(comment.date).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}):''}</span>
-                                    </div>
-                                    <div style={{fontSize:13,color:'var(--text-secondary)'}}><SimpleMarkdown text={comment.text}/></div>
-                                    {comment.attachments?.length>0&&<div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:6}}>
-                                        {comment.attachments.map(att=>(
-                                            <a key={att.id||att.name} href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:'var(--accent)',display:'flex',alignItems:'center',gap:3,padding:'2px 6px',borderRadius:4,background:'var(--accent-light)',textDecoration:'none'}}>📎 {att.name}</a>
-                                        ))}
-                                    </div>}
-                                </div>
-                            ))}
-                        </div>}
-                    </div>
+                    <CommentsSection comments={form.comments} isReadOnly={isReadOnly} members={members} sectionCard={sectionCard} sectionLabel={sectionLabel} commentAttachments={commentAttachments} setCommentAttachments={setCommentAttachments} onAddComment={addComment} onCommentFileSelect={handleCommentFileSelect} newCommentEditableRef={newCommentEditableRef}/>
 
-                    {/* Attachments */}
-                    <div className="rounded-xl mb-5" style={sectionCard}>
-                        <div className="flex items-center justify-between mb-2">
-                            <span style={sectionLabel}>Attachments ({(form.attachments||[]).length})</span>
-                            {!isReadOnly&&<button onClick={()=>attachmentFileRef.current?.click()} style={{fontSize:11,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:500}}>+ Add</button>}
-                        </div>
-                        <input ref={attachmentFileRef} type="file" multiple style={{display:'none'}} onChange={handleAttachmentFileSelect}/>
-                        {(form.attachments||[]).length>0?<div className="space-y-2">
-                            {(form.attachments||[]).map(att=>(
-                                <div key={att.id||att.name} className="flex items-center justify-between p-2 rounded" style={{background:'var(--bg-primary)',border:'1px solid var(--border-light)'}}>
-                                    <a href={att.url||att.data||'#'} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:'var(--accent)',textDecoration:'none',display:'flex',alignItems:'center',gap:6,flex:1,minWidth:0}}>
-                                        <span>📎</span><span className="truncate">{att.name}</span>
-                                    </a>
-                                    <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
-                                        {att.size&&<span style={{fontSize:10,color:'var(--text-muted)'}}>{(att.size/1024).toFixed(0)}KB</span>}
-                                        {att.date&&<span style={{fontSize:10,color:'var(--text-muted)'}}>{new Date(att.date).toLocaleDateString('en-US',{day:'numeric',month:'short'})}</span>}
-                                        {!isReadOnly&&<button onClick={()=>removeAttachment(att.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:2}}>&times;</button>}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>:<p style={{fontSize:12,color:'var(--text-muted)',fontStyle:'italic'}}>No attachments</p>}
-                    </div>
+                    <AttachmentsSection attachments={form.attachments} isReadOnly={isReadOnly} sectionCard={sectionCard} sectionLabel={sectionLabel} onFileSelect={handleAttachmentFileSelect} onRemove={removeAttachment}/>
 
                     {/* Footer */}
                     <div className="flex items-center justify-between pt-4" style={{borderTop:'1px solid var(--border)'}}>
