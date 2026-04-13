@@ -5,7 +5,7 @@ import { Icon } from './Icons.jsx';
 import { TRELLO_SYNC_INTERVALS } from '../config.js';
 
 const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
-    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus } = useBoard();
+    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, onShowTrelloExport, onShowMemberManagement } = useBoard();
     const focusTrapRef = useFocusTrap(true);
     const [name, setName] = useState(board.name);
     const isLastBoard = boards.length <= 1;
@@ -163,6 +163,40 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
                             ))}
                         </div>
                     </div>
+                )}
+
+                {/* Manage Members */}
+                <button
+                    onClick={() => { onClose(); onShowMemberManagement(); }}
+                    style={{
+                        width: '100%', padding: '8px 0', marginBottom: 12,
+                        borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+                        background: 'var(--bg-primary)', color: 'var(--text-primary)',
+                        fontSize: 12, fontWeight: 500, cursor: 'pointer'
+                    }}
+                >
+                    Manage Members
+                </button>
+
+                {/* Export to Trello (only if no sync yet and user is logged into Trello) */}
+                {trelloUser && !board.trelloSync?.trelloBoardId && (
+                    <button
+                        onClick={() => { onClose(); onShowTrelloExport(); }}
+                        style={{
+                            width: '100%', padding: '8px 0', marginBottom: 12,
+                            borderRadius: 'var(--radius-md)', border: '1px solid #0079BF',
+                            background: 'white', color: '#0079BF',
+                            fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                        }}
+                    >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="#0079BF">
+                            <rect x="1" y="1" width="22" height="22" rx="3" ry="3"/>
+                            <rect x="4" y="4" width="7" height="15" rx="1.5" ry="1.5" fill="white"/>
+                            <rect x="13" y="4" width="7" height="10" rx="1.5" ry="1.5" fill="white"/>
+                        </svg>
+                        Export to Trello
+                    </button>
                 )}
 
                 {/* Trello Sync */}
