@@ -5,7 +5,8 @@ import { CONFIG } from '../config.js';
 import { normalizeTaskChecklists } from '../lib/migration.js';
 import { uploadAttachment, deleteAttachment } from '../lib/storage.js';
 import { markdownToHtml, htmlToMarkdown, WysiwygToolbar, SimpleMarkdown } from '../lib/markdown.jsx';
-import { useApp } from '../context.js';
+import { useBoard } from '../context.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import MentionInput from './MentionInput.jsx';
 import { Icon, StatusIcon, PriorityIcon, StatusOption, PriorityOption } from './Icons.jsx';
 import IconSelect from './IconSelect.jsx';
@@ -15,12 +16,15 @@ import CountryTags from './CountryTags.jsx';
 
 
 const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete,onBackToAction,allCountries,onAddCustomCountry,onCreateAction,onAddCategory,members=[],isReadOnly=false,availableOtherLabels=[],isTrelloBoard=false,isCardAsTask=false})=>{
-    const { trelloUser } = useApp();
+    const { trelloUser } = useBoard();
+    const focusTrapRef = useFocusTrap(true);
     const[form,setForm]=useState(()=>{
         const normalized={...task,checklists:normalizeTaskChecklists(task)};
         delete normalized.checklist; // Remove old format
         return normalized;
     });
+    // Track the task.id we initialized from, so we can re-sync when the task prop changes
+    const lastSyncedTaskRef=useRef(task.updatedAt);
     const[previewAttachment,setPreviewAttachment]=useState(null);
     const[descriptionDraft,setDescriptionDraft]=useState(task.description||'');
     const[descriptionSaved,setDescriptionSaved]=useState(true);
@@ -40,6 +44,8 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const[editingChecklistId,setEditingChecklistId]=useState(null);
     const[editingChecklistName,setEditingChecklistName]=useState('');
     const[uploading,setUploading]=useState(false);
+    const autoSaveTimerRef=useRef(null);
+    const initialFormRef=useRef(true);
 
     const handleFileUpload = async (file) => {
         if (file.size > 10 * 1024 * 1024) return; // 10MB limit
@@ -111,7 +117,12 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         setShowInlineCreateAction(false);
     };
 
-    const handleClose=()=>{if(!isReadOnly)onUpdate(task.id,form);onClose();}; // Auto-save on close (Trello-style), skip in read-only
+    const handleClose=()=>{
+        // Cancel pending auto-save to prevent race condition
+        if(autoSaveTimerRef.current){clearTimeout(autoSaveTimerRef.current);autoSaveTimerRef.current=null;}
+        if(!isReadOnly)onUpdate(task.id,form);
+        onClose();
+    };
 
     // Escape key to close
     useEffect(()=>{
@@ -240,6 +251,36 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     const allChecklistItems=(form.checklists||[]).flatMap(cl=>cl.items||[]);
     const checklistPct=allChecklistItems.length>0?Math.round((allChecklistItems.filter(c=>c.done).length/allChecklistItems.length)*100):0;
 
+    // Debounced auto-save: persist checklist/comment/attachment changes to app state in real-time
+    // (mirrors ActionDetailModal pattern — prevents sync from overwriting pending form changes)
+    useEffect(()=>{
+        // Skip initial render (form is just initialized from task prop)
+        if(initialFormRef.current){initialFormRef.current=false;return;}
+        if(isReadOnly)return;
+        if(autoSaveTimerRef.current)clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current=setTimeout(()=>{
+            onUpdate(task.id,{checklists:form.checklists,comments:form.comments,attachments:form.attachments});
+        },500);
+        return()=>{if(autoSaveTimerRef.current)clearTimeout(autoSaveTimerRef.current);};
+    },[form.checklists,form.comments,form.attachments]);
+
+    // Re-sync form when task prop changes externally (e.g., after Trello sync)
+    // Only update fields the user hasn't locally modified in the modal
+    useEffect(()=>{
+        if(task.updatedAt===lastSyncedTaskRef.current)return;
+        lastSyncedTaskRef.current=task.updatedAt;
+        setForm(prev=>{
+            const normalized={...task,checklists:normalizeTaskChecklists(task)};
+            delete normalized.checklist;
+            // Preserve user's local edits for checklists/comments/attachments if auto-save hasn't flushed yet
+            if(autoSaveTimerRef.current){
+                // User has pending local changes — keep their version of these fields
+                return {...normalized,checklists:prev.checklists,comments:prev.comments,attachments:prev.attachments};
+            }
+            return normalized;
+        });
+    },[task]);
+
     // Handle Delete key to delete task
     useEffect(()=>{
         const handleKeyDown=(e)=>{
@@ -266,7 +307,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
     return(
         <React.Fragment>
         <div className="v11-modal-overlay" onClick={handleClose} style={{alignItems:'flex-start',paddingTop:64,overflowY:'auto'}}>
-            <div className="v11-modal animate-slide-up" style={{maxWidth:672,marginBottom:32}} onClick={e=>e.stopPropagation()}>
+            <div ref={focusTrapRef} className="v11-modal animate-slide-up" role="dialog" aria-modal="true" aria-label="Task details" style={{maxWidth:672,marginBottom:32}} onClick={e=>e.stopPropagation()}>
                 <div className={`h-2 rounded-t-2xl bg-gradient-to-r ${category?.gradient||'from-gray-400 to-gray-500'}`}/>
                 <div ref={modalScrollRef} className="p-6" style={{maxHeight:'calc(90vh - 80px)',overflowY:'auto'}}>
                     {/* Header — sticky on scroll */}
@@ -451,7 +492,7 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                                         {editingItemId===item.id?(
                                             <input type="text" value={editingItemText} onChange={e=>setEditingItemText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')renameChecklistItem(cl.id,item.id,editingItemText);if(e.key==='Escape')setEditingItemId(null);}} onBlur={()=>renameChecklistItem(cl.id,item.id,editingItemText)} style={{flex:1,border:'none',borderBottom:'1px solid var(--accent)',outline:'none',background:'transparent',fontSize:13,padding:'0 0 1px',color:'var(--text-primary)'}} autoFocus/>
                                         ):(
-                                            <span onClick={()=>{if(isReadOnly)return;setEditingItemId(item.id);setEditingItemText(item.text);}} style={{flex:1,fontSize:13,textDecoration:item.done?'line-through':'none',color:item.done?'var(--text-muted)':'var(--text-secondary)',cursor:isReadOnly?'default':'pointer'}}>{item.text}</span>
+                                            <span onClick={()=>{if(item.trelloLinkedCardUrl){window.open(item.trelloLinkedCardUrl,'_blank');return;}if(isReadOnly)return;setEditingItemId(item.id);setEditingItemText(item.text);}} style={{flex:1,fontSize:13,textDecoration:item.done?'line-through':'none',color:item.done?'var(--text-muted)':'var(--text-secondary)',cursor:item.trelloLinkedCardUrl?'pointer':isReadOnly?'default':'pointer',display:'flex',alignItems:'center',gap:4}}>{item.trelloLinkedCardUrl&&<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0079bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,opacity:0.7}}><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>}{item.text}</span>
                                         )}
                                         {/* Assignee badge */}
                                         <div style={{flexShrink:0}}>
@@ -516,12 +557,11 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
                         <div style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.6px',marginBottom:8}}>📎 Attachments ({(form.attachments||[]).length})</div>
                         {(form.attachments||[]).length>0&&<div className="space-y-2 mb-3">
                             {(form.attachments||[]).map(att=>{
-                                const isImage = (att.type||att.mimeType||'').startsWith('image/');
-                                const src = att.data || att.url;
+                                const thumbSrc = att.thumbnailUrl || att.data || null;
                                 return (
                                 <div key={att.id} className="flex items-center gap-3 p-3 rounded-lg" style={{background:'var(--bg-secondary)',cursor:'pointer'}} onClick={()=>att.url ? window.open(att.url,'_blank') : setPreviewAttachment(att)}>
-                                    {isImage && src ?
-                                        <img src={src} alt={att.name} style={{width:40,height:40,objectFit:'cover',borderRadius:'var(--radius-sm)',flexShrink:0}}/>:
+                                    {thumbSrc ?
+                                        <img src={thumbSrc} alt={att.name} style={{width:40,height:40,objectFit:'cover',borderRadius:'var(--radius-sm)',flexShrink:0}}/>:
                                         <div style={{width:40,height:40,borderRadius:'var(--radius-sm)',background:'var(--accent-light)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontSize:16}}>📄</div>
                                     }
                                     <div style={{flex:1,minWidth:0}}>
