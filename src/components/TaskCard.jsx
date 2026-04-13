@@ -2,8 +2,8 @@ import { useState, useRef, memo } from 'react';
 import { useBoard } from '../context.js';
 import { CONFIG } from '../config.js';
 const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=false, onTouchDrag, categories, allCountries, isReadOnly}) => {
-    const { effectiveMembers } = useBoard();
-    const boardMembers = effectiveMembers || [];
+    const { currentBoard } = useBoard();
+    const boardMembers = currentBoard?.members || [];
     const [touching, setTouching] = useState(false);
     const [dragOverPosition, setDragOverPosition] = useState(null);
     const cardRef = useRef(null);
@@ -103,7 +103,7 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
             onClick={() => onOpen(task)}
             className={`kanban-card ${task.status === 'completed' ? 'completed' : ''} ${touching ? 'touch-dragging' : ''} ${dragOverPosition === 'before' ? 'drop-indicator-before' : dragOverPosition === 'after' ? 'drop-indicator-after' : ''}`}>
             <div className="card-header">
-                <div className="card-title" style={task.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : task.trelloArchived ? {color:'var(--text-muted)'} : {}}>{task._sourceBoardName && <span style={{fontSize:9,background:task._sourceBoardColor||'var(--accent)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>{task._sourceBoardName}</span>}{task.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{task.title}</div>
+                <div className="card-title" style={task.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : task.trelloArchived ? {color:'var(--text-muted)'} : {}}>{task.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{task.title}</div>
                 <div className={`card-priority ${task.priority}`}/>
             </div>
             {(task.channels || action?.tags || []).length > 0 && <div className="card-tags">
