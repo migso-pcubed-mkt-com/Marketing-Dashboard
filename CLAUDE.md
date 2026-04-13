@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-12 (sync audit: 8 fixes, 19 tests, timeout bump)
+> Last updated: 2026-04-13 (sync timeout fix: split comment fetching from board endpoint)
 
 ---
 
@@ -254,7 +254,8 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 - **Offline guard**: `handleTrelloSync` skips if `!navigator.onLine` — prevents snapshot restore from overwriting offline edits.
 - **Drag guard**: `isUserInteractingRef` blocks auto-save during Kanban/Timeline drag (passed to KanbanView + TimelineView).
 - **Pre-sync snapshot**: board saved to `localStorage('trello_sync_snapshot')` before each sync; auto-restored on failure (24h validity)
-- **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors/timeouts — backoff 1s, 2s, 4s. 8s AbortController timeout per request.
+- **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors/timeouts — backoff 1s, 2s, 4s. 30s AbortController timeout per request.
+- **Comment fetching**: `fetchTrelloBoardFull` uses `skipComments=true` — comments are fetched separately via `fetchCardCommentsBatch` in client-side batches of 30 cards (avoids Vercel serverless timeout on large boards). `fetchCommentsForCards()` helper in `trelloSync.js`.
 - **Post-sync**: `validateBoardIntegrity()` checks orphan refs + duplicate IDs + auto-repairs (removes orphans, deduplicates, creates missing default actions). Light Supabase fetch 4s after sync to recover ignored Realtime events.
 - **Realtime guard during sync**: Realtime handler checks `isSyncInProgress()` — prevents Realtime events from overwriting freshly synced data.
 
