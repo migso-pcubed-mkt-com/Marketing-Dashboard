@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 
-const DEFAULT_FILTERS = { search: '', status: [], category: [], priority: [], channel: [], country: [], otherLabel: [], member: [], board: [], showArchived: false };
+const DEFAULT_FILTERS = { search: '', status: [], category: [], priority: [], channel: [], country: [], otherLabel: [], member: [], showArchived: false };
 
 export function useFilters(tasks, actions) {
     const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -18,7 +18,7 @@ export function useFilters(tasks, actions) {
         return actions.filter(a => !a.trelloArchived);
     }, [actions, filters.showArchived]);
 
-    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member, filters.board].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
+    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
 
     const filteredTasks = useMemo(() => {
         if (!activeFilterCount) return visibleTasks;
@@ -32,7 +32,6 @@ export function useFilters(tasks, actions) {
             if (filters.country?.length > 0 && !(t.countries || []).some(c => filters.country.includes(c))) return false;
             if (filters.otherLabel?.length > 0 && !(t.otherLabels || []).some(l => filters.otherLabel.includes(l.id))) return false;
             if (filters.member?.length > 0 && !(t.assignees || []).some(m => filters.member.includes(m))) return false;
-            if (filters.board?.length > 0 && t._sourceBoardId && !filters.board.includes(t._sourceBoardId)) return false;
             return true;
         });
     }, [visibleTasks, actions, filters, activeFilterCount]);
