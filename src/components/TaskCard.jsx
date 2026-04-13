@@ -1,9 +1,8 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, memo } from 'react';
+import { useBoard } from '../context.js';
 import { CONFIG } from '../config.js';
-import { useApp } from '../context.js';
-
 const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=false, onTouchDrag, categories, allCountries, isReadOnly}) => {
-    const { effectiveMembers } = useApp();
+    const { effectiveMembers } = useBoard();
     const boardMembers = effectiveMembers || [];
     const [touching, setTouching] = useState(false);
     const [dragOverPosition, setDragOverPosition] = useState(null);
@@ -76,7 +75,11 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
     const status = CONFIG.STATUSES.find(s => s.id === task.status);
     const priority = CONFIG.PRIORITIES.find(p => p.id === task.priority);
     const category = categories?.find(c => c.id === action?.categoryId);
-    const checklistPct = task.checklist?.length > 0 ? Math.round((task.checklist.filter(c => c.done).length / task.checklist.length) * 100) : null;
+    // Count checklist items across both old flat format and new named checklists
+    const allCheckItems = (task.checklists || []).flatMap(cl => cl.items || []).concat(task.checklist || []);
+    const checkDone = allCheckItems.filter(c => c.done).length;
+    const checkTotal = allCheckItems.length;
+    const attCount = (task.attachments || []).length;
 
     const handleToggleComplete = (e) => {
         e.stopPropagation();
@@ -100,15 +103,17 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
             onClick={() => onOpen(task)}
             className={`kanban-card ${task.status === 'completed' ? 'completed' : ''} ${touching ? 'touch-dragging' : ''} ${dragOverPosition === 'before' ? 'drop-indicator-before' : dragOverPosition === 'after' ? 'drop-indicator-after' : ''}`}>
             <div className="card-header">
-                <div className="card-title" style={task.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : task.trelloArchived ? {color:'var(--text-muted)'} : {}}>{task._sourceBoardName && <span style={{fontSize:9,background:task._sourceBoardColor||'var(--accent)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>{task._sourceBoardName}</span>}{task.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{task.trelloLinkedCardUrl && <span style={{display:'inline-flex',alignItems:'center',marginRight:4,color:'#0079bf',opacity:0.7,verticalAlign:'middle',flexShrink:0}} title="Linked Trello card"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></span>}{task.title}</div>
+                <div className="card-title" style={task.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : task.trelloArchived ? {color:'var(--text-muted)'} : {}}>{task._sourceBoardName && <span style={{fontSize:9,background:task._sourceBoardColor||'var(--accent)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>{task._sourceBoardName}</span>}{task.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{task.title}</div>
                 <div className={`card-priority ${task.priority}`}/>
             </div>
             {(task.channels || action?.tags || []).length > 0 && <div className="card-tags">
                 {(task.channels || action?.tags || []).slice(0, 2).map(chId => { const ch = CONFIG.CHANNELS.find(c => c.id === chId); return ch ? <span key={chId} className={`card-tag ${chId}`}>{ch.name}</span> : null; })}
             </div>}
-            {(task.startDate || task.dueDate || task.budget > 0 || (task.assignees||[]).length > 0 || (task.comments?.length || 0) > 0) && <div className="card-footer">
+            {(task.startDate || task.dueDate || task.budget > 0 || (task.assignees||[]).length > 0 || (task.comments?.length || 0) > 0 || checkTotal > 0 || attCount > 0) && <div className="card-footer">
                 <span className={`card-date ${task.dueDate && new Date(task.dueDate+'T23:59:59') < new Date() && task.status !== 'completed' ? 'overdue' : ''}`}>{task.dueDate && new Date(task.dueDate+'T23:59:59') < new Date() && task.status !== 'completed' && <span style={{fontSize:9,background:'var(--error)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:3,fontWeight:600,letterSpacing:0.3}}>LATE</span>}{task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}) : task.startDate ? new Date(task.startDate).toLocaleDateString('en-US',{day:'numeric',month:'short'}) : ''}</span>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginLeft:'auto'}}>
+                    {checkTotal > 0 && <span style={{display:'flex',alignItems:'center',gap:3,fontSize:10,color:checkDone===checkTotal?'var(--success)':'var(--text-muted)'}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>{checkDone}/{checkTotal}</span>}
+                    {attCount > 0 && <span style={{display:'flex',alignItems:'center',gap:3,fontSize:10,color:'var(--text-muted)'}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>{attCount}</span>}
                     {(task.comments?.length || 0) > 0 && <span style={{display:'flex',alignItems:'center',gap:3,fontSize:10,color:'var(--text-muted)'}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>{task.comments.length}</span>}
                     {task.budget > 0 && <span className="card-budget">{task.budget.toLocaleString()}€</span>}
                     {(()=>{const resolved=(task.assignees||[]).filter(id=>boardMembers.some(mb=>mb.id===id));return resolved.length>0&&<div style={{display:'flex',alignItems:'center'}}>
@@ -126,4 +131,4 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
     );
 };
 
-export default TaskCard;
+export default memo(TaskCard);
