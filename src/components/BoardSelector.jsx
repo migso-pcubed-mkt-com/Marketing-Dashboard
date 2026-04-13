@@ -4,7 +4,7 @@ import { Icon } from './Icons.jsx';
 import BoardSettingsModal from './BoardSettingsModal.jsx';
 
 const BoardSelector = () => {
-    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels } = useBoard();
+    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels, onShowExcelImport, trelloUser } = useBoard();
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');
@@ -246,6 +246,21 @@ const BoardSelector = () => {
                                 <rect x="13" y="4" width="7" height="10" rx="1.5" ry="1.5" fill="white"/>
                             </svg>
                             Import from Trello
+                        </button>
+                        <button
+                            onClick={() => { setIsOpen(false); onShowExcelImport(); }}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                width: '100%', padding: '8px 12px',
+                                background: 'transparent', border: 'none',
+                                color: 'var(--text-secondary)', fontSize: 12,
+                                fontWeight: 500, cursor: 'pointer', textAlign: 'left'
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                        >
+                            <Icon.Upload size={13}/>
+                            Import from Excel
                         </button>
                     </div>
                 </div>

@@ -4,8 +4,8 @@ import { useBoard } from '../context.js';
 import { useTouchDrag } from '../hooks/useTouchDrag';
 
 const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderAction, isReadOnly, onUpdateAction}) => {
-    const { currentBoard } = useBoard();
-    const boardMembers = currentBoard?.members || [];
+    const { effectiveMembers } = useBoard();
+    const boardMembers = effectiveMembers || [];
     const [dragOverPosition, setDragOverPosition] = useState(null);
     const cardRef = useRef(null);
     const { touchHandlers } = useTouchDrag({

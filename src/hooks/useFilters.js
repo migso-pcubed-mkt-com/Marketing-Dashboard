@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 
-const DEFAULT_FILTERS = { search: '', status: [], category: [], priority: [], channel: [], country: [], otherLabel: [], member: [], showArchived: false };
+const DEFAULT_FILTERS = { search: '', status: [], category: [], priority: [], channel: [], country: [], otherLabel: [], member: [], board: [], showArchived: false };
 
 export function useFilters(tasks, actions) {
     const [filters, setFilters] = useState(DEFAULT_FILTERS);
@@ -18,7 +18,7 @@ export function useFilters(tasks, actions) {
         return actions.filter(a => !a.trelloArchived);
     }, [actions, filters.showArchived]);
 
-    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
+    const activeFilterCount = [filters.status, filters.category, filters.priority, filters.channel, filters.country, filters.otherLabel, filters.member, filters.board].reduce((c, arr) => c + (Array.isArray(arr) ? arr.length : 0), 0) + (filters.search ? 1 : 0) + (filters.showArchived ? 1 : 0);
 
     const filteredTasks = useMemo(() => {
         if (!activeFilterCount) return visibleTasks;
