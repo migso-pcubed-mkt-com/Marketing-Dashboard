@@ -49,6 +49,7 @@ describe('mergeEntitiesByTimestamp', () => {
     });
 
     it('concurrent edits to different entities — both preserved', () => {
+        // User A edited t1, User B edited t2
         const local = [
             { id: 't1', title: 'A edited this', updatedAt: T.NEW },
             { id: 't2', title: 'Original', updatedAt: T.OLD }
@@ -68,6 +69,7 @@ describe('mergeEntitiesByTimestamp', () => {
         const incoming = [{ id: 't1', title: 'Also no timestamp' }];
         const result = mergeEntitiesByTimestamp(local, incoming);
         expect(result).toHaveLength(1);
+        // Both have time 0, so incoming wins (not strictly greater)
         expect(result[0].title).toBe('Also no timestamp');
     });
 
@@ -230,11 +232,13 @@ describe('mergeBoardsEntityLevel', () => {
     });
 
     it('full concurrent scenario: 3 users editing different tasks', () => {
+        // User A edited t1, User B edited t2, User C created t4
         const local = makeBoard('b1', [
             { id: 't1', title: 'A: updated title', updatedAt: T.NEW },
             { id: 't2', title: 'Original t2', updatedAt: T.OLD },
             { id: 't3', title: 'Unchanged', updatedAt: T.OLD }
         ]);
+        // Incoming has B's edit to t2 and C's new t4
         const incoming = makeBoard('b1', [
             { id: 't1', title: 'Original t1', updatedAt: T.OLD },
             { id: 't2', title: 'B: changed status', status: 'completed', updatedAt: T.NEW },
