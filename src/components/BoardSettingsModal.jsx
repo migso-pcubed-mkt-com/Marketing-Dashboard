@@ -1,10 +1,12 @@
-import { useState } from 'react';
-import { useApp } from '../context.js';
+import { useState, useEffect } from 'react';
+import { useBoard } from '../context.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Icon } from './Icons.jsx';
 import { TRELLO_SYNC_INTERVALS } from '../config.js';
 
 const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
-    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus, onShowMemberModal, onShowTrelloExport, trelloUser } = useApp();
+    const { onRenameBoard, onDeleteBoard, onDuplicateBoard, boards, onTrelloSync, onUpdateTrelloSyncSettings, trelloSyncStatus, onShowTrelloExport, trelloUser } = useBoard();
+    const focusTrapRef = useFocusTrap(true);
     const [name, setName] = useState(board.name);
     const isLastBoard = boards.length <= 1;
 
@@ -33,6 +35,12 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
         return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
     };
 
+    useEffect(() => {
+        const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [onClose]);
+
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 9999,
@@ -42,7 +50,7 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
                 style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }}
                 onClick={onClose}
             />
-            <div style={{
+            <div ref={focusTrapRef} role="dialog" aria-modal="true" aria-labelledby="board-settings-modal-title" style={{
                 position: 'relative',
                 background: 'var(--bg-primary)',
                 borderRadius: 'var(--radius-xl)',
@@ -54,7 +62,7 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
             }}>
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Board Settings</h2>
+                    <h2 id="board-settings-modal-title" style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Board Settings</h2>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
                         <Icon.Close/>
                     </button>
@@ -134,27 +142,15 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
                 </div>
 
                 {/* Members */}
-                <div style={{
-                    background: 'var(--bg-secondary)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: 12,
-                    marginBottom: 16,
-                    fontSize: 12
-                }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: (board.members || []).length > 0 ? 8 : 0 }}>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Members ({(board.members || []).length})</span>
-                        <button
-                            onClick={() => { onShowMemberModal(); onClose(); }}
-                            style={{
-                                padding: '3px 10px', borderRadius: 'var(--radius-sm)', border: 'none',
-                                background: 'var(--accent)', color: 'white',
-                                fontSize: 11, fontWeight: 500, cursor: 'pointer'
-                            }}
-                        >
-                            Manage
-                        </button>
-                    </div>
-                    {(board.members || []).length > 0 && (
+                {(board.members || []).length > 0 && (
+                    <div style={{
+                        background: 'var(--bg-secondary)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: 12,
+                        marginBottom: 16,
+                        fontSize: 12
+                    }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Members</div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                             {board.members.map(m => (
                                 <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -166,28 +162,7 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
                                 </div>
                             ))}
                         </div>
-                    )}
-                </div>
-
-                {/* Connect to Trello (only for local boards when user is authenticated) */}
-                {!board.trelloSync?.trelloBoardId && trelloUser && (
-                    <button
-                        onClick={() => { onShowTrelloExport(); onClose(); }}
-                        style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                            width: '100%', padding: '10px 0', marginBottom: 16,
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid #0079BF', background: 'white',
-                            color: '#0079BF', fontSize: 13, fontWeight: 500, cursor: 'pointer'
-                        }}
-                    >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="#0079BF">
-                            <rect x="1" y="1" width="22" height="22" rx="3" ry="3"/>
-                            <rect x="4" y="4" width="7" height="15" rx="1.5" ry="1.5" fill="white"/>
-                            <rect x="13" y="4" width="7" height="10" rx="1.5" ry="1.5" fill="white"/>
-                        </svg>
-                        Connect to Trello
-                    </button>
+                    </div>
                 )}
 
                 {/* Trello Sync */}
@@ -292,6 +267,15 @@ const BoardSettingsModal = ({ board, onClose, onOpenRemapLabels }) => {
                                 Re-configure Labels
                             </button>
                         )}
+                    </div>
+                )}
+
+                {!board.trelloSync?.trelloBoardId && trelloUser && (
+                    <div style={{ marginBottom: 16 }}>
+                        <button onClick={() => { onShowTrelloExport(); onClose(); }} className="v11-btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                            Connect to Trello
+                        </button>
                     </div>
                 )}
 
