@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { useApp } from '../context.js';
+import { useBoard } from '../context.js';
 import { Icon } from './Icons.jsx';
 import BoardSettingsModal from './BoardSettingsModal.jsx';
 
 const BoardSelector = () => {
-    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels, onShowExcelImport, multiBoardMode, selectedBoardIds, onToggleMultiBoard } = useApp();
+    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels, multiBoardMode, selectedBoardIds, onToggleMultiBoard } = useBoard();
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');
@@ -66,7 +66,7 @@ const BoardSelector = () => {
                     fontWeight: 600,
                     whiteSpace: 'nowrap'
                 }}>
-                    {multiBoardMode ? `Multi-board (${selectedBoardIds.length})` : (currentBoard?.name || 'Board')}
+                    {currentBoard?.name || 'Board'}
                 </span>
                 {currentBoard?.trelloSync?.trelloBoardId && (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{flexShrink:0,opacity:0.6}} title="Synced with Trello">
@@ -94,34 +94,11 @@ const BoardSelector = () => {
                     zIndex: 1000,
                     overflow: 'hidden'
                 }}>
-                    <div style={{ padding: '6px 12px 4px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ padding: '6px 12px 4px', borderBottom: '1px solid var(--border)' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Boards</span>
-                        {boards.length >= 2 && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (multiBoardMode) {
-                                        onToggleMultiBoard(false, []);
-                                    } else {
-                                        onToggleMultiBoard(true, boards.map(b => b.id));
-                                    }
-                                }}
-                                style={{
-                                    fontSize: 10, fontWeight: 600, padding: '2px 8px',
-                                    borderRadius: 'var(--radius-sm)', border: 'none',
-                                    background: multiBoardMode ? 'var(--accent)' : 'var(--bg-tertiary)',
-                                    color: multiBoardMode ? 'white' : 'var(--text-muted)',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                {multiBoardMode ? 'Exit multi-board' : 'Multi-board'}
-                            </button>
-                        )}
                     </div>
                     <div style={{ padding: '4px 0', maxHeight: 300, overflowY: 'auto' }}>
-                        {boards.map(board => {
-                            const isSelected = multiBoardMode ? selectedBoardIds.includes(board.id) : board.id === currentBoardId;
-                            return (
+                        {boards.map(board => (
                             <div
                                 key={board.id}
                                 style={{
@@ -130,37 +107,23 @@ const BoardSelector = () => {
                                     justifyContent: 'space-between',
                                     padding: '8px 12px',
                                     cursor: 'pointer',
-                                    background: isSelected ? 'var(--accent-light)' : 'transparent',
+                                    background: board.id === currentBoardId ? 'var(--accent-light)' : 'transparent',
                                     transition: 'background 0.1s'
                                 }}
-                                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-                                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
-                                onClick={() => {
-                                    if (multiBoardMode) {
-                                        const newIds = isSelected
-                                            ? selectedBoardIds.filter(id => id !== board.id)
-                                            : [...selectedBoardIds, board.id];
-                                        if (newIds.length === 0) {
-                                            onToggleMultiBoard(false, []);
-                                            setIsOpen(false);
-                                        } else {
-                                            onToggleMultiBoard(true, newIds);
-                                        }
-                                    } else {
-                                        onSwitchBoard(board.id); setIsOpen(false);
-                                    }
-                                }}
+                                onMouseEnter={e => { if (board.id !== currentBoardId) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                                onMouseLeave={e => { if (board.id !== currentBoardId) e.currentTarget.style.background = 'transparent'; }}
+                                onClick={() => { if (multiBoardMode) { const ids = selectedBoardIds?.includes(board.id) ? selectedBoardIds.filter(id => id !== board.id) : [...(selectedBoardIds || []), board.id]; if (ids.length === 0) { onToggleMultiBoard(false, []); } else { onToggleMultiBoard(true, ids); } } else { onSwitchBoard(board.id); setIsOpen(false); } }}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', flex: 1 }}>
                                     {multiBoardMode ? (
-                                        <input type="checkbox" checked={isSelected} readOnly style={{ accentColor: 'var(--accent)', flexShrink: 0, cursor: 'pointer' }}/>
-                                    ) : isSelected && (
+                                        <input type="checkbox" checked={selectedBoardIds?.includes(board.id)} readOnly style={{ accentColor: 'var(--accent)', flexShrink: 0 }}/>
+                                    ) : board.id === currentBoardId && (
                                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }}/>
                                     )}
                                     <span style={{
                                         fontSize: 13,
-                                        fontWeight: isSelected ? 600 : 400,
-                                        color: isSelected ? 'var(--accent)' : 'var(--text-primary)',
+                                        fontWeight: board.id === currentBoardId ? 600 : 400,
+                                        color: board.id === currentBoardId ? 'var(--accent)' : 'var(--text-primary)',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                         whiteSpace: 'nowrap'
@@ -178,7 +141,6 @@ const BoardSelector = () => {
                                         {board.tasks?.length || 0}
                                     </span>
                                 </div>
-                                {!multiBoardMode && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setSettingsBoard(board); setIsOpen(false); }}
                                     style={{
@@ -196,13 +158,16 @@ const BoardSelector = () => {
                                 >
                                     <Icon.Settings size={13}/>
                                 </button>
-                                )}
                             </div>
-                            );
-                        })}
+                        ))}
                     </div>
 
                     <div style={{ borderTop: '1px solid var(--border)', padding: 8 }}>
+                        {boards.length >= 2 && (
+                            <button onClick={() => { if (multiBoardMode) { onToggleMultiBoard(false, []); } else { onToggleMultiBoard(true, boards.map(b => b.id)); } setIsOpen(false); }} style={{ width: '100%', padding: '6px 8px', marginBottom: 6, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: multiBoardMode ? 'var(--accent)' : 'var(--bg-secondary)', color: multiBoardMode ? 'white' : 'var(--text-primary)', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}>
+                                {multiBoardMode ? 'Exit multi-board' : 'Multi-board view'}
+                            </button>
+                        )}
                         {isCreating ? (
                             <div style={{ display: 'flex', gap: 6 }}>
                                 <input
@@ -288,31 +253,6 @@ const BoardSelector = () => {
                                 <rect x="13" y="4" width="7" height="10" rx="1.5" ry="1.5" fill="white"/>
                             </svg>
                             Import from Trello
-                        </button>
-                        <button
-                            onClick={() => { setIsOpen(false); onShowExcelImport(); }}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 6,
-                                width: '100%',
-                                padding: '8px 12px',
-                                borderRadius: 'var(--radius-sm)',
-                                border: 'none',
-                                background: 'transparent',
-                                color: '#16a34a',
-                                fontSize: 13,
-                                fontWeight: 500,
-                                cursor: 'pointer',
-                                textAlign: 'left'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
-                            </svg>
-                            Import from Excel
                         </button>
                     </div>
                 </div>
