@@ -22,19 +22,16 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
-| 2026-04-12 | Audit fix: move undo/redo keyboard handler after input-field guard | Ctrl+Z in text inputs triggered app undo instead of native browser undo — breaks all text editing |
-| 2026-04-12 | Audit fix: add `filters.board` to `hasActiveFilter` in KanbanView | Board filter alone didn't hide unmatched actions in category view — `hasActiveFilter` was false when only board filter was active |
-| 2026-04-12 | Audit fix: TrelloExportModal `checklistCount` counts groups (not tasks), use dynamic progress | Progress bar stalled before 100% because totalOps counted individual tasks but updateProgress was called once per checklist group |
-| 2026-04-12 | Audit fix: TrelloExportModal checklist fields `name`/`checked` → `text`/`done` | api/trello.js addChecklist handler reads `item.text` and `item.done` — wrong field names caused "undefined" checklist items on Trello |
-| 2026-04-12 | Audit fix: add board filter to KanbanView `filteredTasks` | Board filter worked in App.jsx but was missing in KanbanView's own filteredTasks useMemo — Kanban ignored board filter selection |
-| 2026-04-12 | Audit fix: memoize `onToggleMultiBoard` via `useCallback([])` | Inline arrow in `useMemo` context recreated on every dep change even though it only uses stable React setters |
-| 2026-04-12 | Audit fix: add try-catch on JSON.stringify/parse in useUndoRedo | Corrupted board data could crash the app on undo/redo — now silently skips the snapshot |
-| 2026-04-12 | Add multi-board combined view (Phase 8) — read-only, `useMultiBoardData` hook, board viewMode in Kanban | Users need to see tasks across multiple boards simultaneously — read-only prevents cross-board data corruption |
-| 2026-04-12 | Add connect-local-board-to-Trello wizard (Phase 7) — TrelloExportModal + createBoard API | Local boards had no path to Trello sync — wizard pushes categories/actions/tasks with rate-limited API calls |
-| 2026-04-12 | Add Excel import with auto-detection of grid vs list format (Phase 6) | Users have existing roadmap spreadsheets (months as columns) that don't fit flat-list import — auto-detection handles both |
-| 2026-04-12 | Add undo/redo via useUndoRedo hook with 30-snapshot ring buffer (Phase 5) | No way to recover from accidental edits — ring buffer avoids unbounded memory growth |
-| 2026-04-12 | Add Excel export in 3 formats: Timeline, Kanban, Calendar (Phase 5) | Users need to share project status with stakeholders who don't have app access |
-| 2026-04-12 | Add team member management for local boards via MemberManagementModal (Phase 5) | Local boards couldn't assign tasks to people — all member infrastructure existed but had no creation UI |
+| 2026-04-12 | Fix sync lock comment (kept 15s, corrected misleading Vercel reference) | Comment said "aligned with Vercel 10s timeout" but sync runs client-side; benefit of 30s was marginal |
+| 2026-04-12 | Add 19 sync audit tests (syncAudit.test.js) | Prevent regressions on 8 baseline/merge bugs; cover multi-cycle, post-sync merge, multi-user realtime |
+| 2026-04-12 | Fix 8 sync bugs: baseline refresh, null guard, comment attachments | Stale baselines caused re-push loops; null updates crashed API; comment attachments posted before upload |
+| 2026-04-11 | Add loadCompleted flag + save validation + Realtime load guard + sessionStorage saveId persistence | Prevent data loss on deploy: auto-save fired before cloud data loaded; Realtime echoes from previous instance not detected after reload |
+| 2026-04-11 | Setup TypeScript 6 progressive migration (types.ts, handlers.ts, useTouchDrag.ts, useFocusTrap.ts) + tsconfig.json | Type safety for core entities and hooks; allowJs:true + strict:false enables gradual migration without blocking build |
+| 2026-04-11 | Add Kanban virtualization via @tanstack/react-virtual (VirtualKanbanCards.jsx, threshold 50) | Large Kanban columns (50+ cards) caused scroll lag and DOM bloat; virtual rendering keeps DOM light |
+| 2026-04-11 | 14-step refactoring: ESLint, a11y CSS, code splitting (React.lazy), React.memo (11 components), useCallback (~20 handlers), Skeletons, context split (BoardContext+FilterContext), useFilters extraction, TimelineView decomposition, ActionDetailModal decomposition, CRUD handler tests (517 tests), focus trap + ARIA on 7 modals | Comprehensive code quality, performance, accessibility and maintainability audit |
+| 2026-04-10 | Add _recentlyDeletedCardIds/_recentlyDeletedListIds to both sync modes | Async archive race condition: sync imports card/list as new entity before archiveTrelloCard completes |
+| 2026-04-10 | Add _trelloBaseline + fix trelloLastModified timing in card-as-action new push | New actions/items lacked baseline for selective push; trelloLastModified set before checklist creation caused false conflict on next sync |
+| 2026-04-10 | Update handleDeleteAction to track deleted card IDs via updateCurrentBoard | Card-as-action action deletion had same re-import race condition as card-as-task task deletion |
 | 2026-04-07 | Add post-sync merge to preserve local edits during Trello sync | Sync replaced entire board, losing user edits (task creation, moves) made during the multi-second sync window |
 | 2026-04-07 | Use buildSelectiveCheckItemUpdate for local-only checkItem push | mapTaskToCheckItemUpdate always sent state, causing "marked incomplete" Trello activity spam on every reorder |
 | 2026-04-07 | Fix handleAddTask to use sibling trelloChecklistName in card-as-action | Hardcoded 'Tasks' created spurious checklists instead of adding items to the action's existing checklist |
