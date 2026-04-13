@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-04-13 | Add conditional comment fetch + increase batch 5→10 + dedup Set + action Map | card-as-task sync was ~2.4x slower than card-as-action due to per-card comment fetching scaling with task count; optimizations preserve sync precision while cutting ~10s on 100-card boards |
 | 2026-04-12 | Fix sync lock comment (kept 15s, corrected misleading Vercel reference) | Comment said "aligned with Vercel 10s timeout" but sync runs client-side; benefit of 30s was marginal |
 | 2026-04-12 | Add 19 sync audit tests (syncAudit.test.js) | Prevent regressions on 8 baseline/merge bugs; cover multi-cycle, post-sync merge, multi-user realtime |
 | 2026-04-12 | Fix 8 sync bugs: baseline refresh, null guard, comment attachments | Stale baselines caused re-push loops; null updates crashed API; comment attachments posted before upload |
