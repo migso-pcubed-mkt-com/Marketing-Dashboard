@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Icon } from './Icons.jsx';
 
 const CategoriesManagementModal = ({categories, onClose, onUpdate, onAdd, onDelete, onReorder}) => {
+    const focusTrapRef = useFocusTrap(true);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState({});
     const [isAdding, setIsAdding] = useState(false);
@@ -72,13 +74,19 @@ const CategoriesManagementModal = ({categories, onClose, onUpdate, onAdd, onDele
         setTouchCurrentY(null);
     };
 
+    useEffect(() => {
+        const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [onClose]);
+
     return (
         <div className="v11-modal-overlay" onClick={onClose}>
-            <div className="v11-modal animate-slide-up" style={{maxWidth:672,maxHeight:'90vh',overflowY:'auto'}} onClick={e => e.stopPropagation()}>
+            <div ref={focusTrapRef} className="v11-modal animate-slide-up" role="dialog" aria-modal="true" aria-labelledby="categories-modal-title" style={{maxWidth:672,maxHeight:'90vh',overflowY:'auto'}} onClick={e => e.stopPropagation()}>
                 <div style={{height:3,background:'var(--accent)',borderRadius:'var(--radius-lg) var(--radius-lg) 0 0'}}/>
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-xl font-bold">📂 Manage Categories</h2>
+                        <h2 id="categories-modal-title" className="text-xl font-bold">📂 Manage Categories</h2>
                         <button onClick={onClose} className="v11-icon-btn"><Icon.Close/></button>
                     </div>
                     <div className="space-y-3 mb-4">
