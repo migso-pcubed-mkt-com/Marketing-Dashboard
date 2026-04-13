@@ -193,13 +193,6 @@ export const createTrelloList = (boardId, name, pos) =>
         body: JSON.stringify({ boardId, name, pos })
     });
 
-// Create a new Trello board
-export const createTrelloBoard = (name) =>
-    trelloFetch(`${API_BASE_URL}/api/trello?action=createBoard`, {
-        method: 'POST',
-        body: JSON.stringify({ name })
-    });
-
 // Check if Trello is configured (try fetching boards)
 export const checkTrelloConnection = async () => {
     try {
