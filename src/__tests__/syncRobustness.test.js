@@ -19,7 +19,12 @@ beforeEach(() => {
 // ════════════════════════════════════════════════════════════
 describe('maxListPos tracking from server response (Fix 14)', () => {
     it('second list creation uses server pos from first creation', async () => {
+        // This test verifies the concept: when server returns a higher pos than expected,
+        // the next list should use that higher pos as the base.
+        // We test this via the createTrelloList mock response integration.
         const { syncWithTrello } = await import('../lib/trelloSync.js');
+
+        // Mock the Trello API
         const trello = await import('../lib/trello.js');
 
         const listCreations = [];
@@ -28,6 +33,7 @@ describe('maxListPos tracking from server response (Fix 14)', () => {
         );
         vi.spyOn(trello, 'createTrelloList').mockImplementation(async (boardId, name, pos) => {
             listCreations.push({ name, pos });
+            // Server returns a much higher pos than requested (e.g., other lists exist server-side)
             return { id: `new-list-${listCreations.length}`, name, pos: pos + 50000 };
         });
         vi.spyOn(trello, 'updateTrelloCard').mockResolvedValue({});
@@ -45,7 +51,12 @@ describe('maxListPos tracking from server response (Fix 14)', () => {
         });
 
         await syncWithTrello(board, makeMappingConfig());
+
+        // Both lists should have been created
         expect(listCreations).toHaveLength(2);
+        // Second list's requested pos should be higher than first list's server-returned pos
+        // First list: pos = 1000 + 16384 = 17384, server returns 17384 + 50000 = 67384
+        // Second list: should use 67384 + 16384 = 83768, NOT 1000 + 2*16384 = 33768
         expect(listCreations[1].pos).toBeGreaterThan(listCreations[0].pos + 50000);
     });
 
@@ -59,7 +70,7 @@ describe('maxListPos tracking from server response (Fix 14)', () => {
         );
         vi.spyOn(trello, 'createTrelloList').mockImplementation(async (boardId, name, pos) => {
             listCreations.push({ name, pos });
-            return { id: `new-list-${listCreations.length}`, name };
+            return { id: `new-list-${listCreations.length}`, name }; // No pos in response
         });
         vi.spyOn(trello, 'updateTrelloCard').mockResolvedValue({});
         vi.spyOn(trello, 'createTrelloCard').mockResolvedValue({ id: 'new-card', dateLastActivity: '2026-04-01T00:00:00.000Z' });
@@ -76,6 +87,7 @@ describe('maxListPos tracking from server response (Fix 14)', () => {
 
         await syncWithTrello(board, makeMappingConfig());
         expect(listCreations).toHaveLength(2);
+        // Without server pos, second list should still be 16384 higher than first
         expect(listCreations[1].pos).toBe(listCreations[0].pos + 16384);
     });
 });
@@ -87,11 +99,13 @@ describe('Parallel API calls (Fix 15)', () => {
     it('label add/remove operations run in parallel, not sequentially', async () => {
         const trello = await import('../lib/trello.js');
 
+        // Track timing of API calls
         const callOrder = [];
         let callCount = 0;
         vi.spyOn(trello, 'addTrelloCardLabel').mockImplementation(async (cardId, labelId) => {
             const myIndex = callCount++;
             callOrder.push({ op: 'add', labelId, start: myIndex });
+            // Simulate async work
             await new Promise(r => setTimeout(r, 10));
             callOrder.push({ op: 'add-done', labelId, end: myIndex });
         });
@@ -102,6 +116,12 @@ describe('Parallel API calls (Fix 15)', () => {
             callOrder.push({ op: 'remove-done', labelId, end: myIndex });
         });
 
+        // We can't easily test pushActionLabelsToTrello directly (not exported),
+        // but we can verify via sync integration. For unit testing, we verify the
+        // pattern exists by checking that operations interleave (parallel behavior).
+        // This test validates the concept — sync-level tests cover the integration.
+
+        // Simulate parallel: all starts before any done
         const ops = [
             trello.addTrelloCardLabel('card-1', 'label-1'),
             trello.addTrelloCardLabel('card-1', 'label-2'),
@@ -109,6 +129,7 @@ describe('Parallel API calls (Fix 15)', () => {
         ];
         await Promise.all(ops);
 
+        // In parallel execution, all starts should happen before all dones
         const startEvents = callOrder.filter(e => !e.op.endsWith('-done'));
         const doneEvents = callOrder.filter(e => e.op.endsWith('-done'));
         expect(startEvents).toHaveLength(3);
@@ -124,6 +145,7 @@ describe('Parallel API calls (Fix 15)', () => {
             return { id: itemId, ...payload };
         });
 
+        // Simulate parallel checklist item updates (like the parallelized push pattern)
         const items = [
             { cardId: 'card-1', itemId: 'item-1', state: 'complete' },
             { cardId: 'card-1', itemId: 'item-2', state: 'incomplete' },
@@ -162,6 +184,7 @@ describe('validateBoardIntegrity repairs reporting (Fix 16)', () => {
         expect(result.repairs).toBeDefined();
         expect(result.repairs.length).toBeGreaterThan(0);
         expect(result.repairs.some(r => r.includes('Orphan Task'))).toBe(true);
+        // Orphan should be removed from board
         expect(result.board.tasks.some(t => t.id === 't-orphan')).toBe(false);
         expect(result.board.tasks.some(t => t.id === 't-valid')).toBe(true);
     });
@@ -180,6 +203,7 @@ describe('validateBoardIntegrity repairs reporting (Fix 16)', () => {
         const result = validateBoardIntegrity(board);
         expect(result.repairs.length).toBeGreaterThan(0);
         expect(result.repairs.some(r => r.includes('duplicate'))).toBe(true);
+        // Only first should survive
         expect(result.board.tasks).toHaveLength(1);
         expect(result.board.tasks[0].id).toBe('t-1');
     });
@@ -196,13 +220,14 @@ describe('validateBoardIntegrity repairs reporting (Fix 16)', () => {
         });
 
         const result = validateBoardIntegrity(board);
+        // Both tasks should survive — sharing trelloCardId is normal in card-as-action
         expect(result.board.tasks).toHaveLength(2);
     });
 
     it('creates missing default actions and reports the repair', () => {
         const board = makeBoard({
             categories: [makeCategory({ id: 'cat-1', name: 'Marketing' })],
-            actions: [],
+            actions: [], // No actions at all
             tasks: [],
             trelloSync: { syncMode: 'card-as-task' }
         });
@@ -220,6 +245,7 @@ describe('validateBoardIntegrity repairs reporting (Fix 16)', () => {
             makeTrelloBoardResponse({ lists: [makeTrelloList({ id: 'list-1', name: 'Test' })] })
         );
 
+        // Board with an orphan task that integrity check will catch
         const board = makeBoard({
             categories: [makeCategory({ id: 'cat-1', trelloListId: 'list-1' })],
             actions: [makeAction({ id: 'act-1', categoryId: 'cat-1', isDefault: true, trelloCardId: null })],
@@ -229,8 +255,10 @@ describe('validateBoardIntegrity repairs reporting (Fix 16)', () => {
         });
 
         const result = await syncWithTrello(board, makeMappingConfig(), { readOnly: true });
+        // The sync result should include integrity warnings
         expect(result.result.integrityWarnings).toBeDefined();
         expect(result.result.integrityWarnings.length).toBeGreaterThan(0);
+        // And the orphan should be removed from the returned board
         expect(result.board.tasks.some(t => t.id === 't-orphan')).toBe(false);
     });
 
@@ -292,6 +320,7 @@ describe('maxListPos tracking — card-as-action mode (Fix 14)', () => {
 
         await syncWithTrello(board, makeMappingConfig());
         expect(listCreations).toHaveLength(2);
+        // Second list pos should account for server-returned pos of first list
         expect(listCreations[1].pos).toBeGreaterThan(listCreations[0].pos + 50000);
     });
 });
