@@ -21,7 +21,7 @@ const trelloFetch = async (url, options = {}, retries = 3) => {
 
     for (let attempt = 0; attempt <= retries; attempt++) {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
         try {
             const response = await fetch(url, { headers, signal: controller.signal, ...options });
             clearTimeout(timeoutId);
@@ -49,7 +49,7 @@ const trelloFetch = async (url, options = {}, retries = 3) => {
                 await sleep(delayMs);
                 continue;
             }
-            if (err.name === 'AbortError') throw new Error('Trello request timed out after 8s');
+            if (err.name === 'AbortError') throw new Error('Trello request timed out after 30s');
             throw err;
         }
     }
@@ -59,9 +59,13 @@ const trelloFetch = async (url, options = {}, retries = 3) => {
 export const fetchTrelloBoards = () =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=boards`);
 
-// Fetch full board data (board, lists, labels, cards with checklists)
+// Fetch full board data (board, lists, labels, cards with checklists) — comments fetched separately
 export const fetchTrelloBoardFull = (boardId) =>
-    trelloFetch(`${API_BASE_URL}/api/trello?action=board&boardId=${encodeURIComponent(boardId)}`);
+    trelloFetch(`${API_BASE_URL}/api/trello?action=board&boardId=${encodeURIComponent(boardId)}&skipComments=true`);
+
+// Fetch comments for a batch of card IDs (max ~30 per call)
+export const fetchCardCommentsBatch = (cardIds) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=cardComments&cardIds=${encodeURIComponent(cardIds.join(','))}`);
 
 // Fetch a single card by ID or shortLink (for cross-board URL resolution)
 export const fetchTrelloCard = (idOrShortLink) =>
