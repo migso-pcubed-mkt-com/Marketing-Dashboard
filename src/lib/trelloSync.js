@@ -1,8 +1,27 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
-import { fetchTrelloBoardFull, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, deleteTrelloChecklistItem, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList, fetchTrelloCard } from './trello.js';
+import { fetchTrelloBoardFull, fetchCardCommentsBatch, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, deleteTrelloChecklistItem, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList, fetchTrelloCard } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex, mergeCardIntoAction, mergeCheckItemIntoTask, mapTaskToCheckItemUpdate, mapActionToTrelloCardUpdate, mapTrelloCardToAction, mapTrelloCheckItemToTask, resolveTrelloCardUrl } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
+
+// Fetch comments for all cards in client-side batches (avoids serverless timeout)
+const fetchCommentsForCards = async (cards) => {
+    const BATCH_SIZE = 30;
+    for (let i = 0; i < cards.length; i += BATCH_SIZE) {
+        const batch = cards.slice(i, i + BATCH_SIZE);
+        try {
+            const commentsMap = await fetchCardCommentsBatch(batch.map(c => c.id));
+            for (const card of batch) {
+                card.comments = commentsMap[card.id] || [];
+            }
+        } catch (err) {
+            console.warn(`[Trello sync] Comment batch ${i / BATCH_SIZE + 1} failed:`, err.message);
+            for (const card of batch) {
+                card.comments = card.comments || [];
+            }
+        }
+    }
+};
 
 // Sync lock — prevents concurrent sync operations
 let syncInProgress = false;
@@ -914,9 +933,10 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
 
     const result = { created: 0, updated: 0, pushed: 0, errors: 0, errorDetails: [] };
 
-    // 1. Fetch current Trello state
+    // 1. Fetch current Trello state (board data without comments, then comments in client-side batches)
     const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId);
     const { cards, lists, members: trelloMembers } = trelloData;
+    await fetchCommentsForCards(cards);
 
     // Build lookup maps
     const trelloCardMap = new Map(cards.map(c => [c.id, c]));
@@ -1671,9 +1691,10 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     const { trelloSync } = board;
     const result = { created: 0, updated: 0, pushed: 0, errors: 0, errorDetails: [] };
 
-    // 1. Fetch current Trello state
+    // 1. Fetch current Trello state (board data without comments, then comments in client-side batches)
     const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId);
     const { cards, lists, members: trelloMembers } = trelloData;
+    await fetchCommentsForCards(cards);
 
     // Build lookup maps
     const trelloCardMap = new Map(cards.map(c => [c.id, c]));
