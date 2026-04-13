@@ -60,8 +60,12 @@ export const fetchTrelloBoards = () =>
     trelloFetch(`${API_BASE_URL}/api/trello?action=boards`);
 
 // Fetch full board data (board, lists, labels, cards with checklists)
-export const fetchTrelloBoardFull = (boardId) =>
-    trelloFetch(`${API_BASE_URL}/api/trello?action=board&boardId=${encodeURIComponent(boardId)}`);
+// `since` (ISO timestamp): only fetch comments for cards modified after this timestamp (perf optimization)
+export const fetchTrelloBoardFull = (boardId, { since } = {}) => {
+    let url = `${API_BASE_URL}/api/trello?action=board&boardId=${encodeURIComponent(boardId)}`;
+    if (since) url += `&since=${encodeURIComponent(since)}`;
+    return trelloFetch(url);
+};
 
 // Fetch a single card by ID or shortLink (for cross-board URL resolution)
 export const fetchTrelloCard = (idOrShortLink) =>

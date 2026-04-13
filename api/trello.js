@@ -119,26 +119,32 @@ export default async function handler(req, res) {
             const members = membersRes.ok ? await membersRes.json() : [];
 
             // Fetch comments for each card (Trello API requires per-card fetch for actions)
-            // Batch in groups of 5 to respect rate limits (reduced from 10 for reliability)
+            // Optimization: if `since` param provided, only fetch comments for cards modified after that timestamp
+            const sinceParam = req.query.since || null;
+            const sinceMs = sinceParam ? new Date(sinceParam).getTime() : 0;
+            const cardsNeedingComments = sinceMs
+                ? cards.filter(c => new Date(c.dateLastActivity).getTime() > sinceMs)
+                : cards;
+
             const cardComments = {};
-            const batchSize = 5;
-            for (let i = 0; i < cards.length; i += batchSize) {
-                const batch = cards.slice(i, i + batchSize);
+            const batchSize = 10; // Increased from 5 — adaptive retry handles rate limits
+            for (let i = 0; i < cardsNeedingComments.length; i += batchSize) {
+                const batch = cardsNeedingComments.slice(i, i + batchSize);
                 const commentResults = await Promise.all(
                     batch.map(async card => {
-                        // Retry once on failure for comment fetches
-                        for (let attempt = 0; attempt < 2; attempt++) {
+                        // Retry up to 2 times on failure for comment fetches
+                        for (let attempt = 0; attempt < 3; attempt++) {
                             try {
                                 const r = await fetch(`${TRELLO_BASE}/cards/${card.id}/actions?${authParams}&filter=commentCard&fields=data,date,memberCreator&memberCreator_fields=fullName,username`);
                                 if (r.ok) return await r.json();
-                                if (r.status === 429 && attempt === 0) {
-                                    await new Promise(resolve => setTimeout(resolve, 1000));
+                                if (r.status === 429 && attempt < 2) {
+                                    await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
                                     continue;
                                 }
                                 return [];
                             } catch {
-                                if (attempt === 0) {
-                                    await new Promise(resolve => setTimeout(resolve, 500));
+                                if (attempt < 2) {
+                                    await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
                                     continue;
                                 }
                                 return [];
@@ -150,11 +156,21 @@ export default async function handler(req, res) {
                 batch.forEach((card, idx) => {
                     cardComments[card.id] = commentResults[idx];
                 });
+                // Adaptive pause between batches if we got rate-limited in this batch
+                if (i + batchSize < cardsNeedingComments.length && cardsNeedingComments.length > 20) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
             }
 
-            // Attach comments to cards
+            // Attach comments to cards — mark unfetched cards for client-side carry-forward
             for (const card of cards) {
-                card.comments = cardComments[card.id] || [];
+                if (cardComments[card.id] !== undefined) {
+                    card.comments = cardComments[card.id];
+                } else {
+                    // Card unchanged since `since` — comments not fetched, client carries forward
+                    card.comments = null;
+                    card._commentsSkipped = true;
+                }
             }
 
             console.log(`Board "${board.name}": ${lists.length} lists, ${labels.length} labels, ${cards.length} cards, ${members.length} members`);

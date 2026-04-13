@@ -915,12 +915,30 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     const result = { created: 0, updated: 0, pushed: 0, errors: 0, errorDetails: [] };
 
     // 1. Fetch current Trello state
-    const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId);
+    // Pass lastCardTimestamp to skip comment fetching for unchanged cards (perf optimization)
+    const since = trelloSync.lastCardTimestamp || null;
+    const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId, { since });
     const { cards, lists, members: trelloMembers } = trelloData;
+
+    // Carry forward comments for unchanged cards (server marks them with _commentsSkipped)
+    // This preserves sync precision: unchanged cards keep their last-known comments
+    const taskByCardId = new Map(board.tasks.filter(t => t.trelloCardId).map(t => [t.trelloCardId, t]));
+    for (const card of cards) {
+        if (card._commentsSkipped) {
+            const existingTask = taskByCardId.get(card.id);
+            if (existingTask?.comments) {
+                card.comments = existingTask.comments
+                    .filter(c => c.trelloCommentId)
+                    .map(c => ({ id: c.trelloCommentId, data: { text: c.text }, date: c.date, memberCreator: { fullName: c.author, username: '' } }));
+            } else {
+                card.comments = [];
+            }
+            delete card._commentsSkipped;
+        }
+    }
 
     // Build lookup maps
     const trelloCardMap = new Map(cards.map(c => [c.id, c]));
-    // listIdMap removed — list lookups done via listToCatId/catToListId
 
     // Build categoryId → trelloListId lookup from board categories
     const catToListId = {};
@@ -933,6 +951,9 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     for (const cat of board.categories) {
         if (cat.trelloListId) listToCatId[cat.trelloListId] = cat.id;
     }
+
+    // Pre-build action lookup Map for O(1) access (avoids repeated .find() in push loop)
+    const actionMap = new Map(board.actions.map(a => [a.id, a]));
 
     // Clone tasks for mutation
     const updatedTasks = [...board.tasks];
@@ -989,7 +1010,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             // Only dashboard changed → push to Trello (skip if readOnly / guest mode)
             if (!readOnly) {
                 try {
-                    const action = board.actions.find(a => a.id === task.actionId);
+                    const action = actionMap.get(task.actionId);
                     const listId = action ? catToListId[action.categoryId] : null;
                     const updates = buildSelectiveTaskUpdate(task, listId);
                     const pushedCard = await updateTrelloCard(task.trelloCardId, updates);
@@ -1061,7 +1082,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             // Both changed — last write wins based on absolute timestamp
             if (localUpdateTime >= trelloTime && !readOnly) {
                 try {
-                    const action = board.actions.find(a => a.id === task.actionId);
+                    const action = actionMap.get(task.actionId);
                     const listId = action ? catToListId[action.categoryId] : null;
                     // Selective push: only push fields that changed locally vs baseline
                     const updates = buildSelectiveTaskUpdate(task, listId);
@@ -1200,6 +1221,8 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             .filter(e => Date.now() - e.at < 5 * 60 * 1000) // 5 min window
             .map(e => e.id)
     );
+    // Pre-build Set of known card IDs for O(1) dedup lookup (replaces O(n) .some() scan)
+    const knownCardIds = new Set(updatedTasks.filter(t => t && t.trelloCardId).map(t => t.trelloCardId));
     for (const [, card] of trelloCardMap) {
         // Skip archived cards — don't import them as new tasks
         if (card.closed) continue;
@@ -1207,8 +1230,8 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         // Skip cards that were recently deleted locally (archive may not have propagated to Trello yet)
         if (recentlyDeletedCardIds.has(card.id)) continue;
 
-        // Dedup: skip if card already imported (race condition protection)
-        if (updatedTasks.some(t => t.trelloCardId === card.id) || newTasks.some(t => t.trelloCardId === card.id)) continue;
+        // Dedup: skip if card already imported (race condition protection) — O(1) Set lookup
+        if (knownCardIds.has(card.id)) continue;
 
         const categoryId = listToCatId[card.idList];
         if (!categoryId) continue; // Card in unknown list, skip
@@ -1362,6 +1385,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             trelloLastModified: card.dateLastActivity
         };
         newTasks.push(newTask);
+        knownCardIds.add(card.id); // Keep dedup Set current for remaining iterations
         result.created++;
     }
 
@@ -1373,7 +1397,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         if (!task || task.trelloCardId || task.trelloUnlinked) continue; // Null (deleted), already linked, or permanently deleted
 
         // Find the Trello listId for this task's category
-        const action = board.actions.find(a => a.id === task.actionId);
+        const action = actionMap.get(task.actionId);
         if (!action) continue;
         const listId = catToListId[action.categoryId];
         if (!listId) continue;
@@ -1636,6 +1660,11 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
     const cleanedDeletedCards = (board.trelloSync?._recentlyDeletedCardIds || []).filter(e => Date.now() - e.at < 5 * 60 * 1000);
     const cleanedDeletedLists = (board.trelloSync?._recentlyDeletedListIds || []).filter(e => Date.now() - e.at < 5 * 60 * 1000);
 
+    // Compute max card timestamp for next sync's conditional comment fetch
+    const maxCardTimestamp = cards.length > 0
+        ? new Date(Math.max(...cards.map(c => new Date(c.dateLastActivity).getTime()))).toISOString()
+        : board.trelloSync.lastCardTimestamp || null;
+
     const syncedBoard = {
         ...board,
         categories: updatedCategories,
@@ -1646,6 +1675,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             ...board.trelloSync,
             labelMappings: mappingConfig.labelMappings,
             lastSyncAt: new Date().toISOString(),
+            lastCardTimestamp: maxCardTimestamp,
             _recentlyDeletedCardIds: cleanedDeletedCards.length > 0 ? cleanedDeletedCards : undefined,
             _recentlyDeletedListIds: cleanedDeletedLists.length > 0 ? cleanedDeletedLists : undefined
         },
@@ -1672,8 +1702,26 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     const result = { created: 0, updated: 0, pushed: 0, errors: 0, errorDetails: [] };
 
     // 1. Fetch current Trello state
-    const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId);
+    // Pass lastCardTimestamp to skip comment fetching for unchanged cards (perf optimization)
+    const sinceCA = trelloSync.lastCardTimestamp || null;
+    const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId, { since: sinceCA });
     const { cards, lists, members: trelloMembers } = trelloData;
+
+    // Carry forward comments for unchanged cards (server marks them with _commentsSkipped)
+    const actionByCardId = new Map(board.actions.filter(a => a.trelloCardId).map(a => [a.trelloCardId, a]));
+    for (const card of cards) {
+        if (card._commentsSkipped) {
+            const existingAction = actionByCardId.get(card.id);
+            if (existingAction?.comments) {
+                card.comments = existingAction.comments
+                    .filter(c => c.trelloCommentId)
+                    .map(c => ({ id: c.trelloCommentId, data: { text: c.text }, date: c.date, memberCreator: { fullName: c.author, username: '' } }));
+            } else {
+                card.comments = [];
+            }
+            delete card._commentsSkipped;
+        }
+    }
 
     // Build lookup maps
     const trelloCardMap = new Map(cards.map(c => [c.id, c]));
@@ -2569,6 +2617,11 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
     const cleanedDeletedCardsCA = (board.trelloSync?._recentlyDeletedCardIds || []).filter(e => Date.now() - e.at < 5 * 60 * 1000);
     const cleanedDeletedListsCA = (board.trelloSync?._recentlyDeletedListIds || []).filter(e => Date.now() - e.at < 5 * 60 * 1000);
 
+    // Compute max card timestamp for next sync's conditional comment fetch
+    const maxCardTimestampCA = cards.length > 0
+        ? new Date(Math.max(...cards.map(c => new Date(c.dateLastActivity).getTime()))).toISOString()
+        : board.trelloSync.lastCardTimestamp || null;
+
     const syncedBoard = {
         ...board,
         categories: updatedCategories,
@@ -2579,6 +2632,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             ...board.trelloSync,
             labelMappings: mappingConfig.labelMappings,
             lastSyncAt: new Date().toISOString(),
+            lastCardTimestamp: maxCardTimestampCA,
             _recentlyDeletedCardIds: cleanedDeletedCardsCA.length > 0 ? cleanedDeletedCardsCA : undefined,
             _recentlyDeletedListIds: cleanedDeletedListsCA.length > 0 ? cleanedDeletedListsCA : undefined
         },
