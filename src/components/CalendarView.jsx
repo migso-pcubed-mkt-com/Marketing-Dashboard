@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, memo } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 
@@ -270,8 +270,8 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
     // Compact bar for month view (single line)
     const renderMonthBar = (task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight, topOffset, keyPrefix = '') => {
         const action = actions.find(a => a.id === task.actionId);
-        const cat = categories.find(c => c.id === action?.categoryId);
-        const barColor = cat?.color || 'var(--accent)';
+        const statusObj = CONFIG.STATUSES.find(s => s.id === task.status);
+        const barColor = statusObj?.color || '#94a3b8';
         const left = `calc(${(startCol / 7) * 100}% + 4px)`;
         const width = `calc(${(span / 7) * 100}% - 8px)`;
         const top = topOffset + rowIdx * 24;
@@ -297,10 +297,10 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                 style={{
                     position: 'absolute',
                     left, width, top, height: 20, zIndex: 10,
-                    background: `linear-gradient(90deg, ${barColor}18, ${barColor}28)`,
-                    border: `1px solid ${barColor}44`,
+                    background: `linear-gradient(90deg, ${barColor}30, ${barColor}50)`,
+                    border: `1px solid ${barColor}66`,
                     borderLeftWidth: continuesLeft ? 1 : 3,
-                    borderLeftColor: continuesLeft ? `${barColor}44` : barColor,
+                    borderLeftColor: continuesLeft ? `${barColor}66` : barColor,
                     borderRadius: `${continuesLeft ? 0 : 4}px ${continuesRight ? 0 : 4}px ${continuesRight ? 0 : 4}px ${continuesLeft ? 0 : 4}px`,
                     cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: 4,
@@ -455,8 +455,8 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                     {/* Detailed bars */}
                     {bars.map(({ task, startCol, span, rowIdx, isMultiDay, continuesLeft, continuesRight }) => {
                         const action = actions.find(a => a.id === task.actionId);
-                        const cat = categories.find(c => c.id === action?.categoryId);
-                        const barColor = cat?.color || 'var(--accent)';
+                        const statusObj = CONFIG.STATUSES.find(s => s.id === task.status);
+                        const barColor = statusObj?.color || '#94a3b8';
                         const colWidth = `calc((100% - 60px) / 7)`;
                         const left = `calc(60px + ${colWidth} * ${startCol} + 4px)`;
                         const width = `calc(${colWidth} * ${span} - 8px)`;
@@ -483,10 +483,10 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                 style={{
                                     position: 'absolute',
                                     left, width, top, height: WEEK_BAR_HEIGHT, zIndex: 10,
-                                    background: `linear-gradient(90deg, ${barColor}18, ${barColor}28)`,
-                                    border: `1px solid ${barColor}44`,
+                                    background: `linear-gradient(90deg, ${barColor}30, ${barColor}50)`,
+                                    border: `1px solid ${barColor}66`,
                                     borderLeftWidth: continuesLeft ? 1 : 3,
-                                    borderLeftColor: continuesLeft ? `${barColor}44` : barColor,
+                                    borderLeftColor: continuesLeft ? `${barColor}66` : barColor,
                                     borderRadius: `${continuesLeft ? 0 : 6}px ${continuesRight ? 0 : 6}px ${continuesRight ? 0 : 6}px ${continuesLeft ? 0 : 6}px`,
                                     cursor: 'pointer',
                                     display: 'flex', flexDirection: 'column', justifyContent: 'center',
@@ -500,7 +500,7 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                     <span style={{
                                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
                                         fontSize: 12, fontWeight: 600,
-                                        color: 'var(--text-primary)',
+                                        color: barColor,
                                         textDecoration: task.status === 'completed' ? 'line-through' : 'none'
                                     }}>
                                         {task.title}
@@ -550,4 +550,4 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
     );
 };
 
-export default CalendarView;
+export default memo(CalendarView);
