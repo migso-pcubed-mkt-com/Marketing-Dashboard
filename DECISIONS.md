@@ -22,7 +22,10 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
-| 2026-04-13 | Add conditional comment fetch + increase batch 5→10 + dedup Set + action Map | card-as-task sync was ~2.4x slower than card-as-action due to per-card comment fetching scaling with task count; optimizations preserve sync precision while cutting ~10s on 100-card boards |
+| 2026-04-20 | Add BroadcastChannel + localStorage fallback to Trello OAuth callback IPC | trello.com sends COOP: same-origin, which severs `window.opener` even after popup redirects back to our origin; `postMessage` alone silently fails in modern browsers, leaving users stuck on the "Domain not registered" manual-paste screen despite correct Allowed Origins config |
+| 2026-04-13 | Split comment fetching from board endpoint into client-side batches | Board fetch with 172+ cards timed out (35 sequential comment batches > 8s client + 10s Vercel limit); now board returns in ~2s, comments fetched separately in batches of 30 |
+| 2026-04-13 | Increase Vercel maxDuration 10→60, client timeout 8s→30s | Safety margin for large boards; old 8s/10s was too tight even without comments |
+| 2026-04-13 | Add conditional comment fetch (lastCardTimestamp) + dedup Set + action Map + parallel URL resolution | card-as-task sync was ~2.4x slower than card-as-action; conditional fetch skips unchanged cards, lookup maps reduce O(n) to O(1) |
 | 2026-04-12 | Fix sync lock comment (kept 15s, corrected misleading Vercel reference) | Comment said "aligned with Vercel 10s timeout" but sync runs client-side; benefit of 30s was marginal |
 | 2026-04-12 | Add 19 sync audit tests (syncAudit.test.js) | Prevent regressions on 8 baseline/merge bugs; cover multi-cycle, post-sync merge, multi-user realtime |
 | 2026-04-12 | Fix 8 sync bugs: baseline refresh, null guard, comment attachments | Stale baselines caused re-push loops; null updates crashed API; comment attachments posted before upload |

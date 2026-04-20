@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-13 (sync perf: conditional comment fetch, batch 10, dedup Set, action Map)
+> Last updated: 2026-04-20 (Trello OAuth BroadcastChannel fallback + sync perf: conditional comment fetch, lookup maps)
 
 ---
 
@@ -210,7 +210,7 @@ Props still drilled for view-specific handlers (`onUpdateTask`, `onOpenTask`, et
 - **Proxy**: `api/trello.js` keeps `TRELLO_API_KEY` + `TRELLO_TOKEN` server-side
 - **Import wizard**: `TrelloImportModal.jsx` — boards → label mapping → preview → import
 - **Sync**: bidirectional, "last write wins" (`dateLastActivity` vs `trelloLastModified`), polling every 1–10 min
-- **Auth**: Trello OAuth via popup (`callback_method=postMessage`) — no return_url needed
+- **Auth**: Trello OAuth via popup (`callback_method=fragment` + `return_url=/trello-callback.html`). Callback delivers token to opener via three parallel channels: `postMessage`, `BroadcastChannel('mkt_trello_oauth')`, and `localStorage('mkt_trello_oauth_token')`. Needed because trello.com sets COOP: same-origin → `window.opener` is severed in modern browsers.
 - **Archived cards**: fetched with `filter=all`; `card.closed` → `trelloArchived=true` + `status='paused'`
 
 ### Sync modes (per board: `trelloSync.syncMode`)
@@ -254,7 +254,8 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 - **Offline guard**: `handleTrelloSync` skips if `!navigator.onLine` — prevents snapshot restore from overwriting offline edits.
 - **Drag guard**: `isUserInteractingRef` blocks auto-save during Kanban/Timeline drag (passed to KanbanView + TimelineView).
 - **Pre-sync snapshot**: board saved to `localStorage('trello_sync_snapshot')` before each sync; auto-restored on failure (24h validity)
-- **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors/timeouts — backoff 1s, 2s, 4s. 8s AbortController timeout per request.
+- **Retry**: `trelloFetch` retries 3× on 429/502–504/network errors/timeouts — backoff 1s, 2s, 4s. 30s AbortController timeout per request.
+- **Comment fetching**: `fetchTrelloBoardFull` uses `skipComments=true` — comments are fetched separately via `fetchCardCommentsBatch` in client-side batches of 30 cards (avoids Vercel serverless timeout on large boards). `fetchCommentsForCards()` helper in `trelloSync.js`.
 - **Post-sync**: `validateBoardIntegrity()` checks orphan refs + duplicate IDs + auto-repairs (removes orphans, deduplicates, creates missing default actions). Light Supabase fetch 4s after sync to recover ignored Realtime events.
 - **Realtime guard during sync**: Realtime handler checks `isSyncInProgress()` — prevents Realtime events from overwriting freshly synced data.
 - **Conditional comment fetch**: `lastCardTimestamp` stored on `board.trelloSync` after each sync (max `dateLastActivity` across all cards). Next sync passes it as `since` to `fetchTrelloBoardFull` — server skips comment fetching for unchanged cards (`_commentsSkipped`). Client carries forward Trello-origin comments for those cards before merge. First sync (no `lastCardTimestamp`) fetches all comments.
@@ -449,6 +450,9 @@ When a Trello card is permanently deleted (missing from API response), the local
 
 ### Save functions validate boardData before writing
 `saveToSupabase` and `saveToGitHub` check `boardData?.boards?.length > 0` before proceeding. If data is empty or null, save is blocked with a console warning. This prevents overwriting cloud storage with empty state during race conditions or corrupted state.
+
+### Trello OAuth callback must use multiple IPC channels
+`trello-callback.html` delivers the token via `postMessage` + `BroadcastChannel('mkt_trello_oauth')` + `localStorage('mkt_trello_oauth_token')`. `startTrelloLogin` in `trelloAuth.js` listens on all three. Do NOT rely on `window.opener.postMessage` alone — trello.com sends `Cross-Origin-Opener-Policy: same-origin`, which permanently severs `window.opener` even after the popup is redirected back to our origin. The fallback storage key is cleared at the start of each login attempt and after token acceptance to avoid replay. The `pollTimer` also polls `localStorage` directly because `storage` events don't fire in the same tab that wrote the value.
 
 ### lastSaveIdRef persisted in sessionStorage
 `lastSaveIdRef` is initialized from `sessionStorage('mkt_last_save_id')` instead of `null`. Each auto-save writes the new saveId to sessionStorage. This allows the app to detect Realtime echoes from its own previous instance after a page reload/deploy. Without this, the first Realtime event after reload would be treated as a new update and could overwrite freshly loaded data.

@@ -25,6 +25,8 @@ import FilterSidebar from './components/FilterSidebar.jsx';
 import AuthGate from './components/AuthGate.jsx';
 import { ViewSkeleton } from './components/Skeletons.jsx';
 import { useFilters } from './hooks/useFilters.js';
+import useUndoRedo from './hooks/useUndoRedo.js';
+import useMultiBoardData from './hooks/useMultiBoardData.js';
 
 // Lazy-loaded views
 const KanbanView = lazy(() => import('./components/KanbanView.jsx'));
@@ -39,6 +41,9 @@ const CategoriesManagementModal = lazy(() => import('./components/CategoriesMana
 const NewActionModal = lazy(() => import('./components/NewActionModal.jsx'));
 const NewTaskModal = lazy(() => import('./components/NewTaskModal.jsx'));
 const TrelloImportModal = lazy(() => import('./components/TrelloImportModal.jsx'));
+const ExcelImportModal = lazy(() => import('./components/ExcelImportModal.jsx'));
+const MemberManagementModal = lazy(() => import('./components/MemberManagementModal.jsx'));
+const TrelloExportModal = lazy(() => import('./components/TrelloExportModal.jsx'));
 
 const API_BASE_URL = typeof window !== 'undefined'
     ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
@@ -77,6 +82,11 @@ const App = () => {
     });
     const [showTrelloImportModal, setShowTrelloImportModal] = useState(false);
     const [showTrelloRemapModal, setShowTrelloRemapModal] = useState(false);
+    const [showExcelImport, setShowExcelImport] = useState(false);
+    const [showMemberManagement, setShowMemberManagement] = useState(false);
+    const [showTrelloExport, setShowTrelloExport] = useState(false);
+    const [multiBoardMode, setMultiBoardMode] = useState(false);
+    const [selectedBoardIds, setSelectedBoardIds] = useState([]);
     const [trelloSyncStatus, setTrelloSyncStatus] = useState('idle'); // idle | syncing | synced | error
     const [trelloUser, setTrelloUser] = useState(null); // null = guest, or { id, fullName, username, avatarUrl, token }
     const [authenticated, setAuthenticated] = useState(() => {
@@ -112,6 +122,18 @@ const App = () => {
 
     // --- Filters, archive filtering, and derived filter state ---
     const { filters, setFilters, showFilterSidebar, setShowFilterSidebar, searchInputRef, visibleTasks, visibleActions, activeFilterCount, filteredTasks, filteredBudget, isFiltered } = useFilters(tasks, actions);
+
+    // --- Undo/Redo ---
+    const { pushState, undo, redo, canUndo, canRedo, isUndoRedoRef } = useUndoRedo(setBoardData);
+
+    // --- Multi-board merged data ---
+    const multiBoardData = useMultiBoardData(
+        multiBoardMode ? selectedBoardIds : [],
+        boardData?.boards || []
+    );
+    const effectiveMembers = multiBoardMode
+        ? multiBoardData.members
+        : (currentBoard?.members || []);
 
     // Guest users are read-only on Trello-linked boards (can edit non-Trello boards)
     const isReadOnly = !trelloUser && !!currentBoard?.trelloSync?.trelloBoardId;
@@ -343,6 +365,20 @@ const App = () => {
                 }
                 return;
             }
+            // Undo: Ctrl+Z / Cmd+Z
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                const label = undo();
+                if (label) { setNotification('↩ Undo: ' + label); setTimeout(() => setNotification(null), 3000); }
+                return;
+            }
+            // Redo: Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y / Cmd+Y
+            if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+                e.preventDefault();
+                const label = redo();
+                if (label) { setNotification('↪ Redo: ' + label); setTimeout(() => setNotification(null), 3000); }
+                return;
+            }
             // Escape closes filter sidebar even from inputs (search field)
             if (e.key === 'Escape' && showFilterSidebar) {
                 setShowFilterSidebar(false);
@@ -365,7 +401,7 @@ const App = () => {
         };
         document.addEventListener('keydown', handleKeyPress);
         return () => document.removeEventListener('keydown', handleKeyPress);
-    }, [selectedTask, selectedAction, showCategoriesModal, showNewActionModal, showNewTaskModal, showFilterSidebar, showCreateDropdown]);
+    }, [selectedTask, selectedAction, showCategoriesModal, showNewActionModal, showNewTaskModal, showFilterSidebar, showCreateDropdown, undo, redo]);
 
     // Data loading on mount
     useEffect(() => {
@@ -735,24 +771,28 @@ const App = () => {
     const handleSync = useCallback(() => saveData(), []);
 
     const handleUpdateTask = useCallback((taskId, updates) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Update task');
         setTasks(prev => applyTaskUpdate(prev, taskId, updates));
         showNotification('✅ Task updated');
-    }, [setTasks, showNotification]);
+    }, [setTasks, showNotification, pushState]);
 
     const handleBatchUpdateTasks = useCallback((updates) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Batch update tasks');
         setTasks(prev => applyBatchTaskUpdate(prev, updates));
-    }, [setTasks]);
+    }, [setTasks, pushState]);
 
     const handleUpdateAction = useCallback((actionId, updates) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Update action');
         const oldAction = actions.find(a => a.id === actionId);
         setActions(prev => applyActionUpdate(prev, actionId, updates));
         const linkedTasks = tasks.filter(t => t.actionId === actionId);
         const batchUpdates = computeTagPropagation(oldAction, updates, linkedTasks);
         if (batchUpdates.length > 0) handleBatchUpdateTasks(batchUpdates);
         showNotification('✅ Action updated');
-    }, [actions, tasks, setActions, handleBatchUpdateTasks, showNotification]);
+    }, [actions, tasks, setActions, handleBatchUpdateTasks, showNotification, pushState]);
 
     const handleDeleteAction = useCallback(async (actionId) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Delete action');
         // No confirm() here — caller (ActionDetailModal) handles confirmation popup
         const action = actions.find(a => a.id === actionId);
         // Prevent deletion of default action in card-as-task mode (would orphan all tasks)
@@ -792,9 +832,10 @@ const App = () => {
         setActions(prev => prev.filter(a => a.id !== actionId));
         setTasks(prev => prev.filter(t => t.actionId !== actionId));
         showNotification('🗑️ Action deleted');
-    }, [actions, currentBoard, isReadOnly, updateCurrentBoard, setActions, setTasks, showNotification]);
+    }, [actions, currentBoard, isReadOnly, updateCurrentBoard, setActions, setTasks, showNotification, pushState]);
 
     const handleAddTask = useCallback((actionId, customStartDate = null, customDueDate = null) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Add task');
         const action = actions.find(a => a.id === actionId);
         const startDate = customStartDate || new Date().toISOString().split('T')[0];
         const month = new Date(startDate).getMonth();
@@ -816,9 +857,10 @@ const App = () => {
         setTasks(prev => [...prev, newTask]);
         setSelectedTask(newTask);
         showNotification('✅ Task created');
-    }, [actions, tasks, setTasks, setSelectedTask, showNotification]);
+    }, [actions, tasks, setTasks, setSelectedTask, showNotification, pushState]);
 
     const handleMoveTask = useCallback((taskId, direction) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Move task');
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
         const sameTasks = tasks.filter(t => {
@@ -837,9 +879,10 @@ const App = () => {
             return t;
         }));
         showNotification(direction === 'up' ? '⬆️ Task moved up' : '⬇️ Task moved down');
-    }, [tasks, setTasks, showNotification]);
+    }, [tasks, setTasks, showNotification, pushState]);
 
     const handleReorderTask = useCallback((draggedId, targetId, position) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Reorder task');
         const draggedTask = tasks.find(t => t.id === draggedId);
         const targetTask = tasks.find(t => t.id === targetId);
         if (!draggedTask || !targetTask || draggedId === targetId) return;
@@ -847,9 +890,10 @@ const App = () => {
             (draggedTask.status !== undefined && targetTask.status !== undefined && draggedTask.status !== targetTask.status);
         setTasks(prev => applyTaskReorder(prev, draggedId, targetId, position));
         showNotification(isDifferentColumn ? '✅ Task moved to new column' : '✅ Task reordered');
-    }, [tasks, setTasks, showNotification]);
+    }, [tasks, setTasks, showNotification, pushState]);
 
     const handleMoveAction = useCallback((actionId, direction) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Move action');
         const action = actions.find(a => a.id === actionId);
         if (!action) return;
         const sameActions = actions.filter(a => a.categoryId === action.categoryId).sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -865,10 +909,11 @@ const App = () => {
             return a;
         }));
         showNotification(direction === 'up' ? '⬆️ Action moved up' : '⬇️ Action moved down');
-    }, [actions, setActions, showNotification]);
+    }, [actions, setActions, showNotification, pushState]);
 
     const handleReorderAction = useCallback((draggedId, targetId, position) => {
         if (draggedId === targetId) return;
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Reorder action');
         const draggedAction = actions.find(a => a.id === draggedId);
         const targetAction = actions.find(a => a.id === targetId);
         if (!draggedAction || !targetAction) return;
@@ -904,9 +949,10 @@ const App = () => {
             }));
             showNotification('✅ Action reordered');
         }
-    }, [actions, setActions, showNotification]);
+    }, [actions, setActions, showNotification, pushState]);
 
     const handleDeleteTask = useCallback(async (taskId) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Delete task');
         const task = tasks.find(t => t.id === taskId);
         // Archive linked Trello card (card-as-task) or delete checklist item (card-as-action)
         if (task && !isReadOnly) {
@@ -929,7 +975,7 @@ const App = () => {
         }
         setTasks(prev => prev.filter(t => t.id !== taskId));
         showNotification('🗑️ Task deleted');
-    }, [tasks, currentBoard, isReadOnly, updateCurrentBoard, setTasks, showNotification]);
+    }, [tasks, currentBoard, isReadOnly, updateCurrentBoard, setTasks, showNotification, pushState]);
 
     const handleCreateNewTask = useCallback((initialValues = null) => { setNewTaskInitialValues(initialValues); setShowNewTaskModal(true); }, []);
 
@@ -942,11 +988,13 @@ const App = () => {
     }, []);
 
     const handleUpdateCategory = useCallback((catId, updates) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Update category');
         setCategories(prev => prev.map(c => c.id === catId ? {...c, ...updates, updatedAt: new Date().toISOString()} : c));
         showNotification('✅ Category updated');
-    }, [setCategories, showNotification]);
+    }, [setCategories, showNotification, pushState]);
 
     const handleAddCategory = useCallback((newCat) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Add category');
         const now = new Date().toISOString();
         if (!newCat.createdAt) newCat.createdAt = now;
         if (!newCat.updatedAt) newCat.updatedAt = now;
@@ -965,9 +1013,10 @@ const App = () => {
             setActions(prev => [...prev, defaultAction]);
         }
         showNotification('✅ Category created');
-    }, [currentBoard, setCategories, setActions, showNotification]);
+    }, [currentBoard, setCategories, setActions, showNotification, pushState]);
 
     const handleDeleteCategory = useCallback(async (catId) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Delete category');
         const category = categories.find(c => c.id === catId);
         const catActions = actions.filter(a => a.categoryId === catId);
         const affectedTaskCount = tasks.filter(t => catActions.some(a => a.id === t.actionId)).length;
@@ -996,19 +1045,21 @@ const App = () => {
             catch(e) { console.warn('Failed to archive Trello list:', e); }
         }
         showNotification('🗑️ Category deleted');
-    }, [categories, actions, tasks, isReadOnly, updateCurrentBoard, showNotification]);
+    }, [categories, actions, tasks, isReadOnly, updateCurrentBoard, showNotification, pushState]);
 
     const handleReorderCategories = useCallback((reorderedCategories) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Reorder categories');
         const now = new Date().toISOString();
         setCategories(reorderedCategories.map((c, i) => ({...c, order: i, updatedAt: now})));
         showNotification('✅ Category order updated');
-    }, [setCategories, showNotification]);
+    }, [setCategories, showNotification, pushState]);
 
     const handleAddAction = useCallback((newAction) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Add action');
         const now = new Date().toISOString();
         setActions(prev => [...prev, { ...newAction, createdAt: newAction.createdAt || now, updatedAt: newAction.updatedAt || now }]);
         showNotification('✅ Action created');
-    }, [setActions, showNotification]);
+    }, [setActions, showNotification, pushState]);
 
     // Rename checklist group (task category) — updates trelloChecklistName on all tasks in group
     // If oldName is null, creates a new empty group (no tasks to update)
@@ -1101,6 +1152,52 @@ const App = () => {
         setCurrentBoardId(newBoard.id);
         setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
         showNotification(`✅ Imported "${boardName}" from Trello`);
+    }, []);
+
+    // --- Excel import ---
+    const handleExcelImport = useCallback((previewData, boardName) => {
+        const newBoard = {
+            id: `board-${crypto.randomUUID()}`,
+            name: boardName || 'Excel Import',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            categories: previewData.categories,
+            actions: previewData.actions,
+            tasks: previewData.tasks,
+            members: []
+        };
+        setBoardData(prev => ({
+            ...prev,
+            currentBoardId: newBoard.id,
+            boards: [...prev.boards, newBoard]
+        }));
+        setCurrentBoardId(newBoard.id);
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
+        showNotification(`✅ Imported "${boardName || 'Excel Import'}" from Excel`);
+    }, []);
+
+    // --- Member management ---
+    const handleUpdateMembers = useCallback((members) => {
+        updateCurrentBoard(b => ({ ...b, members }));
+        showNotification(`✅ Members updated (${members.length})`);
+    }, [updateCurrentBoard, showNotification]);
+
+    // --- Trello export connected ---
+    const handleTrelloExportConnected = useCallback((syncData) => {
+        updateCurrentBoard(b => ({
+            ...b,
+            categories: syncData.categories || b.categories,
+            actions: syncData.actions || b.actions,
+            tasks: syncData.tasks || b.tasks,
+            trelloSync: syncData.trelloSync || b.trelloSync
+        }));
+        showNotification('✅ Board exported to Trello and linked for sync');
+    }, [updateCurrentBoard, showNotification]);
+
+    // --- Multi-board toggle ---
+    const handleToggleMultiBoard = useCallback((enabled, ids) => {
+        setMultiBoardMode(enabled);
+        setSelectedBoardIds(ids || []);
     }, []);
 
     // --- Trello sync ---
@@ -1276,12 +1373,13 @@ const App = () => {
     }, [updateCurrentBoard]);
 
     const handleAddNewTask = useCallback((newTask) => {
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Add task');
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
         const enriched = enrichNewTaskWithTrelloMetadata({id: newTask.id || `t-${crypto.randomUUID()}`, status: 'todo', priority: 'medium', description: '', checklist: [], comments: [], attachments: [], channels: [], month: new Date().getMonth(), ...newTask, order: maxOrder, createdAt: newTask.createdAt || now, updatedAt: newTask.updatedAt || now}, tasks, actions);
         setTasks(prev => [...prev, enriched]);
         showNotification('✅ Task created');
-    }, [tasks, actions, setTasks, showNotification]);
+    }, [tasks, actions, setTasks, showNotification, pushState]);
 
     const exportToJSON = useCallback(() => {
         const data = {categories, actions, tasks, exportDate: new Date().toISOString()};
@@ -1332,6 +1430,10 @@ const App = () => {
         tasks,
         isReadOnly,
         allCountries,
+        effectiveMembers,
+        multiBoardMode,
+        selectedBoardIds,
+        onToggleMultiBoard: handleToggleMultiBoard,
         onSwitchBoard: handleSwitchBoard,
         onCreateBoard: handleCreateBoard,
         onRenameBoard: handleRenameBoard,
@@ -1339,13 +1441,18 @@ const App = () => {
         onDuplicateBoard: handleDuplicateBoard,
         onShowTrelloImport: () => setShowTrelloImportModal(true),
         onOpenRemapLabels: () => setShowTrelloRemapModal(true),
+        onShowTrelloExport: () => setShowTrelloExport(true),
+        onShowMemberManagement: () => setShowMemberManagement(true),
+        onShowExcelImport: () => setShowExcelImport(true),
         onTrelloSync: handleTrelloSync,
         onUpdateTrelloSyncSettings: handleUpdateTrelloSyncSettings,
         trelloSyncStatus,
         trelloUser,
         onTrelloLogin: handleTrelloLogin,
-        onTrelloLogout: handleTrelloLogout
-    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, isReadOnly, allCountries, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout]);
+        onTrelloLogout: handleTrelloLogout,
+        canUndo, canRedo,
+        onUndo: undo, onRedo: redo
+    }), [boards, currentBoardId, currentBoard, categories, actions, tasks, isReadOnly, allCountries, effectiveMembers, multiBoardMode, selectedBoardIds, handleToggleMultiBoard, handleSwitchBoard, handleCreateBoard, handleRenameBoard, handleDeleteBoard, handleDuplicateBoard, handleTrelloSync, handleUpdateTrelloSyncSettings, trelloSyncStatus, trelloUser, handleTrelloLogin, handleTrelloLogout, canUndo, canRedo, undo, redo]);
 
     const filterContextValue = useMemo(() => ({
         filters,
@@ -1391,11 +1498,21 @@ const App = () => {
                             <span className="stat-pill"><strong>{isFiltered ? `${(filteredBudget/1000).toFixed(0)}k / ${(totalBudget/1000).toFixed(0)}k€` : `${(totalBudget/1000).toFixed(0)}k€`}</strong> budget</span>
                         </div>
                         <div className="toolbar-spacer"/>
+                        {!isReadOnly && <div style={{display:'flex',gap:2,marginRight:4}}>
+                            <button className="v11-btn-icon" onClick={() => { const label = undo(); if (label) showNotification('↩ Undo: ' + label); }} disabled={!canUndo} title="Undo (Ctrl+Z)" style={{padding:'6px 8px',opacity:canUndo?1:0.4,cursor:canUndo?'pointer':'default'}}><Icon.Undo size={13}/></button>
+                            <button className="v11-btn-icon" onClick={() => { const label = redo(); if (label) showNotification('↪ Redo: ' + label); }} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" style={{padding:'6px 8px',opacity:canRedo?1:0.4,cursor:canRedo?'pointer':'default'}}><Icon.Redo size={13}/></button>
+                        </div>}
                         <div className="new-btn-container" ref={exportDropdownRef}>
                             <button className="v11-btn-secondary" onClick={() => {setShowCreateDropdown(false);setShowExportDropdown(!showExportDropdown);}}><Icon.Download size={13}/><span>Export</span></button>
-                            {showExportDropdown && <div className="dropdown-menu open" style={{minWidth:160}}>
+                            {showExportDropdown && <div className="dropdown-menu open" style={{minWidth:180}}>
                                 <button onClick={() => {setShowExportDropdown(false);exportToJSON();}} className="dropdown-item">Export JSON</button>
                                 <button onClick={() => {setShowExportDropdown(false);exportToCSV();}} className="dropdown-item">Export CSV</button>
+                                <div className="dropdown-divider"/>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportTimelineXlsx } = await import('./lib/excelExport.js'); exportTimelineXlsx(categories, actions, tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Timeline (Excel)</button>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name);}} className="dropdown-item">Export Kanban (Excel)</button>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportCalendarXlsx } = await import('./lib/excelExport.js'); exportCalendarXlsx(tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Calendar (Excel)</button>
+                                <div className="dropdown-divider"/>
+                                <button onClick={() => {setShowExportDropdown(false);setShowExcelImport(true);}} className="dropdown-item">Import from Excel</button>
                             </div>}
                         </div>
                         {!isReadOnly && <div className="new-btn-container" ref={createDropdownRef}>
@@ -1442,20 +1559,23 @@ const App = () => {
                     {currentView === 'kanban' && <KanbanView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
-                    {currentView === 'dashboard' && <DashboardView categories={categories} actions={visibleActions} tasks={visibleTasks} members={currentBoard?.members || []}/>}
+                    {currentView === 'dashboard' && <DashboardView categories={categories} actions={visibleActions} tasks={visibleTasks} members={effectiveMembers}/>}
                     </Suspense>
                     </ErrorBoundary>
                 </main>
                 <Suspense fallback={null}>
-                {selectedTask && <TaskDetailModal categories={categories} task={tasks.find(t => t.id === selectedTask.id) || selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={currentBoard?.members || []} isReadOnly={isReadOnly} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()}/>}
-                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={actions.find(a => a.id === selectedAction.id) || selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onOpenTask={handleOpenTask} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={currentBoard?.members || []} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup} onDeleteTaskGroup={handleDeleteTaskGroup}/>}
+                {selectedTask && <TaskDetailModal categories={categories} task={tasks.find(t => t.id === selectedTask.id) || selectedTask} action={actions.find(a => a.id === selectedTask.actionId)} actions={actions} onClose={() => setSelectedTask(null)} onUpdate={handleUpdateTask} onDelete={handleDeleteTask} onBackToAction={selectedAction ? () => { setSelectedTask(null); setSelectedAction(actions.find(a => a.id === selectedTask.actionId)); } : null} allCountries={allCountries} onAddCustomCountry={addCustomCountry} onCreateAction={handleAddAction} onAddCategory={handleAddCategory} members={effectiveMembers} isReadOnly={isReadOnly} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()}/>}
+                {selectedAction && !selectedTask && <ActionDetailModal categories={categories} action={actions.find(a => a.id === selectedAction.id) || selectedAction} tasks={visibleTasks} onClose={() => setSelectedAction(null)} onUpdateAction={handleUpdateAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onOpenTask={handleOpenTask} onAddTask={(actionId) => handleCreateNewTask({ actionId })} onDeleteAction={handleDeleteAction} onDeleteTask={handleDeleteTask} allCountries={allCountries} onAddCustomCountry={addCustomCountry} members={effectiveMembers} isTrelloBoard={!!currentBoard?.trelloSync?.trelloBoardId} availableOtherLabels={(() => { const map = new Map(); tasks.forEach(t => (t.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); actions.forEach(a => (a.otherLabels||[]).forEach(l => { if (!map.has(l.id)) map.set(l.id, l); })); return Array.from(map.values()); })()} isReadOnly={isReadOnly} onRenameChecklistGroup={handleRenameChecklistGroup} onAddTaskInGroup={handleAddTaskInGroup} onDeleteTaskGroup={handleDeleteTaskGroup}/>}
                 {showCategoriesModal && <CategoriesManagementModal categories={categories} onClose={() => setShowCategoriesModal(false)} onUpdate={handleUpdateCategory} onAdd={handleAddCategory} onDelete={handleDeleteCategory} onReorder={handleReorderCategories}/>}
                 {showNewActionModal && <NewActionModal categories={categories} onClose={() => setShowNewActionModal(false)} onAdd={handleAddAction} onAddCategory={handleAddCategory}/>}
                 {showNewTaskModal && <NewTaskModal actions={actions} categories={categories} onClose={() => { setShowNewTaskModal(false); setNewTaskInitialValues(null); }} onAdd={handleAddNewTask} onCreateAction={(newAction) => { if (newAction && newAction.id) { handleAddAction(newAction); } else { setShowNewTaskModal(false); setNewTaskInitialValues(null); setShowNewActionModal(true); } }} onAddCategory={handleAddCategory} initialValues={newTaskInitialValues} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
                 {showTrelloImportModal && <TrelloImportModal onClose={() => setShowTrelloImportModal(false)} onImport={handleTrelloImport}/>}
                 {showTrelloRemapModal && currentBoard?.trelloSync?.trelloBoardId && <TrelloImportModal mappingOnly trelloBoardId={currentBoard.trelloSync.trelloBoardId} existingMappings={currentBoard.trelloSync.labelMappings} onClose={() => setShowTrelloRemapModal(false)} onSaveMappings={(mappings) => handleUpdateTrelloSyncSettings({ labelMappings: mappings })}/>}
+                {showExcelImport && <ExcelImportModal onClose={() => setShowExcelImport(false)} onImport={handleExcelImport}/>}
+                {showMemberManagement && <MemberManagementModal board={currentBoard} onClose={() => setShowMemberManagement(false)} onUpdateMembers={handleUpdateMembers}/>}
+                {showTrelloExport && <TrelloExportModal board={currentBoard} onClose={() => setShowTrelloExport(false)} onConnected={handleTrelloExportConnected}/>}
                 </Suspense>
-                <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={currentBoard?.members || []} searchInputRef={searchInputRef}/>
+                <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={effectiveMembers} searchInputRef={searchInputRef} boardSources={multiBoardMode ? multiBoardData.boardSources : []}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
                 {showOnboarding && <OnboardingOverlay onClose={() => { setShowOnboarding(false); localStorage.setItem('onboarding_done', '1'); }}/>}
             </div>

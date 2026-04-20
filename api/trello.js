@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     const userToken = req.headers['x-trello-token'];
     const TRELLO_TOKEN = userToken || TRELLO_TOKEN_ENV;
 
-    const { action, boardId, cardId, listId } = req.method === 'GET' || req.method === 'DELETE'
+    const { action, boardId, cardId, listId, skipComments, cardIds } = req.method === 'GET' || req.method === 'DELETE'
         ? req.query
         : { ...req.query, ...req.body };
 
@@ -118,58 +118,40 @@ export default async function handler(req, res) {
             ]);
             const members = membersRes.ok ? await membersRes.json() : [];
 
-            // Fetch comments for each card (Trello API requires per-card fetch for actions)
-            // Optimization: if `since` param provided, only fetch comments for cards modified after that timestamp
-            const sinceParam = req.query.since || null;
-            const sinceMs = sinceParam ? new Date(sinceParam).getTime() : 0;
-            const cardsNeedingComments = sinceMs
-                ? cards.filter(c => new Date(c.dateLastActivity).getTime() > sinceMs)
-                : cards;
-
-            const cardComments = {};
-            const batchSize = 10; // Increased from 5 — adaptive retry handles rate limits
-            for (let i = 0; i < cardsNeedingComments.length; i += batchSize) {
-                const batch = cardsNeedingComments.slice(i, i + batchSize);
-                const commentResults = await Promise.all(
-                    batch.map(async card => {
-                        // Retry up to 2 times on failure for comment fetches
-                        for (let attempt = 0; attempt < 3; attempt++) {
-                            try {
-                                const r = await fetch(`${TRELLO_BASE}/cards/${card.id}/actions?${authParams}&filter=commentCard&fields=data,date,memberCreator&memberCreator_fields=fullName,username`);
-                                if (r.ok) return await r.json();
-                                if (r.status === 429 && attempt < 2) {
-                                    await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-                                    continue;
+            // Fetch comments unless skipComments is set (comments fetched separately via cardComments action)
+            if (skipComments !== 'true') {
+                const cardComments = {};
+                const batchSize = 10;
+                for (let i = 0; i < cards.length; i += batchSize) {
+                    const batch = cards.slice(i, i + batchSize);
+                    const commentResults = await Promise.all(
+                        batch.map(async card => {
+                            for (let attempt = 0; attempt < 2; attempt++) {
+                                try {
+                                    const r = await fetch(`${TRELLO_BASE}/cards/${card.id}/actions?${authParams}&filter=commentCard&fields=data,date,memberCreator&memberCreator_fields=fullName,username`);
+                                    if (r.ok) return await r.json();
+                                    if (r.status === 429 && attempt === 0) {
+                                        await new Promise(resolve => setTimeout(resolve, 1000));
+                                        continue;
+                                    }
+                                    return [];
+                                } catch {
+                                    if (attempt === 0) {
+                                        await new Promise(resolve => setTimeout(resolve, 500));
+                                        continue;
+                                    }
+                                    return [];
                                 }
-                                return [];
-                            } catch {
-                                if (attempt < 2) {
-                                    await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
-                                    continue;
-                                }
-                                return [];
                             }
-                        }
-                        return [];
-                    })
-                );
-                batch.forEach((card, idx) => {
-                    cardComments[card.id] = commentResults[idx];
-                });
-                // Adaptive pause between batches if we got rate-limited in this batch
-                if (i + batchSize < cardsNeedingComments.length && cardsNeedingComments.length > 20) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                            return [];
+                        })
+                    );
+                    batch.forEach((card, idx) => {
+                        cardComments[card.id] = commentResults[idx];
+                    });
                 }
-            }
-
-            // Attach comments to cards — mark unfetched cards for client-side carry-forward
-            for (const card of cards) {
-                if (cardComments[card.id] !== undefined) {
-                    card.comments = cardComments[card.id];
-                } else {
-                    // Card unchanged since `since` — comments not fetched, client carries forward
-                    card.comments = null;
-                    card._commentsSkipped = true;
+                for (const card of cards) {
+                    card.comments = cardComments[card.id] || [];
                 }
             }
 
@@ -183,6 +165,42 @@ export default async function handler(req, res) {
             const resp = await fetch(`${TRELLO_BASE}/cards/${cardId}?${authParams}&fields=name,shortLink`);
             if (!resp.ok) return res.status(resp.status).json({ error: `Trello error ${resp.status}` });
             return res.json(await resp.json());
+        }
+
+        // GET /api/trello?action=cardComments&cardIds=id1,id2,... — Batch fetch comments
+        if (req.method === 'GET' && action === 'cardComments') {
+            if (!cardIds) return res.status(400).json({ error: 'cardIds required' });
+            const ids = cardIds.split(',').filter(Boolean);
+            if (ids.length === 0) return res.status(400).json({ error: 'No card IDs provided' });
+            if (ids.length > 30) return res.status(400).json({ error: 'Max 30 card IDs per request' });
+
+            const results = {};
+            const commentResults = await Promise.all(
+                ids.map(async id => {
+                    for (let attempt = 0; attempt < 2; attempt++) {
+                        try {
+                            const r = await fetch(`${TRELLO_BASE}/cards/${id}/actions?${authParams}&filter=commentCard&fields=data,date,memberCreator&memberCreator_fields=fullName,username`);
+                            if (r.ok) return { id, comments: await r.json() };
+                            if (r.status === 429 && attempt === 0) {
+                                await new Promise(resolve => setTimeout(resolve, 1000));
+                                continue;
+                            }
+                            return { id, comments: [] };
+                        } catch {
+                            if (attempt === 0) {
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                                continue;
+                            }
+                            return { id, comments: [] };
+                        }
+                    }
+                    return { id, comments: [] };
+                })
+            );
+            for (const { id, comments } of commentResults) {
+                results[id] = comments;
+            }
+            return res.status(200).json(results);
         }
 
         // PUT /api/trello?action=updateCard — Update a card
@@ -567,9 +585,24 @@ export default async function handler(req, res) {
             return res.status(201).json(list);
         }
 
+        // POST /api/trello?action=createBoard — Create a new Trello board
+        if (req.method === 'POST' && action === 'createBoard') {
+            const { name, defaultLists } = req.body;
+            if (!name) return res.status(400).json({ error: 'name required' });
+            const params = new URLSearchParams({ name, defaultLists: defaultLists ? 'true' : 'false' });
+            const response = await fetch(`${TRELLO_BASE}/boards?${authParams}&${params.toString()}`, { method: 'POST' });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello create board error', details: err });
+            }
+            const board = await response.json();
+            console.log(`Created board "${board.name}" (${board.id})`);
+            return res.status(201).json(board);
+        }
+
         return res.status(400).json({
             error: 'Invalid action',
-            message: `Action "${action}" with method ${req.method} is not supported. Valid actions: boards (GET), board (GET), updateCard (PUT), createCard (POST), deleteCard (DELETE)`
+            message: `Action "${action}" with method ${req.method} is not supported. Valid actions: boards (GET), board (GET), updateCard (PUT), createCard (POST), deleteCard (DELETE), createBoard (POST)`
         });
 
     } catch (error) {
