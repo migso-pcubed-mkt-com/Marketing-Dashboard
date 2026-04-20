@@ -22,16 +22,22 @@ const buildUserResult = (user, token) => ({
  * Requires the production domain to be whitelisted in Trello Power-Up settings
  * (Clé d'API / API Key → Allowed Origins).
  */
+const OAUTH_STORAGE_KEY = 'mkt_trello_oauth_token';
+
 export const startTrelloLogin = async () => {
     const { appKey } = await fetchTrelloConfig();
     if (!appKey) throw new Error('Trello API key not configured on server');
 
     // callback_method=fragment + return_url:
-    // Trello redirects popup to return_url#token=REAL_64_CHAR_TOKEN
-    // Our trello-callback.html extracts it and postMessages { trelloToken } to opener
-    // Domain must be in "Allowed Origins" of the Trello API key settings
+    // Trello redirects popup to return_url#token=REAL_TOKEN
+    // trello-callback.html delivers it via BroadcastChannel, localStorage, and postMessage.
+    // Multiple channels are needed because trello.com sets COOP: same-origin, which
+    // severs window.opener — postMessage alone is no longer reliable in modern browsers.
     const returnUrl = `${window.location.origin}/trello-callback.html`;
     const authUrl = `https://trello.com/1/authorize?response_type=token&key=${appKey}&scope=read,write&name=Marketing%20Dashboard&expiration=never&callback_method=fragment&return_url=${encodeURIComponent(returnUrl)}`;
+
+    // Clear any stale OAuth token from a previous attempt before opening the popup
+    try { localStorage.removeItem(OAUTH_STORAGE_KEY); } catch {}
 
     return new Promise((resolve, reject) => {
         const popup = window.open(authUrl, 'trello_auth', 'width=600,height=700,left=200,top=100');
@@ -41,32 +47,19 @@ export const startTrelloLogin = async () => {
         }
 
         let resolved = false;
+        let bc = null;
 
         const cleanup = () => {
             resolved = true;
             window.removeEventListener('message', handleMessage);
+            window.removeEventListener('storage', handleStorage);
             clearInterval(pollTimer);
+            if (bc) { try { bc.close(); } catch {} }
+            try { localStorage.removeItem(OAUTH_STORAGE_KEY); } catch {}
         };
 
-        const handleMessage = async (event) => {
-            if (resolved) return;
-
-            // Extract token from various postMessage formats:
-            // 1. Plain hex string (Trello's native postMessage)
-            // 2. { trelloToken: "xxx" } (from our callback page)
-            // 3. { token: "xxx" } (alternative format)
-            // 4. String containing a hex token somewhere
-            let token = null;
-
-            if (typeof event.data === 'string') {
-                const match = event.data.match(/[0-9a-f]{32,128}/i);
-                if (match) token = match[0];
-            } else if (event.data && typeof event.data === 'object') {
-                token = event.data.trelloToken || event.data.token || null;
-            }
-
-            if (!token) return;
-
+        const acceptToken = async (token) => {
+            if (resolved || !token) return;
             cleanup();
             try { popup.close(); } catch {}
             try {
@@ -79,13 +72,56 @@ export const startTrelloLogin = async () => {
             }
         };
 
-        window.addEventListener('message', handleMessage);
+        const extractToken = (data) => {
+            if (typeof data === 'string') {
+                const match = data.match(/[0-9a-zA-Z]{32,256}/);
+                return match ? match[0] : null;
+            }
+            if (data && typeof data === 'object') {
+                return data.trelloToken || data.token || null;
+            }
+            return null;
+        };
 
-        // Poll to detect if popup was closed without completing auth
+        const handleMessage = (event) => {
+            const token = extractToken(event.data);
+            if (token) acceptToken(token);
+        };
+
+        const handleStorage = (event) => {
+            if (event.key !== OAUTH_STORAGE_KEY || !event.newValue) return;
+            try {
+                const parsed = JSON.parse(event.newValue);
+                if (parsed?.token) acceptToken(parsed.token);
+            } catch {}
+        };
+
+        window.addEventListener('message', handleMessage);
+        window.addEventListener('storage', handleStorage);
+
+        try {
+            if (typeof BroadcastChannel !== 'undefined') {
+                bc = new BroadcastChannel('mkt_trello_oauth');
+                bc.onmessage = (event) => {
+                    const token = extractToken(event.data);
+                    if (token) acceptToken(token);
+                };
+            }
+        } catch {}
+
+        // Poll for popup closure AND for localStorage fallback (storage event doesn't
+        // fire in the tab that wrote the value, so same-tab flows need polling).
         const pollTimer = setInterval(() => {
-            if (popup.closed && !resolved) {
+            if (resolved) return;
+            try {
+                const raw = localStorage.getItem(OAUTH_STORAGE_KEY);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed?.token) { acceptToken(parsed.token); return; }
+                }
+            } catch {}
+            if (popup.closed) {
                 cleanup();
-                // Popup closed without receiving token — offer manual paste
                 resolve({ needsManualToken: true });
             }
         }, 500);
