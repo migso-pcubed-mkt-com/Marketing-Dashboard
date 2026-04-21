@@ -11,7 +11,7 @@ const DARK_CHANNELS = ['gads', 'email'];
 const TimelineBar = ({
     task, pos, action, zoom, swimLane, isReadOnly,
     isResizing, justResized, isDragOver, dragOverPosition,
-    onOpenTask, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onStartResize,
+    onOpenTask, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onStartResize, onResetLane,
 }) => {
     const status = CONFIG.STATUSES.find(s => s.id === task.status);
     const isCompleted = task.status === 'completed';
@@ -21,12 +21,21 @@ const TimelineBar = ({
     const textColor = DARK_CHANNELS.includes(mainChannel) ? '#78350f' : 'white';
     const dragOverClass = isDragOver ? (dragOverPosition === 'before' ? 'drop-indicator-before' : 'drop-indicator-after') : '';
     const topOffset = 8 + swimLane * 34;
+    const isPinned = typeof task.swimLane === 'number' && task.swimLane >= 0;
     const resizingStyle = isResizing ? { boxShadow: '0 0 0 3px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.3)', transform: 'scale(1.02)', zIndex: 30 } : {};
+
+    const handleContextMenu = (e) => {
+        if (!isPinned || isReadOnly || !onResetLane) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onResetLane(task.id);
+    };
 
     return (
         <div
             draggable={!isReadOnly && !isResizing}
             onClick={() => !isResizing && !justResized && onOpenTask(task)}
+            onContextMenu={handleContextMenu}
             onDragStart={(e) => onDragStart(e, task)}
             onDragEnd={onDragEnd}
             onDragOver={(e) => onDragOver(e, task)}
@@ -42,7 +51,7 @@ const TimelineBar = ({
                 opacity: isCompleted ? 0.45 : 1,
                 ...resizingStyle,
             }}
-            title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.budget > 0 ? '\nBudget: ' + task.budget + '€' : ''}`}
+            title={`${task.title}\n${status?.name}\n${task.startDate} → ${task.dueDate}${task.budget > 0 ? '\nBudget: ' + task.budget + '€' : ''}${isPinned ? '\n📌 Pinned lane (right-click to reset)' : ''}`}
         >
             {!isReadOnly && (
                 <div className="resize-handle resize-handle-left"
@@ -52,6 +61,9 @@ const TimelineBar = ({
                     onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
                     draggable={false}
                 />
+            )}
+            {isPinned && (
+                <span aria-hidden="true" className="pointer-events-none" style={{ display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: textColor, opacity: 0.8, marginRight: 4, flex: '0 0 auto' }} />
             )}
             <span className="truncate flex-1 pointer-events-none" style={isCompleted ? { textDecoration: 'line-through' } : {}}>{task.title}</span>
             {task.budget > 0 && (zoom === 'month' || zoom === 'quarter') && (

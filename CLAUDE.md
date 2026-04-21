@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-21 (Trello workspace picker on export + bidirectional board rename sync with baseline)
+> Last updated: 2026-04-21 (Timeline vertical drag with pinned swimLane + right-click reset)
 
 ---
 
@@ -325,6 +325,9 @@ After removing categories whose Trello lists are archived/deleted, `listToCatId`
 
 ### TimelineView — TDZ (Temporal Dead Zone)
 `colWidth` must be declared **before** any `useCallback` that references it. Same for `getTaskPosition`, `calculateSwimLanes`, `dateToPixel`, `pixelToDate`. Current order in `TimelineView.jsx`: `colWidth` (~line 29) → `getCenterDate` → `scrollToDate` → helpers → handlers.
+
+### TimelineView — swimLane pinning (local-only)
+Tasks can be pinned to a specific lane via `task.swimLane: number`. `calculateSwimLanes` in `useTimelineHelpers.js` runs in two phases: (1) place pinned tasks in their explicit lane (collisions between pinned tasks at the same lane are allowed — user chose it), (2) auto-place the rest in the first free lane. Shift+drop in `handleActionRowDrop` pins to the lane under the cursor; cross-action drops always reset `swimLane` to `undefined`. Right-click on a pinned bar resets the lane. `swimLane` is local-only and is NOT included in any `trelloMapping` push payload — do NOT add it to `mapTaskToTrelloCardUpdate` or `buildSelectiveTaskUpdate`.
 
 ### GitHub SHA conflicts
 Always fetch latest SHA before PUT. Auto-resolve on 409/sha-mismatch: re-fetch then retry.

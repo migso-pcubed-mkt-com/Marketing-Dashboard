@@ -142,35 +142,71 @@ export function getTaskPosition(task, { zoom, colWidth, selectedYear, weekBase }
 
 /**
  * Calculate swim lanes for overlapping tasks.
+ * Tasks with an explicit `swimLane` number are pinned to that lane;
+ * tasks without one are auto-placed in the first free lane that avoids collision
+ * with already-placed tasks (pinned or auto).
  * resizingInfo: optional {taskId, originalStart, originalEnd}
  */
 export function calculateSwimLanes(tasksList, resizingInfo, layoutParams) {
     const swimLanes = {};
     const lanes = [];
 
-    const sortedTasks = [...tasksList].sort((a, b) => {
-        const aStart = (resizingInfo && a.id === resizingInfo.taskId) ? resizingInfo.originalStart : a.startDate;
-        const bStart = (resizingInfo && b.id === resizingInfo.taskId) ? resizingInfo.originalStart : b.startDate;
-        if (!aStart || !bStart) return 0;
-        const dateDiff = new Date(aStart) - new Date(bStart);
-        if (dateDiff !== 0) return dateDiff;
-        return (a.order || 0) - (b.order || 0);
-    });
+    const ensureLane = (idx) => {
+        while (lanes.length <= idx) lanes.push([]);
+        return lanes[idx];
+    };
 
-    sortedTasks.forEach(task => {
-        if (!task.startDate || !task.dueDate) {
-            swimLanes[task.id] = 0;
-            return;
-        }
-
-        const pos = (resizingInfo && task.id === resizingInfo.taskId)
+    const computeSpan = (task) => {
+        if (!task.startDate || !task.dueDate) return null;
+        return (resizingInfo && task.id === resizingInfo.taskId)
             ? getTaskPosition({ ...task, startDate: resizingInfo.originalStart, dueDate: resizingInfo.originalEnd }, layoutParams)
             : getTaskPosition(task, layoutParams);
-        if (!pos) {
-            swimLanes[task.id] = 0;
+    };
+
+    // Phase 1: place pinned tasks in their explicit lane (sparse — no compaction).
+    // Collisions between pinned tasks in the same lane are allowed — user chose it.
+    tasksList.forEach(task => {
+        if (typeof task.swimLane !== 'number' || task.swimLane < 0) return;
+        if (!task.startDate || !task.dueDate) {
+            swimLanes[task.id] = task.swimLane;
+            ensureLane(task.swimLane);
             return;
         }
+        const pos = computeSpan(task);
+        if (!pos) {
+            swimLanes[task.id] = task.swimLane;
+            ensureLane(task.swimLane);
+            return;
+        }
+        swimLanes[task.id] = task.swimLane;
+        ensureLane(task.swimLane).push({ id: task.id, start: pos.left, end: pos.left + pos.width });
+    });
 
+    // Phase 2: auto-place the rest, sorted by start date (stable tiebreak on order).
+    const autoTasks = tasksList
+        .filter(t => typeof t.swimLane !== 'number' || t.swimLane < 0)
+        .slice()
+        .sort((a, b) => {
+            const aStart = (resizingInfo && a.id === resizingInfo.taskId) ? resizingInfo.originalStart : a.startDate;
+            const bStart = (resizingInfo && b.id === resizingInfo.taskId) ? resizingInfo.originalStart : b.startDate;
+            if (!aStart || !bStart) return 0;
+            const dateDiff = new Date(aStart) - new Date(bStart);
+            if (dateDiff !== 0) return dateDiff;
+            return (a.order || 0) - (b.order || 0);
+        });
+
+    autoTasks.forEach(task => {
+        if (!task.startDate || !task.dueDate) {
+            swimLanes[task.id] = 0;
+            ensureLane(0);
+            return;
+        }
+        const pos = computeSpan(task);
+        if (!pos) {
+            swimLanes[task.id] = 0;
+            ensureLane(0);
+            return;
+        }
         const taskStart = pos.left;
         const taskEnd = pos.left + pos.width;
 
