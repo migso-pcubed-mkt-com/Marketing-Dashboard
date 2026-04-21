@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-21 (Multi-board combined view UI wired + source-board badge on task cards)
+> Last updated: 2026-04-21 (Excel import: multi-level row detection + manual review step)
 
 ---
 
@@ -332,6 +332,9 @@ When `multiBoardMode` is on, `App.jsx` derives `categories`/`actions`/`tasks`/`e
 
 ### TimelineView — swimLane pinning (local-only)
 Tasks can be pinned to a specific lane via `task.swimLane: number`. `calculateSwimLanes` in `useTimelineHelpers.js` runs in two phases: (1) place pinned tasks in their explicit lane (collisions between pinned tasks at the same lane are allowed — user chose it), (2) auto-place the rest in the first free lane. Shift+drop in `handleActionRowDrop` pins to the lane under the cursor; cross-action drops always reset `swimLane` to `undefined`. Right-click on a pinned bar resets the lane. `swimLane` is local-only and is NOT included in any `trelloMapping` push payload — do NOT add it to `mapTaskToTrelloCardUpdate` or `buildSelectiveTaskUpdate`.
+
+### Excel import — multi-level grid detection + manual review
+`excelMapping.js` exposes `analyzeGridRows` (indent/merge/country signals per row) + `autoAssignLevels` (assigns `super`/`category`/`action`/`task` per row) + `buildGridHierarchy` (flattens to app's 3-level model). `ExcelImportModal` runs grid imports through a `review` step between sheet selection and preview: users can override any row's level in a table and use "Apply to similar" to broadcast the change to every row at the same indentation. Countries (France/UK/Spain/USA + EN/FR/DE aliases) matched at the shallowest header depth are tagged as `super` with `countryId`, and the country code is propagated to descendant tasks' `countries[]`. When `shallowestIsSuper` is detected (country label or wide merge ≥ ~firstMonthCol), the depth-to-level map shifts so the next depth is still `category` (not `action`). Non-country super names prefix child category names (e.g., "Corporate - Marketing") unless the user ticks "Flatten super-categories".
 
 ### GitHub SHA conflicts
 Always fetch latest SHA before PUT. Auto-resolve on 409/sha-mismatch: re-fetch then retry.
