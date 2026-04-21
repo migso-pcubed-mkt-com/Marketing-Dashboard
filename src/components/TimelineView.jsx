@@ -731,7 +731,13 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         e.preventDefault();
         e.stopPropagation();
 
-        const shiftHeld=e.shiftKey;
+        // Measure how far the user dragged vertically from the grab point. > VERTICAL_PIN_THRESHOLD px
+        // means they intentionally changed row → pin to the lane under the cursor. ≤ threshold means
+        // a mostly-horizontal drag → keep existing swimLane so auto-placement isn't disturbed.
+        const VERTICAL_PIN_THRESHOLD=8;
+        const deltaY=dragging?.startY!=null?Math.abs(e.clientY-dragging.startY):0;
+        const verticallyMoved=deltaY>VERTICAL_PIN_THRESHOLD;
+
         cleanUpDragState();
 
         const taskId=e.dataTransfer.getData('taskId');
@@ -763,18 +769,18 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const startDate=fmt(snapDate);
         const dueDate=fmt(endDate);
 
-        // Shift+drop pins the task to the lane under the cursor (vertical pinning).
-        // Cross-action drops always reset swimLane (auto-placement in the new action).
         const targetLane=Math.max(0,Math.floor((mouseY-8)/34));
+        const sameAction=draggedTask.actionId===targetAction.id;
 
-        if(draggedTask.actionId===targetAction.id){
+        if(sameAction){
             const update={startDate,dueDate};
-            if(shiftHeld)update.swimLane=targetLane;
+            if(verticallyMoved)update.swimLane=targetLane;
             onUpdateTask(taskId,update);
         }else{
             const actionTasks=tasks.filter(t=>t.actionId===targetAction.id);
             const maxOrder=actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0)):0;
-            const update={actionId:targetAction.id,order:maxOrder+1,startDate,dueDate,swimLane:shiftHeld?targetLane:undefined};
+            // Cross-action: pin to targetLane if user moved vertically, else let auto-placement decide.
+            const update={actionId:targetAction.id,order:maxOrder+1,startDate,dueDate,swimLane:verticallyMoved?targetLane:undefined};
             onUpdateTask(taskId,update);
         }
     };
