@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-21 (Trello 403/404 switches to read-only mode with orange banner + Unlink action)
+> Last updated: 2026-04-21 (Trello workspace picker on export + bidirectional board rename sync with baseline)
 
 ---
 
@@ -249,6 +249,14 @@ When a card is moved between lists on Trello, `mergeCardIntoTask()` detects the 
 ### Category name sync (card-as-task)
 
 Category names are synced bidirectionally in both modes. Push: local rename → Trello list renamed. Pull: Trello list renamed → local category renamed. Uses timestamp-based "last write wins" like all other fields.
+
+### Board name sync (baseline, both modes)
+
+Bidirectional sync of the board name via `resolveBoardNameSync(localName, trelloName, baseline, boardId, {readOnly})` in `trelloSync.js`. Baseline (`trelloSync.trelloBoardNameBaseline`) is the last-synced Trello name. On each sync: if only Trello changed → pull; if only local changed → push via `updateTrelloBoard`; both changed → keep local + warn (conflict); first sync with no baseline → initialize from Trello without push/pull. Trello exposes no per-field timestamps, so baseline comparison is the only reliable signal. Read-only users (guest + linked board) skip the push branch.
+
+### Workspace selection on export
+
+`TrelloExportModal.jsx` fetches organizations via `fetchTrelloOrganizations()` and lets the user pick a workspace (or "Personal — no workspace") before creating the board. `createTrelloBoard(name, {idOrganization, defaultLists})` accepts the org id. Personal boards are created without `idOrganization`. If the user has no workspaces, the step is skipped and the board goes to Personal.
 
 ### Sync robustness
 

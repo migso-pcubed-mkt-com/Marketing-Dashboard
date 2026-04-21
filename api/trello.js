@@ -594,9 +594,10 @@ export default async function handler(req, res) {
 
         // POST /api/trello?action=createBoard — Create a new Trello board
         if (req.method === 'POST' && action === 'createBoard') {
-            const { name, defaultLists } = req.body;
+            const { name, defaultLists, idOrganization } = req.body;
             if (!name) return res.status(400).json({ error: 'name required' });
             const params = new URLSearchParams({ name, defaultLists: defaultLists ? 'true' : 'false' });
+            if (idOrganization) params.append('idOrganization', idOrganization);
             const response = await fetch(`${TRELLO_BASE}/boards?${authParams}&${params.toString()}`, { method: 'POST' });
             if (!response.ok) {
                 const err = await response.text();
@@ -607,9 +608,36 @@ export default async function handler(req, res) {
             return res.status(201).json(board);
         }
 
+        // GET /api/trello?action=organizations — List the authenticated user's workspaces
+        if (req.method === 'GET' && action === 'organizations') {
+            const url = `${TRELLO_BASE}/members/me/organizations?${authParams}&fields=id,displayName,name`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello organizations error', details: err });
+            }
+            const orgs = await response.json();
+            return res.status(200).json(orgs);
+        }
+
+        // PUT /api/trello?action=updateBoard — Update a Trello board's fields (currently: name)
+        if (req.method === 'PUT' && action === 'updateBoard') {
+            const { boardId: targetBoardId, name } = req.body;
+            if (!targetBoardId) return res.status(400).json({ error: 'boardId required' });
+            const params = new URLSearchParams();
+            if (name !== undefined) params.append('name', name);
+            const response = await fetch(`${TRELLO_BASE}/boards/${targetBoardId}?${authParams}&${params.toString()}`, { method: 'PUT' });
+            if (!response.ok) {
+                const err = await response.text();
+                return res.status(response.status).json({ error: 'Trello update board error', details: err });
+            }
+            const board = await response.json();
+            return res.status(200).json(board);
+        }
+
         return res.status(400).json({
             error: 'Invalid action',
-            message: `Action "${action}" with method ${req.method} is not supported. Valid actions: boards (GET), board (GET), updateCard (PUT), createCard (POST), deleteCard (DELETE), createBoard (POST)`
+            message: `Action "${action}" with method ${req.method} is not supported. Valid actions: boards (GET), board (GET), organizations (GET), updateCard (PUT), createCard (POST), deleteCard (DELETE), createBoard (POST), updateBoard (PUT)`
         });
 
     } catch (error) {

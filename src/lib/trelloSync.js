@@ -1,6 +1,6 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
-import { fetchTrelloBoardFull, fetchCardCommentsBatch, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, deleteTrelloChecklistItem, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList, fetchTrelloCard } from './trello.js';
+import { fetchTrelloBoardFull, fetchCardCommentsBatch, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, deleteTrelloChecklistItem, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList, fetchTrelloCard, updateTrelloBoard } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex, mergeCardIntoAction, mergeCheckItemIntoTask, mapTaskToCheckItemUpdate, mapActionToTrelloCardUpdate, mapTrelloCardToAction, mapTrelloCheckItemToTask, resolveTrelloCardUrl } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
 
@@ -30,6 +30,50 @@ const fetchCommentsForCards = async (cards, { since } = {}) => {
             }
         }
     }
+};
+
+// Bidirectional rename resolution between local board.name and Trello board.name.
+// Uses a baseline (last-synced Trello name) to detect which side changed.
+// Returns { name, baseline, pushed, conflict } — caller applies the reconciled name.
+//
+// Trello exposes no per-field timestamp, so baseline comparison is the only reliable
+// signal of who changed what. On first encounter (no baseline), the Trello name is
+// adopted as baseline without push/pull to avoid a spurious change.
+export const resolveBoardNameSync = async (localName, trelloName, baseline, trelloBoardId, { readOnly = false } = {}) => {
+    // First sync after upgrade / export — initialize baseline, don't push/pull
+    if (baseline === undefined || baseline === null) {
+        return { name: localName, baseline: trelloName, pushed: false, conflict: false };
+    }
+
+    const localChanged = localName !== baseline;
+    const trelloChanged = trelloName !== baseline;
+
+    if (!localChanged && !trelloChanged) {
+        return { name: localName, baseline, pushed: false, conflict: false };
+    }
+
+    if (trelloChanged && !localChanged) {
+        // Pull: Trello has a newer name, apply it locally
+        return { name: trelloName, baseline: trelloName, pushed: false, conflict: false };
+    }
+
+    if (localChanged && !trelloChanged) {
+        // Push: local has a newer name, send it to Trello (unless read-only)
+        if (!readOnly) {
+            try {
+                await updateTrelloBoard(trelloBoardId, { name: localName });
+                return { name: localName, baseline: localName, pushed: true, conflict: false };
+            } catch (err) {
+                console.warn('[Trello sync] Board rename push failed:', err.message);
+                return { name: localName, baseline, pushed: false, conflict: false };
+            }
+        }
+        return { name: localName, baseline, pushed: false, conflict: false };
+    }
+
+    // Both sides changed — conflict. Keep local, warn.
+    console.warn(`[Trello sync] Board name conflict: local="${localName}" vs trello="${trelloName}" — keeping local`);
+    return { name: localName, baseline: trelloName, pushed: false, conflict: true };
 };
 
 // Sync lock — prevents concurrent sync operations
@@ -952,8 +996,17 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
 
     // 1. Fetch current Trello state (board data without comments, then comments in client-side batches)
     const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId);
-    const { cards, lists, members: trelloMembers } = trelloData;
+    const { board: trelloBoardMeta, cards, lists, members: trelloMembers } = trelloData;
     await fetchCommentsForCards(cards, { since: trelloSync.lastCardTimestamp || null });
+
+    // Bidirectional board rename sync via baseline comparison
+    const rename = await resolveBoardNameSync(
+        board.name,
+        trelloBoardMeta?.name ?? board.name,
+        trelloSync.trelloBoardNameBaseline,
+        trelloSync.trelloBoardId,
+        { readOnly }
+    );
 
     // Carry forward comments for unchanged cards (server marks them with _commentsSkipped)
     // This preserves sync precision: unchanged cards keep their last-known comments
@@ -1702,6 +1755,7 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
 
     const syncedBoard = {
         ...board,
+        name: rename.name,
         categories: updatedCategories,
         actions: finalActions,
         tasks: finalTasks,
@@ -1711,11 +1765,14 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
             labelMappings: mappingConfig.labelMappings,
             lastSyncAt: new Date().toISOString(),
             lastCardTimestamp: maxCardTimestamp,
+            trelloBoardName: rename.name,
+            trelloBoardNameBaseline: rename.baseline,
             _recentlyDeletedCardIds: cleanedDeletedCards.length > 0 ? cleanedDeletedCards : undefined,
             _recentlyDeletedListIds: cleanedDeletedLists.length > 0 ? cleanedDeletedLists : undefined
         },
         updatedAt: new Date().toISOString()
     };
+    if (rename.pushed) result.pushed += 1;
 
     // Post-sync integrity check + auto-repair
     const integrity = validateBoardIntegrity(syncedBoard);
@@ -1738,8 +1795,17 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
 
     // 1. Fetch current Trello state (board data without comments, then comments in client-side batches)
     const trelloData = await fetchTrelloBoardFull(trelloSync.trelloBoardId);
-    const { cards, lists, members: trelloMembers } = trelloData;
+    const { board: trelloBoardMeta, cards, lists, members: trelloMembers } = trelloData;
     await fetchCommentsForCards(cards, { since: trelloSync.lastCardTimestamp || null });
+
+    // Bidirectional board rename sync via baseline comparison
+    const rename = await resolveBoardNameSync(
+        board.name,
+        trelloBoardMeta?.name ?? board.name,
+        trelloSync.trelloBoardNameBaseline,
+        trelloSync.trelloBoardId,
+        { readOnly }
+    );
 
     // Carry forward comments for unchanged cards (server marks them with _commentsSkipped)
     const actionByCardId = new Map(board.actions.filter(a => a.trelloCardId).map(a => [a.trelloCardId, a]));
@@ -2658,6 +2724,7 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
 
     const syncedBoard = {
         ...board,
+        name: rename.name,
         categories: updatedCategories,
         actions: finalActionsCA,
         tasks: finalTasksCA,
@@ -2667,11 +2734,14 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             labelMappings: mappingConfig.labelMappings,
             lastSyncAt: new Date().toISOString(),
             lastCardTimestamp: maxCardTimestampCA,
+            trelloBoardName: rename.name,
+            trelloBoardNameBaseline: rename.baseline,
             _recentlyDeletedCardIds: cleanedDeletedCardsCA.length > 0 ? cleanedDeletedCardsCA : undefined,
             _recentlyDeletedListIds: cleanedDeletedListsCA.length > 0 ? cleanedDeletedListsCA : undefined
         },
         updatedAt: new Date().toISOString()
     };
+    if (rename.pushed) result.pushed += 1;
 
     // Post-sync integrity check + auto-repair
     const integrity = validateBoardIntegrity(syncedBoard);
