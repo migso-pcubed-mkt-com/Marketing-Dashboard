@@ -3,6 +3,7 @@ import { CONFIG } from '../config.js';
 
 const statusName = (id) => CONFIG.STATUSES.find(s => s.id === id)?.name || id || '';
 const statusColor = (id) => CONFIG.STATUSES.find(s => s.id === id)?.color || '#94a3b8';
+const statusGlyph = (id) => CONFIG.STATUSES.find(s => s.id === id)?.icon || '';
 const priorityName = (id) => CONFIG.PRIORITIES.find(p => p.id === id)?.name || id || '';
 
 // Hex '#RRGGBB' → ARGB 'FFRRGGBB' for exceljs fills
@@ -116,12 +117,14 @@ export async function buildTimelineWorkbook(categories, actions, tasks, year) {
                 const endCol = 4 + endMonth;
                 if (endCol > startCol) ws.mergeCells(row.number, startCol, row.number, endCol);
 
+                // Bar cell: color + border only. The task title stays in column C to avoid duplication.
+                // For bars spanning 3+ months, show the status glyph at the center to hint at state.
                 const barCell = row.getCell(startCol);
-                const owner = (task.assignees || []).length > 0 ? ` — ${task.assignees.join(', ')}` : '';
-                barCell.value = endCol > startCol ? `${task.title || ''}${owner}` : '■';
+                const spanMonths = endMonth - startMonth + 1;
+                barCell.value = spanMonths >= 3 ? statusGlyph(task.status) : '';
                 barCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(statusColor(task.status)) } };
-                barCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
-                barCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+                barCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+                barCell.alignment = { vertical: 'middle', horizontal: 'center' };
                 const border = { style: 'thin', color: { argb: 'FF000000' } };
                 barCell.border = { top: border, left: border, right: border, bottom: border };
             });
@@ -140,7 +143,77 @@ export async function exportTimelineXlsx(categories, actions, tasks, year, board
 // KANBAN (exceljs — styled columns)
 // ─────────────────────────────────────────────
 
-export async function buildKanbanWorkbook(categories, actions, tasks) {
+// Build the list of columns for a given Kanban view.
+// Each column: { label, color, tasks }.
+function buildKanbanColumns(categories, actions, tasks, view) {
+    const taskDate = (t) => t.dueDate || t.startDate;
+    const sortByOrder = (list) => [...list].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const NEUTRAL_HEADER = '#475569';
+    const UNASSIGNED = '#94a3b8';
+
+    if (view === 'month') {
+        const cols = [];
+        for (let m = 0; m < 12; m++) {
+            const mTasks = sortByOrder(tasks.filter(t => {
+                const d = taskDate(t);
+                return d && new Date(d).getMonth() === m;
+            }));
+            cols.push({ label: CONFIG.MONTHS_FULL[m], color: NEUTRAL_HEADER, tasks: mTasks });
+        }
+        const noDate = sortByOrder(tasks.filter(t => !taskDate(t)));
+        if (noDate.length) cols.push({ label: 'Unscheduled', color: UNASSIGNED, tasks: noDate });
+        return cols;
+    }
+
+    if (view === 'quarter') {
+        const cols = [];
+        for (let q = 0; q < 4; q++) {
+            const qTasks = sortByOrder(tasks.filter(t => {
+                const d = taskDate(t);
+                return d && Math.floor(new Date(d).getMonth() / 3) === q;
+            }));
+            cols.push({ label: `Q${q + 1}`, color: NEUTRAL_HEADER, tasks: qTasks });
+        }
+        const noDate = sortByOrder(tasks.filter(t => !taskDate(t)));
+        if (noDate.length) cols.push({ label: 'Unscheduled', color: UNASSIGNED, tasks: noDate });
+        return cols;
+    }
+
+    if (view === 'country') {
+        // Preserve the app's canonical country order when present in at least one task
+        const presentIds = new Set();
+        tasks.forEach(t => (t.countries || []).forEach(c => presentIds.add(c)));
+        const cols = CONFIG.COUNTRIES
+            .filter(c => presentIds.has(c.id))
+            .map(c => ({
+                label: c.name,
+                color: c.color || NEUTRAL_HEADER,
+                tasks: sortByOrder(tasks.filter(t => (t.countries || []).includes(c.id)))
+            }));
+        // Countries found on tasks but not declared in CONFIG (shouldn't happen, but safe)
+        const extraIds = Array.from(presentIds).filter(id => !CONFIG.COUNTRIES.some(c => c.id === id));
+        for (const id of extraIds) {
+            cols.push({
+                label: id,
+                color: NEUTRAL_HEADER,
+                tasks: sortByOrder(tasks.filter(t => (t.countries || []).includes(id)))
+            });
+        }
+        const noCountry = sortByOrder(tasks.filter(t => !(t.countries || []).length));
+        if (noCountry.length) cols.push({ label: 'No country', color: UNASSIGNED, tasks: noCountry });
+        return cols;
+    }
+
+    // Default: category view
+    const sortedCats = sortByOrder(categories);
+    return sortedCats.map(cat => {
+        const catActionIds = new Set(actions.filter(a => a.categoryId === cat.id).map(a => a.id));
+        const catTasks = sortByOrder(tasks.filter(t => catActionIds.has(t.actionId)));
+        return { label: cat.name, color: cat.color, tasks: catTasks };
+    });
+}
+
+export async function buildKanbanWorkbook(categories, actions, tasks, view = 'category') {
     const { default: ExcelJS } = await import('exceljs');
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Marketing Dashboard';
@@ -148,22 +221,16 @@ export async function buildKanbanWorkbook(categories, actions, tasks) {
         views: [{ state: 'frozen', ySplit: 1 }]
     });
 
-    const sortedCats = [...categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    const columns = sortedCats.map(cat => {
-        const catActions = actions.filter(a => a.categoryId === cat.id);
-        const catTasks = tasks
-            .filter(t => catActions.some(a => a.id === t.actionId))
-            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        return { cat, tasks: catTasks };
-    });
+    const columns = buildKanbanColumns(categories, actions, tasks, view);
+    if (columns.length === 0) return wb;
 
     const maxRows = Math.max(...columns.map(c => c.tasks.length), 0);
 
-    const headerRow = ws.addRow(columns.map(c => c.cat.name));
+    const headerRow = ws.addRow(columns.map(c => c.label));
     headerRow.eachCell((cell, colIdx) => {
-        const cat = columns[colIdx - 1].cat;
+        const col = columns[colIdx - 1];
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(cat.color) } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(col.color) } };
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     });
     headerRow.height = 28;
@@ -196,9 +263,10 @@ export async function buildKanbanWorkbook(categories, actions, tasks) {
     return wb;
 }
 
-export async function exportKanbanXlsx(categories, actions, tasks, boardName) {
-    const wb = await buildKanbanWorkbook(categories, actions, tasks);
-    await downloadExcelJs(wb, `kanban-${boardName || 'export'}-${new Date().toISOString().split('T')[0]}.xlsx`);
+export async function exportKanbanXlsx(categories, actions, tasks, boardName, view = 'category') {
+    const wb = await buildKanbanWorkbook(categories, actions, tasks, view);
+    const suffix = view === 'category' ? '' : `-${view}`;
+    await downloadExcelJs(wb, `kanban${suffix}-${boardName || 'export'}-${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 // ─────────────────────────────────────────────

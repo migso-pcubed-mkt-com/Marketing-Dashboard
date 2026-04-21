@@ -72,6 +72,22 @@ describe('buildTimelineWorkbook', () => {
         expect(barCell.fill.fgColor.argb).toBe('FF3B82F6'); // inprogress
     });
 
+    it('does not duplicate the task title inside the Gantt bar cell', async () => {
+        const wb = await buildTimelineWorkbook(categories, actions, tasks, 2026);
+        const ws = wb.getWorksheet('Timeline');
+
+        let campaignRow = null;
+        ws.eachRow(row => {
+            if (String(row.getCell(3).value || '').includes('Campaign A')) campaignRow = row;
+        });
+        // Bar cell at Feb (col 5): should NOT contain the task title; either empty or the status glyph only
+        const barCell = campaignRow.getCell(5);
+        const v = String(barCell.value || '');
+        expect(v).not.toContain('Campaign A');
+        // 3-month span → show glyph (not empty)
+        expect(v.length).toBeLessThanOrEqual(2);
+    });
+
     it('writes a category band row filled with the category color, merged across 15 columns', async () => {
         const wb = await buildTimelineWorkbook(categories, actions, tasks, 2026);
         const ws = wb.getWorksheet('Timeline');
@@ -80,5 +96,47 @@ describe('buildTimelineWorkbook', () => {
         const r2 = ws.getRow(2);
         expect(r2.getCell(1).value).toBe('Brand');
         expect(r2.getCell(1).fill.fgColor.argb).toBe('FF6366F1');
+    });
+});
+
+describe('buildKanbanWorkbook — alternative views', () => {
+    const monthTasks = [
+        { id: 't1', actionId: 'a1', title: 'January task',  status: 'todo',        startDate: '2026-01-05', dueDate: '2026-01-10', order: 0 },
+        { id: 't2', actionId: 'a1', title: 'April task',    status: 'inprogress',  startDate: '2026-04-01', dueDate: '2026-04-20', order: 1 },
+        { id: 't3', actionId: 'a1', title: 'July task',     status: 'completed',   startDate: '2026-07-01', dueDate: '2026-07-15', order: 2 }
+    ];
+
+    it('renders 12 month columns when view="month"', async () => {
+        const wb = await buildKanbanWorkbook(categories, actions, monthTasks, 'month');
+        const ws = wb.getWorksheet('Kanban');
+        const hdr = ws.getRow(1);
+        expect(hdr.getCell(1).value).toBe('January');
+        expect(hdr.getCell(12).value).toBe('December');
+    });
+
+    it('renders 4 quarter columns when view="quarter"', async () => {
+        const wb = await buildKanbanWorkbook(categories, actions, monthTasks, 'quarter');
+        const ws = wb.getWorksheet('Kanban');
+        const hdr = ws.getRow(1);
+        expect(hdr.getCell(1).value).toBe('Q1');
+        expect(hdr.getCell(2).value).toBe('Q2');
+        expect(hdr.getCell(3).value).toBe('Q3');
+        expect(hdr.getCell(4).value).toBe('Q4');
+    });
+
+    it('groups tasks by country when view="country"', async () => {
+        const countryTasks = [
+            { id: 't1', actionId: 'a1', title: 'FR campaign', status: 'todo', countries: ['france'], order: 0 },
+            { id: 't2', actionId: 'a1', title: 'US launch', status: 'todo', countries: ['usa'], order: 0 },
+            { id: 't3', actionId: 'a1', title: 'No country', status: 'todo', countries: [], order: 0 }
+        ];
+        const wb = await buildKanbanWorkbook(categories, actions, countryTasks, 'country');
+        const ws = wb.getWorksheet('Kanban');
+        const hdr = ws.getRow(1);
+        const labels = [];
+        hdr.eachCell(cell => labels.push(String(cell.value)));
+        expect(labels).toContain('France');
+        expect(labels.some(l => /united states|usa/i.test(l))).toBe(true);
+        expect(labels).toContain('No country');
     });
 });
