@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-21 (Replace undo/redo arrows with HistoryPanel; extend useUndoRedo with jumpTo/suspend/resume)
+> Last updated: 2026-04-21 (Trello 403/404 switches to read-only mode with orange banner + Unlink action)
 
 ---
 
@@ -471,6 +471,7 @@ The callback logic lives in `public/trello-callback.js`, referenced by `public/t
 - Trello token → `localStorage('trello_user_token')` | Guest → `sessionStorage('guest_auth')` (expires on tab close)
 - `robots.txt` + `<meta noindex>` block search engine crawling
 - **Guest + Trello board**: read-only mode (no pushes to Trello)
+- **Trello access denied (403/404)**: `accessDeniedBoardIds` Set in `App.jsx` (session-only, never persisted). Orange banner + Unlink action button. Auto-cleared on next successful sync. 401 triggers full `handleTrelloLogout`.
 
 ---
 

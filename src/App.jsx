@@ -88,6 +88,8 @@ const App = () => {
     const [showTrelloExport, setShowTrelloExport] = useState(false);
     const [multiBoardMode, setMultiBoardMode] = useState(false);
     const [selectedBoardIds, setSelectedBoardIds] = useState([]);
+    // Session-only flag: board IDs the current user has no Trello access to (403/404). Not persisted.
+    const [accessDeniedBoardIds, setAccessDeniedBoardIds] = useState(() => new Set());
     const [trelloSyncStatus, setTrelloSyncStatus] = useState('idle'); // idle | syncing | synced | error
     const [trelloUser, setTrelloUser] = useState(null); // null = guest, or { id, fullName, username, avatarUrl, token }
     const [authenticated, setAuthenticated] = useState(() => {
@@ -137,8 +139,11 @@ const App = () => {
         ? multiBoardData.members
         : (currentBoard?.members || []);
 
-    // Guest users are read-only on Trello-linked boards (can edit non-Trello boards)
-    const isReadOnly = !trelloUser && !!currentBoard?.trelloSync?.trelloBoardId;
+    // Read-only when: (a) guest on Trello-linked board, (b) user has no access to linked Trello board, or (c) multi-board combined view
+    const isAccessDenied = currentBoard?.id ? accessDeniedBoardIds.has(currentBoard.id) : false;
+    const isReadOnly = (!trelloUser && !!currentBoard?.trelloSync?.trelloBoardId)
+        || isAccessDenied
+        || multiBoardMode;
 
     // --- Board-aware setters (wrapper functions) ---
     const updateCurrentBoard = useCallback((updater) => {
@@ -1282,6 +1287,13 @@ const App = () => {
                     )
                 };
             });
+            // Clear stale access-denied flag on successful sync
+            setAccessDeniedBoardIds(prev => {
+                if (!prev.has(syncedBoard.id)) return prev;
+                const next = new Set(prev);
+                next.delete(syncedBoard.id);
+                return next;
+            });
             // Clear guard after auto-save has had time to complete (save debounce + network)
             setTimeout(() => { syncRealtimeGuardRef.current = false; }, 8000);
             setTrelloSyncStatus(result.errors > 0 ? 'error' : 'synced');
@@ -1326,7 +1338,28 @@ const App = () => {
         } catch (err) {
             console.error('Trello sync error:', err);
             setTrelloSyncStatus('error');
-            // Attempt auto-restore from snapshot on critical failure
+
+            // 401: token invalid/expired — global Trello logout
+            if (err.status === 401) {
+                showNotification('❌ Trello session expired — please reconnect');
+                handleTrelloLogout();
+                setTimeout(() => setTrelloSyncStatus('idle'), 5000);
+                return;
+            }
+
+            // 403/404: user OK but has no access to THIS board — switch to read-only, don't retry
+            if (err.status === 403 || err.status === 404) {
+                setAccessDeniedBoardIds(prev => {
+                    const next = new Set(prev);
+                    if (currentBoard?.id) next.add(currentBoard.id);
+                    return next;
+                });
+                showNotification(`⚠️ No access to linked Trello board — switched to read-only`);
+                setTimeout(() => setTrelloSyncStatus('idle'), 5000);
+                return;
+            }
+
+            // Other errors: attempt auto-restore from snapshot on critical failure
             try {
                 const snapshot = JSON.parse(localStorage.getItem('trello_sync_snapshot'));
                 if (snapshot?.board && Date.now() - snapshot.timestamp < 86400000) {
@@ -1345,7 +1378,7 @@ const App = () => {
         } finally {
             resumeHistory();
         }
-    }, [currentBoard, trelloSyncStatus, suspendHistory, resumeHistory]);
+    }, [currentBoard, trelloSyncStatus, suspendHistory, resumeHistory, handleTrelloLogout]);
 
     // Keep ref pointing to latest handleTrelloSync (avoids stale closure in setInterval)
     useEffect(() => { handleTrelloSyncRef.current = handleTrelloSync; }, [handleTrelloSync]);
@@ -1376,6 +1409,25 @@ const App = () => {
             trelloSync: { ...b.trelloSync, ...updates }
         }));
     }, [updateCurrentBoard]);
+
+    // Remove Trello link from current board — returns it to fully-editable local mode
+    const handleUnlinkTrello = useCallback(() => {
+        if (!confirm('Unlink this board from Trello? Tasks and data will remain; sync will stop.')) return;
+        const boardId = currentBoard?.id;
+        updateCurrentBoard(b => {
+            const { trelloSync: _trelloSync, ...rest } = b;
+            return rest;
+        });
+        if (boardId) {
+            setAccessDeniedBoardIds(prev => {
+                if (!prev.has(boardId)) return prev;
+                const next = new Set(prev);
+                next.delete(boardId);
+                return next;
+            });
+        }
+        showNotification('✅ Board unlinked from Trello');
+    }, [currentBoard, updateCurrentBoard]);
 
     const handleAddNewTask = useCallback((newTask) => {
         if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Add task');
@@ -1488,6 +1540,12 @@ const App = () => {
                 {otherTabActive && !isOffline && (
                     <div style={{background:'#f97316',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
                         ⚠️ This app is open in another tab — simultaneous edits may cause data conflicts.
+                    </div>
+                )}
+                {isAccessDenied && (
+                    <div style={{background:'#f97316',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
+                        <span>🔒 You don't have access to the linked Trello board — read-only mode.</span>
+                        <button onClick={handleUnlinkTrello} style={{background:'#fff',color:'#f97316',border:'none',borderRadius:4,padding:'3px 10px',fontSize:12,fontWeight:600,cursor:'pointer'}}>Unlink Trello</button>
                     </div>
                 )}
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync} isOffline={isOffline} realtimeConnected={realtimeConnected}/>

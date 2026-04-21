@@ -39,7 +39,9 @@ const trelloFetch = async (url, options = {}, retries = 3) => {
                 const error = await response.json().catch(() => ({ error: response.statusText }));
                 const baseMsg = error.error || error.message || `Trello API error: ${response.status}`;
                 const detail = error.details ? ` (${typeof error.details === 'string' ? error.details : JSON.stringify(error.details)})` : '';
-                throw new Error(baseMsg + detail);
+                const err = new Error(baseMsg + detail);
+                err.status = response.status;
+                throw err;
             }
             return response.json();
         } catch (err) {
