@@ -5,7 +5,7 @@ import { dateToPixel, pixelToDate, getTaskPosition, calculateSwimLanes, getDayHe
 import TimelineHeader from './timeline/TimelineHeader.jsx';
 import TimelineBar from './timeline/TimelineBar.jsx';
 
-const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef,isReadOnly,onRequestNewTask,isCardAsTask})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef,isReadOnly,onRequestNewTask,isCardAsTask,boardGroups})=>{
     const timelineRef=useRef(null);
     const dragGhostRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -573,6 +573,16 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const catActions=actions.filter(a=>a.categoryId===cat.id).map(action=>({action,tasks:filteredTasks.filter(t=>t.actionId===action.id)}));
         return{category:cat,actions:catActions};
     }).filter(g=>g.actions.length>0);
+    // Combined view: reorder categories so those from the same source board cluster
+    // together. The render loop reads _sourceBoardId to insert group banners.
+    if(boardGroups && boardGroups.length > 0){
+        const boardOrder=new Map(boardGroups.map((g,i)=>[g.boardId,i]));
+        groupedByCategory.sort((a,b)=>{
+            const ai=boardOrder.has(a.category._sourceBoardId)?boardOrder.get(a.category._sourceBoardId):999;
+            const bi=boardOrder.has(b.category._sourceBoardId)?boardOrder.get(b.category._sourceBoardId):999;
+            return ai-bi;
+        });
+    }
     const scrollToQuarter=(q)=>{scrollToDate(new Date(selectedYear,(q-1)*3,1));};
 
     const handleDrop=(e,colIdx)=>{
@@ -999,8 +1009,22 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                 <div key={`mbh-${idx}`} className="absolute top-0 bottom-0 pointer-events-none" style={{left:250+b.weekIndex*colWidth+b.dayOffset*(colWidth/7),borderLeft:'1.5px dashed var(--text-muted)',opacity:0.35,zIndex:1}}/>
                             ))}
                         </div>
-                        {groupedByCategory.map(({category,actions:catActions})=>(
+                        {groupedByCategory.map(({category,actions:catActions},groupIdx)=>{
+                            const sourceBoardId=category._sourceBoardId;
+                            const prevSourceBoardId=groupIdx>0?groupedByCategory[groupIdx-1].category._sourceBoardId:null;
+                            const shouldShowBoardHeader=!!(boardGroups && boardGroups.length>0 && sourceBoardId && sourceBoardId!==prevSourceBoardId);
+                            const boardGroup=shouldShowBoardHeader?boardGroups.find(g=>g.boardId===sourceBoardId):null;
+                            return (
                             <div key={category.id}>
+                                {boardGroup && (
+                                    <div className="timeline-board-group-row flex" style={{background:boardGroup.boardColor,color:'#fff',fontWeight:700,fontSize:12,letterSpacing:0.5,borderTop:'2px solid rgba(255,255,255,0.2)'}}>
+                                        <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-center" style={{background:boardGroup.boardColor,padding:'6px 12px',gap:8}}>
+                                            <span style={{fontSize:14}}>●</span>
+                                            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>Board: {boardGroup.boardName}</span>
+                                        </div>
+                                        <div className="flex-1" style={{background:boardGroup.boardColor}}/>
+                                    </div>
+                                )}
                                 <div className="timeline-category-row flex" onDragOver={(e)=>{if(onUpdateAction){const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.add('drag-over');}}}} onDragLeave={(e)=>{e.currentTarget.classList.remove('drag-over');}} onDrop={(e)=>{const types=Array.from(e.dataTransfer.types||[]).map(t=>t.toLowerCase());if(types.includes('actionid')){e.preventDefault();e.currentTarget.classList.remove('drag-over');const actionId=e.dataTransfer.getData('actionId');if(actionId&&onUpdateAction){onUpdateAction(actionId,{categoryId:category.id});}}}}>
                                     <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-center" style={{background:'var(--bg-secondary)'}}>
                                         <div style={{width:4,alignSelf:'stretch',background:category.color,flexShrink:0}}/>
@@ -1074,7 +1098,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                     );
                                 })}
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             </div>

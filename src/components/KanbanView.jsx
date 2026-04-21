@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, memo } from 'react';
+import { useState, useRef, useCallback, useMemo, memo, Fragment } from 'react';
 import { CONFIG } from '../config.js';
 import { Icon, StatusIcon } from './Icons.jsx';
 import ActionCard from './ActionCard.jsx';
@@ -7,7 +7,7 @@ import VirtualKanbanCards from './VirtualKanbanCards.jsx';
 
 const VIRTUALIZE_THRESHOLD = 50;
 
-const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onBatchUpdateTasks,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask,onUpdateCategory,onAddCategory,onDeleteCategory,isCardAsTask,isUserInteractingRef})=>{
+const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onBatchUpdateTasks,onAddTask,onAddAction,onMoveTask,onReorderTask,onMoveAction,onReorderAction,filters,setFilters,allCountries,selectedYear,onYearChange,onReorderCategories,onReorderCountryColumns,isReadOnly,onRequestNewTask,onUpdateCategory,onAddCategory,onDeleteCategory,isCardAsTask,isUserInteractingRef,boardGroups})=>{
     const[viewMode,setViewMode]=useState('category');
     const[selectedAction,setSelectedAction]=useState(null);
     const[actionFilters,setActionFilters]=useState([]);
@@ -141,6 +141,16 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     return (ai===-1?999:ai)-(bi===-1?999:bi);
                 });
             }
+            // Combined view: group categories by source board so each board's columns
+            // cluster together (the render loop inserts a separator between groups).
+            if(boardGroups && boardGroups.length > 0){
+                const boardOrder = new Map(boardGroups.map((g,i)=>[g.boardId,i]));
+                cats.sort((a,b)=>{
+                    const ai = boardOrder.has(a._sourceBoardId) ? boardOrder.get(a._sourceBoardId) : 999;
+                    const bi = boardOrder.has(b._sourceBoardId) ? boardOrder.get(b._sourceBoardId) : 999;
+                    return ai - bi;
+                });
+            }
             // Check if all actions in each category are "isDefault" (Trello-imported without label mapping)
             // If so, show tasks directly under category instead of action cards
             return cats.map(cat=>{
@@ -199,7 +209,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
         return[];
     };
     return getColumns();
-    },[viewMode,sortBy,filteredTasks,categories,actions,selectedAction,isCardAsTask,catOrder,allCountries,countryOrder,selectedYear,filters,actionFilters]);
+    },[viewMode,sortBy,filteredTasks,categories,actions,selectedAction,isCardAsTask,catOrder,allCountries,countryOrder,selectedYear,filters,actionFilters,boardGroups]);
 
     const canDragColumns = (viewMode === 'category' || viewMode === 'country') && !isReadOnly;
 
@@ -333,6 +343,32 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     {columns.map((col, colIdx)=>{
                     const isActionView = viewMode==='category'&&!col.directTasks;
                     const useVirtual = col.items.length > VIRTUALIZE_THRESHOLD;
+                    // Combined view: when the column belongs to a different source board
+                    // than the previous one, prepend a vertical board-group separator.
+                    let boardSeparator = null;
+                    if (boardGroups && boardGroups.length > 0 && viewMode === 'category') {
+                        const sourceId = categories.find(c => c.id === col.key)?._sourceBoardId;
+                        const prevSourceId = colIdx > 0
+                            ? categories.find(c => c.id === columns[colIdx - 1].key)?._sourceBoardId
+                            : null;
+                        if (sourceId && sourceId !== prevSourceId) {
+                            const group = boardGroups.find(g => g.boardId === sourceId);
+                            if (group) {
+                                boardSeparator = (
+                                    <div key={`__board-${sourceId}`} className="kanban-board-separator" style={{
+                                        minWidth: 22, maxWidth: 22, alignSelf: 'stretch',
+                                        background: group.boardColor, borderRadius: 6, margin: '0 6px',
+                                        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+                                        paddingTop: 14, color: '#fff', fontSize: 11, fontWeight: 700,
+                                        writingMode: 'vertical-rl', letterSpacing: 0.5,
+                                        whiteSpace: 'nowrap', overflow: 'hidden'
+                                    }} title={`Board: ${group.boardName}`}>
+                                        ● {group.boardName}
+                                    </div>
+                                );
+                            }
+                        }
+                    }
                     const inlineReorderTask = (viewMode==='country'||viewMode==='month'||viewMode==='quarter'||(viewMode==='category'&&col.directTasks))?(draggedId,targetId,position)=>{
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
                                     const dragIdx=colItems.findIndex(t=>t.id===draggedId);
@@ -429,8 +465,9 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                         ? (item) => <ActionCard key={item.id} action={item} tasks={filteredTasks} categories={categories} onOpen={onOpenAction} onMoveAction={isReadOnly?null:(sortBy==='order'?onMoveAction:null)} onReorderAction={isReadOnly?null:(sortBy==='order'?onReorderAction:null)} isReadOnly={isReadOnly} onUpdateAction={onUpdateAction}/>
                         : (item) => <TaskCard key={item.id} task={item} action={actions.find(a=>a.id===item.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?inlineReorderTask:null)} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries} isReadOnly={isReadOnly}/>;
                     return (
+                        <Fragment key={col.key}>
+                        {boardSeparator}
                         <div
-                            key={col.key}
                             data-col-idx={colIdx}
                             draggable={canDragColumns && col.key !== '_unassigned'}
                             onTouchStart={canDragColumns && col.key !== '_unassigned' ? (e) => handleColTouchStart(e, colIdx) : undefined}
@@ -605,6 +642,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                 </button>
                             </div>
                         </div>
+                        </Fragment>
                     );
                     })}
                     {viewMode==='category'&&!isReadOnly&&onAddCategory&&(
