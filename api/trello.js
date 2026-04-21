@@ -96,6 +96,8 @@ export default async function handler(req, res) {
             console.log(`Fetching Trello board ${boardId}...`);
 
             // Fetch board, lists, labels, cards (with checklists + attachments), members in parallel
+            const fetchLabel = `trello-board-fetch-${boardId}`;
+            console.time(fetchLabel);
             const [boardRes, listsRes, labelsRes, cardsRes, membersRes] = await Promise.all([
                 fetch(`${TRELLO_BASE}/boards/${boardId}?${authParams}&fields=name,desc,dateLastActivity,url`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/lists?${authParams}&fields=name,pos,closed&filter=open`),
@@ -103,14 +105,19 @@ export default async function handler(req, res) {
                 fetch(`${TRELLO_BASE}/boards/${boardId}/cards?${authParams}&fields=name,desc,due,start,dueComplete,dateLastActivity,idList,idLabels,idMembers,pos,closed,shortLink&filter=all&checklists=all&attachments=true&attachment_fields=name,url,mimeType,date,previews`),
                 fetch(`${TRELLO_BASE}/boards/${boardId}/members?${authParams}&fields=fullName,username,avatarUrl`)
             ]);
+            console.timeEnd(fetchLabel);
 
             if (!boardRes.ok || !listsRes.ok || !labelsRes.ok || !cardsRes.ok) {
-                const errors = [];
-                if (!boardRes.ok) errors.push(`board: ${boardRes.status}`);
-                if (!listsRes.ok) errors.push(`lists: ${listsRes.status}`);
-                if (!labelsRes.ok) errors.push(`labels: ${labelsRes.status}`);
-                if (!cardsRes.ok) errors.push(`cards: ${cardsRes.status}`);
-                return res.status(502).json({ error: 'Trello API error', details: errors.join(', ') });
+                const subStatuses = {
+                    board: boardRes.status,
+                    lists: listsRes.status,
+                    labels: labelsRes.status,
+                    cards: cardsRes.status
+                };
+                console.error(`[${new Date().toISOString()}] Trello board fetch failed for ${boardId}:`, subStatuses);
+                const worst = Math.max(...Object.values(subStatuses));
+                const clientStatus = worst === 429 ? 429 : (worst >= 500 ? 502 : worst);
+                return res.status(clientStatus).json({ error: 'Trello API error', details: subStatuses });
             }
 
             const [board, lists, labels, cards] = await Promise.all([
