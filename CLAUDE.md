@@ -258,6 +258,7 @@ Category names are synced bidirectionally in both modes. Push: local rename → 
 - **Comment fetching**: `fetchTrelloBoardFull` uses `skipComments=true` — comments are fetched separately via `fetchCardCommentsBatch` in client-side batches of 30 cards (avoids Vercel serverless timeout on large boards). `fetchCommentsForCards()` helper in `trelloSync.js`.
 - **Post-sync**: `validateBoardIntegrity()` checks orphan refs + duplicate IDs + auto-repairs (removes orphans, deduplicates, creates missing default actions). Light Supabase fetch 4s after sync to recover ignored Realtime events.
 - **Realtime guard during sync**: Realtime handler checks `isSyncInProgress()` — prevents Realtime events from overwriting freshly synced data.
+- **Conditional comment fetch**: `lastCardTimestamp` stored on `board.trelloSync` after each sync (max `dateLastActivity` across all cards). Next sync passes it as `since` to `fetchTrelloBoardFull` — server skips comment fetching for unchanged cards (`_commentsSkipped`). Client carries forward Trello-origin comments for those cards before merge. First sync (no `lastCardTimestamp`) fetches all comments.
 
 ### Sync boundaries (by design)
 
