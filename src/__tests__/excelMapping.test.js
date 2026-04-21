@@ -94,6 +94,33 @@ describe('autoAssignLevels', () => {
     });
 });
 
+describe('autoAssignLevels — extra heuristics', () => {
+    it('uses month-content as the only discriminator when all header rows share a single depth', () => {
+        const data = [
+            monthHeader,
+            ['Brand Awareness', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            ['Conversion',      '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            ['Retention',       '', '', 'x', 'x', '', '', '', '', '', '', '', '', '', '']
+        ];
+        const analysis = analyzeGridRows(data, []);
+        const leveled = autoAssignLevels(analysis);
+        expect(leveled.map(r => r.level)).toEqual(['category', 'category', 'task']);
+    });
+
+    it('does not promote a lone country row to super when no deeper headers exist', () => {
+        const data = [
+            monthHeader,
+            ['France',       '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            ['Spain',        '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+            ['Launch event', '', '', 'x', '', '', '', '', '', '', '', '', '', '', '']
+        ];
+        const analysis = analyzeGridRows(data, []);
+        const leveled = autoAssignLevels(analysis);
+        // Only one header depth → even country rows stay categories so tasks have a parent.
+        expect(leveled.map(r => r.level)).toEqual(['category', 'category', 'task']);
+    });
+});
+
 describe('buildGridHierarchy', () => {
     it('propagates country tag to descendant tasks when super-category is a country', () => {
         const data = [

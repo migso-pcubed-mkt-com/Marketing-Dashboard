@@ -283,6 +283,7 @@ export function autoAssignLevels(analysis) {
     );
     const depthToLevel = new Map();
     if (headerDepths.length >= 3) {
+        // Deep nesting: shallowest is a super-category, next is category, deeper are actions.
         depthToLevel.set(headerDepths[0], 'super');
         depthToLevel.set(headerDepths[1], 'category');
         for (let i = 2; i < headerDepths.length; i++) depthToLevel.set(headerDepths[i], 'action');
@@ -295,14 +296,19 @@ export function autoAssignLevels(analysis) {
             depthToLevel.set(headerDepths[1], 'action');
         }
     } else if (headerDepths.length === 1) {
-        depthToLevel.set(headerDepths[0], shallowestIsSuper ? 'super' : 'category');
+        // Single header depth: only one level of non-task rows — always category.
+        // Even when the sole label is a country, the user needs a category to attach tasks to,
+        // so map to 'category' here. The per-row country override below still tags tasks appropriately.
+        depthToLevel.set(headerDepths[0], 'category');
     }
 
     return rows.map(r => {
         if (r.hasMonthContent) return { ...r, level: 'task' };
         let level = depthToLevel.get(r.depth) || 'category';
-        // Country label at shallow depth always wins
-        if (r.countryId && r.depth === headerDepths[0]) level = 'super';
+        // Country label at shallow depth forces 'super' — but only when there's at least
+        // one deeper header depth to host real categories underneath. Otherwise, the country
+        // label must remain a category itself or tasks would have no parent container.
+        if (r.countryId && r.depth === headerDepths[0] && headerDepths.length >= 2) level = 'super';
         return { ...r, level };
     });
 }

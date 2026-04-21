@@ -116,6 +116,12 @@ const ExcelImportModal = ({ onClose, onImport }) => {
         setLeveledRows(rows => rows.map(r => r.rowIdx === rowIdx ? { ...r, level: newLevel } : r));
     };
 
+    const countSimilarRows = (rowIdx) => {
+        const target = leveledRows.find(r => r.rowIdx === rowIdx);
+        if (!target) return 0;
+        return leveledRows.filter(r => r.depth === target.depth && r.hasMonthContent === target.hasMonthContent).length;
+    };
+
     const applyLevelToSimilarRows = (rowIdx, newLevel) => {
         const target = leveledRows.find(r => r.rowIdx === rowIdx);
         if (!target) return;
@@ -355,6 +361,27 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                     {/* ─── GRID REVIEW STEP ─── */}
                     {step === 'review' && gridAnalysis && (
                         <div>
+                            {workbook && workbook.sheets.length > 1 && (
+                                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+                                    {workbook.sheets.map((s, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => { if (idx !== selectedSheet) handleSheetSelect(idx); }}
+                                            style={{
+                                                fontSize: 11, padding: '4px 10px',
+                                                borderRadius: 'var(--radius-sm)',
+                                                border: `1px solid ${idx === selectedSheet ? 'var(--accent)' : 'var(--border)'}`,
+                                                background: idx === selectedSheet ? 'rgba(99,102,241,0.08)' : 'var(--bg-secondary)',
+                                                color: idx === selectedSheet ? 'var(--accent)' : 'var(--text-muted)',
+                                                fontWeight: idx === selectedSheet ? 600 : 400,
+                                                cursor: idx === selectedSheet ? 'default' : 'pointer'
+                                            }}
+                                        >
+                                            {s.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
                                 We detected a multi-level structure. Adjust any row whose level is wrong — click&nbsp;
                                 <em>Apply to similar</em> to broadcast a change to rows of the same indentation.
@@ -391,13 +418,19 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                                                     </select>
                                                 </td>
                                                 <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)' }}>
-                                                    <button
-                                                        onClick={() => applyLevelToSimilarRows(r.rowIdx, r.level)}
-                                                        title="Apply this level to every other row with the same indentation"
-                                                        style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-muted)', cursor: 'pointer' }}
-                                                    >
-                                                        Apply to similar
-                                                    </button>
+                                                    {(() => {
+                                                        const count = countSimilarRows(r.rowIdx);
+                                                        return (
+                                                            <button
+                                                                onClick={() => applyLevelToSimilarRows(r.rowIdx, r.level)}
+                                                                disabled={count <= 1}
+                                                                title="Apply this level to every other row with the same indentation"
+                                                                style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: count <= 1 ? 'var(--border)' : 'var(--text-muted)', cursor: count <= 1 ? 'default' : 'pointer' }}
+                                                            >
+                                                                Apply to {count} similar
+                                                            </button>
+                                                        );
+                                                    })()}
                                                 </td>
                                             </tr>
                                         ))}
