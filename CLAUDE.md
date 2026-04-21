@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-20 (Trello OAuth BroadcastChannel fallback + sync perf: conditional comment fetch, lookup maps)
+> Last updated: 2026-04-21 (Trello OAuth: extract callback script to external file so CSP script-src 'self' doesn't block it)
 
 ---
 
@@ -453,6 +453,9 @@ When a Trello card is permanently deleted (missing from API response), the local
 
 ### Trello OAuth callback must use multiple IPC channels
 `trello-callback.html` delivers the token via `postMessage` + `BroadcastChannel('mkt_trello_oauth')` + `localStorage('mkt_trello_oauth_token')`. `startTrelloLogin` in `trelloAuth.js` listens on all three. Do NOT rely on `window.opener.postMessage` alone — trello.com sends `Cross-Origin-Opener-Policy: same-origin`, which permanently severs `window.opener` even after the popup is redirected back to our origin. The fallback storage key is cleared at the start of each login attempt and after token acceptance to avoid replay. The `pollTimer` also polls `localStorage` directly because `storage` events don't fire in the same tab that wrote the value.
+
+### Trello OAuth callback script must stay external (`public/trello-callback.js`)
+The callback logic lives in `public/trello-callback.js`, referenced by `public/trello-callback.html` via `<script src="/trello-callback.js">`. Do NOT inline the script into the HTML — `vercel.json` sets `Content-Security-Policy: script-src 'self'` without `'unsafe-inline'`, nonce, or hash, which silently blocks any inline `<script>` block. Symptom when broken: popup shows "Authorization complete" but never closes (the IIFE never runs, so `window.close()` is never called), and the main window falls back to the "Domain not registered" manual-paste screen.
 
 ### lastSaveIdRef persisted in sessionStorage
 `lastSaveIdRef` is initialized from `sessionStorage('mkt_last_save_id')` instead of `null`. Each auto-save writes the new saveId to sessionStorage. This allows the app to detect Realtime echoes from its own previous instance after a page reload/deploy. Without this, the first Realtime event after reload would be treated as a new update and could overwrite freshly loaded data.
