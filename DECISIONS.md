@@ -22,6 +22,7 @@
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-04-21 | Reduce snapshot ring buffer from 3 slots to 1 + auto-clean legacy slots 1/2 on load | Three full-board snapshots saturated localStorage (QuotaExceededError on every auto-save), competing with the offline backup `marketing_tracker_backup` and the new `mkt_trello_oauth_token` OAuth fallback; `listSnapshots`/`restoreSnapshot` have no UI consumers so a single "last known good" slot is sufficient |
 | 2026-04-21 | Extract Trello OAuth callback IIFE into external `public/trello-callback.js` (supersedes 2026-04-20) | `vercel.json` CSP `script-src 'self'` silently blocked the inline script; popup displayed "Authorization complete" but never executed the IIFE, so the three-channel delivery added the day before never ran — no token ever reached the main window |
 | 2026-04-20 | Add BroadcastChannel + localStorage fallback to Trello OAuth callback IPC | trello.com sends COOP: same-origin, which severs `window.opener` even after popup redirects back to our origin; `postMessage` alone silently fails in modern browsers, leaving users stuck on the "Domain not registered" manual-paste screen despite correct Allowed Origins config |
 | 2026-04-13 | Split comment fetching from board endpoint into client-side batches | Board fetch with 172+ cards timed out (35 sequential comment batches > 8s client + 10s Vercel limit); now board returns in ~2s, comments fetched separately in batches of 30 |

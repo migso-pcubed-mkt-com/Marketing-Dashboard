@@ -286,12 +286,22 @@ export const saveToLocalStorage = (boardDataRef) => {
     }
 };
 
-// --- Snapshot ring buffer (3 most recent snapshots) ---
+// --- Snapshot ring buffer (single slot — keeps last known good boardData) ---
 
-const SNAPSHOT_COUNT = 3;
+const SNAPSHOT_COUNT = 1;
 const SNAPSHOT_KEY_PREFIX = 'mkt_snapshot_';
 const SNAPSHOT_INDEX_KEY = 'mkt_snapshot_index';
 const SNAPSHOT_MAX_AGE_MS = 48 * 60 * 60 * 1000; // 48h
+const LEGACY_SNAPSHOT_SLOTS = 3; // earlier versions wrote to slots 0, 1, 2
+
+// One-time cleanup of slots from earlier multi-slot snapshot rings so they
+// don't linger for 48h chewing through localStorage quota (which competes with
+// the offline backup `marketing_tracker_backup` and causes QuotaExceededError).
+try {
+    for (let i = SNAPSHOT_COUNT; i < LEGACY_SNAPSHOT_SLOTS; i++) {
+        localStorage.removeItem(`${SNAPSHOT_KEY_PREFIX}${i}`);
+    }
+} catch (_e) { /* localStorage unavailable — nothing to clean */ }
 
 export const saveSnapshot = (boardData, trigger = 'auto-save') => {
     try {

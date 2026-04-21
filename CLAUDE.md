@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-21 (Trello OAuth: extract callback script to external file so CSP script-src 'self' doesn't block it)
+> Last updated: 2026-04-21 (Reduce snapshot ring buffer 3→1 to stop saturating localStorage quota)
 
 ---
 
@@ -156,7 +156,7 @@ Migration from v1 (flat) → v2 is automatic via `src/lib/migration.js`.
 |---|---|---|
 | Primary | Supabase | Real-time via Supabase Realtime. Table: `app_data`, column `board_data` (JSONB). Auto-save debounce: 1s |
 | Secondary | GitHub API | `data.json` on `main` via `api/github.js` proxy. Auto-save debounce: 2s |
-| Fallback | localStorage | Key: `marketing_tracker_backup`. Snapshot ring buffer: 3 rotating keys `mkt_snapshot_0/1/2`, 48h TTL |
+| Fallback | localStorage | Key: `marketing_tracker_backup`. Snapshot ring buffer: single key `mkt_snapshot_0`, 48h TTL (legacy slots 1/2 auto-cleaned on load) |
 | Attachments | Supabase Storage | Bucket: `attachments`. Falls back to base64 data URLs if Storage unavailable. `uploadAttachment()` / `deleteAttachment()` in `storage.js` |
 
 **Load order**: Supabase → GitHub → localStorage. `localStorage` is backup only — never primary.
