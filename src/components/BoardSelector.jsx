@@ -4,13 +4,35 @@ import { Icon } from './Icons.jsx';
 import BoardSettingsModal from './BoardSettingsModal.jsx';
 
 const BoardSelector = () => {
-    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels, onShowExcelImport, trelloUser } = useBoard();
+    const { boards, currentBoardId, currentBoard, onSwitchBoard, onCreateBoard, onShowTrelloImport, onOpenRemapLabels, onShowExcelImport, onToggleMultiBoard, multiBoardMode, selectedBoardIds } = useBoard();
     const [isOpen, setIsOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [newName, setNewName] = useState('');
     const [settingsBoard, setSettingsBoard] = useState(null);
     const dropdownRef = useRef(null);
     const inputRef = useRef(null);
+
+    const toggleBoardSelection = (boardId) => {
+        if (!onToggleMultiBoard) return;
+        const set = new Set(selectedBoardIds || []);
+        if (set.has(boardId)) set.delete(boardId); else set.add(boardId);
+        const next = Array.from(set);
+        if (next.length === 0) {
+            onToggleMultiBoard(false, []);
+        } else {
+            onToggleMultiBoard(true, next);
+        }
+    };
+
+    const handleToggleCombinedView = () => {
+        if (!onToggleMultiBoard) return;
+        if (multiBoardMode) {
+            onToggleMultiBoard(false, []);
+        } else {
+            // Start combined view with the current board pre-selected
+            onToggleMultiBoard(true, currentBoardId ? [currentBoardId] : []);
+        }
+    };
 
     useEffect(() => {
         if (!isOpen) return;
@@ -66,9 +88,16 @@ const BoardSelector = () => {
                     fontWeight: 600,
                     whiteSpace: 'nowrap'
                 }}>
-                    {currentBoard?.name || 'Board'}
+                    {multiBoardMode
+                        ? `Combined view (${selectedBoardIds?.length || 0})`
+                        : (currentBoard?.name || 'Board')}
                 </span>
-                {currentBoard?.trelloSync?.trelloBoardId && (
+                {multiBoardMode && (
+                    <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-secondary)', padding: '2px 6px', borderRadius: 'var(--radius-sm)', flexShrink: 0 }} title="Combined view is read-only">
+                        Read-only
+                    </span>
+                )}
+                {!multiBoardMode && currentBoard?.trelloSync?.trelloBoardId && (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{flexShrink:0,opacity:0.6}} title="Synced with Trello">
                         <rect x="1" y="1" width="22" height="22" rx="3" fill="#0079BF"/>
                         <rect x="4" y="4" width="7" height="14" rx="1.5" fill="white"/>
@@ -94,11 +123,33 @@ const BoardSelector = () => {
                     zIndex: 1000,
                     overflow: 'hidden'
                 }}>
-                    <div style={{ padding: '6px 12px 4px', borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ padding: '6px 12px 4px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Boards</span>
+                        {onToggleMultiBoard && boards.length > 1 && (
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)' }} title="Read-only view combining tasks from multiple boards">
+                                <input
+                                    type="checkbox"
+                                    checked={!!multiBoardMode}
+                                    onChange={handleToggleCombinedView}
+                                    style={{ cursor: 'pointer' }}
+                                />
+                                Combined view
+                            </label>
+                        )}
                     </div>
                     <div style={{ padding: '4px 0', maxHeight: 300, overflowY: 'auto' }}>
-                        {boards.map(board => (
+                        {boards.map(board => {
+                            const isSelectedInCombined = multiBoardMode && (selectedBoardIds || []).includes(board.id);
+                            const rowActive = multiBoardMode ? isSelectedInCombined : board.id === currentBoardId;
+                            const onRowClick = () => {
+                                if (multiBoardMode) {
+                                    toggleBoardSelection(board.id);
+                                } else {
+                                    onSwitchBoard(board.id);
+                                    setIsOpen(false);
+                                }
+                            };
+                            return (
                             <div
                                 key={board.id}
                                 style={{
@@ -107,21 +158,29 @@ const BoardSelector = () => {
                                     justifyContent: 'space-between',
                                     padding: '8px 12px',
                                     cursor: 'pointer',
-                                    background: board.id === currentBoardId ? 'var(--accent-light)' : 'transparent',
+                                    background: rowActive ? 'var(--accent-light)' : 'transparent',
                                     transition: 'background 0.1s'
                                 }}
-                                onMouseEnter={e => { if (board.id !== currentBoardId) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-                                onMouseLeave={e => { if (board.id !== currentBoardId) e.currentTarget.style.background = 'transparent'; }}
-                                onClick={() => { onSwitchBoard(board.id); setIsOpen(false); }}
+                                onMouseEnter={e => { if (!rowActive) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                                onMouseLeave={e => { if (!rowActive) e.currentTarget.style.background = 'transparent'; }}
+                                onClick={onRowClick}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', flex: 1 }}>
-                                    {board.id === currentBoardId && (
+                                    {multiBoardMode ? (
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelectedInCombined}
+                                            onChange={() => toggleBoardSelection(board.id)}
+                                            onClick={(e) => e.stopPropagation()}
+                                            style={{ cursor: 'pointer', flexShrink: 0 }}
+                                        />
+                                    ) : board.id === currentBoardId && (
                                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }}/>
                                     )}
                                     <span style={{
                                         fontSize: 13,
-                                        fontWeight: board.id === currentBoardId ? 600 : 400,
-                                        color: board.id === currentBoardId ? 'var(--accent)' : 'var(--text-primary)',
+                                        fontWeight: rowActive ? 600 : 400,
+                                        color: rowActive ? 'var(--accent)' : 'var(--text-primary)',
                                         overflow: 'hidden',
                                         textOverflow: 'ellipsis',
                                         whiteSpace: 'nowrap'
@@ -139,25 +198,28 @@ const BoardSelector = () => {
                                         {board.tasks?.length || 0}
                                     </span>
                                 </div>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setSettingsBoard(board); setIsOpen(false); }}
-                                    style={{
-                                        padding: 4,
-                                        borderRadius: 'var(--radius-sm)',
-                                        border: 'none',
-                                        background: 'transparent',
-                                        color: 'var(--text-muted)',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        flexShrink: 0
-                                    }}
-                                    title="Board settings"
-                                >
-                                    <Icon.Settings size={13}/>
-                                </button>
+                                {!multiBoardMode && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSettingsBoard(board); setIsOpen(false); }}
+                                        style={{
+                                            padding: 4,
+                                            borderRadius: 'var(--radius-sm)',
+                                            border: 'none',
+                                            background: 'transparent',
+                                            color: 'var(--text-muted)',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            flexShrink: 0
+                                        }}
+                                        title="Board settings"
+                                    >
+                                        <Icon.Settings size={13}/>
+                                    </button>
+                                )}
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
 
                     <div style={{ borderTop: '1px solid var(--border)', padding: 8 }}>

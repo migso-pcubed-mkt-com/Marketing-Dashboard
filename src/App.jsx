@@ -118,9 +118,6 @@ const App = () => {
         return boardData.boards.find(b => b.id === currentBoardId) || boardData.boards[0];
     }, [boardData, currentBoardId]);
 
-    const categories = currentBoard?.categories || CONFIG.CATEGORIES;
-    const actions = currentBoard?.actions || DEFAULT_ACTIONS;
-    const tasks = currentBoard?.tasks || DEFAULT_TASKS;
     const boards = boardData?.boards || [];
 
     // --- Filters, archive filtering, and derived filter state ---
@@ -138,6 +135,18 @@ const App = () => {
     const effectiveMembers = multiBoardMode
         ? multiBoardData.members
         : (currentBoard?.members || []);
+
+    // When multi-board mode is active, views read from the merged read-only data.
+    // Otherwise they read from the active board.
+    const categories = multiBoardMode
+        ? multiBoardData.categories
+        : (currentBoard?.categories || CONFIG.CATEGORIES);
+    const actions = multiBoardMode
+        ? multiBoardData.actions
+        : (currentBoard?.actions || DEFAULT_ACTIONS);
+    const tasks = multiBoardMode
+        ? multiBoardData.tasks
+        : (currentBoard?.tasks || DEFAULT_TASKS);
 
     // Read-only when: (a) guest on Trello-linked board, (b) user has no access to linked Trello board, or (c) multi-board combined view
     const isAccessDenied = currentBoard?.id ? accessDeniedBoardIds.has(currentBoard.id) : false;

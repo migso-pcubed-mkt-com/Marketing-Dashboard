@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-21 (Timeline vertical drag with pinned swimLane + right-click reset)
+> Last updated: 2026-04-21 (Multi-board combined view UI wired + source-board badge on task cards)
 
 ---
 
@@ -325,6 +325,10 @@ After removing categories whose Trello lists are archived/deleted, `listToCatId`
 
 ### TimelineView — TDZ (Temporal Dead Zone)
 `colWidth` must be declared **before** any `useCallback` that references it. Same for `getTaskPosition`, `calculateSwimLanes`, `dateToPixel`, `pixelToDate`. Current order in `TimelineView.jsx`: `colWidth` (~line 29) → `getCenterDate` → `scrollToDate` → helpers → handlers.
+
+### Multi-board combined view (read-only)
+
+When `multiBoardMode` is on, `App.jsx` derives `categories`/`actions`/`tasks`/`effectiveMembers` from `useMultiBoardData(selectedBoardIds, boards)` instead of `currentBoard`. Views receive the merged entities (each tagged with `_sourceBoardId`/`_sourceBoardName`/`_sourceBoardColor`) and render a 6px colored dot on each `TaskCard` so users can trace cards back to their source board. `isReadOnly` is true throughout combined view — handlers refuse mutations. BoardSelector exposes a "Combined view" checkbox in the dropdown header; when on, row clicks toggle selection instead of switching boards.
 
 ### TimelineView — swimLane pinning (local-only)
 Tasks can be pinned to a specific lane via `task.swimLane: number`. `calculateSwimLanes` in `useTimelineHelpers.js` runs in two phases: (1) place pinned tasks in their explicit lane (collisions between pinned tasks at the same lane are allowed — user chose it), (2) auto-place the rest in the first free lane. Shift+drop in `handleActionRowDrop` pins to the lane under the cursor; cross-action drops always reset `swimLane` to `undefined`. Right-click on a pinned bar resets the lane. `swimLane` is local-only and is NOT included in any `trelloMapping` push payload — do NOT add it to `mapTaskToTrelloCardUpdate` or `buildSelectiveTaskUpdate`.

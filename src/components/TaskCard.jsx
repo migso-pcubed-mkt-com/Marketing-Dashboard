@@ -103,7 +103,12 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
             onClick={() => onOpen(task)}
             className={`kanban-card ${task.status === 'completed' ? 'completed' : ''} ${touching ? 'touch-dragging' : ''} ${dragOverPosition === 'before' ? 'drop-indicator-before' : dragOverPosition === 'after' ? 'drop-indicator-after' : ''}`}>
             <div className="card-header">
-                <div className="card-title" style={task.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : task.trelloArchived ? {color:'var(--text-muted)'} : {}}>{task.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{task.title}</div>
+                <div className="card-title" style={task.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : task.trelloArchived ? {color:'var(--text-muted)'} : {}}>
+                    {task._sourceBoardColor && (
+                        <span title={`Board: ${task._sourceBoardName || ''}`} style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:task._sourceBoardColor,marginRight:6,verticalAlign:'middle'}}/>
+                    )}
+                    {task.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{task.title}
+                </div>
                 <div className={`card-priority ${task.priority}`}/>
             </div>
             {(task.channels || action?.tags || []).length > 0 && <div className="card-tags">
