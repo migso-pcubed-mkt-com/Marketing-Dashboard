@@ -120,13 +120,6 @@ const App = () => {
 
     const boards = boardData?.boards || [];
 
-    // --- Filters, archive filtering, and derived filter state ---
-    const { filters, setFilters, showFilterSidebar, setShowFilterSidebar, searchInputRef, visibleTasks, visibleActions, activeFilterCount, filteredTasks, filteredBudget, isFiltered } = useFilters(tasks, actions);
-
-    // --- Undo/Redo + History panel ---
-    const { pushState, undo, redo, jumpTo, clear: clearHistory, getHistory, suspend: suspendHistory, resume: resumeHistory, canUndo, canRedo, isUndoRedoRef, currentIndex: historyCurrentIndex } = useUndoRedo(setBoardData);
-    const [showHistoryPanel, setShowHistoryPanel] = useState(false);
-
     // --- Multi-board merged data ---
     const multiBoardData = useMultiBoardData(
         multiBoardMode ? selectedBoardIds : [],
@@ -147,6 +140,13 @@ const App = () => {
     const tasks = multiBoardMode
         ? multiBoardData.tasks
         : (currentBoard?.tasks || DEFAULT_TASKS);
+
+    // --- Filters, archive filtering, and derived filter state ---
+    const { filters, setFilters, showFilterSidebar, setShowFilterSidebar, searchInputRef, visibleTasks, visibleActions, activeFilterCount, filteredTasks, filteredBudget, isFiltered } = useFilters(tasks, actions);
+
+    // --- Undo/Redo + History panel ---
+    const { pushState, undo, redo, jumpTo, clear: clearHistory, getHistory, suspend: suspendHistory, resume: resumeHistory, canUndo, canRedo, isUndoRedoRef, currentIndex: historyCurrentIndex } = useUndoRedo(setBoardData);
+    const [showHistoryPanel, setShowHistoryPanel] = useState(false);
 
     // Read-only when: (a) guest on Trello-linked board, (b) user has no access to linked Trello board, or (c) multi-board combined view
     const isAccessDenied = currentBoard?.id ? accessDeniedBoardIds.has(currentBoard.id) : false;
