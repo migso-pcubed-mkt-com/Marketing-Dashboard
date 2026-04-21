@@ -22,6 +22,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import OnboardingOverlay from './components/OnboardingOverlay.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
 import FilterSidebar from './components/FilterSidebar.jsx';
+import HistoryPanel from './components/HistoryPanel.jsx';
 import AuthGate from './components/AuthGate.jsx';
 import { ViewSkeleton } from './components/Skeletons.jsx';
 import { useFilters } from './hooks/useFilters.js';
@@ -87,6 +88,8 @@ const App = () => {
     const [showTrelloExport, setShowTrelloExport] = useState(false);
     const [multiBoardMode, setMultiBoardMode] = useState(false);
     const [selectedBoardIds, setSelectedBoardIds] = useState([]);
+    // Session-only flag: board IDs the current user has no Trello access to (403/404). Not persisted.
+    const [accessDeniedBoardIds, setAccessDeniedBoardIds] = useState(() => new Set());
     const [trelloSyncStatus, setTrelloSyncStatus] = useState('idle'); // idle | syncing | synced | error
     const [trelloUser, setTrelloUser] = useState(null); // null = guest, or { id, fullName, username, avatarUrl, token }
     const [authenticated, setAuthenticated] = useState(() => {
@@ -115,16 +118,14 @@ const App = () => {
         return boardData.boards.find(b => b.id === currentBoardId) || boardData.boards[0];
     }, [boardData, currentBoardId]);
 
-    const categories = currentBoard?.categories || CONFIG.CATEGORIES;
-    const actions = currentBoard?.actions || DEFAULT_ACTIONS;
-    const tasks = currentBoard?.tasks || DEFAULT_TASKS;
     const boards = boardData?.boards || [];
 
     // --- Filters, archive filtering, and derived filter state ---
     const { filters, setFilters, showFilterSidebar, setShowFilterSidebar, searchInputRef, visibleTasks, visibleActions, activeFilterCount, filteredTasks, filteredBudget, isFiltered } = useFilters(tasks, actions);
 
-    // --- Undo/Redo ---
-    const { pushState, undo, redo, canUndo, canRedo, isUndoRedoRef } = useUndoRedo(setBoardData);
+    // --- Undo/Redo + History panel ---
+    const { pushState, undo, redo, jumpTo, clear: clearHistory, getHistory, suspend: suspendHistory, resume: resumeHistory, canUndo, canRedo, isUndoRedoRef, currentIndex: historyCurrentIndex } = useUndoRedo(setBoardData);
+    const [showHistoryPanel, setShowHistoryPanel] = useState(false);
 
     // --- Multi-board merged data ---
     const multiBoardData = useMultiBoardData(
@@ -135,8 +136,23 @@ const App = () => {
         ? multiBoardData.members
         : (currentBoard?.members || []);
 
-    // Guest users are read-only on Trello-linked boards (can edit non-Trello boards)
-    const isReadOnly = !trelloUser && !!currentBoard?.trelloSync?.trelloBoardId;
+    // When multi-board mode is active, views read from the merged read-only data.
+    // Otherwise they read from the active board.
+    const categories = multiBoardMode
+        ? multiBoardData.categories
+        : (currentBoard?.categories || CONFIG.CATEGORIES);
+    const actions = multiBoardMode
+        ? multiBoardData.actions
+        : (currentBoard?.actions || DEFAULT_ACTIONS);
+    const tasks = multiBoardMode
+        ? multiBoardData.tasks
+        : (currentBoard?.tasks || DEFAULT_TASKS);
+
+    // Read-only when: (a) guest on Trello-linked board, (b) user has no access to linked Trello board, or (c) multi-board combined view
+    const isAccessDenied = currentBoard?.id ? accessDeniedBoardIds.has(currentBoard.id) : false;
+    const isReadOnly = (!trelloUser && !!currentBoard?.trelloSync?.trelloBoardId)
+        || isAccessDenied
+        || multiBoardMode;
 
     // --- Board-aware setters (wrapper functions) ---
     const updateCurrentBoard = useCallback((updater) => {
@@ -1206,6 +1222,7 @@ const App = () => {
         if (!navigator.onLine) return; // Skip sync when offline
         if (trelloSyncStatus === 'syncing') return; // Prevent concurrent syncs
         setTrelloSyncStatus('syncing');
+        suspendHistory();
         try {
             // Snapshot board before sync — allows recovery if sync corrupts data
             try {
@@ -1279,6 +1296,13 @@ const App = () => {
                     )
                 };
             });
+            // Clear stale access-denied flag on successful sync
+            setAccessDeniedBoardIds(prev => {
+                if (!prev.has(syncedBoard.id)) return prev;
+                const next = new Set(prev);
+                next.delete(syncedBoard.id);
+                return next;
+            });
             // Clear guard after auto-save has had time to complete (save debounce + network)
             setTimeout(() => { syncRealtimeGuardRef.current = false; }, 8000);
             setTrelloSyncStatus(result.errors > 0 ? 'error' : 'synced');
@@ -1323,7 +1347,28 @@ const App = () => {
         } catch (err) {
             console.error('Trello sync error:', err);
             setTrelloSyncStatus('error');
-            // Attempt auto-restore from snapshot on critical failure
+
+            // 401: token invalid/expired — global Trello logout
+            if (err.status === 401) {
+                showNotification('❌ Trello session expired — please reconnect');
+                handleTrelloLogout();
+                setTimeout(() => setTrelloSyncStatus('idle'), 5000);
+                return;
+            }
+
+            // 403/404: user OK but has no access to THIS board — switch to read-only, don't retry
+            if (err.status === 403 || err.status === 404) {
+                setAccessDeniedBoardIds(prev => {
+                    const next = new Set(prev);
+                    if (currentBoard?.id) next.add(currentBoard.id);
+                    return next;
+                });
+                showNotification(`⚠️ No access to linked Trello board — switched to read-only`);
+                setTimeout(() => setTrelloSyncStatus('idle'), 5000);
+                return;
+            }
+
+            // Other errors: attempt auto-restore from snapshot on critical failure
             try {
                 const snapshot = JSON.parse(localStorage.getItem('trello_sync_snapshot'));
                 if (snapshot?.board && Date.now() - snapshot.timestamp < 86400000) {
@@ -1339,8 +1384,10 @@ const App = () => {
                 showNotification(`❌ Trello sync failed: ${err.message}`);
             }
             setTimeout(() => setTrelloSyncStatus('idle'), 5000);
+        } finally {
+            resumeHistory();
         }
-    }, [currentBoard, trelloSyncStatus]);
+    }, [currentBoard, trelloSyncStatus, suspendHistory, resumeHistory, handleTrelloLogout]);
 
     // Keep ref pointing to latest handleTrelloSync (avoids stale closure in setInterval)
     useEffect(() => { handleTrelloSyncRef.current = handleTrelloSync; }, [handleTrelloSync]);
@@ -1371,6 +1418,25 @@ const App = () => {
             trelloSync: { ...b.trelloSync, ...updates }
         }));
     }, [updateCurrentBoard]);
+
+    // Remove Trello link from current board — returns it to fully-editable local mode
+    const handleUnlinkTrello = useCallback(() => {
+        if (!confirm('Unlink this board from Trello? Tasks and data will remain; sync will stop.')) return;
+        const boardId = currentBoard?.id;
+        updateCurrentBoard(b => {
+            const { trelloSync: _trelloSync, ...rest } = b;
+            return rest;
+        });
+        if (boardId) {
+            setAccessDeniedBoardIds(prev => {
+                if (!prev.has(boardId)) return prev;
+                const next = new Set(prev);
+                next.delete(boardId);
+                return next;
+            });
+        }
+        showNotification('✅ Board unlinked from Trello');
+    }, [currentBoard, updateCurrentBoard]);
 
     const handleAddNewTask = useCallback((newTask) => {
         if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Add task');
@@ -1485,6 +1551,12 @@ const App = () => {
                         ⚠️ This app is open in another tab — simultaneous edits may cause data conflicts.
                     </div>
                 )}
+                {isAccessDenied && (
+                    <div style={{background:'#f97316',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
+                        <span>🔒 You don't have access to the linked Trello board — read-only mode.</span>
+                        <button onClick={handleUnlinkTrello} style={{background:'#fff',color:'#f97316',border:'none',borderRadius:4,padding:'3px 10px',fontSize:12,fontWeight:600,cursor:'pointer'}}>Unlink Trello</button>
+                    </div>
+                )}
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync} isOffline={isOffline} realtimeConnected={realtimeConnected}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
                     <div className="toolbar">
@@ -1498,10 +1570,7 @@ const App = () => {
                             <span className="stat-pill"><strong>{isFiltered ? `${(filteredBudget/1000).toFixed(0)}k / ${(totalBudget/1000).toFixed(0)}k€` : `${(totalBudget/1000).toFixed(0)}k€`}</strong> budget</span>
                         </div>
                         <div className="toolbar-spacer"/>
-                        {!isReadOnly && <div style={{display:'flex',gap:2,marginRight:4}}>
-                            <button className="v11-btn-icon" onClick={() => { const label = undo(); if (label) showNotification('↩ Undo: ' + label); }} disabled={!canUndo} title="Undo (Ctrl+Z)" style={{padding:'6px 8px',opacity:canUndo?1:0.4,cursor:canUndo?'pointer':'default'}}><Icon.Undo size={13}/></button>
-                            <button className="v11-btn-icon" onClick={() => { const label = redo(); if (label) showNotification('↪ Redo: ' + label); }} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" style={{padding:'6px 8px',opacity:canRedo?1:0.4,cursor:canRedo?'pointer':'default'}}><Icon.Redo size={13}/></button>
-                        </div>}
+                        {!isReadOnly && <button className="v11-btn-icon" onClick={() => setShowHistoryPanel(true)} title="History" style={{padding:'6px 8px',marginRight:4,color:'var(--text-secondary)'}}><Icon.History size={14}/></button>}
                         <div className="new-btn-container" ref={exportDropdownRef}>
                             <button className="v11-btn-secondary" onClick={() => {setShowCreateDropdown(false);setShowExportDropdown(!showExportDropdown);}}><Icon.Download size={13}/><span>Export</span></button>
                             {showExportDropdown && <div className="dropdown-menu open" style={{minWidth:180}}>
@@ -1576,6 +1645,7 @@ const App = () => {
                 {showTrelloExport && <TrelloExportModal board={currentBoard} onClose={() => setShowTrelloExport(false)} onConnected={handleTrelloExportConnected}/>}
                 </Suspense>
                 <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={effectiveMembers} searchInputRef={searchInputRef} boardSources={multiBoardMode ? multiBoardData.boardSources : []}/>
+                <HistoryPanel show={showHistoryPanel} onClose={() => setShowHistoryPanel(false)} history={getHistory()} currentIndex={historyCurrentIndex} onJumpTo={(idx) => { const label = jumpTo(idx); if (label) showNotification('⏱ Jumped to: ' + label); }} onClear={() => { clearHistory(); showNotification('History cleared'); setShowHistoryPanel(false); }}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
                 {showOnboarding && <OnboardingOverlay onClose={() => { setShowOnboarding(false); localStorage.setItem('onboarding_done', '1'); }}/>}
             </div>

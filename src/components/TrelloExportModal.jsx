@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Icon } from './Icons.jsx';
 import { CONFIG, TRELLO_SYNC_MODES } from '../config.js';
 import {
     createTrelloBoard, createTrelloList, createTrelloCard,
     createTrelloBoardLabel, addTrelloCardLabel,
-    addTrelloChecklist
+    addTrelloChecklist, fetchTrelloOrganizations
 } from '../lib/trello.js';
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -18,11 +18,33 @@ const HEX_TO_TRELLO = {
 const hexToTrelloColor = (hex) => HEX_TO_TRELLO[(hex || '').toLowerCase()] || null;
 
 const TrelloExportModal = ({ board, onClose, onConnected }) => {
-    // step: mode | mapping | preview | pushing | done | error
+    // step: mode | workspace | preview | pushing | done | error
     const [step, setStep] = useState('mode');
     const [syncMode, setSyncMode] = useState('card-as-task');
     const [error, setError] = useState(null);
     const [progress, setProgress] = useState({ current: 0, total: 0, label: '' });
+    const [workspaces, setWorkspaces] = useState(null); // null = loading, [] = none, [...] = loaded
+    const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('');
+    const [workspaceError, setWorkspaceError] = useState(null);
+
+    // Fetch workspaces once when the modal opens
+    useEffect(() => {
+        let cancelled = false;
+        fetchTrelloOrganizations()
+            .then(orgs => {
+                if (cancelled) return;
+                const list = Array.isArray(orgs) ? orgs : [];
+                setWorkspaces(list);
+                if (list.length === 1) setSelectedWorkspaceId(list[0].id);
+            })
+            .catch(err => {
+                if (cancelled) return;
+                console.warn('Failed to fetch Trello workspaces:', err);
+                setWorkspaceError(err.message || 'Could not load Trello workspaces');
+                setWorkspaces([]);
+            });
+        return () => { cancelled = true; };
+    }, []);
 
     const categories = board.categories || [];
     const actions = board.actions || [];
@@ -71,7 +93,10 @@ const TrelloExportModal = ({ board, onClose, onConnected }) => {
         try {
             // 1. Create the Trello board
             updateProgress('Creating Trello board...');
-            const trelloBoard = await createTrelloBoard(board.name);
+            const trelloBoard = await createTrelloBoard(board.name, {
+                defaultLists: false,
+                idOrganization: selectedWorkspaceId || undefined
+            });
             await sleep(200);
 
             // 2. Create lists (one per category)
@@ -242,6 +267,7 @@ const TrelloExportModal = ({ board, onClose, onConnected }) => {
                 trelloBoardId: trelloBoard.id,
                 trelloBoardUrl: trelloBoard.url,
                 trelloBoardName: trelloBoard.name,
+                trelloBoardNameBaseline: trelloBoard.name, // baseline for bidirectional rename sync
                 syncEnabled: true,
                 syncMode,
                 pollIntervalMs: 120000,
@@ -329,6 +355,50 @@ const TrelloExportModal = ({ board, onClose, onConnected }) => {
                         </div>
                     )}
 
+                    {/* ─── WORKSPACE STEP ─── */}
+                    {step === 'workspace' && (
+                        <div>
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+                                Choose the Trello workspace that will own the new board.
+                            </p>
+                            {workspaceError && (
+                                <div style={{ background: '#fef2f2', color: '#dc2626', padding: '8px 12px', borderRadius: 'var(--radius-md)', fontSize: 12, marginBottom: 12 }}>
+                                    {workspaceError}
+                                </div>
+                            )}
+                            {workspaces === null && (
+                                <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '20px 0', textAlign: 'center' }}>Loading workspaces…</div>
+                            )}
+                            {workspaces && workspaces.length === 0 && !workspaceError && (
+                                <div style={{ background: 'var(--bg-secondary)', padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 13, color: 'var(--text-muted)' }}>
+                                    No workspaces found. The board will be created on your personal account.
+                                </div>
+                            )}
+                            {workspaces && workspaces.length > 0 && (
+                                <>
+                                    <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 8 }}>Workspace</label>
+                                    <select
+                                        value={selectedWorkspaceId}
+                                        onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                                        style={{
+                                            width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)',
+                                            border: '1px solid var(--border)', background: 'var(--bg-primary)',
+                                            color: 'var(--text-primary)', fontSize: 13
+                                        }}
+                                    >
+                                        <option value="">— Personal (no workspace) —</option>
+                                        {workspaces.map(ws => (
+                                            <option key={ws.id} value={ws.id}>{ws.displayName || ws.name}</option>
+                                        ))}
+                                    </select>
+                                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                                        Note: the workspace of a Trello board cannot be changed after creation on the free plan.
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                    )}
+
                     {/* ─── PREVIEW STEP ─── */}
                     {step === 'preview' && (
                         <div>
@@ -339,6 +409,14 @@ const TrelloExportModal = ({ board, onClose, onConnected }) => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                     <span style={{ color: 'var(--text-muted)' }}>Trello board</span>
                                     <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>"{board.name}"</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Workspace</span>
+                                    <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
+                                        {selectedWorkspaceId
+                                            ? (workspaces?.find(w => w.id === selectedWorkspaceId)?.displayName || workspaces?.find(w => w.id === selectedWorkspaceId)?.name || 'Selected')
+                                            : 'Personal'}
+                                    </span>
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                     <span style={{ color: 'var(--text-muted)' }}>Lists (categories)</span>
@@ -425,14 +503,29 @@ const TrelloExportModal = ({ board, onClose, onConnected }) => {
                             <button onClick={onClose} style={{ flex: 1, padding: '10px 0', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
                                 Cancel
                             </button>
-                            <button onClick={() => setStep('preview')} style={{ flex: 1, padding: '10px 0', borderRadius: 'var(--radius-md)', border: 'none', background: '#0079BF', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                            <button onClick={() => setStep('workspace')} style={{ flex: 1, padding: '10px 0', borderRadius: 'var(--radius-md)', border: 'none', background: '#0079BF', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                                Next
+                            </button>
+                        </>
+                    )}
+                    {step === 'workspace' && (
+                        <>
+                            <button onClick={() => setStep('mode')} style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                                Back
+                            </button>
+                            <div style={{ flex: 1 }}/>
+                            <button
+                                onClick={() => setStep('preview')}
+                                disabled={workspaces === null}
+                                style={{ padding: '10px 24px', borderRadius: 'var(--radius-md)', border: 'none', background: '#0079BF', color: 'white', fontSize: 13, fontWeight: 600, cursor: workspaces === null ? 'default' : 'pointer', opacity: workspaces === null ? 0.6 : 1 }}
+                            >
                                 Next
                             </button>
                         </>
                     )}
                     {step === 'preview' && (
                         <>
-                            <button onClick={() => setStep('mode')} style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+                            <button onClick={() => setStep('workspace')} style={{ padding: '10px 16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
                                 Back
                             </button>
                             <div style={{ flex: 1 }}/>

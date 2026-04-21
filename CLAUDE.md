@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-21 (Reduce snapshot ring buffer 3→1 to stop saturating localStorage quota)
+> Last updated: 2026-04-21 (Styled Kanban + Timeline Excel exports via exceljs)
 
 ---
 
@@ -92,10 +92,12 @@ src/
 │   ├── OnboardingOverlay.jsx   # First-run tour (4 steps, localStorage)
 │   ├── Skeletons.jsx           # Loading skeletons for lazy-loaded views (Suspense fallback)
 │   ├── VirtualKanbanCards.jsx  # Virtualized card list (@tanstack/react-virtual, threshold 50)
+│   ├── HistoryPanel.jsx        # Side panel for undo/redo history, replaces arrow buttons — jump to any snapshot
 │   ├── timeline/               # TimelineHeader.jsx, TimelineBar.jsx, useTimelineHelpers.js
 │   └── action-detail/          # CommentsSection.jsx, AttachmentsSection.jsx
 ├── hooks/
 │   ├── useFilters.js    # Filter state + derived filter logic (extracted from App.jsx)
+│   ├── useUndoRedo.js   # History ring buffer (MAX=60), timestamps, jumpTo/suspend/resume/getHistory
 │   ├── useFocusTrap.ts  # Focus trap for modals (TypeScript)
 │   └── useTouchDrag.ts  # Touch DnD hook (long-press 300ms, TypeScript)
 ├── __tests__/           # Vitest unit tests (536 tests, 17 files)
@@ -248,6 +250,14 @@ When a card is moved between lists on Trello, `mergeCardIntoTask()` detects the 
 
 Category names are synced bidirectionally in both modes. Push: local rename → Trello list renamed. Pull: Trello list renamed → local category renamed. Uses timestamp-based "last write wins" like all other fields.
 
+### Board name sync (baseline, both modes)
+
+Bidirectional sync of the board name via `resolveBoardNameSync(localName, trelloName, baseline, boardId, {readOnly})` in `trelloSync.js`. Baseline (`trelloSync.trelloBoardNameBaseline`) is the last-synced Trello name. On each sync: if only Trello changed → pull; if only local changed → push via `updateTrelloBoard`; both changed → keep local + warn (conflict); first sync with no baseline → initialize from Trello without push/pull. Trello exposes no per-field timestamps, so baseline comparison is the only reliable signal. Read-only users (guest + linked board) skip the push branch.
+
+### Workspace selection on export
+
+`TrelloExportModal.jsx` fetches organizations via `fetchTrelloOrganizations()` and lets the user pick a workspace (or "Personal — no workspace") before creating the board. `createTrelloBoard(name, {idOrganization, defaultLists})` accepts the org id. Personal boards are created without `idOrganization`. If the user has no workspaces, the step is skipped and the board goes to Personal.
+
 ### Sync robustness
 
 - **Sync lock**: module-level `syncInProgress` flag + 15s auto-timeout in `trelloSync.js`. Exported via `isSyncInProgress()` — auto-save defers while sync is running.
@@ -315,6 +325,19 @@ After removing categories whose Trello lists are archived/deleted, `listToCatId`
 
 ### TimelineView — TDZ (Temporal Dead Zone)
 `colWidth` must be declared **before** any `useCallback` that references it. Same for `getTaskPosition`, `calculateSwimLanes`, `dateToPixel`, `pixelToDate`. Current order in `TimelineView.jsx`: `colWidth` (~line 29) → `getCenterDate` → `scrollToDate` → helpers → handlers.
+
+### Multi-board combined view (read-only)
+
+When `multiBoardMode` is on, `App.jsx` derives `categories`/`actions`/`tasks`/`effectiveMembers` from `useMultiBoardData(selectedBoardIds, boards)` instead of `currentBoard`. Views receive the merged entities (each tagged with `_sourceBoardId`/`_sourceBoardName`/`_sourceBoardColor`) and render a 6px colored dot on each `TaskCard` so users can trace cards back to their source board. `isReadOnly` is true throughout combined view — handlers refuse mutations. BoardSelector exposes a "Combined view" checkbox in the dropdown header; when on, row clicks toggle selection instead of switching boards.
+
+### TimelineView — swimLane pinning (local-only)
+Tasks can be pinned to a specific lane via `task.swimLane: number`. `calculateSwimLanes` in `useTimelineHelpers.js` runs in two phases: (1) place pinned tasks in their explicit lane (collisions between pinned tasks at the same lane are allowed — user chose it), (2) auto-place the rest in the first free lane. Shift+drop in `handleActionRowDrop` pins to the lane under the cursor; cross-action drops always reset `swimLane` to `undefined`. Right-click on a pinned bar resets the lane. `swimLane` is local-only and is NOT included in any `trelloMapping` push payload — do NOT add it to `mapTaskToTrelloCardUpdate` or `buildSelectiveTaskUpdate`.
+
+### Excel export — exceljs for Kanban + Timeline, xlsx for Calendar
+`src/lib/excelExport.js` exports `exportKanbanXlsx` / `exportTimelineXlsx` (both async, backed by `buildKanbanWorkbook` / `buildTimelineWorkbook` which return a raw `ExcelJS.Workbook` for tests) and `exportCalendarXlsx` (sync, still on `xlsx`). Kanban: one styled column per category with a coloured header (`cat.color` as fill) and task cards with a status-coloured thick left border on a light-gray fill. Timeline: frozen header + 3 frozen label columns, category-coloured band rows merged across all 15 columns, Gantt bars merged across the task's month range and filled with `statusColor(task.status)`. `exceljs` is imported via dynamic `import('exceljs')` inside each builder so it only lands in the bundle when an export is invoked (separate chunk ~271 KB gzipped). Do NOT move Calendar to exceljs — the month-per-sheet layout doesn't benefit from styling and duplicating the logic costs bundle size.
+
+### Excel import — multi-level grid detection + manual review
+`excelMapping.js` exposes `analyzeGridRows` (indent/merge/country signals per row) + `autoAssignLevels` (assigns `super`/`category`/`action`/`task` per row) + `buildGridHierarchy` (flattens to app's 3-level model). `ExcelImportModal` runs grid imports through a `review` step between sheet selection and preview: users can override any row's level in a table and use "Apply to similar" to broadcast the change to every row at the same indentation. Countries (France/UK/Spain/USA + EN/FR/DE aliases) matched at the shallowest header depth are tagged as `super` with `countryId`, and the country code is propagated to descendant tasks' `countries[]`. When `shallowestIsSuper` is detected (country label or wide merge ≥ ~firstMonthCol), the depth-to-level map shifts so the next depth is still `category` (not `action`). Non-country super names prefix child category names (e.g., "Corporate - Marketing") unless the user ticks "Flatten super-categories".
 
 ### GitHub SHA conflicts
 Always fetch latest SHA before PUT. Auto-resolve on 409/sha-mismatch: re-fetch then retry.
@@ -469,6 +492,7 @@ The callback logic lives in `public/trello-callback.js`, referenced by `public/t
 - Trello token → `localStorage('trello_user_token')` | Guest → `sessionStorage('guest_auth')` (expires on tab close)
 - `robots.txt` + `<meta noindex>` block search engine crawling
 - **Guest + Trello board**: read-only mode (no pushes to Trello)
+- **Trello access denied (403/404)**: `accessDeniedBoardIds` Set in `App.jsx` (session-only, never persisted). Orange banner + Unlink action button. Auto-cleared on next successful sync. 401 triggers full `handleTrelloLogout`.
 
 ---
 

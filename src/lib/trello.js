@@ -39,7 +39,9 @@ const trelloFetch = async (url, options = {}, retries = 3) => {
                 const error = await response.json().catch(() => ({ error: response.statusText }));
                 const baseMsg = error.error || error.message || `Trello API error: ${response.status}`;
                 const detail = error.details ? ` (${typeof error.details === 'string' ? error.details : JSON.stringify(error.details)})` : '';
-                throw new Error(baseMsg + detail);
+                const err = new Error(baseMsg + detail);
+                err.status = response.status;
+                throw err;
             }
             return response.json();
         } catch (err) {
@@ -199,11 +201,30 @@ export const createTrelloList = (boardId, name, pos) =>
         body: JSON.stringify({ boardId, name, pos })
     });
 
-// Create a new Trello board
-export const createTrelloBoard = (name, defaultLists = false) =>
-    trelloFetch(`${API_BASE_URL}/api/trello?action=createBoard`, {
+// Create a new Trello board. Accepts legacy positional defaultLists boolean, or an options object.
+export const createTrelloBoard = (name, optionsOrDefaultLists = false) => {
+    const opts = typeof optionsOrDefaultLists === 'object' && optionsOrDefaultLists !== null
+        ? optionsOrDefaultLists
+        : { defaultLists: optionsOrDefaultLists };
+    return trelloFetch(`${API_BASE_URL}/api/trello?action=createBoard`, {
         method: 'POST',
-        body: JSON.stringify({ name, defaultLists })
+        body: JSON.stringify({
+            name,
+            defaultLists: !!opts.defaultLists,
+            ...(opts.idOrganization ? { idOrganization: opts.idOrganization } : {})
+        })
+    });
+};
+
+// List the authenticated user's Trello workspaces (organizations)
+export const fetchTrelloOrganizations = () =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=organizations`);
+
+// Update a Trello board's fields (currently: name)
+export const updateTrelloBoard = (boardId, { name } = {}) =>
+    trelloFetch(`${API_BASE_URL}/api/trello?action=updateBoard`, {
+        method: 'PUT',
+        body: JSON.stringify({ boardId, ...(name !== undefined ? { name } : {}) })
     });
 
 // Check if Trello is configured (try fetching boards)

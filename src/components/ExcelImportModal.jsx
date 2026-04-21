@@ -1,6 +1,22 @@
 import { useState, useRef, useCallback } from 'react';
 import { Icon } from './Icons.jsx';
-import { parseWorkbook, detectFormat, detectColumnMappings, parseGrid, parseList } from '../lib/excelMapping.js';
+import { parseWorkbook, detectFormat, detectColumnMappings, parseGrid, parseList, analyzeGridRows, autoAssignLevels, buildGridHierarchy } from '../lib/excelMapping.js';
+
+const LEVEL_OPTIONS = [
+    { value: 'super', label: 'Super-category' },
+    { value: 'category', label: 'Category' },
+    { value: 'action', label: 'Action' },
+    { value: 'task', label: 'Task' },
+    { value: 'ignore', label: 'Ignore' }
+];
+
+const LEVEL_COLORS = {
+    super: '#8b5cf6',
+    category: '#6366f1',
+    action: '#f59e0b',
+    task: '#22c55e',
+    ignore: '#94a3b8'
+};
 
 const FIELD_OPTIONS = [
     { value: '', label: '— Ignore —' },
@@ -18,7 +34,7 @@ const FIELD_OPTIONS = [
 ];
 
 const ExcelImportModal = ({ onClose, onImport }) => {
-    // step: upload | sheet | format | mapping | preview
+    // step: upload | sheet | format | mapping | review | preview
     const [step, setStep] = useState('upload');
     const [workbook, setWorkbook] = useState(null);
     const [selectedSheet, setSelectedSheet] = useState(0);
@@ -28,6 +44,10 @@ const ExcelImportModal = ({ onClose, onImport }) => {
     const [boardName, setBoardName] = useState('');
     const [error, setError] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
+    // Grid review step state
+    const [gridAnalysis, setGridAnalysis] = useState(null);
+    const [leveledRows, setLeveledRows] = useState([]);
+    const [flattenSuper, setFlattenSuper] = useState(false);
     const fileInputRef = useRef(null);
 
     // ─── Step 1: File Upload ─────────────────────────────
@@ -46,26 +66,7 @@ const ExcelImportModal = ({ onClose, onImport }) => {
             if (wb.sheets.length === 1) {
                 // Skip sheet selection
                 setSelectedSheet(0);
-                const detected = detectFormat(wb.sheets[0].data);
-                setFormat(detected);
-                if (detected === 'list') {
-                    const mappings = detectColumnMappings(wb.sheets[0].data[0]);
-                    setColumnMappings(mappings);
-                    setStep('mapping');
-                } else {
-                    // Grid: skip mapping, go to preview directly
-                    const result = parseGrid(wb.sheets[0].data, wb.sheets[0].merges);
-                    if (result) {
-                        setPreview(result);
-                        setStep('preview');
-                    } else {
-                        // Fallback to list
-                        setFormat('list');
-                        const mappings = detectColumnMappings(wb.sheets[0].data[0]);
-                        setColumnMappings(mappings);
-                        setStep('mapping');
-                    }
-                }
+                goToFormatStep(wb.sheets[0]);
             } else {
                 setStep('sheet');
             }
@@ -84,7 +85,11 @@ const ExcelImportModal = ({ onClose, onImport }) => {
     // ─── Step 2: Sheet Selection ─────────────────────────
     const handleSheetSelect = (idx) => {
         setSelectedSheet(idx);
-        const sheet = workbook.sheets[idx];
+        goToFormatStep(workbook.sheets[idx]);
+    };
+
+    // Helper: branch into review (grid) or mapping (list) once a sheet is picked.
+    const goToFormatStep = (sheet) => {
         const detected = detectFormat(sheet.data);
         setFormat(detected);
         if (detected === 'list') {
@@ -92,10 +97,11 @@ const ExcelImportModal = ({ onClose, onImport }) => {
             setColumnMappings(mappings);
             setStep('mapping');
         } else {
-            const result = parseGrid(sheet.data, sheet.merges);
-            if (result) {
-                setPreview(result);
-                setStep('preview');
+            const analysis = analyzeGridRows(sheet.data, sheet.merges);
+            if (analysis) {
+                setGridAnalysis(analysis);
+                setLeveledRows(autoAssignLevels(analysis));
+                setStep('review');
             } else {
                 setFormat('list');
                 const mappings = detectColumnMappings(sheet.data[0]);
@@ -103,6 +109,28 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                 setStep('mapping');
             }
         }
+    };
+
+    // ─── Review step (grid): per-row level override ──────
+    const setRowLevel = (rowIdx, newLevel) => {
+        setLeveledRows(rows => rows.map(r => r.rowIdx === rowIdx ? { ...r, level: newLevel } : r));
+    };
+
+    const applyLevelToSimilarRows = (rowIdx, newLevel) => {
+        const target = leveledRows.find(r => r.rowIdx === rowIdx);
+        if (!target) return;
+        setLeveledRows(rows => rows.map(r => (
+            r.depth === target.depth && r.hasMonthContent === target.hasMonthContent
+                ? { ...r, level: newLevel }
+                : r
+        )));
+    };
+
+    const handleReviewToPreview = () => {
+        const sheet = workbook.sheets[selectedSheet];
+        const result = buildGridHierarchy(sheet.data, gridAnalysis, leveledRows, { flattenSuper });
+        setPreview(result);
+        setStep('preview');
     };
 
     // ─── Step 3: Column Mapping (list mode) ──────────────
@@ -125,6 +153,14 @@ const ExcelImportModal = ({ onClose, onImport }) => {
     const handleProceedToPreview = () => {
         const sheet = workbook.sheets[selectedSheet];
         if (format === 'grid') {
+            // Route grid through the review step so users can adjust levels
+            const analysis = analyzeGridRows(sheet.data, sheet.merges);
+            if (analysis) {
+                setGridAnalysis(analysis);
+                setLeveledRows(autoAssignLevels(analysis));
+                setStep('review');
+                return;
+            }
             const result = parseGrid(sheet.data, sheet.merges);
             setPreview(result);
         } else {
@@ -160,7 +196,7 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                     <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
                         Import from Excel
                         {step !== 'upload' && <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
-                            {step === 'sheet' ? '— Select sheet' : step === 'mapping' ? '— Map columns' : step === 'preview' ? '— Preview' : ''}
+                            {step === 'sheet' ? '— Select sheet' : step === 'mapping' ? '— Map columns' : step === 'review' ? '— Review structure' : step === 'preview' ? '— Preview' : ''}
                         </span>}
                     </h2>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
@@ -316,6 +352,61 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                         </div>
                     )}
 
+                    {/* ─── GRID REVIEW STEP ─── */}
+                    {step === 'review' && gridAnalysis && (
+                        <div>
+                            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
+                                We detected a multi-level structure. Adjust any row whose level is wrong — click&nbsp;
+                                <em>Apply to similar</em> to broadcast a change to rows of the same indentation.
+                            </p>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                                <input type="checkbox" checked={flattenSuper} onChange={e => setFlattenSuper(e.target.checked)} />
+                                Flatten super-categories (create a separate category per super, instead of prefixing child names)
+                            </label>
+                            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', maxHeight: 360, overflowY: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                                    <thead>
+                                        <tr>
+                                            <th style={{ position: 'sticky', top: 0, padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Label</th>
+                                            <th style={{ position: 'sticky', top: 0, padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', width: 130 }}>Level</th>
+                                            <th style={{ position: 'sticky', top: 0, padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', width: 120 }}></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {leveledRows.map(r => (
+                                            <tr key={r.rowIdx}>
+                                                <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', whiteSpace: 'nowrap', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    <span style={{ display: 'inline-block', width: r.depth * 12, verticalAlign: 'middle' }} />
+                                                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: LEVEL_COLORS[r.level] || 'var(--border)', marginRight: 6, verticalAlign: 'middle' }} />
+                                                    {r.label || <em style={{ color: 'var(--text-muted)' }}>(empty)</em>}
+                                                    {r.countryId && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'rgba(99,102,241,0.12)', color: 'var(--accent)', fontWeight: 600 }}>{r.countryId.toUpperCase()}</span>}
+                                                </td>
+                                                <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)' }}>
+                                                    <select
+                                                        value={r.level}
+                                                        onChange={e => setRowLevel(r.rowIdx, e.target.value)}
+                                                        style={{ width: '100%', padding: '3px 4px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 10 }}
+                                                    >
+                                                        {LEVEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                                    </select>
+                                                </td>
+                                                <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)' }}>
+                                                    <button
+                                                        onClick={() => applyLevelToSimilarRows(r.rowIdx, r.level)}
+                                                        title="Apply this level to every other row with the same indentation"
+                                                        style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                                                    >
+                                                        Apply to similar
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ─── PREVIEW STEP ─── */}
                     {step === 'preview' && (
                         <div>
@@ -395,7 +486,8 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                         <button
                             onClick={() => {
                                 if (step === 'preview' && format === 'list') setStep('mapping');
-                                else if (step === 'preview' && format === 'grid') setStep(workbook.sheets.length > 1 ? 'sheet' : 'upload');
+                                else if (step === 'preview' && format === 'grid') setStep('review');
+                                else if (step === 'review') setStep(workbook.sheets.length > 1 ? 'sheet' : 'upload');
                                 else if (step === 'mapping') setStep(workbook.sheets.length > 1 ? 'sheet' : 'upload');
                                 else if (step === 'sheet') setStep('upload');
                                 else setStep('upload');
@@ -429,6 +521,18 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                                 background: (columnMappings.title !== undefined) ? 'var(--accent)' : 'var(--bg-tertiary)',
                                 color: (columnMappings.title !== undefined) ? 'white' : 'var(--text-muted)',
                                 fontSize: 13, fontWeight: 500, cursor: (columnMappings.title !== undefined) ? 'pointer' : 'default'
+                            }}
+                        >
+                            Preview
+                        </button>
+                    )}
+                    {step === 'review' && (
+                        <button
+                            onClick={handleReviewToPreview}
+                            style={{
+                                padding: '10px 20px', borderRadius: 'var(--radius-md)', border: 'none',
+                                background: 'var(--accent)', color: 'white',
+                                fontSize: 13, fontWeight: 500, cursor: 'pointer'
                             }}
                         >
                             Preview

@@ -731,6 +731,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         e.preventDefault();
         e.stopPropagation();
 
+        const shiftHeld=e.shiftKey;
         cleanUpDragState();
 
         const taskId=e.dataTransfer.getData('taskId');
@@ -742,6 +743,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const rect=e.currentTarget.getBoundingClientRect();
         // getBoundingClientRect already accounts for parent scroll — no scrollOffset needed
         const absX=e.clientX-rect.left;
+        const mouseY=e.clientY-rect.top;
 
         let duration=1;
         if(draggedTask.startDate&&draggedTask.dueDate){
@@ -761,12 +763,19 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const startDate=fmt(snapDate);
         const dueDate=fmt(endDate);
 
+        // Shift+drop pins the task to the lane under the cursor (vertical pinning).
+        // Cross-action drops always reset swimLane (auto-placement in the new action).
+        const targetLane=Math.max(0,Math.floor((mouseY-8)/34));
+
         if(draggedTask.actionId===targetAction.id){
-            onUpdateTask(taskId,{startDate,dueDate});
+            const update={startDate,dueDate};
+            if(shiftHeld)update.swimLane=targetLane;
+            onUpdateTask(taskId,update);
         }else{
             const actionTasks=tasks.filter(t=>t.actionId===targetAction.id);
             const maxOrder=actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0)):0;
-            onUpdateTask(taskId,{actionId:targetAction.id,order:maxOrder+1,startDate,dueDate});
+            const update={actionId:targetAction.id,order:maxOrder+1,startDate,dueDate,swimLane:shiftHeld?targetLane:undefined};
+            onUpdateTask(taskId,update);
         }
     };
 
@@ -1050,7 +1059,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                         isDragOver={dragOverTask?.taskId===task.id} dragOverPosition={dragOverTask?.taskId===task.id?dragOverTask.position:null}
                                                         onOpenTask={onOpenTask} onDragStart={handleTaskDragStart} onDragEnd={handleTaskDragEnd}
                                                         onDragOver={handleTaskDragOver} onDragLeave={handleTaskDragLeave} onDrop={handleTaskDrop}
-                                                        onStartResize={startResize}/>
+                                                        onStartResize={startResize}
+                                                        onResetLane={(id)=>onUpdateTask(id,{swimLane:undefined})}/>
                                                 );
                                             })}
                                         </div>

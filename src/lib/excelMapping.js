@@ -83,6 +83,35 @@ export function detectFormat(sheetData) {
 // GRID / ROADMAP PARSING
 // ─────────────────────────────────────────────
 
+// Country aliases → country id (case-insensitive, punctuation-stripped)
+const COUNTRY_ALIASES = {
+    'global': 'global', 'world': 'global', 'worldwide': 'global', 'monde': 'global',
+    'australia': 'australia', 'australie': 'australia',
+    'canada': 'canada',
+    'france': 'france', 'fr': 'france', 'french': 'france',
+    'germany': 'germany', 'deutschland': 'germany', 'allemagne': 'germany', 'de': 'germany',
+    'india': 'india', 'inde': 'india',
+    'italy': 'italy', 'italia': 'italy', 'italie': 'italy', 'it': 'italy',
+    'mexico': 'mexico', 'méxico': 'mexico', 'mexique': 'mexico',
+    'netherlands': 'netherlands', 'pays bas': 'netherlands', 'paysbas': 'netherlands', 'holland': 'netherlands', 'nl': 'netherlands',
+    'portugal': 'portugal', 'pt': 'portugal',
+    'romania': 'romania', 'roumanie': 'romania', 'ro': 'romania',
+    'sea': 'southeast-asia', 'south east asia': 'southeast-asia', 'southeast asia': 'southeast-asia',
+    'spain': 'spain', 'espagne': 'spain', 'españa': 'spain', 'espana': 'spain', 'es': 'spain', 'sp': 'spain',
+    'switzerland': 'switzerland', 'suisse': 'switzerland', 'schweiz': 'switzerland', 'ch': 'switzerland',
+    'uk': 'uk', 'united kingdom': 'uk', 'royaume uni': 'uk', 'royaumeuni': 'uk', 'grande bretagne': 'uk', 'britain': 'uk', 'england': 'uk', 'gb': 'uk',
+    'usa': 'usa', 'us': 'usa', 'united states': 'usa', 'etats unis': 'usa', 'états unis': 'usa', 'america': 'usa', 'amérique': 'usa'
+};
+
+function detectCountryId(label) {
+    if (!label) return null;
+    const s = String(label).trim().toLowerCase().replace(/[^a-zÀ-ɏ\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (COUNTRY_ALIASES[s]) return COUNTRY_ALIASES[s];
+    // Also try bare alphanum without accents
+    const ascii = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return COUNTRY_ALIASES[ascii] || null;
+}
+
 /**
  * Parse month header row to get column-to-month mapping.
  * Returns { headerRow: number, monthColumns: [{col, month(0-11), year}] }
@@ -147,135 +176,270 @@ function expandMerges(data, merges) {
 }
 
 /**
- * Parse a grid/roadmap sheet.
- * Returns { categories: [...], actions: [...], tasks: [...] }
+ * Index merges by starting row for quick lookup. Returns Map<rowIdx, Array<{startCol,endCol,startRow,endRow}>>.
  */
-export function parseGrid(sheetData, merges = []) {
-    const data = sheetData.map(row => [...(row || [])]);
-    expandMerges(data, merges);
+function indexMergesByRow(merges) {
+    const map = new Map();
+    for (const m of merges || []) {
+        const r = m.s.r;
+        if (!map.has(r)) map.set(r, []);
+        map.get(r).push({ startCol: m.s.c, endCol: m.e.c, startRow: m.s.r, endRow: m.e.r });
+    }
+    return map;
+}
 
-    const monthHeader = findMonthHeader(data);
-    if (!monthHeader) {
-        // Fallback to list parsing if we can't find month headers
-        return null;
+/**
+ * Analyze each grid row to detect indent depth, merge span, country tag, month coverage.
+ * This powers both auto-detection and the manual review UI.
+ * Returns { monthHeader, rows: [{rowIdx, label, depth, mergeSpan, hasMonthContent, countryId, startMonthCol, endMonthCol}] }
+ */
+export function analyzeGridRows(sheetData, merges = []) {
+    const data = sheetData.map(row => [...(row || [])]);
+    // Do NOT expand merges yet — we want to detect the original blank cells for depth computation.
+    // Build a side-copy with merges expanded for label lookup only.
+    const expanded = sheetData.map(row => [...(row || [])]);
+    expandMerges(expanded, merges);
+
+    const monthHeader = findMonthHeader(expanded);
+    if (!monthHeader) return null;
+
+    const mergesByRow = indexMergesByRow(merges);
+    const { headerRow, monthColumns } = monthHeader;
+    const firstMonthCol = monthColumns[0].col;
+    const rows = [];
+
+    for (let r = headerRow + 1; r < data.length; r++) {
+        const row = data[r] || [];
+        // Depth: first non-empty column BEFORE the month columns (prefer unexpanded data so that merged-down cells don't falsely lift depth)
+        let depth = -1;
+        for (let c = 0; c < firstMonthCol; c++) {
+            if (String(row[c] || '').trim()) { depth = c; break; }
+        }
+        // Fallback: use expanded to at least resolve a label
+        let labelFromExpanded = '';
+        let labelCol = depth;
+        if (depth < 0) {
+            for (let c = 0; c < firstMonthCol; c++) {
+                if (String(expanded[r]?.[c] || '').trim()) { labelFromExpanded = String(expanded[r][c]).trim(); labelCol = c; break; }
+            }
+        }
+        const label = depth >= 0 ? String(row[depth]).trim() : labelFromExpanded;
+
+        // Month content
+        let hasMonthContent = false;
+        let startMonthCol = null;
+        let endMonthCol = null;
+        for (const mc of monthColumns) {
+            const val = String(expanded[r]?.[mc.col] || '').trim();
+            if (val && val !== label) {
+                hasMonthContent = true;
+                if (startMonthCol === null) startMonthCol = mc;
+                endMonthCol = mc;
+            }
+        }
+
+        // Merge span at this row for the label cell
+        const mergesHere = mergesByRow.get(r) || [];
+        const labelMerge = mergesHere.find(m => m.startCol === (depth >= 0 ? depth : labelCol));
+        const mergeSpan = labelMerge ? (labelMerge.endCol - labelMerge.startCol + 1) : 1;
+        // Large horizontal merge = section/super heading signal
+        const wideMerge = labelMerge && labelMerge.endCol >= firstMonthCol - 1;
+
+        if (!label && !hasMonthContent) continue; // fully empty row
+
+        rows.push({
+            rowIdx: r,
+            label: label || '',
+            depth: depth >= 0 ? depth : 0,
+            mergeSpan,
+            wideMerge: !!wideMerge,
+            hasMonthContent,
+            startMonthCol,
+            endMonthCol,
+            countryId: detectCountryId(label)
+        });
     }
 
-    const { headerRow, monthColumns } = monthHeader;
+    return { headerRow, monthColumns, rows };
+}
+
+/**
+ * Auto-assign a level ('super' | 'category' | 'action' | 'task' | 'ignore') to each row.
+ * Heuristic:
+ *   - hasMonthContent → 'task'
+ *   - else shallowest depth (or widest merge) → 'super'/'category' depending on how many non-task depths exist
+ *   - label matches a country and sits at a shallow depth → force 'super'
+ */
+export function autoAssignLevels(analysis) {
+    if (!analysis) return [];
+    const { rows } = analysis;
+
+    const headerRows = rows.filter(r => !r.hasMonthContent);
+    const headerDepths = Array.from(new Set(headerRows.map(r => r.depth))).sort((a, b) => a - b);
+    // Detect whether the shallowest depth looks like a super-category band
+    // (country label or wide merge). If yes, shift the mapping so the next depth is still 'category'.
+    const shallowestIsSuper = headerRows.some(r =>
+        r.depth === headerDepths[0] && (r.countryId || r.wideMerge)
+    );
+    const depthToLevel = new Map();
+    if (headerDepths.length >= 3) {
+        depthToLevel.set(headerDepths[0], 'super');
+        depthToLevel.set(headerDepths[1], 'category');
+        for (let i = 2; i < headerDepths.length; i++) depthToLevel.set(headerDepths[i], 'action');
+    } else if (headerDepths.length === 2) {
+        if (shallowestIsSuper) {
+            depthToLevel.set(headerDepths[0], 'super');
+            depthToLevel.set(headerDepths[1], 'category');
+        } else {
+            depthToLevel.set(headerDepths[0], 'category');
+            depthToLevel.set(headerDepths[1], 'action');
+        }
+    } else if (headerDepths.length === 1) {
+        depthToLevel.set(headerDepths[0], shallowestIsSuper ? 'super' : 'category');
+    }
+
+    return rows.map(r => {
+        if (r.hasMonthContent) return { ...r, level: 'task' };
+        let level = depthToLevel.get(r.depth) || 'category';
+        // Country label at shallow depth always wins
+        if (r.countryId && r.depth === headerDepths[0]) level = 'super';
+        return { ...r, level };
+    });
+}
+
+/**
+ * Build { categories, actions, tasks } from the level-assigned rows.
+ * Defaults: super-categories become categories (with country tag propagated to descendants). Sub-categories are prefixed
+ * with the super name (e.g. "France - Internal Coms") unless `flattenSuper` is true (super becomes only a country tag).
+ */
+export function buildGridHierarchy(sheetData, analysis, leveledRows, options = {}) {
+    const { flattenSuper = false } = options;
+    const { monthColumns } = analysis;
+    const expanded = sheetData.map(row => [...(row || [])]);
+    // We need merges to expand again for month cell lookup
+    // Already handled by caller; analyzeGridRows used expanded for month detection but here we only need labels & contents.
+
     const categories = [];
     const actions = [];
     const tasks = [];
+    const now = new Date().toISOString();
 
-    // Determine the "label" column (usually column 0 or the one before the first month)
-    const labelCol = 0;
-
-    // Track current category and action
+    let currentSuper = null;  // { name, countryId } OR null
     let currentCategory = null;
     let currentAction = null;
     let catColorIdx = 0;
 
-    for (let r = headerRow + 1; r < data.length; r++) {
-        const row = data[r];
-        if (!row) continue;
+    const ensureCategory = (name, countryId) => {
+        const displayName = (currentSuper && !flattenSuper && currentSuper.name && !currentSuper.countryId)
+            ? `${currentSuper.name} - ${name}`
+            : name;
+        const cat = {
+            id: `cat-${crypto.randomUUID()}`,
+            name: displayName,
+            color: CATEGORY_COLORS[catColorIdx % CATEGORY_COLORS.length],
+            gradient: GRADIENTS[catColorIdx % GRADIENTS.length],
+            order: categories.length,
+            createdAt: now,
+            updatedAt: now
+        };
+        categories.push(cat);
+        catColorIdx++;
+        return cat;
+    };
 
-        const label = String(row[labelCol] || '').trim();
+    const ensureDefaultAction = (cat) => {
+        const action = {
+            id: `a-${crypto.randomUUID()}`,
+            name: cat.name,
+            categoryId: cat.id,
+            isDefault: true,
+            budget: 0,
+            priority: 'medium',
+            tags: [],
+            countries: [],
+            status: 'inprogress',
+            order: actions.length,
+            createdAt: now,
+            updatedAt: now
+        };
+        actions.push(action);
+        return action;
+    };
 
-        // Check if this row has any task content in month columns
-        const hasTaskContent = monthColumns.some(mc => {
-            const val = String(row[mc.col] || '').trim();
-            return val && val !== label; // Non-empty and not just repeating the label
-        });
+    for (const row of leveledRows) {
+        if (row.level === 'ignore' || row.level === 'empty') continue;
 
-        // Check second column if exists (might be action name)
-        const secondCol = labelCol + 1 < monthColumns[0].col ? String(row[labelCol + 1] || '').trim() : '';
+        if (row.level === 'super') {
+            // Apply super as prefix for following categories; if it's a country, don't prefix - use as country tag
+            currentSuper = { name: row.label, countryId: row.countryId };
+            // If flattenSuper AND it's a named non-country super, create a standalone category
+            if (flattenSuper && !row.countryId && row.label) {
+                currentCategory = ensureCategory(row.label, null);
+                currentAction = ensureDefaultAction(currentCategory);
+            } else {
+                // Wait for child category row — reset current cat/action
+                currentCategory = null;
+                currentAction = null;
+            }
+            continue;
+        }
 
-        if (label && !hasTaskContent && !secondCol) {
-            // Row with only a label and no task content = likely a category header
-            const catId = `cat-${crypto.randomUUID()}`;
-            currentCategory = {
-                id: catId,
-                name: label,
-                color: CATEGORY_COLORS[catColorIdx % CATEGORY_COLORS.length],
-                gradient: GRADIENTS[catColorIdx % GRADIENTS.length],
-                order: categories.length,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-            categories.push(currentCategory);
-            catColorIdx++;
+        if (row.level === 'category') {
+            const countryForCat = currentSuper?.countryId || row.countryId || null;
+            // Country-only super: the child category keeps its own name (not prefixed), gets country tag via tasks
+            currentCategory = ensureCategory(row.label || 'Category', countryForCat);
+            currentAction = ensureDefaultAction(currentCategory);
+            continue;
+        }
 
-            // Create default action for this category
-            const actionId = `a-${crypto.randomUUID()}`;
+        if (row.level === 'action') {
+            if (!currentCategory) {
+                currentCategory = ensureCategory('Imported', null);
+            }
             currentAction = {
-                id: actionId,
-                name: label,
-                categoryId: catId,
-                isDefault: true,
+                id: `a-${crypto.randomUUID()}`,
+                name: row.label || 'Action',
+                categoryId: currentCategory.id,
+                isDefault: false,
                 budget: 0,
                 priority: 'medium',
                 tags: [],
+                countries: currentSuper?.countryId ? [currentSuper.countryId] : [],
                 status: 'inprogress',
                 order: actions.length,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                createdAt: now,
+                updatedAt: now
             };
             actions.push(currentAction);
             continue;
         }
 
-        if (!currentCategory) {
-            // Create a default category if none exists yet
-            const catId = `cat-${crypto.randomUUID()}`;
-            currentCategory = {
-                id: catId,
-                name: 'Imported',
-                color: CATEGORY_COLORS[0],
-                gradient: GRADIENTS[0],
-                order: 0,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-            categories.push(currentCategory);
-
-            const actionId = `a-${crypto.randomUUID()}`;
-            currentAction = {
-                id: actionId,
-                name: 'Imported',
-                categoryId: catId,
-                isDefault: true,
-                budget: 0,
-                priority: 'medium',
-                tags: [],
-                status: 'inprogress',
-                order: 0,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-            actions.push(currentAction);
-        }
-
-        // This row has task content — extract tasks from month columns
-        const taskName = label || secondCol || '';
-        if (!taskName && !hasTaskContent) continue;
-
-        // Find the date range (first and last month with content)
-        let startMonth = null, endMonth = null, taskYear = new Date().getFullYear();
-        for (const mc of monthColumns) {
-            const val = String(row[mc.col] || '').trim();
-            if (val) {
-                if (startMonth === null) {
-                    startMonth = mc.month;
-                    taskYear = mc.year;
-                }
-                endMonth = mc.month;
+        if (row.level === 'task') {
+            if (!currentCategory) {
+                currentCategory = ensureCategory('Imported', null);
             }
-        }
+            if (!currentAction) {
+                currentAction = ensureDefaultAction(currentCategory);
+            }
+            const startMc = row.startMonthCol;
+            const endMc = row.endMonthCol || row.startMonthCol;
+            if (!startMc) continue;
+            const year = startMc.year || new Date().getFullYear();
+            const startDate = `${year}-${String(startMc.month + 1).padStart(2, '0')}-01`;
+            const lastDay = new Date(year, endMc.month + 1, 0).getDate();
+            const dueDate = `${year}-${String(endMc.month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-        if (startMonth !== null) {
-            const title = taskName || monthColumns.filter(mc => String(row[mc.col] || '').trim()).map(mc => String(row[mc.col]).trim()).find(v => v) || 'Task';
-            const startDate = `${taskYear}-${String(startMonth + 1).padStart(2, '0')}-01`;
-            const lastDay = new Date(taskYear, endMonth + 1, 0).getDate();
-            const dueDate = `${taskYear}-${String(endMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-            const now = new Date().toISOString();
+            // Title: prefer row label, else first non-empty month cell content
+            let title = row.label;
+            if (!title) {
+                for (const mc of monthColumns) {
+                    const v = String(expanded[row.rowIdx]?.[mc.col] || '').trim();
+                    if (v) { title = v; break; }
+                }
+            }
+            if (!title) title = 'Task';
+
+            const countries = currentSuper?.countryId ? [currentSuper.countryId] : (row.countryId ? [row.countryId] : []);
 
             tasks.push({
                 id: `t-${crypto.randomUUID()}`,
@@ -285,10 +449,11 @@ export function parseGrid(sheetData, merges = []) {
                 status: 'todo',
                 priority: 'medium',
                 budget: 0,
-                month: startMonth,
+                month: startMc.month,
                 startDate,
                 dueDate,
                 channels: [],
+                countries,
                 checklist: [],
                 comments: [],
                 attachments: [],
@@ -300,6 +465,17 @@ export function parseGrid(sheetData, merges = []) {
     }
 
     return categories.length > 0 ? { categories, actions, tasks } : null;
+}
+
+/**
+ * Parse a grid/roadmap sheet.
+ * Returns { categories: [...], actions: [...], tasks: [...] }
+ */
+export function parseGrid(sheetData, merges = []) {
+    const analysis = analyzeGridRows(sheetData, merges);
+    if (!analysis) return null;
+    const leveledRows = autoAssignLevels(analysis);
+    return buildGridHierarchy(sheetData, analysis, leveledRows);
 }
 
 // ─────────────────────────────────────────────

@@ -78,6 +78,7 @@ export interface Task {
   countries?: string[];
   otherLabels?: Array<{ id: string; name: string }>;
   assignees?: string[];
+  swimLane?: number; // Timeline vertical pinning (local-only, never pushed to Trello)
   checklist?: ChecklistItem[];
   checklists?: Checklist[];
   comments?: Comment[];
