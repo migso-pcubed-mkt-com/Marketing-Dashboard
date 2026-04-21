@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-21 (Reduce snapshot ring buffer 3→1 to stop saturating localStorage quota)
+> Last updated: 2026-04-21 (Replace undo/redo arrows with HistoryPanel; extend useUndoRedo with jumpTo/suspend/resume)
 
 ---
 
@@ -92,10 +92,12 @@ src/
 │   ├── OnboardingOverlay.jsx   # First-run tour (4 steps, localStorage)
 │   ├── Skeletons.jsx           # Loading skeletons for lazy-loaded views (Suspense fallback)
 │   ├── VirtualKanbanCards.jsx  # Virtualized card list (@tanstack/react-virtual, threshold 50)
+│   ├── HistoryPanel.jsx        # Side panel for undo/redo history, replaces arrow buttons — jump to any snapshot
 │   ├── timeline/               # TimelineHeader.jsx, TimelineBar.jsx, useTimelineHelpers.js
 │   └── action-detail/          # CommentsSection.jsx, AttachmentsSection.jsx
 ├── hooks/
 │   ├── useFilters.js    # Filter state + derived filter logic (extracted from App.jsx)
+│   ├── useUndoRedo.js   # History ring buffer (MAX=60), timestamps, jumpTo/suspend/resume/getHistory
 │   ├── useFocusTrap.ts  # Focus trap for modals (TypeScript)
 │   └── useTouchDrag.ts  # Touch DnD hook (long-press 300ms, TypeScript)
 ├── __tests__/           # Vitest unit tests (536 tests, 17 files)

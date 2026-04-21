@@ -22,6 +22,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import OnboardingOverlay from './components/OnboardingOverlay.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
 import FilterSidebar from './components/FilterSidebar.jsx';
+import HistoryPanel from './components/HistoryPanel.jsx';
 import AuthGate from './components/AuthGate.jsx';
 import { ViewSkeleton } from './components/Skeletons.jsx';
 import { useFilters } from './hooks/useFilters.js';
@@ -123,8 +124,9 @@ const App = () => {
     // --- Filters, archive filtering, and derived filter state ---
     const { filters, setFilters, showFilterSidebar, setShowFilterSidebar, searchInputRef, visibleTasks, visibleActions, activeFilterCount, filteredTasks, filteredBudget, isFiltered } = useFilters(tasks, actions);
 
-    // --- Undo/Redo ---
-    const { pushState, undo, redo, canUndo, canRedo, isUndoRedoRef } = useUndoRedo(setBoardData);
+    // --- Undo/Redo + History panel ---
+    const { pushState, undo, redo, jumpTo, clear: clearHistory, getHistory, suspend: suspendHistory, resume: resumeHistory, canUndo, canRedo, isUndoRedoRef, currentIndex: historyCurrentIndex } = useUndoRedo(setBoardData);
+    const [showHistoryPanel, setShowHistoryPanel] = useState(false);
 
     // --- Multi-board merged data ---
     const multiBoardData = useMultiBoardData(
@@ -1206,6 +1208,7 @@ const App = () => {
         if (!navigator.onLine) return; // Skip sync when offline
         if (trelloSyncStatus === 'syncing') return; // Prevent concurrent syncs
         setTrelloSyncStatus('syncing');
+        suspendHistory();
         try {
             // Snapshot board before sync — allows recovery if sync corrupts data
             try {
@@ -1339,8 +1342,10 @@ const App = () => {
                 showNotification(`❌ Trello sync failed: ${err.message}`);
             }
             setTimeout(() => setTrelloSyncStatus('idle'), 5000);
+        } finally {
+            resumeHistory();
         }
-    }, [currentBoard, trelloSyncStatus]);
+    }, [currentBoard, trelloSyncStatus, suspendHistory, resumeHistory]);
 
     // Keep ref pointing to latest handleTrelloSync (avoids stale closure in setInterval)
     useEffect(() => { handleTrelloSyncRef.current = handleTrelloSync; }, [handleTrelloSync]);
@@ -1498,10 +1503,7 @@ const App = () => {
                             <span className="stat-pill"><strong>{isFiltered ? `${(filteredBudget/1000).toFixed(0)}k / ${(totalBudget/1000).toFixed(0)}k€` : `${(totalBudget/1000).toFixed(0)}k€`}</strong> budget</span>
                         </div>
                         <div className="toolbar-spacer"/>
-                        {!isReadOnly && <div style={{display:'flex',gap:2,marginRight:4}}>
-                            <button className="v11-btn-icon" onClick={() => { const label = undo(); if (label) showNotification('↩ Undo: ' + label); }} disabled={!canUndo} title="Undo (Ctrl+Z)" style={{padding:'6px 8px',opacity:canUndo?1:0.4,cursor:canUndo?'pointer':'default'}}><Icon.Undo size={13}/></button>
-                            <button className="v11-btn-icon" onClick={() => { const label = redo(); if (label) showNotification('↪ Redo: ' + label); }} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" style={{padding:'6px 8px',opacity:canRedo?1:0.4,cursor:canRedo?'pointer':'default'}}><Icon.Redo size={13}/></button>
-                        </div>}
+                        {!isReadOnly && <button className="v11-btn-icon" onClick={() => setShowHistoryPanel(true)} title="History" style={{padding:'6px 8px',marginRight:4,color:'var(--text-secondary)'}}><Icon.History size={14}/></button>}
                         <div className="new-btn-container" ref={exportDropdownRef}>
                             <button className="v11-btn-secondary" onClick={() => {setShowCreateDropdown(false);setShowExportDropdown(!showExportDropdown);}}><Icon.Download size={13}/><span>Export</span></button>
                             {showExportDropdown && <div className="dropdown-menu open" style={{minWidth:180}}>
@@ -1576,6 +1578,7 @@ const App = () => {
                 {showTrelloExport && <TrelloExportModal board={currentBoard} onClose={() => setShowTrelloExport(false)} onConnected={handleTrelloExportConnected}/>}
                 </Suspense>
                 <FilterSidebar show={showFilterSidebar} onClose={() => setShowFilterSidebar(false)} filters={filters} setFilters={setFilters} categories={categories} allCountries={allCountries} tasks={tasks} members={effectiveMembers} searchInputRef={searchInputRef} boardSources={multiBoardMode ? multiBoardData.boardSources : []}/>
+                <HistoryPanel show={showHistoryPanel} onClose={() => setShowHistoryPanel(false)} history={getHistory()} currentIndex={historyCurrentIndex} onJumpTo={(idx) => { const label = jumpTo(idx); if (label) showNotification('⏱ Jumped to: ' + label); }} onClear={() => { clearHistory(); showNotification('History cleared'); setShowHistoryPanel(false); }}/>
                 {notification && <div className="fixed bottom-4 right-4 px-4 py-3 animate-slide-in" style={{background:'var(--accent)',color:'white',borderRadius:'var(--radius-md)',boxShadow:'var(--shadow-lg)',fontSize:13,fontWeight:500}}>{notification}</div>}
                 {showOnboarding && <OnboardingOverlay onClose={() => { setShowOnboarding(false); localStorage.setItem('onboarding_done', '1'); }}/>}
             </div>
