@@ -1,39 +1,24 @@
 import * as XLSX from 'xlsx';
 import { CONFIG } from '../config.js';
 
-/**
- * Hex color (#RRGGBB) → XLSX fill object (ARGB without #)
- */
-const hexToFill = (hex) => {
-    const argb = 'FF' + (hex || '#cccccc').replace('#', '');
-    return { fgColor: { rgb: argb } };
-};
-
 const statusName = (id) => CONFIG.STATUSES.find(s => s.id === id)?.name || id || '';
 const statusColor = (id) => CONFIG.STATUSES.find(s => s.id === id)?.color || '#94a3b8';
 const priorityName = (id) => CONFIG.PRIORITIES.find(p => p.id === id)?.name || id || '';
 
-/**
- * Apply basic column widths to a worksheet.
- */
-const autoWidth = (ws, data) => {
-    if (!data || data.length === 0) return;
-    ws['!cols'] = data[0].map((_, colIdx) => {
-        let max = 10;
-        data.forEach(row => {
-            const val = row[colIdx];
-            if (val != null) {
-                const len = String(val).length;
-                if (len > max) max = len;
-            }
-        });
-        return { wch: Math.min(max + 2, 40) };
-    });
+// Hex '#RRGGBB' → ARGB 'FFRRGGBB' for exceljs fills
+const toARGB = (hex) => 'FF' + (hex || '#cccccc').replace('#', '').toUpperCase().padEnd(6, '0').slice(0, 6);
+
+const downloadExcelJs = async (workbook, filename) => {
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
 };
 
-/**
- * Download a workbook as .xlsx file
- */
 const downloadWorkbook = (wb, filename) => {
     const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -46,119 +31,178 @@ const downloadWorkbook = (wb, filename) => {
 };
 
 // ─────────────────────────────────────────────
-// EXPORT TIMELINE
+// TIMELINE (exceljs — styled Gantt)
 // ─────────────────────────────────────────────
 
-export function exportTimelineXlsx(categories, actions, tasks, year, boardName) {
-    const wb = XLSX.utils.book_new();
+export async function buildTimelineWorkbook(categories, actions, tasks, year) {
+    const { default: ExcelJS } = await import('exceljs');
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Marketing Dashboard';
+    const ws = wb.addWorksheet('Timeline', {
+        views: [{ state: 'frozen', xSplit: 3, ySplit: 1 }]
+    });
+
     const months = CONFIG.MONTHS;
+    const header = ['Category', 'Action', 'Task', ...months];
+    const headerRow = ws.addRow(header);
+    headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+        cell.border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } };
+    });
+    headerRow.height = 22;
 
-    // Build header row
-    const header = ['Category', 'Action', 'Task', 'Status', 'Priority', 'Owner', 'Start', 'End', ...months];
-    const rows = [header];
+    ws.getColumn(1).width = 22;
+    ws.getColumn(2).width = 26;
+    ws.getColumn(3).width = 32;
+    for (let c = 4; c <= 15; c++) ws.getColumn(c).width = 6;
 
-    // Sort categories
     const sortedCats = [...categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
     sortedCats.forEach(cat => {
+        const catRow = ws.addRow([cat.name, '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+        ws.mergeCells(catRow.number, 1, catRow.number, 15);
+        const catCell = catRow.getCell(1);
+        catCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        catCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(cat.color) } };
+        catCell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        catRow.height = 20;
+
         const catActions = actions.filter(a => a.categoryId === cat.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
         catActions.forEach(action => {
             const actionTasks = tasks.filter(t => t.actionId === action.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-            if (actionTasks.length === 0) {
-                // Action with no tasks — still show it
-                const row = [cat.name, action.isDefault ? '' : action.name, '', '', '', '', '', '', ...Array(12).fill('')];
-                rows.push(row);
+
+            if (!action.isDefault) {
+                const actionRow = ws.addRow([`  ${action.name}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+                ws.mergeCells(actionRow.number, 1, actionRow.number, 15);
+                const actionCell = actionRow.getCell(1);
+                actionCell.font = { bold: true, color: { argb: 'FF111827' }, size: 10 };
+                actionCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(cat.color).replace(/^FF/, '33') } };
+                actionCell.alignment = { vertical: 'middle', horizontal: 'left' };
+                actionRow.height = 18;
             }
+
             actionTasks.forEach(task => {
-                const members = (task.assignees || []).join(', ');
-                const row = [
+                const row = ws.addRow([
                     cat.name,
                     action.isDefault ? '' : action.name,
                     task.title || '',
-                    statusName(task.status),
-                    priorityName(task.priority),
-                    members,
-                    task.startDate || '',
-                    task.dueDate || '',
-                ];
-                // Fill month columns with markers based on date range
+                    '', '', '', '', '', '', '', '', '', '', '', ''
+                ]);
+                row.height = 18;
+                row.getCell(1).font = { color: { argb: 'FF6B7280' }, size: 10 };
+                row.getCell(2).font = { color: { argb: 'FF6B7280' }, size: 10 };
+                row.getCell(3).font = { bold: false, size: 10 };
+                row.getCell(3).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+
+                const tStart = task.startDate ? new Date(task.startDate) : null;
+                const tEnd = task.dueDate ? new Date(task.dueDate) : tStart;
+                if (!tStart) return;
+
+                let startMonth = -1, endMonth = -1;
                 for (let m = 0; m < 12; m++) {
                     const monthStart = new Date(year, m, 1);
                     const monthEnd = new Date(year, m + 1, 0);
-                    const tStart = task.startDate ? new Date(task.startDate) : null;
-                    const tEnd = task.dueDate ? new Date(task.dueDate) : null;
-
-                    if (tStart && tEnd && tStart <= monthEnd && tEnd >= monthStart) {
-                        row.push('■');  // Task spans this month
-                    } else {
-                        row.push('');
+                    if (tStart <= monthEnd && tEnd >= monthStart) {
+                        if (startMonth === -1) startMonth = m;
+                        endMonth = m;
                     }
                 }
-                rows.push(row);
+                if (startMonth === -1) return;
+
+                const startCol = 4 + startMonth;
+                const endCol = 4 + endMonth;
+                if (endCol > startCol) ws.mergeCells(row.number, startCol, row.number, endCol);
+
+                const barCell = row.getCell(startCol);
+                const owner = (task.assignees || []).length > 0 ? ` — ${task.assignees.join(', ')}` : '';
+                barCell.value = endCol > startCol ? `${task.title || ''}${owner}` : '■';
+                barCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(statusColor(task.status)) } };
+                barCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 9 };
+                barCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+                const border = { style: 'thin', color: { argb: 'FF000000' } };
+                barCell.border = { top: border, left: border, right: border, bottom: border };
             });
         });
     });
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    autoWidth(ws, rows);
+    return wb;
+}
 
-    // Make month columns narrower
-    if (ws['!cols']) {
-        for (let i = 8; i < 20; i++) {
-            ws['!cols'][i] = { wch: 5 };
-        }
-    }
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Timeline');
-    downloadWorkbook(wb, `timeline-${boardName || 'export'}-${year}.xlsx`);
+export async function exportTimelineXlsx(categories, actions, tasks, year, boardName) {
+    const wb = await buildTimelineWorkbook(categories, actions, tasks, year);
+    await downloadExcelJs(wb, `timeline-${boardName || 'export'}-${year}.xlsx`);
 }
 
 // ─────────────────────────────────────────────
-// EXPORT KANBAN
+// KANBAN (exceljs — styled columns)
 // ─────────────────────────────────────────────
 
-export function exportKanbanXlsx(categories, actions, tasks, boardName) {
-    const wb = XLSX.utils.book_new();
+export async function buildKanbanWorkbook(categories, actions, tasks) {
+    const { default: ExcelJS } = await import('exceljs');
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'Marketing Dashboard';
+    const ws = wb.addWorksheet('Kanban', {
+        views: [{ state: 'frozen', ySplit: 1 }]
+    });
 
     const sortedCats = [...categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-    // Find max tasks per column to determine row count
     const columns = sortedCats.map(cat => {
         const catActions = actions.filter(a => a.categoryId === cat.id);
-        const catTasks = tasks.filter(t => catActions.some(a => a.id === t.actionId))
+        const catTasks = tasks
+            .filter(t => catActions.some(a => a.id === t.actionId))
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        return {
-            name: cat.name,
-            tasks: catTasks
-        };
+        return { cat, tasks: catTasks };
     });
 
     const maxRows = Math.max(...columns.map(c => c.tasks.length), 0);
 
-    // Build grid: headers + data rows
-    const header = columns.map(c => c.name);
-    const rows = [header];
+    const headerRow = ws.addRow(columns.map(c => c.cat.name));
+    headerRow.eachCell((cell, colIdx) => {
+        const cat = columns[colIdx - 1].cat;
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(cat.color) } };
+        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    });
+    headerRow.height = 28;
+
+    columns.forEach((_, ci) => { ws.getColumn(ci + 1).width = 30; });
 
     for (let r = 0; r < maxRows; r++) {
-        const row = columns.map(col => {
+        const row = ws.addRow(columns.map(col => {
             const task = col.tasks[r];
             if (!task) return '';
-            const status = statusName(task.status);
-            const priority = priorityName(task.priority);
-            return `${task.title}${status ? ' [' + status + ']' : ''}${priority ? ' (' + priority + ')' : ''}`;
+            const p = task.priority ? `\n[${priorityName(task.priority)}]` : '';
+            return `${task.title || ''}${p}`;
+        }));
+        row.height = 34;
+        row.eachCell((cell, colIdx) => {
+            const task = columns[colIdx - 1].tasks[r];
+            if (!task) return;
+            cell.border = {
+                left: { style: 'thick', color: { argb: toARGB(statusColor(task.status)) } },
+                top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+            };
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+            cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true, indent: 1 };
+            cell.font = { size: 10, color: { argb: 'FF111827' } };
         });
-        rows.push(row);
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    autoWidth(ws, rows);
+    return wb;
+}
 
-    XLSX.utils.book_append_sheet(wb, ws, 'Kanban');
-    downloadWorkbook(wb, `kanban-${boardName || 'export'}-${new Date().toISOString().split('T')[0]}.xlsx`);
+export async function exportKanbanXlsx(categories, actions, tasks, boardName) {
+    const wb = await buildKanbanWorkbook(categories, actions, tasks);
+    await downloadExcelJs(wb, `kanban-${boardName || 'export'}-${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 // ─────────────────────────────────────────────
-// EXPORT CALENDAR
+// CALENDAR (xlsx — unchanged)
 // ─────────────────────────────────────────────
 
 export function exportCalendarXlsx(tasks, year, boardName) {
@@ -170,17 +214,14 @@ export function exportCalendarXlsx(tasks, year, boardName) {
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0).getDate();
 
-        // ISO weekday: Mon=0 ... Sun=6
         let startDow = firstDay.getDay() - 1;
         if (startDow < 0) startDow = 6;
 
-        // Build calendar grid
         const rows = [[`${monthName} ${year}`, '', '', '', '', '', ''], dayNames];
 
         let week = Array(7).fill('');
         let dayNum = 1;
 
-        // Fill first week
         for (let d = startDow; d < 7 && dayNum <= lastDay; d++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
             const dayTasks = tasks.filter(t => t.dueDate === dateStr);
@@ -192,7 +233,6 @@ export function exportCalendarXlsx(tasks, year, boardName) {
         }
         rows.push(week);
 
-        // Fill remaining weeks
         while (dayNum <= lastDay) {
             week = Array(7).fill('');
             for (let d = 0; d < 7 && dayNum <= lastDay; d++) {
@@ -208,14 +248,9 @@ export function exportCalendarXlsx(tasks, year, boardName) {
         }
 
         const ws = XLSX.utils.aoa_to_sheet(rows);
-
-        // Set column widths
         ws['!cols'] = dayNames.map(() => ({ wch: 18 }));
-
-        // Merge month title across all columns
         ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 6 } }];
 
-        // Sanitize sheet name (max 31 chars, no special chars)
         const sheetName = monthName.substring(0, 31);
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
     }
