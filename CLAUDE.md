@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-22 (Undo → Trello push, hierarchical Timeline export, action-centric Kanban export, color-aware Excel import, Timeline title overflow)
+> Last updated: 2026-04-22 (Undo recent-window guard, flat-category import, 3-scope Apply-to menu, export legends + strike + dyn height, soft-pin swimLane, horizontal combined-view banners)
 
 ---
 
@@ -488,6 +488,9 @@ The callback logic lives in `public/trello-callback.js`, referenced by `public/t
 
 ### useUndoRedo — restored state must push back to Trello
 `undo` / `redo` / `jumpTo` route through `restoreSnapshot(current, snapshot)` (exported from `useUndoRedo.js`). It diffs current vs snapshot by id for categories/actions/tasks, and bumps `updatedAt: now` (+ `orderUpdatedAt` when order changed) on every entity whose sync-visible fields differ. Without this, the snapshot's ancient `updatedAt` would lose last-write-wins against `trelloLastModified` (set by the last push) → next sync pulls from Trello → the undo is silently reverted. Entities deleted by the undo but still live on Trello (e.g. user undoes a card creation) are queued on `board.trelloSync._pendingUndoDeletes` as `[{ cards, lists, checkItems, at }]`. `flushPendingUndoDeletes` in `trelloSync.js` runs at the start of `_syncWithTrelloInner`, archives cards/lists + deletes checklist items, then folds the IDs into `_recentlyDeletedCardIds`/`_recentlyDeletedListIds` so the pull phase doesn't re-import them. Read-only mode skips the actual API calls. Do NOT restore the snapshot via a plain `setBoardData(restored)` — always diff against the current state via the functional setter form.
+
+### useUndoRedo — 10s recent-undo window blocks incoming merges
+Bumping `updatedAt` on the snapshot is not enough: three ingress paths can still overwrite the restored state with the pre-undo version before the Trello push runs. `useUndoRedo` exports `recentUndoRef` (timestamp of last undo/redo/jumpTo), and `App.jsx` gates all three with `isRecentUndo()` for 10 seconds: Realtime handler queues events, pending-Realtime drain keeps them parked and re-validates `saveId` at release, pre-save conflict fetch is skipped, GitHub polling is skipped. Do NOT process any server merge in that window — even one through path silently reverts the undo.
 
 ---
 
