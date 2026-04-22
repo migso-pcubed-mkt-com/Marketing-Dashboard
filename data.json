@@ -64029,12 +64029,12 @@
         },
         {
           "id": "task-d89a1be1-18e9-4110-b073-7d99208123a6",
-          "month": 8,
+          "month": 3,
           "order": 1073758208,
           "title": "test 2",
           "budget": 0,
           "status": "todo",
-          "dueDate": "2026-09-30",
+          "dueDate": "2026-04-30",
           "actionId": "act-4b083385-d39d-49f4-8bb2-e9c9c67c982f",
           "channels": [],
           "comments": [],
@@ -64075,18 +64075,16 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "test 2",
-            "dueDate": "2026-09-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "69bae2989fe7490766f668dd"
             ]
           },
           "trelloCheckItemId": "69bae2989fe7490766f66bac",
           "trelloChecklistId": "69bae2979fe7490766f666e0",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
-          "trelloChecklistName": "Test checklist 28",
-          "updatedAt": "2026-04-22T09:54:25.715Z",
-          "orderUpdatedAt": "2026-04-22T09:54:25.715Z"
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
+          "trelloChecklistName": "Test checklist 28"
         },
         {
           "id": "task-2cd76bba-b005-45cf-a63a-6b99766d3ff9",
@@ -64136,15 +64134,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "test",
-            "dueDate": "2026-04-30",
             "status": "completed",
+            "dueDate": "2026-04-30",
             "assignees": [
               "69bae2989fe7490766f668dd"
             ]
           },
           "trelloCheckItemId": "69bae2989fe7490766f66bab",
           "trelloChecklistId": "69bae2979fe7490766f666e0",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Test checklist 28"
         },
         {
@@ -64195,15 +64193,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "28",
-            "dueDate": "2026-03-28",
             "status": "todo",
+            "dueDate": "2026-03-28",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bc145f3655cbb0e7e3613c",
           "trelloChecklistId": "69bae2979fe7490766f666e0",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Test checklist 28"
         },
         {
@@ -64254,15 +64252,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "new task 3",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bd165953f1919bf4a44bd2",
           "trelloChecklistId": "69bae2979fe7490766f666de",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Social Media post and content",
           "swimLane": 2,
           "updatedAt": "2026-04-22T09:52:57.614Z",
@@ -64316,15 +64314,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "Clayverest Com relay on MP account",
-            "dueDate": "2026-11-30",
             "status": "todo",
+            "dueDate": "2026-11-30",
             "assignees": [
               "62bb2bf4dcc9c0285f15be7b"
             ]
           },
           "trelloCheckItemId": "69bae2989fe7490766f66b98",
           "trelloChecklistId": "69bae2979fe7490766f666de",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Social Media post and content"
         },
         {
@@ -64375,15 +64373,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "New task",
-            "dueDate": "2026-03-01",
             "status": "todo",
+            "dueDate": "2026-02-28",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bd165975b31e9744e363fd",
           "trelloChecklistId": "69bae2979fe7490766f666de",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Social Media post and content",
           "swimLane": 4,
           "updatedAt": "2026-04-22T09:52:59.760Z"
@@ -64436,15 +64434,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "Clayverest consultant interviews (4 people)",
-            "dueDate": "2026-01-30",
             "status": "todo",
+            "dueDate": "2026-01-30",
             "assignees": [
               "69bae2989fe7490766f66b97"
             ]
           },
           "trelloCheckItemId": "69bae2989fe7490766f66ba0",
           "trelloChecklistId": "69bae2979fe7490766f666df",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Content"
         },
         {
@@ -64495,15 +64493,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "Update paragraph on Digital Expertise page on current website",
-            "dueDate": "2026-03-22",
             "status": "todo",
+            "dueDate": "2026-03-22",
             "assignees": [
               "69bae2989fe7490766f66926"
             ]
           },
           "trelloCheckItemId": "69bae2989fe7490766f66b9e",
           "trelloChecklistId": "69bae2979fe7490766f666df",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Content"
         },
         {
@@ -64554,15 +64552,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "Test new task",
-            "dueDate": "2026-03-18",
             "status": "todo",
+            "dueDate": "2026-03-18",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bae6fe691ec5a7e07ae568",
           "trelloChecklistId": "69bae2979fe7490766f666df",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Content"
         },
         {
@@ -64613,15 +64611,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "task 32",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bae6fe830288a29a8f4bc7",
           "trelloChecklistId": "69bae2979fe7490766f666df",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Content"
         },
         {
@@ -64672,15 +64670,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "Corporate newsroom article/press release",
-            "dueDate": "2026-04-08",
             "status": "todo",
+            "dueDate": "2026-04-08",
             "assignees": [
               "69bae2989fe7490766f66b97"
             ]
           },
           "trelloCheckItemId": "69bae2989fe7490766f66b9f",
           "trelloChecklistId": "69bae2979fe7490766f666df",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Content"
         },
         {
@@ -64731,15 +64729,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "Clayverest video (Mathieu Sabathe)",
-            "dueDate": "2026-03-28",
             "status": "todo",
+            "dueDate": "2026-03-28",
             "assignees": [
               "69bae2989fe7490766f66b9c"
             ]
           },
           "trelloCheckItemId": "69bae2989fe7490766f66b9d",
           "trelloChecklistId": "69bae2979fe7490766f666df",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Content"
         },
         {
@@ -64790,15 +64788,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "Clayverest & Project Scheduling: Case study \" top findings\" a guide to optimze OTD",
-            "dueDate": "2026-05-31",
             "status": "todo",
+            "dueDate": "2026-05-31",
             "assignees": [
               "69bae2989fe7490766f66919"
             ]
           },
           "trelloCheckItemId": "69bae2989fe7490766f66ba1",
           "trelloChecklistId": "69bae2979fe7490766f666df",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Content"
         },
         {
@@ -64849,15 +64847,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "User pain points landing pages",
-            "dueDate": "2026-06-30",
             "status": "todo",
+            "dueDate": "2026-06-30",
             "assignees": [
               "69bae2989fe7490766f66926"
             ]
           },
           "trelloCheckItemId": "69bae2989fe7490766f66ba2",
           "trelloChecklistId": "69bae2979fe7490766f666df",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Content"
         },
         {
@@ -64908,15 +64906,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "Clayverest service page on MP website",
-            "dueDate": "2026-02-28",
             "status": "completed",
+            "dueDate": "2026-02-28",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bae2989fe7490766f66b9b",
           "trelloChecklistId": "69bae2979fe7490766f666df",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Content"
         },
         {
@@ -64967,15 +64965,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "tache 2",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bc16c07ab8e807eb85f643",
           "trelloChecklistId": "69bc16bf6210077d917749ba",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Nouveau groupe de tâches"
         },
         {
@@ -65026,15 +65024,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "tache 2",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bc1a457826a7d898a52db3",
           "trelloChecklistId": "69bc16bf6210077d917749ba",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Nouveau groupe de tâches"
         },
         {
@@ -65085,15 +65083,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "tache 3",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bc16c187b7eb0bebbf6731",
           "trelloChecklistId": "69bc16bf6210077d917749ba",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Nouveau groupe de tâches"
         },
         {
@@ -65144,15 +65142,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "tâche 1",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bc1a45cd803b417345338a",
           "trelloChecklistId": "69bc16bf6210077d917749ba",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Nouveau groupe de tâches"
         },
         {
@@ -65203,15 +65201,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "tache 3",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bc1a455bba998ad7906e6d",
           "trelloChecklistId": "69bc16bf6210077d917749ba",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Nouveau groupe de tâches"
         },
         {
@@ -65262,15 +65260,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "tâche 1",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bc16c0c83d2feea4eb9060",
           "trelloChecklistId": "69bc16bf6210077d917749ba",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Nouveau groupe de tâches"
         },
         {
@@ -65321,15 +65319,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "test new task 1",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bd165be8b34ba7f2fb1536",
           "trelloChecklistId": "69bd165ba7c0c602b7c184de",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Test new task group 20/03"
         },
         {
@@ -65380,15 +65378,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "test new task 2",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bd165b4e0ff3b754fc791a",
           "trelloChecklistId": "69bd165ba7c0c602b7c184de",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Test new task group 20/03"
         },
         {
@@ -65439,15 +65437,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "Tâche 32",
-            "dueDate": "2026-07-31",
             "status": "todo",
+            "dueDate": "2026-07-31",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bc1a3b79102e1aa66ca970",
           "trelloChecklistId": "69bc1a30513fbb3f44eb4970",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Trello checklist"
         },
         {
@@ -65498,15 +65496,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "tâche 31",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bc1a38a860a922befed16b",
           "trelloChecklistId": "69bc1a30513fbb3f44eb4970",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Trello checklist"
         },
         {
@@ -65557,15 +65555,15 @@
           "trelloCardId": "69bae2979fe7490766f66690",
           "_trelloBaseline": {
             "title": "tâche 33",
-            "dueDate": "2026-04-30",
             "status": "todo",
+            "dueDate": "2026-04-30",
             "assignees": [
               "595ba887716dfffcb6b36106"
             ]
           },
           "trelloCheckItemId": "69bc1a5a7ee9b6c5baa6e455",
           "trelloChecklistId": "69bc1a30513fbb3f44eb4970",
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-07T16:50:39.227Z",
           "trelloChecklistName": "Trello checklist"
         },
         {
@@ -68783,7 +68781,7 @@
           "_inheritCountries": [
             "romania"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.427Z",
+          "trelloLastModified": "2026-04-22T09:52:43.532Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -68860,7 +68858,7 @@
             "spain",
             "global"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.428Z",
+          "trelloLastModified": "2026-04-22T09:52:43.532Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -68924,7 +68922,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.428Z",
+          "trelloLastModified": "2026-04-22T09:52:43.533Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -68988,7 +68986,7 @@
           "_inheritCountries": [
             "spain"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.428Z",
+          "trelloLastModified": "2026-04-22T09:52:43.533Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69072,7 +69070,7 @@
           "_inheritCountries": [
             "switzerland"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.428Z",
+          "trelloLastModified": "2026-04-22T09:52:43.533Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -69131,7 +69129,7 @@
           "_inheritCountries": [
             "spain"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.428Z",
+          "trelloLastModified": "2026-04-22T09:52:43.533Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69185,7 +69183,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.428Z",
+          "trelloLastModified": "2026-04-22T09:52:43.534Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -69239,7 +69237,7 @@
           "_inheritCountries": [
             "spain"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.429Z",
+          "trelloLastModified": "2026-04-22T09:52:43.534Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69288,7 +69286,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.429Z",
+          "trelloLastModified": "2026-04-22T09:52:43.534Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69347,7 +69345,7 @@
           "_inheritCountries": [
             "netherlands"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.429Z",
+          "trelloLastModified": "2026-04-22T09:52:43.534Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -69411,7 +69409,7 @@
           "_inheritCountries": [
             "spain"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.429Z",
+          "trelloLastModified": "2026-04-22T09:52:43.534Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69545,7 +69543,7 @@
             "595ba887716dfffcb6b36106"
           ],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:29.429Z",
+          "trelloLastModified": "2026-04-22T09:52:43.534Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66847",
@@ -69600,7 +69598,7 @@
           "_inheritCountries": [
             "spain"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.429Z",
+          "trelloLastModified": "2026-04-22T09:52:43.534Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69659,7 +69657,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.429Z",
+          "trelloLastModified": "2026-04-22T09:52:43.534Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -69718,7 +69716,7 @@
           "_inheritCountries": [
             "usa"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.430Z",
+          "trelloLastModified": "2026-04-22T09:52:43.534Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -69772,7 +69770,7 @@
           "_inheritCountries": [
             "canada"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.430Z",
+          "trelloLastModified": "2026-04-22T09:52:43.534Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70051,7 +70049,7 @@
             "595ba887716dfffcb6b36106"
           ],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:29.690Z",
+          "trelloLastModified": "2026-04-22T09:52:44.010Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6684f",
@@ -70096,7 +70094,7 @@
           "_inheritChannels": [],
           "_inheritAssignees": [],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:29.690Z",
+          "trelloLastModified": "2026-04-22T09:52:44.010Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66851",
@@ -70141,7 +70139,7 @@
           "_inheritChannels": [],
           "_inheritAssignees": [],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:29.690Z",
+          "trelloLastModified": "2026-04-22T09:52:44.010Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66842",
@@ -70180,7 +70178,7 @@
           "_inheritChannels": [],
           "_inheritAssignees": [],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:29.691Z",
+          "trelloLastModified": "2026-04-22T09:52:44.010Z",
           "_inheritOtherLabels": []
         },
         {
@@ -70228,7 +70226,7 @@
           "_inheritCountries": [
             "australia"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.691Z",
+          "trelloLastModified": "2026-04-22T09:52:44.010Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -70287,7 +70285,7 @@
           "_inheritCountries": [
             "australia"
           ],
-          "trelloLastModified": "2026-04-22T09:54:29.691Z",
+          "trelloLastModified": "2026-04-22T09:52:44.010Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70361,7 +70359,7 @@
             "france"
           ],
           "startDate": "2026-02-02",
-          "updatedAt": "2026-04-22T09:53:34.152Z",
+          "updatedAt": "2026-04-07T16:50:39.227Z",
           "categoryId": "cat-a421fbdc-c65d-4fcd-a2fb-7d6cb983c0cb",
           "attachments": [
             {
@@ -70433,7 +70431,7 @@
           "_inheritCountries": [
             "france"
           ],
-          "trelloLastModified": "2026-04-22T09:53:36.152Z",
+          "trelloLastModified": "2026-04-22T09:52:44.010Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70502,7 +70500,7 @@
           "_inheritCountries": [
             "italy"
           ],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70561,7 +70559,7 @@
           "_inheritCountries": [
             "germany"
           ],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70625,7 +70623,7 @@
           "_inheritCountries": [
             "canada"
           ],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70674,7 +70672,7 @@
           "_inheritChannels": [],
           "_inheritAssignees": [],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": []
         },
         {
@@ -70722,7 +70720,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70786,7 +70784,7 @@
           "_inheritCountries": [
             "france"
           ],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70855,7 +70853,7 @@
           "_inheritCountries": [
             "canada"
           ],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70926,7 +70924,7 @@
             "595ba887716dfffcb6b36106"
           ],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66848",
@@ -71026,7 +71024,7 @@
             "global",
             "france"
           ],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -71086,7 +71084,7 @@
           "_inheritChannels": [],
           "_inheritAssignees": [],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66857",
@@ -71152,7 +71150,7 @@
             "global",
             "france"
           ],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.011Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -71221,7 +71219,7 @@
             "595ba887716dfffcb6b36106"
           ],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.012Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -71275,7 +71273,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:30.219Z",
+          "trelloLastModified": "2026-04-22T09:52:44.012Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -71305,7 +71303,7 @@
         }
       ],
       "createdAt": "2026-04-12T10:25:51.962Z",
-      "updatedAt": "2026-04-22T09:54:28.220Z",
+      "updatedAt": "2026-04-22T09:52:59.760Z",
       "categories": [
         {
           "id": "cat-a421fbdc-c65d-4fcd-a2fb-7d6cb983c0cb",
@@ -71460,7 +71458,7 @@
       ],
       "trelloSync": {
         "syncMode": "card-as-action",
-        "lastSyncAt": "2026-04-22T09:54:28.220Z",
+        "lastSyncAt": "2026-04-22T09:52:42.012Z",
         "syncEnabled": true,
         "labelMappings": {
           "69bae2979fe7490766f66840": {
@@ -71677,7 +71675,7 @@
         "pollIntervalMs": 120000,
         "trelloBoardUrl": "https://trello.com/b/dKlmuLiE/test-mkt-cmpgn",
         "trelloBoardName": "TEST MKT Cmpgn",
-        "lastCardTimestamp": "2026-04-22T09:53:34.152Z",
+        "lastCardTimestamp": "2026-04-12T10:38:21.862Z",
         "trelloBoardNameBaseline": "TEST MKT Cmpgn"
       }
     },
@@ -75083,7 +75081,7 @@
       ]
     }
   ],
-  "_saveId": "41cd204d-cd86-4537-92eb-39e35855a1dd",
+  "_saveId": "ec362f9e-3f6e-4e96-88e7-4896bb04d29a",
   "version": 2,
   "currentBoardId": "board-e1922ba8-6fe1-4db8-ba8c-db453eaae4f2"
 }
