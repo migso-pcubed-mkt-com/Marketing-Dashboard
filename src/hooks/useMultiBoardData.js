@@ -14,7 +14,7 @@ const BOARD_COLORS = [
 const useMultiBoardData = (selectedBoardIds, allBoards) => {
     return useMemo(() => {
         if (!selectedBoardIds || selectedBoardIds.length === 0 || !allBoards) {
-            return { categories: [], actions: [], tasks: [], members: [], boardSources: [] };
+            return { categories: [], actions: [], tasks: [], members: [], boardSources: [], boardGroups: [] };
         }
 
         const selectedBoards = allBoards.filter(b => selectedBoardIds.includes(b.id));
@@ -23,6 +23,7 @@ const useMultiBoardData = (selectedBoardIds, allBoards) => {
         const mergedTasks = [];
         const mergedMembers = [];
         const boardSources = [];
+        const boardGroups = [];
         const memberIds = new Set();
 
         selectedBoards.forEach((board, idx) => {
@@ -32,16 +33,21 @@ const useMultiBoardData = (selectedBoardIds, allBoards) => {
 
             const tag = { _sourceBoardId: board.id, _sourceBoardName: board.name, _sourceBoardColor: color };
 
-            (board.categories || []).forEach(cat => {
-                mergedCategories.push({ ...cat, ...tag });
-            });
+            const groupCategories = (board.categories || []).map(cat => ({ ...cat, ...tag }));
+            const groupActions = (board.actions || []).map(act => ({ ...act, ...tag }));
+            const groupTasks = (board.tasks || []).map(task => ({ ...task, ...tag }));
 
-            (board.actions || []).forEach(act => {
-                mergedActions.push({ ...act, ...tag });
-            });
+            mergedCategories.push(...groupCategories);
+            mergedActions.push(...groupActions);
+            mergedTasks.push(...groupTasks);
 
-            (board.tasks || []).forEach(task => {
-                mergedTasks.push({ ...task, ...tag });
+            boardGroups.push({
+                boardId: board.id,
+                boardName: board.name,
+                boardColor: color,
+                categories: groupCategories,
+                actions: groupActions,
+                tasks: groupTasks
             });
 
             // Merge members (dedup by id)
@@ -53,7 +59,7 @@ const useMultiBoardData = (selectedBoardIds, allBoards) => {
             });
         });
 
-        return { categories: mergedCategories, actions: mergedActions, tasks: mergedTasks, members: mergedMembers, boardSources };
+        return { categories: mergedCategories, actions: mergedActions, tasks: mergedTasks, members: mergedMembers, boardSources, boardGroups };
     }, [selectedBoardIds, allBoards]);
 };
 

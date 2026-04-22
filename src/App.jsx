@@ -787,19 +787,28 @@ const App = () => {
     const handleSync = useCallback(() => saveData(), []);
 
     const handleUpdateTask = useCallback((taskId, updates) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Update task');
+        if (!isUndoRedoRef.current) {
+            const task = tasks.find(t => t.id === taskId);
+            const title = task?.title || 'Task';
+            // Coalesce resize/drag (continuous updates on the same task within 400ms
+            // collapse into one history entry).
+            pushState(boardDataRef.current, `Task "${title}" updated`);
+        }
         setTasks(prev => applyTaskUpdate(prev, taskId, updates));
         showNotification('✅ Task updated');
-    }, [setTasks, showNotification, pushState]);
+    }, [tasks, setTasks, showNotification, pushState]);
 
     const handleBatchUpdateTasks = useCallback((updates) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Batch update tasks');
+        if (!isUndoRedoRef.current) {
+            const count = Array.isArray(updates) ? updates.length : 0;
+            pushState(boardDataRef.current, `Batch update (${count} task${count === 1 ? '' : 's'})`);
+        }
         setTasks(prev => applyBatchTaskUpdate(prev, updates));
     }, [setTasks, pushState]);
 
     const handleUpdateAction = useCallback((actionId, updates) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Update action');
         const oldAction = actions.find(a => a.id === actionId);
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Action "${oldAction?.name || 'Action'}" updated`);
         setActions(prev => applyActionUpdate(prev, actionId, updates));
         const linkedTasks = tasks.filter(t => t.actionId === actionId);
         const batchUpdates = computeTagPropagation(oldAction, updates, linkedTasks);
@@ -808,7 +817,8 @@ const App = () => {
     }, [actions, tasks, setActions, handleBatchUpdateTasks, showNotification, pushState]);
 
     const handleDeleteAction = useCallback(async (actionId) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Delete action');
+        const actionForLabel = actions.find(a => a.id === actionId);
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Action "${actionForLabel?.name || 'Action'}" deleted`);
         // No confirm() here — caller (ActionDetailModal) handles confirmation popup
         const action = actions.find(a => a.id === actionId);
         // Prevent deletion of default action in card-as-task mode (would orphan all tasks)
@@ -851,8 +861,8 @@ const App = () => {
     }, [actions, currentBoard, isReadOnly, updateCurrentBoard, setActions, setTasks, showNotification, pushState]);
 
     const handleAddTask = useCallback((actionId, customStartDate = null, customDueDate = null) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Add task');
         const action = actions.find(a => a.id === actionId);
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Task created in "${action?.name || 'Action'}"`);
         const startDate = customStartDate || new Date().toISOString().split('T')[0];
         const month = new Date(startDate).getMonth();
         let dueDate;
@@ -876,9 +886,9 @@ const App = () => {
     }, [actions, tasks, setTasks, setSelectedTask, showNotification, pushState]);
 
     const handleMoveTask = useCallback((taskId, direction) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Move task');
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Task "${task.title || 'Task'}" moved ${direction}`);
         const sameTasks = tasks.filter(t => {
             if (task.month !== undefined) return t.month === task.month;
             return t.status === task.status;
@@ -898,20 +908,25 @@ const App = () => {
     }, [tasks, setTasks, showNotification, pushState]);
 
     const handleReorderTask = useCallback((draggedId, targetId, position) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Reorder task');
         const draggedTask = tasks.find(t => t.id === draggedId);
         const targetTask = tasks.find(t => t.id === targetId);
         if (!draggedTask || !targetTask || draggedId === targetId) return;
         const isDifferentColumn = (draggedTask.month !== undefined && targetTask.month !== undefined && draggedTask.month !== targetTask.month) ||
             (draggedTask.status !== undefined && targetTask.status !== undefined && draggedTask.status !== targetTask.status);
+        if (!isUndoRedoRef.current) {
+            const label = isDifferentColumn
+                ? `Task "${draggedTask.title || 'Task'}" moved to new column`
+                : `Task "${draggedTask.title || 'Task'}" reordered`;
+            pushState(boardDataRef.current, label);
+        }
         setTasks(prev => applyTaskReorder(prev, draggedId, targetId, position));
         showNotification(isDifferentColumn ? '✅ Task moved to new column' : '✅ Task reordered');
     }, [tasks, setTasks, showNotification, pushState]);
 
     const handleMoveAction = useCallback((actionId, direction) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Move action');
         const action = actions.find(a => a.id === actionId);
         if (!action) return;
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Action "${action.name || 'Action'}" moved ${direction}`);
         const sameActions = actions.filter(a => a.categoryId === action.categoryId).sort((a, b) => (a.order || 0) - (b.order || 0));
         const currentIndex = sameActions.findIndex(a => a.id === actionId);
         if (currentIndex === -1) return;
@@ -929,10 +944,15 @@ const App = () => {
 
     const handleReorderAction = useCallback((draggedId, targetId, position) => {
         if (draggedId === targetId) return;
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Reorder action');
         const draggedAction = actions.find(a => a.id === draggedId);
         const targetAction = actions.find(a => a.id === targetId);
         if (!draggedAction || !targetAction) return;
+        if (!isUndoRedoRef.current) {
+            const label = draggedAction.categoryId !== targetAction.categoryId
+                ? `Action "${draggedAction.name || 'Action'}" moved to new category`
+                : `Action "${draggedAction.name || 'Action'}" reordered`;
+            pushState(boardDataRef.current, label);
+        }
         if (draggedAction.categoryId !== targetAction.categoryId) {
             const targetActions = actions.filter(a => a.categoryId === targetAction.categoryId).sort((a, b) => (a.order || 0) - (b.order || 0));
             const targetIndex = targetActions.findIndex(a => a.id === targetId);
@@ -968,8 +988,8 @@ const App = () => {
     }, [actions, setActions, showNotification, pushState]);
 
     const handleDeleteTask = useCallback(async (taskId) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Delete task');
         const task = tasks.find(t => t.id === taskId);
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Task "${task?.title || 'Task'}" deleted`);
         // Archive linked Trello card (card-as-task) or delete checklist item (card-as-action)
         if (task && !isReadOnly) {
             const syncMode = currentBoard?.trelloSync?.syncMode;
@@ -1004,13 +1024,16 @@ const App = () => {
     }, []);
 
     const handleUpdateCategory = useCallback((catId, updates) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Update category');
+        if (!isUndoRedoRef.current) {
+            const cat = categories.find(c => c.id === catId);
+            pushState(boardDataRef.current, `Category "${cat?.name || 'Category'}" updated`);
+        }
         setCategories(prev => prev.map(c => c.id === catId ? {...c, ...updates, updatedAt: new Date().toISOString()} : c));
         showNotification('✅ Category updated');
-    }, [setCategories, showNotification, pushState]);
+    }, [categories, setCategories, showNotification, pushState]);
 
     const handleAddCategory = useCallback((newCat) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Add category');
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Category "${newCat?.name || 'Category'}" created`);
         const now = new Date().toISOString();
         if (!newCat.createdAt) newCat.createdAt = now;
         if (!newCat.updatedAt) newCat.updatedAt = now;
@@ -1032,8 +1055,8 @@ const App = () => {
     }, [currentBoard, setCategories, setActions, showNotification, pushState]);
 
     const handleDeleteCategory = useCallback(async (catId) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Delete category');
         const category = categories.find(c => c.id === catId);
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Category "${category?.name || 'Category'}" deleted`);
         const catActions = actions.filter(a => a.categoryId === catId);
         const affectedTaskCount = tasks.filter(t => catActions.some(a => a.id === t.actionId)).length;
         const confirmMessage = catActions.length > 0
@@ -1064,14 +1087,14 @@ const App = () => {
     }, [categories, actions, tasks, isReadOnly, updateCurrentBoard, showNotification, pushState]);
 
     const handleReorderCategories = useCallback((reorderedCategories) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Reorder categories');
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Categories reordered (${reorderedCategories.length})`);
         const now = new Date().toISOString();
         setCategories(reorderedCategories.map((c, i) => ({...c, order: i, updatedAt: now})));
         showNotification('✅ Category order updated');
     }, [setCategories, showNotification, pushState]);
 
     const handleAddAction = useCallback((newAction) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Add action');
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Action "${newAction?.name || 'Action'}" created`);
         const now = new Date().toISOString();
         setActions(prev => [...prev, { ...newAction, createdAt: newAction.createdAt || now, updatedAt: newAction.updatedAt || now }]);
         showNotification('✅ Action created');
@@ -1439,7 +1462,7 @@ const App = () => {
     }, [currentBoard, updateCurrentBoard]);
 
     const handleAddNewTask = useCallback((newTask) => {
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, 'Add task');
+        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Task "${newTask?.title || 'Task'}" created`);
         const maxOrder = Math.max(...tasks.map(t => t.order || 0), -1) + 1;
         const now = new Date().toISOString();
         const enriched = enrichNewTaskWithTrelloMetadata({id: newTask.id || `t-${crypto.randomUUID()}`, status: 'todo', priority: 'medium', description: '', checklist: [], comments: [], attachments: [], channels: [], month: new Date().getMonth(), ...newTask, order: maxOrder, createdAt: newTask.createdAt || now, updatedAt: newTask.updatedAt || now}, tasks, actions);
@@ -1557,6 +1580,12 @@ const App = () => {
                         <button onClick={handleUnlinkTrello} style={{background:'#fff',color:'#f97316',border:'none',borderRadius:4,padding:'3px 10px',fontSize:12,fontWeight:600,cursor:'pointer'}}>Unlink Trello</button>
                     </div>
                 )}
+                {multiBoardMode && (
+                    <div style={{background:'#f97316',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
+                        <span>👁 Combined view — read-only. Changes are disabled while viewing multiple boards.</span>
+                        <button onClick={() => handleToggleMultiBoard(false, [])} style={{background:'#fff',color:'#f97316',border:'none',borderRadius:4,padding:'3px 10px',fontSize:12,fontWeight:600,cursor:'pointer'}}>Exit combined view</button>
+                    </div>
+                )}
                 <Header currentView={currentView} setCurrentView={setCurrentView} onSync={handleSync} syncing={syncing} githubConnected={!!githubToken} savingStatus={savingStatus} trelloSync={currentBoard?.trelloSync} trelloSyncStatus={trelloSyncStatus} onTrelloSync={handleTrelloSync} isOffline={isOffline} realtimeConnected={realtimeConnected}/>
                 <main style={{maxWidth:1600,margin:'0 auto',padding:'var(--space-4) var(--space-6)'}}>
                     <div className="toolbar">
@@ -1578,7 +1607,11 @@ const App = () => {
                                 <button onClick={() => {setShowExportDropdown(false);exportToCSV();}} className="dropdown-item">Export CSV</button>
                                 <div className="dropdown-divider"/>
                                 <button onClick={async () => {setShowExportDropdown(false); const { exportTimelineXlsx } = await import('./lib/excelExport.js'); exportTimelineXlsx(categories, actions, tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Timeline (Excel)</button>
-                                <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name);}} className="dropdown-item">Export Kanban (Excel)</button>
+                                <div className="dropdown-item" style={{fontSize:11,color:'var(--text-muted)',fontWeight:600,letterSpacing:0.3,textTransform:'uppercase',padding:'6px 12px 2px',cursor:'default'}}>Kanban (Excel)</div>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'category');}} className="dropdown-item" style={{paddingLeft:24}}>By category</button>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'month');}} className="dropdown-item" style={{paddingLeft:24}}>By month</button>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'quarter');}} className="dropdown-item" style={{paddingLeft:24}}>By quarter</button>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'country');}} className="dropdown-item" style={{paddingLeft:24}}>By country</button>
                                 <button onClick={async () => {setShowExportDropdown(false); const { exportCalendarXlsx } = await import('./lib/excelExport.js'); exportCalendarXlsx(tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Calendar (Excel)</button>
                                 <div className="dropdown-divider"/>
                                 <button onClick={() => {setShowExportDropdown(false);setShowExcelImport(true);}} className="dropdown-item">Import from Excel</button>
@@ -1625,8 +1658,8 @@ const App = () => {
                     )}
                     <ErrorBoundary>
                     <Suspense fallback={<ViewSkeleton view={currentView} />}>
-                    {currentView === 'kanban' && <KanbanView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef}/>}
-                    {currentView === 'timeline' && <TimelineView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'}/>}
+                    {currentView === 'kanban' && <KanbanView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef} boardGroups={multiBoardMode ? multiBoardData.boardGroups : null}/>}
+                    {currentView === 'timeline' && <TimelineView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} boardGroups={multiBoardMode ? multiBoardData.boardGroups : null}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={visibleActions} tasks={visibleTasks} members={effectiveMembers}/>}
                     </Suspense>

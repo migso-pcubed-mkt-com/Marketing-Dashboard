@@ -1,6 +1,13 @@
 import { useEffect, memo } from 'react';
 import { Icon } from './Icons.jsx';
 
+const MAX_LABEL_LENGTH = 60;
+
+const truncateLabel = (label) => {
+    if (!label) return 'Change';
+    return label.length > MAX_LABEL_LENGTH ? label.slice(0, MAX_LABEL_LENGTH - 1) + '…' : label;
+};
+
 const formatRelative = (timestamp) => {
     const diff = Date.now() - timestamp;
     const sec = Math.floor(diff / 1000);
@@ -66,10 +73,10 @@ const HistoryPanel = ({ show, onClose, history, currentIndex, onJumpTo, onClear 
                                 }}
                                 onMouseEnter={(e) => { if (!isCurrent) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
                                 onMouseLeave={(e) => { if (!isCurrent) e.currentTarget.style.background = 'transparent'; }}
-                                title={isCurrent ? 'Current state' : 'Jump to this point'}
+                                title={isCurrent ? (entry.label || 'Current state') : (entry.label || 'Jump to this point')}
                             >
-                                <span style={{fontSize:13,fontWeight:isCurrent?600:500,color:'var(--text-primary)'}}>
-                                    {entry.label || 'Change'}
+                                <span style={{fontSize:13,fontWeight:isCurrent?600:500,color:'var(--text-primary)',wordBreak:'break-word'}}>
+                                    {truncateLabel(entry.label)}
                                 </span>
                                 <span style={{fontSize:11,color:'var(--text-secondary)',display:'flex',alignItems:'center',gap:6}}>
                                     {formatRelative(entry.timestamp)}
