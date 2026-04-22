@@ -56,7 +56,7 @@ const ExcelImportModal = ({ onClose, onImport }) => {
         setError(null);
         try {
             const buffer = await file.arrayBuffer();
-            const wb = parseWorkbook(buffer);
+            const wb = await parseWorkbook(buffer);
             if (!wb.sheets || wb.sheets.length === 0) {
                 setError('No sheets found in the file.');
                 return;
@@ -97,7 +97,7 @@ const ExcelImportModal = ({ onClose, onImport }) => {
             setColumnMappings(mappings);
             setStep('mapping');
         } else {
-            const analysis = analyzeGridRows(sheet.data, sheet.merges);
+            const analysis = analyzeGridRows(sheet.data, sheet.merges, sheet.cellColors);
             if (analysis) {
                 setGridAnalysis(analysis);
                 setLeveledRows(autoAssignLevels(analysis));
@@ -116,19 +116,26 @@ const ExcelImportModal = ({ onClose, onImport }) => {
         setLeveledRows(rows => rows.map(r => r.rowIdx === rowIdx ? { ...r, level: newLevel } : r));
     };
 
+    // Two rows are "similar" if they share the same indentation depth OR the same first non-empty
+    // column index. The month-signal match from the prior heuristic was too strict and left rows
+    // indented the same way unreachable from a single "Apply to similar" click.
+    const isSimilarRow = (target, candidate) => {
+        if (!target || !candidate || target.rowIdx === candidate.rowIdx) return false;
+        return candidate.depth === target.depth
+            || (target.colIndex != null && candidate.colIndex === target.colIndex);
+    };
+
     const countSimilarRows = (rowIdx) => {
         const target = leveledRows.find(r => r.rowIdx === rowIdx);
         if (!target) return 0;
-        return leveledRows.filter(r => r.depth === target.depth && r.hasMonthContent === target.hasMonthContent).length;
+        return leveledRows.filter(r => isSimilarRow(target, r)).length;
     };
 
     const applyLevelToSimilarRows = (rowIdx, newLevel) => {
         const target = leveledRows.find(r => r.rowIdx === rowIdx);
         if (!target) return;
         setLeveledRows(rows => rows.map(r => (
-            r.depth === target.depth && r.hasMonthContent === target.hasMonthContent
-                ? { ...r, level: newLevel }
-                : r
+            isSimilarRow(target, r) ? { ...r, level: newLevel } : r
         )));
     };
 
@@ -160,7 +167,7 @@ const ExcelImportModal = ({ onClose, onImport }) => {
         const sheet = workbook.sheets[selectedSheet];
         if (format === 'grid') {
             // Route grid through the review step so users can adjust levels
-            const analysis = analyzeGridRows(sheet.data, sheet.merges);
+            const analysis = analyzeGridRows(sheet.data, sheet.merges, sheet.cellColors);
             if (analysis) {
                 setGridAnalysis(analysis);
                 setLeveledRows(autoAssignLevels(analysis));
@@ -420,14 +427,15 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                                                 <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)' }}>
                                                     {(() => {
                                                         const count = countSimilarRows(r.rowIdx);
+                                                        const disabled = count === 0;
                                                         return (
                                                             <button
                                                                 onClick={() => applyLevelToSimilarRows(r.rowIdx, r.level)}
-                                                                disabled={count <= 1}
+                                                                disabled={disabled}
                                                                 title="Apply this level to every other row with the same indentation"
-                                                                style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: count <= 1 ? 'var(--border)' : 'var(--text-muted)', cursor: count <= 1 ? 'default' : 'pointer' }}
+                                                                style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: disabled ? 'var(--border)' : 'var(--text-muted)', cursor: disabled ? 'default' : 'pointer' }}
                                                             >
-                                                                Apply to {count} similar
+                                                                Apply to {count} similar {count === 1 ? 'row' : 'rows'}
                                                             </button>
                                                         );
                                                     })()}

@@ -41,11 +41,13 @@ const TimelineBar = ({
             onDragOver={(e) => onDragOver(e, task)}
             onDragLeave={onDragLeave}
             onDrop={(e) => onDrop(e, task)}
-            className={`timeline-bar absolute flex items-center overflow-visible ${isResizing ? '' : 'cursor-move'} ${dragOverClass}`}
+            className={`timeline-bar absolute flex items-center ${isResizing ? '' : 'cursor-move'} ${dragOverClass}`}
             style={{
                 left: pos.left, width: Math.max(pos.width - 2, 4), top: `${topOffset}px`, height: 26,
                 borderRadius: 5, padding: '0 8px', fontSize: 10, fontWeight: 500,
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                // overflow:visible so the title can spill to the right of short bars onto the
+                // timeline background instead of being ellipsized out of sight.
+                whiteSpace: 'nowrap', overflow: 'visible',
                 backgroundColor: barColor, color: textColor, zIndex: 1,
                 transition: 'transform 0.15s, box-shadow 0.15s',
                 opacity: isCompleted ? 0.45 : 1,
@@ -62,14 +64,23 @@ const TimelineBar = ({
                     draggable={false}
                 />
             )}
-            {isPinned && (
-                <span aria-hidden="true" className="pointer-events-none" style={{ display: 'inline-block', width: 4, height: 4, borderRadius: '50%', background: textColor, opacity: 0.8, marginRight: 4, flex: '0 0 auto' }} />
-            )}
-            <span className="truncate flex-1 pointer-events-none" style={isCompleted ? { textDecoration: 'line-through' } : {}}>{task.title}</span>
+            <span
+                className="flex-1 pointer-events-none"
+                style={{
+                    whiteSpace: 'nowrap',
+                    overflow: 'visible',
+                    // Keep the title readable both inside the colored bar and on the white
+                    // timeline background when it spills to the right of a short bar.
+                    color: '#1f2937',
+                    textShadow: '0 0 3px rgba(255,255,255,0.85), 0 0 6px rgba(255,255,255,0.6)',
+                    ...(isCompleted ? { textDecoration: 'line-through' } : {})
+                }}
+            >
+                {task.title}
+            </span>
             {task.budget > 0 && (zoom === 'month' || zoom === 'quarter') && (
                 <span style={{ marginLeft: 4, opacity: 0.8, fontSize: 9 }} className="pointer-events-none">({(task.budget / 1000).toFixed(0)}k)</span>
             )}
-            {pos.width < 60 && <div className="timeline-bar-tooltip">{task.title}</div>}
             {!isReadOnly && (
                 <div className="resize-handle resize-handle-right"
                     onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}

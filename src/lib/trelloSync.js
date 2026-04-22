@@ -1,6 +1,6 @@
 // Bidirectional Trello sync with "last write wins" conflict resolution
 
-import { fetchTrelloBoardFull, fetchCardCommentsBatch, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, deleteTrelloChecklistItem, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList, fetchTrelloCard, updateTrelloBoard } from './trello.js';
+import { fetchTrelloBoardFull, fetchCardCommentsBatch, updateTrelloCard, createTrelloCard, addTrelloComment, addTrelloChecklist, addTrelloChecklistItems, updateTrelloChecklistItem, updateTrelloChecklist, addTrelloAttachment, uploadTrelloAttachment, deleteTrelloChecklist, deleteTrelloAttachment, deleteTrelloChecklistItem, createTrelloBoardLabel, addTrelloCardLabel, removeTrelloCardLabel, updateTrelloList, createTrelloList, fetchTrelloCard, updateTrelloBoard, archiveTrelloCard, archiveTrelloList } from './trello.js';
 import { mapTaskToTrelloCardUpdate, mergeCardIntoTask, mergeTrelloExtrasIntoTask, trelloColorToHex, mergeCardIntoAction, mergeCheckItemIntoTask, mapTaskToCheckItemUpdate, mapActionToTrelloCardUpdate, mapTrelloCardToAction, mapTrelloCheckItemToTask, resolveTrelloCardUrl } from './trelloMapping.js';
 import { CONFIG } from '../config.js';
 
@@ -985,7 +985,59 @@ export const syncWithTrello = async (board, mappingConfig, { readOnly = false } 
     }
 };
 
+// When an undo removes entities that still live on Trello (card created then
+// undone, list with categories wiped out, etc.), useUndoRedo records the lost
+// IDs in board.trelloSync._pendingUndoDeletes. At sync time we archive/delete
+// them here so Trello reflects the local state, then roll the IDs into the
+// existing _recentlyDeleted* registers so the subsequent pull doesn't re-import
+// them as new entities.
+const flushPendingUndoDeletes = async (board, { readOnly }) => {
+    const entries = board.trelloSync?._pendingUndoDeletes;
+    if (!Array.isArray(entries) || entries.length === 0) return board;
+
+    const allCards = [];
+    const allLists = [];
+    const allCheckItems = [];
+    for (const entry of entries) {
+        if (Array.isArray(entry.cards)) allCards.push(...entry.cards);
+        if (Array.isArray(entry.lists)) allLists.push(...entry.lists);
+        if (Array.isArray(entry.checkItems)) allCheckItems.push(...entry.checkItems);
+    }
+
+    if (!readOnly) {
+        const tryArchive = async (fn, arg) => {
+            try { await fn(arg); }
+            catch (err) { console.warn('[Trello sync] pending undo delete failed (ignored):', err?.message || err); }
+        };
+        for (const id of allCards) await tryArchive(archiveTrelloCard, id);
+        for (const id of allLists) await tryArchive(archiveTrelloList, id);
+        for (const ci of allCheckItems) {
+            if (!ci?.checklistId || !ci?.itemId) continue;
+            try { await deleteTrelloChecklistItem(ci.checklistId, ci.itemId); }
+            catch (err) { console.warn('[Trello sync] pending undo checklist-item delete failed (ignored):', err?.message || err); }
+        }
+    }
+
+    const now = Date.now();
+    const recentCards = [...(board.trelloSync?._recentlyDeletedCardIds || [])];
+    const recentLists = [...(board.trelloSync?._recentlyDeletedListIds || [])];
+    for (const id of allCards) recentCards.push({ id, at: now });
+    for (const id of allLists) recentLists.push({ id, at: now });
+
+    return {
+        ...board,
+        trelloSync: {
+            ...board.trelloSync,
+            _pendingUndoDeletes: undefined,
+            _recentlyDeletedCardIds: recentCards,
+            _recentlyDeletedListIds: recentLists
+        }
+    };
+};
+
 const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } = {}) => {
+    // eslint-disable-next-line no-param-reassign
+    board = await flushPendingUndoDeletes(board, { readOnly });
     const { trelloSync } = board;
     // Branch on sync mode
     if (trelloSync.syncMode === 'card-as-action') {

@@ -14,19 +14,60 @@ const GRADIENTS = [
 
 /**
  * Parse a workbook from a File/ArrayBuffer.
- * Returns { sheets: [{ name, data, merges }] }
+ * Returns { sheets: [{ name, data, merges, cellColors }] }. `cellColors[r][c]` is an ARGB string or null.
+ * Colors are read via exceljs (loaded on demand) so styling signals survive the xlsx→json conversion.
  */
-export function parseWorkbook(buffer) {
+export async function parseWorkbook(buffer) {
     const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const xlsxSheets = wb.SheetNames.map(name => {
+        const ws = wb.Sheets[name];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+        const merges = ws['!merges'] || [];
+        return { name, data, merges };
+    });
+
+    let colorsByName = {};
+    try {
+        const ExcelJSMod = await import('exceljs');
+        const ExcelJS = ExcelJSMod.default || ExcelJSMod;
+        const exWb = new ExcelJS.Workbook();
+        // exceljs expects an ArrayBuffer or Uint8Array — both work with the same buffer.
+        await exWb.xlsx.load(buffer);
+        for (const ws of exWb.worksheets) {
+            const grid = [];
+            ws.eachRow({ includeEmpty: true }, (row, rIdx) => {
+                const rowArr = [];
+                row.eachCell({ includeEmpty: true }, (cell, cIdx) => {
+                    const fill = cell.fill;
+                    const argb = fill?.fgColor?.argb || fill?.bgColor?.argb || null;
+                    rowArr[cIdx - 1] = argb || null;
+                });
+                grid[rIdx - 1] = rowArr;
+            });
+            colorsByName[ws.name] = grid;
+        }
+    } catch {
+        // Legacy .xls or missing styles — proceed without color signal.
+        colorsByName = {};
+    }
+
     return {
         sheetNames: wb.SheetNames,
-        sheets: wb.SheetNames.map(name => {
-            const ws = wb.Sheets[name];
-            const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
-            const merges = ws['!merges'] || [];
-            return { name, data, merges };
-        })
+        sheets: xlsxSheets.map(s => ({ ...s, cellColors: colorsByName[s.name] || [] }))
     };
+}
+
+/**
+ * ARGB (from exceljs) represents a non-neutral fill color (user-applied highlight).
+ * Excludes transparent/default whites, pure black (often a font-default), and empty values.
+ */
+function isMeaningfulFill(argb) {
+    if (!argb) return false;
+    const up = String(argb).toUpperCase();
+    if (up === '00000000') return false;           // fully transparent
+    if (up === 'FFFFFFFF' || up === 'FFFFFF') return false; // white
+    if (up === 'FF000000' || up === '000000') return false; // pure black — almost never a real highlight
+    return true;
 }
 
 // ─────────────────────────────────────────────
@@ -191,9 +232,9 @@ function indexMergesByRow(merges) {
 /**
  * Analyze each grid row to detect indent depth, merge span, country tag, month coverage.
  * This powers both auto-detection and the manual review UI.
- * Returns { monthHeader, rows: [{rowIdx, label, depth, mergeSpan, hasMonthContent, countryId, startMonthCol, endMonthCol}] }
+ * Returns { monthHeader, rows: [{rowIdx, label, depth, mergeSpan, hasMonthContent, hasMonthSignal, countryId, startMonthCol, endMonthCol}] }
  */
-export function analyzeGridRows(sheetData, merges = []) {
+export function analyzeGridRows(sheetData, merges = [], cellColors = []) {
     const data = sheetData.map(row => [...(row || [])]);
     // Do NOT expand merges yet — we want to detect the original blank cells for depth computation.
     // Build a side-copy with merges expanded for label lookup only.
@@ -225,18 +266,23 @@ export function analyzeGridRows(sheetData, merges = []) {
         }
         const label = depth >= 0 ? String(row[depth]).trim() : labelFromExpanded;
 
-        // Month content
+        // Month content (text) + colored-cell signal. Either one flags the row as a task candidate.
         let hasMonthContent = false;
+        let hasMonthColor = false;
         let startMonthCol = null;
         let endMonthCol = null;
         for (const mc of monthColumns) {
             const val = String(expanded[r]?.[mc.col] || '').trim();
-            if (val && val !== label) {
-                hasMonthContent = true;
+            const textSignal = val && val !== label;
+            const colorSignal = isMeaningfulFill(cellColors?.[r]?.[mc.col]);
+            if (textSignal || colorSignal) {
+                if (textSignal) hasMonthContent = true;
+                if (colorSignal) hasMonthColor = true;
                 if (startMonthCol === null) startMonthCol = mc;
                 endMonthCol = mc;
             }
         }
+        const hasMonthSignal = hasMonthContent || hasMonthColor;
 
         // Merge span at this row for the label cell
         const mergesHere = mergesByRow.get(r) || [];
@@ -245,15 +291,18 @@ export function analyzeGridRows(sheetData, merges = []) {
         // Large horizontal merge = section/super heading signal
         const wideMerge = labelMerge && labelMerge.endCol >= firstMonthCol - 1;
 
-        if (!label && !hasMonthContent) continue; // fully empty row
+        if (!label && !hasMonthSignal) continue; // fully empty row
 
         rows.push({
             rowIdx: r,
             label: label || '',
             depth: depth >= 0 ? depth : 0,
+            colIndex: depth >= 0 ? depth : labelCol,
             mergeSpan,
             wideMerge: !!wideMerge,
             hasMonthContent,
+            hasMonthColor,
+            hasMonthSignal,
             startMonthCol,
             endMonthCol,
             countryId: detectCountryId(label)
@@ -274,7 +323,7 @@ export function autoAssignLevels(analysis) {
     if (!analysis) return [];
     const { rows } = analysis;
 
-    const headerRows = rows.filter(r => !r.hasMonthContent);
+    const headerRows = rows.filter(r => !r.hasMonthSignal);
     const headerDepths = Array.from(new Set(headerRows.map(r => r.depth))).sort((a, b) => a - b);
     // Detect whether the shallowest depth looks like a super-category band
     // (country label or wide merge). If yes, shift the mapping so the next depth is still 'category'.
@@ -303,7 +352,7 @@ export function autoAssignLevels(analysis) {
     }
 
     return rows.map(r => {
-        if (r.hasMonthContent) return { ...r, level: 'task' };
+        if (r.hasMonthSignal) return { ...r, level: 'task' };
         let level = depthToLevel.get(r.depth) || 'category';
         // Country label at shallow depth forces 'super' — but only when there's at least
         // one deeper header depth to host real categories underneath. Otherwise, the country

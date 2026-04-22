@@ -65,6 +65,37 @@ describe('analyzeGridRows', () => {
         expect(analysis.rows[0].wideMerge).toBe(true);
         expect(analysis.rows[0].mergeSpan).toBe(15);
     });
+
+    it('flags colored month cells as task signal even without text', () => {
+        const data = [
+            monthHeader,
+            ['Campaign X', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
+        ];
+        // Row 1: fill Feb (col 4) + Mar (col 5) in red, no text.
+        const cellColors = [
+            [],
+            [null, null, null, null, 'FFEF4444', 'FFEF4444', null, null, null, null, null, null, null, null, null]
+        ];
+        const analysis = analyzeGridRows(data, [], cellColors);
+        expect(analysis.rows[0].hasMonthColor).toBe(true);
+        expect(analysis.rows[0].hasMonthSignal).toBe(true);
+        expect(analysis.rows[0].startMonthCol.month).toBe(1); // Feb
+        expect(analysis.rows[0].endMonthCol.month).toBe(2);   // Mar
+    });
+
+    it('ignores white/transparent/black fills as non-meaningful', () => {
+        const data = [
+            monthHeader,
+            ['Placeholder', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
+        ];
+        const cellColors = [
+            [],
+            [null, null, null, 'FFFFFFFF', '00000000', 'FF000000', null, null, null, null, null, null, null, null, null]
+        ];
+        const analysis = analyzeGridRows(data, [], cellColors);
+        expect(analysis.rows[0].hasMonthColor).toBe(false);
+        expect(analysis.rows[0].hasMonthSignal).toBe(false);
+    });
 });
 
 describe('autoAssignLevels', () => {

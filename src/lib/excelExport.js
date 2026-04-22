@@ -1,13 +1,20 @@
 import * as XLSX from 'xlsx';
 import { CONFIG } from '../config.js';
 
-const statusName = (id) => CONFIG.STATUSES.find(s => s.id === id)?.name || id || '';
 const statusColor = (id) => CONFIG.STATUSES.find(s => s.id === id)?.color || '#94a3b8';
-const statusGlyph = (id) => CONFIG.STATUSES.find(s => s.id === id)?.icon || '';
 const priorityName = (id) => CONFIG.PRIORITIES.find(p => p.id === id)?.name || id || '';
 
 // Hex '#RRGGBB' → ARGB 'FFRRGGBB' for exceljs fills
 const toARGB = (hex) => 'FF' + (hex || '#cccccc').replace('#', '').toUpperCase().padEnd(6, '0').slice(0, 6);
+
+// Lighten an ARGB color toward white by `t` (0..1). Used for completed-task pale backgrounds.
+const lightenARGB = (argb, t = 0.7) => {
+    const r = parseInt(argb.slice(2, 4), 16);
+    const g = parseInt(argb.slice(4, 6), 16);
+    const b = parseInt(argb.slice(6, 8), 16);
+    const mix = (c) => Math.round(c + (255 - c) * t).toString(16).padStart(2, '0').toUpperCase();
+    return 'FF' + mix(r) + mix(g) + mix(b);
+};
 
 const downloadExcelJs = async (workbook, filename) => {
     const buffer = await workbook.xlsx.writeBuffer();
@@ -35,16 +42,20 @@ const downloadWorkbook = (wb, filename) => {
 // TIMELINE (exceljs — styled Gantt)
 // ─────────────────────────────────────────────
 
+// Timeline export mirrors the grid/roadmap import layout: one label column (A)
+// for the hierarchy (category → action), then 12 month columns (B…M). Task titles
+// live inside the Gantt bar — the cells merged across startDate..dueDate — so the
+// sheet matches what the import parser expects and produces a round-trip friendly file.
 export async function buildTimelineWorkbook(categories, actions, tasks, year) {
     const { default: ExcelJS } = await import('exceljs');
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Marketing Dashboard';
     const ws = wb.addWorksheet('Timeline', {
-        views: [{ state: 'frozen', xSplit: 3, ySplit: 1 }]
+        views: [{ state: 'frozen', xSplit: 1, ySplit: 1 }]
     });
 
     const months = CONFIG.MONTHS;
-    const header = ['Category', 'Action', 'Task', ...months];
+    const header = ['', ...months];
     const headerRow = ws.addRow(header);
     headerRow.eachCell((cell) => {
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
@@ -54,16 +65,15 @@ export async function buildTimelineWorkbook(categories, actions, tasks, year) {
     });
     headerRow.height = 22;
 
-    ws.getColumn(1).width = 22;
-    ws.getColumn(2).width = 26;
-    ws.getColumn(3).width = 32;
-    for (let c = 4; c <= 15; c++) ws.getColumn(c).width = 6;
+    ws.getColumn(1).width = 45;
+    for (let c = 2; c <= 13; c++) ws.getColumn(c).width = 10;
 
     const sortedCats = [...categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
     sortedCats.forEach(cat => {
-        const catRow = ws.addRow([cat.name, '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-        ws.mergeCells(catRow.number, 1, catRow.number, 15);
+        // Category band row — label in A, merged across all 13 columns for a full-width section header.
+        const catRow = ws.addRow([cat.name, '', '', '', '', '', '', '', '', '', '', '', '']);
+        ws.mergeCells(catRow.number, 1, catRow.number, 13);
         const catCell = catRow.getCell(1);
         catCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
         catCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(cat.color) } };
@@ -75,29 +85,18 @@ export async function buildTimelineWorkbook(categories, actions, tasks, year) {
         catActions.forEach(action => {
             const actionTasks = tasks.filter(t => t.actionId === action.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
+            // Action sub-header (skipped for default/card-as-task actions — their tasks appear directly under the category).
             if (!action.isDefault) {
-                const actionRow = ws.addRow([`  ${action.name}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-                ws.mergeCells(actionRow.number, 1, actionRow.number, 15);
+                const actionRow = ws.addRow([`  ${action.name}`, '', '', '', '', '', '', '', '', '', '', '', '']);
+                ws.mergeCells(actionRow.number, 1, actionRow.number, 13);
                 const actionCell = actionRow.getCell(1);
                 actionCell.font = { bold: true, color: { argb: 'FF111827' }, size: 10 };
-                actionCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(cat.color).replace(/^FF/, '33') } };
+                actionCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: lightenARGB(toARGB(cat.color), 0.75) } };
                 actionCell.alignment = { vertical: 'middle', horizontal: 'left' };
                 actionRow.height = 18;
             }
 
             actionTasks.forEach(task => {
-                const row = ws.addRow([
-                    cat.name,
-                    action.isDefault ? '' : action.name,
-                    task.title || '',
-                    '', '', '', '', '', '', '', '', '', '', '', ''
-                ]);
-                row.height = 18;
-                row.getCell(1).font = { color: { argb: 'FF6B7280' }, size: 10 };
-                row.getCell(2).font = { color: { argb: 'FF6B7280' }, size: 10 };
-                row.getCell(3).font = { bold: false, size: 10 };
-                row.getCell(3).alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
-
                 const tStart = task.startDate ? new Date(task.startDate) : null;
                 const tEnd = task.dueDate ? new Date(task.dueDate) : tStart;
                 if (!tStart) return;
@@ -113,19 +112,29 @@ export async function buildTimelineWorkbook(categories, actions, tasks, year) {
                 }
                 if (startMonth === -1) return;
 
-                const startCol = 4 + startMonth;
-                const endCol = 4 + endMonth;
+                const row = ws.addRow(['', '', '', '', '', '', '', '', '', '', '', '', '']);
+                row.height = 18;
+
+                const startCol = 2 + startMonth;
+                const endCol = 2 + endMonth;
                 if (endCol > startCol) ws.mergeCells(row.number, startCol, row.number, endCol);
 
-                // Bar cell: color + border only. The task title stays in column C to avoid duplication.
-                // For bars spanning 3+ months, show the status glyph at the center to hint at state.
                 const barCell = row.getCell(startCol);
-                const spanMonths = endMonth - startMonth + 1;
-                barCell.value = spanMonths >= 3 ? statusGlyph(task.status) : '';
-                barCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(statusColor(task.status)) } };
-                barCell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
-                barCell.alignment = { vertical: 'middle', horizontal: 'center' };
-                const border = { style: 'thin', color: { argb: 'FF000000' } };
+                barCell.value = task.title || '';
+                const isDone = task.status === 'completed';
+                const statusARGB = toARGB(statusColor(task.status));
+                barCell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: isDone ? lightenARGB(statusARGB, 0.55) : statusARGB }
+                };
+                barCell.font = {
+                    bold: !isDone,
+                    color: { argb: isDone ? 'FF4B5563' : 'FFFFFFFF' },
+                    size: 10
+                };
+                barCell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+                const border = { style: 'thin', color: { argb: 'FFD1D5DB' } };
                 barCell.border = { top: border, left: border, right: border, bottom: border };
             });
         });
@@ -143,13 +152,61 @@ export async function exportTimelineXlsx(categories, actions, tasks, year, board
 // KANBAN (exceljs — styled columns)
 // ─────────────────────────────────────────────
 
-// Build the list of columns for a given Kanban view.
-// Each column: { label, color, tasks }.
+// Card-as-action detection: a category is in card-as-action mode if it has at least
+// one non-default action. In that case we render one cell per *action* (with its
+// checklists/tasks inlined) instead of one cell per task. Pure card-as-task
+// categories (only default actions) keep the original task-level rendering.
+function isCardAsActionCategory(categoryId, actions) {
+    return actions.some(a => a.categoryId === categoryId && !a.isDefault);
+}
+
+// Render an action as a multi-line cell value.
+// Layout:
+//   [Action name]
+//   ▸ Checklist 1
+//     · Task A
+//     · Task B
+//   ▸ Checklist 2
+//     · Task C
+function buildActionCellText(action, actionTasks) {
+    if (actionTasks.length === 0) return action.name || '';
+    const groups = new Map();
+    const groupOrder = [];
+    for (const t of actionTasks) {
+        const key = t.trelloChecklistName || '(Tasks)';
+        if (!groups.has(key)) {
+            groups.set(key, []);
+            groupOrder.push(key);
+        }
+        groups.get(key).push(t);
+    }
+    const lines = [action.name || ''];
+    for (const name of groupOrder) {
+        const items = groups.get(name).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        lines.push('');
+        lines.push(`▸ ${name}`);
+        for (const t of items) lines.push(`  · ${t.title || ''}`);
+    }
+    return lines.join('\n');
+}
+
+// Build a uniform list of columns for any Kanban view.
+// Each column: { label, color, items: [{ kind: 'task'|'action', data, tasks? }] }.
 function buildKanbanColumns(categories, actions, tasks, view) {
     const taskDate = (t) => t.dueDate || t.startDate;
     const sortByOrder = (list) => [...list].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const NEUTRAL_HEADER = '#475569';
     const UNASSIGNED = '#94a3b8';
+
+    const taskItems = (ts) => ts.map(t => ({ kind: 'task', data: t }));
+
+    if (view === 'status') {
+        return CONFIG.STATUSES.map(s => ({
+            label: s.name,
+            color: s.color,
+            items: taskItems(sortByOrder(tasks.filter(t => t.status === s.id)))
+        }));
+    }
 
     if (view === 'month') {
         const cols = [];
@@ -158,10 +215,10 @@ function buildKanbanColumns(categories, actions, tasks, view) {
                 const d = taskDate(t);
                 return d && new Date(d).getMonth() === m;
             }));
-            cols.push({ label: CONFIG.MONTHS_FULL[m], color: NEUTRAL_HEADER, tasks: mTasks });
+            cols.push({ label: CONFIG.MONTHS_FULL[m], color: NEUTRAL_HEADER, items: taskItems(mTasks) });
         }
         const noDate = sortByOrder(tasks.filter(t => !taskDate(t)));
-        if (noDate.length) cols.push({ label: 'Unscheduled', color: UNASSIGNED, tasks: noDate });
+        if (noDate.length) cols.push({ label: 'Unscheduled', color: UNASSIGNED, items: taskItems(noDate) });
         return cols;
     }
 
@@ -172,15 +229,14 @@ function buildKanbanColumns(categories, actions, tasks, view) {
                 const d = taskDate(t);
                 return d && Math.floor(new Date(d).getMonth() / 3) === q;
             }));
-            cols.push({ label: `Q${q + 1}`, color: NEUTRAL_HEADER, tasks: qTasks });
+            cols.push({ label: `Q${q + 1}`, color: NEUTRAL_HEADER, items: taskItems(qTasks) });
         }
         const noDate = sortByOrder(tasks.filter(t => !taskDate(t)));
-        if (noDate.length) cols.push({ label: 'Unscheduled', color: UNASSIGNED, tasks: noDate });
+        if (noDate.length) cols.push({ label: 'Unscheduled', color: UNASSIGNED, items: taskItems(noDate) });
         return cols;
     }
 
     if (view === 'country') {
-        // Preserve the app's canonical country order when present in at least one task
         const presentIds = new Set();
         tasks.forEach(t => (t.countries || []).forEach(c => presentIds.add(c)));
         const cols = CONFIG.COUNTRIES
@@ -188,28 +244,37 @@ function buildKanbanColumns(categories, actions, tasks, view) {
             .map(c => ({
                 label: c.name,
                 color: c.color || NEUTRAL_HEADER,
-                tasks: sortByOrder(tasks.filter(t => (t.countries || []).includes(c.id)))
+                items: taskItems(sortByOrder(tasks.filter(t => (t.countries || []).includes(c.id))))
             }));
-        // Countries found on tasks but not declared in CONFIG (shouldn't happen, but safe)
         const extraIds = Array.from(presentIds).filter(id => !CONFIG.COUNTRIES.some(c => c.id === id));
         for (const id of extraIds) {
             cols.push({
                 label: id,
                 color: NEUTRAL_HEADER,
-                tasks: sortByOrder(tasks.filter(t => (t.countries || []).includes(id)))
+                items: taskItems(sortByOrder(tasks.filter(t => (t.countries || []).includes(id))))
             });
         }
         const noCountry = sortByOrder(tasks.filter(t => !(t.countries || []).length));
-        if (noCountry.length) cols.push({ label: 'No country', color: UNASSIGNED, tasks: noCountry });
+        if (noCountry.length) cols.push({ label: 'No country', color: UNASSIGNED, items: taskItems(noCountry) });
         return cols;
     }
 
-    // Default: category view
+    // Default: category view. Switch to action-centric rendering if the category
+    // is in card-as-action mode; otherwise render individual tasks.
     const sortedCats = sortByOrder(categories);
     return sortedCats.map(cat => {
-        const catActionIds = new Set(actions.filter(a => a.categoryId === cat.id).map(a => a.id));
+        const catActions = sortByOrder(actions.filter(a => a.categoryId === cat.id));
+        if (isCardAsActionCategory(cat.id, actions)) {
+            const items = catActions.map(action => ({
+                kind: 'action',
+                data: action,
+                tasks: sortByOrder(tasks.filter(t => t.actionId === action.id))
+            }));
+            return { label: cat.name, color: cat.color, items };
+        }
+        const catActionIds = new Set(catActions.map(a => a.id));
         const catTasks = sortByOrder(tasks.filter(t => catActionIds.has(t.actionId)));
-        return { label: cat.name, color: cat.color, tasks: catTasks };
+        return { label: cat.name, color: cat.color, items: taskItems(catTasks) };
     });
 }
 
@@ -224,7 +289,7 @@ export async function buildKanbanWorkbook(categories, actions, tasks, view = 'ca
     const columns = buildKanbanColumns(categories, actions, tasks, view);
     if (columns.length === 0) return wb;
 
-    const maxRows = Math.max(...columns.map(c => c.tasks.length), 0);
+    const maxRows = Math.max(...columns.map(c => c.items.length), 0);
 
     const headerRow = ws.addRow(columns.map(c => c.label));
     headerRow.eachCell((cell, colIdx) => {
@@ -235,28 +300,44 @@ export async function buildKanbanWorkbook(categories, actions, tasks, view = 'ca
     });
     headerRow.height = 28;
 
-    columns.forEach((_, ci) => { ws.getColumn(ci + 1).width = 30; });
+    columns.forEach((_, ci) => { ws.getColumn(ci + 1).width = 34; });
 
     for (let r = 0; r < maxRows; r++) {
-        const row = ws.addRow(columns.map(col => {
-            const task = col.tasks[r];
-            if (!task) return '';
+        const rowValues = columns.map(col => {
+            const item = col.items[r];
+            if (!item) return '';
+            if (item.kind === 'action') return buildActionCellText(item.data, item.tasks);
+            const task = item.data;
             const p = task.priority ? `\n[${priorityName(task.priority)}]` : '';
             return `${task.title || ''}${p}`;
-        }));
-        row.height = 34;
+        });
+        const row = ws.addRow(rowValues);
+        // Taller row for action cells so their multi-line content stays readable.
+        const hasActionItem = columns.some(col => col.items[r]?.kind === 'action');
+        row.height = hasActionItem ? 90 : 34;
         row.eachCell((cell, colIdx) => {
-            const task = columns[colIdx - 1].tasks[r];
-            if (!task) return;
+            const item = columns[colIdx - 1].items[r];
+            if (!item) return;
+            const statusId = item.kind === 'action' ? item.data.status : item.data.status;
+            const statusARGB = toARGB(statusColor(statusId));
+            const isDone = statusId === 'completed';
             cell.border = {
-                left: { style: 'thick', color: { argb: toARGB(statusColor(task.status)) } },
+                left: { style: 'thick', color: { argb: statusARGB } },
                 top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
                 right: { style: 'thin', color: { argb: 'FFE5E7EB' } },
                 bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }
             };
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: isDone ? lightenARGB(statusARGB, 0.82) : 'FFF8FAFC' }
+            };
             cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true, indent: 1 };
-            cell.font = { size: 10, color: { argb: 'FF111827' } };
+            cell.font = {
+                size: 10,
+                color: { argb: isDone ? 'FF6B7280' : 'FF111827' },
+                bold: item.kind === 'action'
+            };
         });
     }
 
