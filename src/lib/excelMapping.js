@@ -267,10 +267,13 @@ export function analyzeGridRows(sheetData, merges = [], cellColors = []) {
         const label = depth >= 0 ? String(row[depth]).trim() : labelFromExpanded;
 
         // Month content (text) + colored-cell signal. Either one flags the row as a task candidate.
+        // `monthSignals` records EVERY month cell that carried a signal so the flat-category
+        // builder can emit one task per highlighted cell.
         let hasMonthContent = false;
         let hasMonthColor = false;
         let startMonthCol = null;
         let endMonthCol = null;
+        const monthSignals = [];
         for (const mc of monthColumns) {
             const val = String(expanded[r]?.[mc.col] || '').trim();
             const textSignal = val && val !== label;
@@ -280,6 +283,7 @@ export function analyzeGridRows(sheetData, merges = [], cellColors = []) {
                 if (colorSignal) hasMonthColor = true;
                 if (startMonthCol === null) startMonthCol = mc;
                 endMonthCol = mc;
+                monthSignals.push({ col: mc.col, month: mc.month, year: mc.year, text: textSignal ? val : '', hasColor: colorSignal });
             }
         }
         const hasMonthSignal = hasMonthContent || hasMonthColor;
@@ -290,8 +294,16 @@ export function analyzeGridRows(sheetData, merges = [], cellColors = []) {
         const mergeSpan = labelMerge ? (labelMerge.endCol - labelMerge.startCol + 1) : 1;
         // Large horizontal merge = section/super heading signal
         const wideMerge = labelMerge && labelMerge.endCol >= firstMonthCol - 1;
+        // labelFromMerge = the row itself is blank in label columns, but a vertical merge
+        // propagates a value from above (typical "UK" super-band spanning many rows).
+        const labelFromMerge = depth < 0 && Boolean(labelFromExpanded);
 
         if (!label && !hasMonthSignal) continue; // fully empty row
+
+        // Distinct text values across the month cells: used to tell "one long task
+        // spanning several months" (single value, e.g. all 'x' markers) apart from
+        // "category with multiple distinct tasks per month cell".
+        const distinctMonthTexts = new Set(monthSignals.map(s => (s.text || '').trim()).filter(t => t.length > 0));
 
         rows.push({
             rowIdx: r,
@@ -303,8 +315,11 @@ export function analyzeGridRows(sheetData, merges = [], cellColors = []) {
             hasMonthContent,
             hasMonthColor,
             hasMonthSignal,
+            labelFromMerge,
             startMonthCol,
             endMonthCol,
+            monthSignals,
+            distinctMonthTexts: distinctMonthTexts.size,
             countryId: detectCountryId(label)
         });
     }
@@ -313,26 +328,30 @@ export function analyzeGridRows(sheetData, merges = [], cellColors = []) {
 }
 
 /**
- * Auto-assign a level ('super' | 'category' | 'action' | 'task' | 'ignore') to each row.
- * Heuristic:
- *   - hasMonthContent → 'task'
- *   - else shallowest depth (or widest merge) → 'super'/'category' depending on how many non-task depths exist
- *   - label matches a country and sits at a shallow depth → force 'super'
+ * Auto-assign a level ('super' | 'category' | 'flat-category' | 'action' | 'task' | 'ignore') to each row.
+ * Heuristics:
+ *   - label + hasMonthSignal (own label, not from a merge) → 'flat-category'
+ *     (one row per category with its tasks lined up across month columns).
+ *   - no label + hasMonthSignal (or label came from a vertical merge) → 'task'
+ *     (classic sibling row under a header).
+ *   - labelFromMerge without any month signal → 'ignore' (the row is really empty;
+ *     a merged label above just leaked into it).
+ *   - otherwise header → shallowest depth = 'super' or 'category' depending on depth count.
  */
 export function autoAssignLevels(analysis) {
     if (!analysis) return [];
     const { rows } = analysis;
 
-    const headerRows = rows.filter(r => !r.hasMonthSignal);
+    // Header rows = non-task, non-flat-category. Flat-category rows have their own label
+    // AND month signal; they're categories that also carry tasks inline so we exclude them
+    // from the depth-count used to infer the super/category/action split.
+    const headerRows = rows.filter(r => !r.hasMonthSignal && !r.labelFromMerge);
     const headerDepths = Array.from(new Set(headerRows.map(r => r.depth))).sort((a, b) => a - b);
-    // Detect whether the shallowest depth looks like a super-category band
-    // (country label or wide merge). If yes, shift the mapping so the next depth is still 'category'.
     const shallowestIsSuper = headerRows.some(r =>
         r.depth === headerDepths[0] && (r.countryId || r.wideMerge)
     );
     const depthToLevel = new Map();
     if (headerDepths.length >= 3) {
-        // Deep nesting: shallowest is a super-category, next is category, deeper are actions.
         depthToLevel.set(headerDepths[0], 'super');
         depthToLevel.set(headerDepths[1], 'category');
         for (let i = 2; i < headerDepths.length; i++) depthToLevel.set(headerDepths[i], 'action');
@@ -345,18 +364,21 @@ export function autoAssignLevels(analysis) {
             depthToLevel.set(headerDepths[1], 'action');
         }
     } else if (headerDepths.length === 1) {
-        // Single header depth: only one level of non-task rows — always category.
-        // Even when the sole label is a country, the user needs a category to attach tasks to,
-        // so map to 'category' here. The per-row country override below still tags tasks appropriately.
         depthToLevel.set(headerDepths[0], 'category');
     }
 
     return rows.map(r => {
+        // Flat-category pattern: the row's own label is the category name AND each
+        // month-signal cell carries its own task title. We require >= 2 distinct
+        // non-empty texts in month cells — that's how we tell apart "FR Campaign |
+        // Webinar A | Webinar B" (flat-cat) from "Campaign A | x | x | x" (single
+        // task that runs three months).
+        if (r.hasMonthSignal && r.label && !r.labelFromMerge && (r.distinctMonthTexts || 0) >= 2) {
+            return { ...r, level: 'flat-category' };
+        }
         if (r.hasMonthSignal) return { ...r, level: 'task' };
+        if (r.labelFromMerge) return { ...r, level: 'ignore' };
         let level = depthToLevel.get(r.depth) || 'category';
-        // Country label at shallow depth forces 'super' — but only when there's at least
-        // one deeper header depth to host real categories underneath. Otherwise, the country
-        // label must remain a category itself or tasks would have no parent container.
         if (r.countryId && r.depth === headerDepths[0] && headerDepths.length >= 2) level = 'super';
         return { ...r, level };
     });
@@ -444,6 +466,47 @@ export function buildGridHierarchy(sheetData, analysis, leveledRows, options = {
             // Country-only super: the child category keeps its own name (not prefixed), gets country tag via tasks
             currentCategory = ensureCategory(row.label || 'Category', countryForCat);
             currentAction = ensureDefaultAction(currentCategory);
+            continue;
+        }
+
+        // Flat-category row: a "calendar-style" row where col A is the category name
+        // and every month column with content/color is its own task. We create the
+        // category + default action, then emit one task per month signal.
+        if (row.level === 'flat-category') {
+            const countryForCat = currentSuper?.countryId || row.countryId || null;
+            currentCategory = ensureCategory(row.label || 'Category', countryForCat);
+            currentAction = ensureDefaultAction(currentCategory);
+
+            const signals = Array.isArray(row.monthSignals) ? row.monthSignals : [];
+            const expandedRow = expanded[row.rowIdx] || [];
+            const countries = currentSuper?.countryId ? [currentSuper.countryId] : (row.countryId ? [row.countryId] : []);
+            for (const sig of signals) {
+                const year = sig.year || new Date().getFullYear();
+                const title = (sig.text || String(expandedRow[sig.col] || '').trim() || `${CONFIG.MONTHS[sig.month]} task`);
+                const lastDay = new Date(year, sig.month + 1, 0).getDate();
+                const startDate = `${year}-${String(sig.month + 1).padStart(2, '0')}-01`;
+                const dueDate = `${year}-${String(sig.month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+                tasks.push({
+                    id: `t-${crypto.randomUUID()}`,
+                    actionId: currentAction.id,
+                    title,
+                    description: '',
+                    status: 'todo',
+                    priority: 'medium',
+                    budget: 0,
+                    month: sig.month,
+                    startDate,
+                    dueDate,
+                    channels: [],
+                    countries,
+                    checklist: [],
+                    comments: [],
+                    attachments: [],
+                    order: tasks.length,
+                    createdAt: now,
+                    updatedAt: now
+                });
+            }
             continue;
         }
 

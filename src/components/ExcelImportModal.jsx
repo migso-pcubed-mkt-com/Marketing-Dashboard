@@ -5,6 +5,7 @@ import { parseWorkbook, detectFormat, detectColumnMappings, parseGrid, parseList
 const LEVEL_OPTIONS = [
     { value: 'super', label: 'Super-category' },
     { value: 'category', label: 'Category' },
+    { value: 'flat-category', label: 'Category (with tasks in month cells)' },
     { value: 'action', label: 'Action' },
     { value: 'task', label: 'Task' },
     { value: 'ignore', label: 'Ignore' }
@@ -13,6 +14,7 @@ const LEVEL_OPTIONS = [
 const LEVEL_COLORS = {
     super: '#8b5cf6',
     category: '#6366f1',
+    'flat-category': '#10b981',
     action: '#f59e0b',
     task: '#22c55e',
     ignore: '#94a3b8'

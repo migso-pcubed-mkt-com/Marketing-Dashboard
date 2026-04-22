@@ -152,6 +152,64 @@ describe('autoAssignLevels — extra heuristics', () => {
     });
 });
 
+describe('autoAssignLevels — flat-category pattern', () => {
+    it('tags rows whose own label + distinct month-cell texts as flat-category', () => {
+        const data = [
+            monthHeader,
+            // "FR Marketing Campaign" is the category; each month cell is a task title of its own.
+            ['FR Marketing Campaign', '', '', 'Webinar: data', '', 'Webinar: project', '', '', '', '', '', '', '', '', '']
+        ];
+        const leveled = autoAssignLevels(analyzeGridRows(data, []));
+        expect(leveled.map(r => r.level)).toEqual(['flat-category']);
+    });
+
+    it('keeps uniform markers (e.g. all "x") as a single task spanning the months', () => {
+        const data = [
+            monthHeader,
+            // Same label + repeated 'x' markers → one multi-month task, not several distinct ones.
+            ['Campaign A', '', '', 'x', 'x', 'x', '', '', '', '', '', '', '', '', '']
+        ];
+        const leveled = autoAssignLevels(analyzeGridRows(data, []));
+        expect(leveled.map(r => r.level)).toEqual(['task']);
+    });
+
+    it('marks rows whose label came only from a vertical merge as ignore', () => {
+        const data = [
+            monthHeader,
+            ['Section Header', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
+        ];
+        // A vertical merge spanning rows 1..2 leaks "Section Header" into row 2, which
+        // has no real data of its own. Expect row 2 → ignore (skipped on build).
+        const merges = [{ s: { r: 1, c: 0 }, e: { r: 2, c: 0 } }];
+        // Create the second, empty row explicitly so the merge has something to project onto.
+        data.push(['', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+        const leveled = autoAssignLevels(analyzeGridRows(data, merges));
+        const secondRow = leveled.find(r => r.rowIdx === 2);
+        expect(secondRow.level).toBe('ignore');
+    });
+});
+
+describe('buildGridHierarchy — flat-category', () => {
+    it('emits one task per month signal when a row is flat-category', () => {
+        const data = [
+            monthHeader,
+            ['FR Marketing Campaign', '', '', 'Webinar: data', '', 'Webinar: project', '', '', '', '', '', '', '', '', '']
+        ];
+        const analysis = analyzeGridRows(data, []);
+        const leveled = autoAssignLevels(analysis);
+        const result = buildGridHierarchy(data, analysis, leveled);
+        expect(result.categories).toHaveLength(1);
+        expect(result.categories[0].name).toBe('FR Marketing Campaign');
+        expect(result.tasks).toHaveLength(2);
+        const titles = result.tasks.map(t => t.title).sort();
+        expect(titles).toEqual(['Webinar: data', 'Webinar: project']);
+        // Task months map onto their source columns. monthHeader starts at col 3 so
+        // col 3 = Jan (month 0) and col 5 = Mar (month 2).
+        const months = result.tasks.map(t => t.month).sort();
+        expect(months).toEqual([0, 2]);
+    });
+});
+
 describe('buildGridHierarchy', () => {
     it('propagates country tag to descendant tasks when super-category is a country', () => {
         const data = [
