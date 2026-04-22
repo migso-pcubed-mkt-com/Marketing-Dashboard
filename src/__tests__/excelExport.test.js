@@ -29,6 +29,14 @@ const taskModeTasks = [
     { id: 't3', actionId: 'a3', title: 'Landing Page', status: 'completed', priority: 'low', startDate: '2026-01-10', dueDate: '2026-01-20', order: 0 }
 ];
 
+// Helpers — the builder now stores content as exceljs richText objects, so tests
+// must join their text segments rather than stringifying the raw value.
+const cellText = (cell) => {
+    const v = cell.value;
+    if (v && Array.isArray(v.richText)) return v.richText.map(s => s.text).join('');
+    return String(v ?? '');
+};
+
 describe('buildKanbanWorkbook — category view', () => {
     it('creates one column per category with a header row styled by category color', async () => {
         const wb = await buildKanbanWorkbook(categories, taskModeActions, taskModeTasks);
@@ -47,11 +55,20 @@ describe('buildKanbanWorkbook — category view', () => {
         const ws = wb.getWorksheet('Kanban');
 
         const r2 = ws.getRow(2);
-        expect(String(r2.getCell(1).value)).toContain('Campaign A');
-        expect(String(r2.getCell(2).value)).toContain('Landing Page');
+        expect(cellText(r2.getCell(1))).toContain('Campaign A');
+        expect(cellText(r2.getCell(2))).toContain('Landing Page');
         // Status-colored left border (inprogress=#3b82f6, completed=#22c55e)
         expect(r2.getCell(1).border.left.color.argb).toBe('FF3B82F6');
         expect(r2.getCell(2).border.left.color.argb).toBe('FF22C55E');
+    });
+
+    it('strikes through completed tasks in card-as-task cells', async () => {
+        const wb = await buildKanbanWorkbook(categories, taskModeActions, taskModeTasks);
+        const ws = wb.getWorksheet('Kanban');
+        // Conversion column row 2 = Landing Page (completed)
+        const landing = ws.getRow(2).getCell(2);
+        const segs = landing.value.richText;
+        expect(segs[0].font.strike).toBe(true);
     });
 
     it('renders action-centric cells in card-as-action categories with checklist/task breakdown', async () => {
@@ -59,32 +76,68 @@ describe('buildKanbanWorkbook — category view', () => {
         const ws = wb.getWorksheet('Kanban');
 
         // Brand is card-as-action (has a non-default action). Its column collects actions, not tasks.
-        // First Brand cell = the default action (named 'Default Brand') with its task inline.
         const r2 = ws.getRow(2);
-        const brandCell = String(r2.getCell(1).value);
+        const brandCell = cellText(r2.getCell(1));
         expect(brandCell).toContain('Default Brand');
         expect(brandCell).toContain('Campaign A');
 
-        // Second Brand cell = the Linkedin Ads action with its own task under the "Design" checklist.
         const r3 = ws.getRow(3);
-        const linkedinCell = String(r3.getCell(1).value);
+        const linkedinCell = cellText(r3.getCell(1));
         expect(linkedinCell).toContain('Linkedin Ads');
         expect(linkedinCell).toContain('Design');
         expect(linkedinCell).toContain('LinkedIn Q2');
     });
+
+    it('bolds ONLY the action name segment in card-as-action cells', async () => {
+        const wb = await buildKanbanWorkbook(categories, actions, tasks);
+        const ws = wb.getWorksheet('Kanban');
+        // r3 col 1 = Linkedin Ads action with tasks
+        const segs = ws.getRow(3).getCell(1).value.richText;
+        // First segment = action name, bold
+        expect(segs[0].text).toContain('Linkedin Ads');
+        expect(segs[0].font.bold).toBe(true);
+        // All following segments (checklists + tasks) are NOT bold
+        for (let i = 1; i < segs.length; i++) {
+            expect(segs[i].font.bold).toBe(false);
+        }
+    });
+
+    it('renders a status legend column after the columns', async () => {
+        const wb = await buildKanbanWorkbook(categories, taskModeActions, taskModeTasks);
+        const ws = wb.getWorksheet('Kanban');
+        // taskModeActions → 2 category columns, legend header goes at col 4 (1 spacer)
+        const hdr = ws.getRow(1);
+        expect(hdr.getCell(4).value).toBe('Legend');
+        // 6 status names, one per row, starting at row 2
+        const names = [];
+        for (let i = 0; i < 6; i++) names.push(ws.getRow(2 + i).getCell(4).value);
+        expect(names).toEqual(['To Do', 'Creating', 'In Progress', 'In Review', 'Completed', 'Paused']);
+    });
 });
 
 describe('buildTimelineWorkbook', () => {
-    it('renders a single label column plus 12 month columns with Jan…Dec headers', async () => {
+    it('renders a single label column plus 12 month columns with Jan…Dec headers + legend', async () => {
         const wb = await buildTimelineWorkbook(categories, actions, tasks, 2026);
         const ws = wb.getWorksheet('Timeline');
         expect(ws).toBeDefined();
 
         const hdr = ws.getRow(1);
-        // Col A = empty label header, cols B..M = months
+        // Col A = empty label header, cols B..M = months, col O = Legend (N is a spacer)
         expect(hdr.getCell(1).value).toBe('');
         expect(hdr.getCell(2).value).toBe('Jan');
         expect(hdr.getCell(13).value).toBe('Dec');
+        expect(hdr.getCell(15).value).toBe('Legend');
+        // Status legend populated starting at row 2 in the Legend column
+        const names = [];
+        for (let i = 0; i < 6; i++) names.push(ws.getRow(2 + i).getCell(15).value);
+        expect(names).toEqual(['To Do', 'Creating', 'In Progress', 'In Review', 'Completed', 'Paused']);
+    });
+
+    it('does NOT freeze any pane so the whole sheet scrolls freely', async () => {
+        const wb = await buildTimelineWorkbook(categories, actions, tasks, 2026);
+        const ws = wb.getWorksheet('Timeline');
+        const frozen = (ws.views || []).some(v => v?.state === 'frozen');
+        expect(frozen).toBe(false);
     });
 
     it('writes a full-width category band with the category color in col A', async () => {
