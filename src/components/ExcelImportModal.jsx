@@ -50,6 +50,8 @@ const ExcelImportModal = ({ onClose, onImport }) => {
     const [gridAnalysis, setGridAnalysis] = useState(null);
     const [leveledRows, setLeveledRows] = useState([]);
     const [flattenSuper, setFlattenSuper] = useState(false);
+    // rowIdx of the row whose "Apply to…" popover is currently open (null = closed).
+    const [applyMenuOpenFor, setApplyMenuOpenFor] = useState(null);
     const fileInputRef = useRef(null);
 
     // ─── Step 1: File Upload ─────────────────────────────
@@ -118,27 +120,44 @@ const ExcelImportModal = ({ onClose, onImport }) => {
         setLeveledRows(rows => rows.map(r => r.rowIdx === rowIdx ? { ...r, level: newLevel } : r));
     };
 
-    // Two rows are "similar" if they share the same indentation depth OR the same first non-empty
-    // column index. The month-signal match from the prior heuristic was too strict and left rows
-    // indented the same way unreachable from a single "Apply to similar" click.
-    const isSimilarRow = (target, candidate) => {
-        if (!target || !candidate || target.rowIdx === candidate.rowIdx) return false;
-        return candidate.depth === target.depth
-            || (target.colIndex != null && candidate.colIndex === target.colIndex);
+    // Scopes for propagating a row's level to similar rows. Each scope is explicit
+    // so users know what "similar" means before clicking.
+    const rowsInScope = (target, scope) => {
+        if (!target) return [];
+        if (scope === 'same-indent') {
+            return leveledRows.filter(r => r.rowIdx !== target.rowIdx && r.depth === target.depth);
+        }
+        if (scope === 'same-signal') {
+            // Rows with the same month-signal kind (task-like vs header-like).
+            const targetIsTaskLike = !!target.hasMonthSignal;
+            return leveledRows.filter(r => r.rowIdx !== target.rowIdx && !!r.hasMonthSignal === targetIsTaskLike);
+        }
+        if (scope === 'same-section') {
+            // Rows between the nearest section boundary above the target and the next one below.
+            // A section boundary is any row at a strictly shallower depth than the target.
+            const sorted = leveledRows.slice().sort((a, b) => a.rowIdx - b.rowIdx);
+            const targetIdxInSorted = sorted.findIndex(r => r.rowIdx === target.rowIdx);
+            let startIdx = 0;
+            for (let i = targetIdxInSorted - 1; i >= 0; i--) {
+                if (sorted[i].depth < target.depth) { startIdx = i + 1; break; }
+            }
+            let endIdx = sorted.length;
+            for (let i = targetIdxInSorted + 1; i < sorted.length; i++) {
+                if (sorted[i].depth < target.depth) { endIdx = i; break; }
+            }
+            return sorted.slice(startIdx, endIdx).filter(r => r.rowIdx !== target.rowIdx && r.depth === target.depth);
+        }
+        return [];
     };
 
-    const countSimilarRows = (rowIdx) => {
-        const target = leveledRows.find(r => r.rowIdx === rowIdx);
-        if (!target) return 0;
-        return leveledRows.filter(r => isSimilarRow(target, r)).length;
-    };
-
-    const applyLevelToSimilarRows = (rowIdx, newLevel) => {
+    const applyLevelToScope = (rowIdx, newLevel, scope) => {
         const target = leveledRows.find(r => r.rowIdx === rowIdx);
         if (!target) return;
+        const affectedIds = new Set(rowsInScope(target, scope).map(r => r.rowIdx));
         setLeveledRows(rows => rows.map(r => (
-            isSimilarRow(target, r) ? { ...r, level: newLevel } : r
+            affectedIds.has(r.rowIdx) ? { ...r, level: newLevel } : r
         )));
+        setApplyMenuOpenFor(null);
     };
 
     const handleReviewToPreview = () => {
@@ -392,9 +411,34 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                                 </div>
                             )}
                             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
-                                We detected a multi-level structure. Adjust any row whose level is wrong — click&nbsp;
-                                <em>Apply to similar</em> to broadcast a change to rows of the same indentation.
+                                We detected a multi-level structure. Adjust any row whose level is wrong — use the
+                                &laquo;&nbsp;Apply to&hellip;&nbsp;&raquo; menu to propagate a change to similar rows.
                             </p>
+                            {(() => {
+                                const counts = leveledRows.reduce((acc, r) => {
+                                    acc[r.level] = (acc[r.level] || 0) + 1;
+                                    return acc;
+                                }, {});
+                                const labels = [
+                                    ['super', 'supers'], ['category', 'categories'],
+                                    ['flat-category', 'flat categories'],
+                                    ['action', 'actions'], ['task', 'tasks'], ['ignore', 'ignored']
+                                ];
+                                const chips = labels.filter(([k]) => counts[k]).map(([k, name]) => (
+                                    <span key={k} style={{ display: 'inline-block', padding: '2px 8px', marginRight: 6, marginBottom: 4, borderRadius: 10, fontSize: 11, fontWeight: 500, background: LEVEL_COLORS[k], color: '#fff' }}>
+                                        {counts[k]} {name}
+                                    </span>
+                                ));
+                                if (leveledRows.length === 0) {
+                                    return (
+                                        <div style={{ padding: '10px 12px', marginBottom: 10, borderRadius: 'var(--radius-md)', background: '#fef3c7', color: '#92400e', fontSize: 12 }}>
+                                            No rows detected on this sheet — the month header may be missing or the sheet uses a list/table layout.
+                                            Pick another sheet above, or go back and re-select the sheet to switch to table mode.
+                                        </div>
+                                    );
+                                }
+                                return <div style={{ marginBottom: 10 }}>{chips}</div>;
+                            })()}
                             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
                                 <input type="checkbox" checked={flattenSuper} onChange={e => setFlattenSuper(e.target.checked)} />
                                 Flatten super-categories (create a separate category per super, instead of prefixing child names)
@@ -405,7 +449,7 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                                         <tr>
                                             <th style={{ position: 'sticky', top: 0, padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Label</th>
                                             <th style={{ position: 'sticky', top: 0, padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', width: 130 }}>Level</th>
-                                            <th style={{ position: 'sticky', top: 0, padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', width: 120 }}></th>
+                                            <th style={{ position: 'sticky', top: 0, padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', width: 150 }}></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -426,19 +470,56 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                                                         {LEVEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                                                     </select>
                                                 </td>
-                                                <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)' }}>
+                                                <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)', position: 'relative' }}>
                                                     {(() => {
-                                                        const count = countSimilarRows(r.rowIdx);
-                                                        const disabled = count === 0;
+                                                        const sameIndentCount = rowsInScope(r, 'same-indent').length;
+                                                        const sameSectionCount = rowsInScope(r, 'same-section').length;
+                                                        const sameSignalCount = rowsInScope(r, 'same-signal').length;
+                                                        const totalAvailable = sameIndentCount + sameSectionCount + sameSignalCount;
+                                                        const disabled = totalAvailable === 0;
+                                                        const isOpen = applyMenuOpenFor === r.rowIdx;
                                                         return (
-                                                            <button
-                                                                onClick={() => applyLevelToSimilarRows(r.rowIdx, r.level)}
-                                                                disabled={disabled}
-                                                                title="Apply this level to every other row with the same indentation"
-                                                                style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: disabled ? 'var(--border)' : 'var(--text-muted)', cursor: disabled ? 'default' : 'pointer' }}
-                                                            >
-                                                                Apply to {count} similar {count === 1 ? 'row' : 'rows'}
-                                                            </button>
+                                                            <>
+                                                                <button
+                                                                    onClick={() => setApplyMenuOpenFor(isOpen ? null : r.rowIdx)}
+                                                                    disabled={disabled}
+                                                                    title="Propagate this row's level to other rows — pick a scope"
+                                                                    style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: isOpen ? 'var(--accent)' : 'var(--bg-secondary)', color: disabled ? 'var(--border)' : (isOpen ? '#fff' : 'var(--text-muted)'), cursor: disabled ? 'default' : 'pointer' }}
+                                                                >
+                                                                    Apply to… ▾
+                                                                </button>
+                                                                {isOpen && (
+                                                                    <div style={{ position: 'absolute', right: 8, top: '100%', zIndex: 10, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)', padding: 4, minWidth: 220 }}>
+                                                                        <button
+                                                                            onClick={() => applyLevelToScope(r.rowIdx, r.level, 'same-indent')}
+                                                                            disabled={sameIndentCount === 0}
+                                                                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', border: 'none', background: 'none', fontSize: 11, color: sameIndentCount === 0 ? 'var(--border)' : 'var(--text-primary)', cursor: sameIndentCount === 0 ? 'default' : 'pointer', borderRadius: 'var(--radius-sm)' }}
+                                                                            onMouseEnter={e => { if (sameIndentCount) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                                                                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                                                        >
+                                                                            Apply to <strong>{sameIndentCount}</strong> {sameIndentCount === 1 ? 'row' : 'rows'} at the same indent
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => applyLevelToScope(r.rowIdx, r.level, 'same-section')}
+                                                                            disabled={sameSectionCount === 0}
+                                                                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', border: 'none', background: 'none', fontSize: 11, color: sameSectionCount === 0 ? 'var(--border)' : 'var(--text-primary)', cursor: sameSectionCount === 0 ? 'default' : 'pointer', borderRadius: 'var(--radius-sm)' }}
+                                                                            onMouseEnter={e => { if (sameSectionCount) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                                                                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                                                        >
+                                                                            Apply to <strong>{sameSectionCount}</strong> {sameSectionCount === 1 ? 'row' : 'rows'} in this section only
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => applyLevelToScope(r.rowIdx, r.level, 'same-signal')}
+                                                                            disabled={sameSignalCount === 0}
+                                                                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', border: 'none', background: 'none', fontSize: 11, color: sameSignalCount === 0 ? 'var(--border)' : 'var(--text-primary)', cursor: sameSignalCount === 0 ? 'default' : 'pointer', borderRadius: 'var(--radius-sm)' }}
+                                                                            onMouseEnter={e => { if (sameSignalCount) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
+                                                                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                                                                        >
+                                                                            Apply to <strong>{sameSignalCount}</strong> {sameSignalCount === 1 ? 'row' : 'rows'} with the same signal
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </>
                                                         );
                                                     })()}
                                                 </td>

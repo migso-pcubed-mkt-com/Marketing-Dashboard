@@ -163,7 +163,9 @@ function findMonthHeader(data) {
     // Also French month names
     const frenchMonths = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 
-    for (let r = 0; r < Math.min(5, data.length); r++) {
+    // Scan the first 15 rows rather than 5 so roadmaps with a multi-line title or
+    // country band above the month row still get detected.
+    for (let r = 0; r < Math.min(15, data.length); r++) {
         const row = data[r];
         if (!row) continue;
         const monthColumns = [];
