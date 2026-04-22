@@ -145,7 +145,13 @@ const App = () => {
     const { filters, setFilters, showFilterSidebar, setShowFilterSidebar, searchInputRef, visibleTasks, visibleActions, activeFilterCount, filteredTasks, filteredBudget, isFiltered } = useFilters(tasks, actions);
 
     // --- Undo/Redo + History panel ---
-    const { pushState, undo, redo, jumpTo, clear: clearHistory, getHistory, suspend: suspendHistory, resume: resumeHistory, canUndo, canRedo, isUndoRedoRef, currentIndex: historyCurrentIndex } = useUndoRedo(setBoardData);
+    const { pushState, undo, redo, jumpTo, clear: clearHistory, getHistory, suspend: suspendHistory, resume: resumeHistory, canUndo, canRedo, isUndoRedoRef, recentUndoRef, currentIndex: historyCurrentIndex } = useUndoRedo(setBoardData);
+    // Window (ms) during which incoming Realtime events + pre-save merge fetches are
+    // blocked after an undo/redo/jumpTo. Without this guard, the server echo of the
+    // pre-undo state would silently overwrite the restored board before the user
+    // could push the new state back to Trello.
+    const RECENT_UNDO_WINDOW_MS = 10000;
+    const isRecentUndo = () => Date.now() - (recentUndoRef?.current || 0) < RECENT_UNDO_WINDOW_MS;
     const [showHistoryPanel, setShowHistoryPanel] = useState(false);
 
     // Read-only when: (a) guest on Trello-linked board, (b) user has no access to linked Trello board, or (c) multi-board combined view
@@ -533,8 +539,10 @@ const App = () => {
                 autoSaveTimeoutRef.current = setTimeout(doSave, 500);
                 return;
             }
-            // Pre-save conflict check: detect if another user saved since our last sync
-            if (useSupabase && serverUpdatedAtRef.current) {
+            // Pre-save conflict check: detect if another user saved since our last sync.
+            // Skipped inside the recent-undo window so the server echo of the pre-undo
+            // state can't sneak back into boardDataRef on the way to Supabase.
+            if (useSupabase && serverUpdatedAtRef.current && !isRecentUndo()) {
                 try {
                     const server = await fetchServerState();
                     if (server && server.updated_at !== serverUpdatedAtRef.current && server.board_data?.version === 2) {
@@ -699,7 +707,7 @@ const App = () => {
                         return;
                     }
                     // Guards active → queue event for later instead of dropping it
-                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) {
+                    if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000 || isRecentUndo()) {
                         pendingRealtimeRef.current = payload;
                         return;
                     }
@@ -716,7 +724,7 @@ const App = () => {
         if (githubToken) {
             const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin;
             const checkForUpdates = async () => {
-                if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isReceivingRealtimeRef.current || isUserInteractingRef.current || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return;
+                if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isReceivingRealtimeRef.current || isUserInteractingRef.current || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000 || isRecentUndo()) return;
                 try {
                     const url = `${API_BASE_URL}/api/github`;
                     const response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
@@ -746,6 +754,9 @@ const App = () => {
             if (selectedTask || selectedAction || syncing || savingStatus === 'saving') return false;
             if (isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current) return false;
             if (autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000) return false;
+            // Still inside the post-undo window: keep the event queued so the user's
+            // restored state isn't silently overwritten by a delayed server echo.
+            if (isRecentUndo()) return false;
             const payload = pendingRealtimeRef.current;
             pendingRealtimeRef.current = null;
             // Re-verify echo (our save might have completed while queued)
