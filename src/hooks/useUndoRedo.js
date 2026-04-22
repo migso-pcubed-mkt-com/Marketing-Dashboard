@@ -3,6 +3,128 @@ import { useRef, useCallback, useState } from 'react';
 const MAX_HISTORY = 60;
 const DEFAULT_COALESCE_MS = 400;
 
+// Fields that cross the Trello sync boundary. When restoring a snapshot
+// (undo/redo/jumpTo), any entity whose values for these fields differ from
+// the *current* live state is flagged as "locally changed now" by bumping
+// updatedAt — that way the next Trello sync runs last-write-wins with the
+// restored values winning and pushes them back to Trello. Without this,
+// undo would silently lose the push because the snapshot's updatedAt
+// predates trelloLastModified and LWW would pull from Trello instead.
+const SYNC_FIELDS_TASK = ['title','description','startDate','dueDate','status','priority','budget','month','channels','countries','otherLabels','order','assignees','trelloChecklistName','trelloChecklistId','checklist','swimLane','actionId'];
+const SYNC_FIELDS_ACTION = ['name','description','budget','priority','tags','channels','countries','otherLabels','status','order','categoryId','assignees'];
+const SYNC_FIELDS_CATEGORY = ['name','color','order'];
+
+const mapById = (arr) => {
+    const m = new Map();
+    (arr || []).forEach(x => { if (x?.id) m.set(x.id, x); });
+    return m;
+};
+
+const entityChanged = (current, snapshot, fields) => {
+    for (const f of fields) {
+        if (JSON.stringify(current?.[f]) !== JSON.stringify(snapshot?.[f])) return true;
+    }
+    return false;
+};
+
+const orderChanged = (current, snapshot) =>
+    JSON.stringify(current?.order) !== JSON.stringify(snapshot?.order);
+
+// Build a new boardData where restored entities have fresh updatedAt and
+// where deleted-by-undo entities that still live on Trello are queued in
+// board.trelloSync._pendingUndoDeletes so the next sync can archive them.
+export function restoreSnapshot(current, snapshot) {
+    if (!current || !snapshot || !Array.isArray(snapshot.boards)) return snapshot;
+    const now = new Date().toISOString();
+    const currentBoardsById = new Map((current.boards || []).map(b => [b.id, b]));
+
+    const newBoards = snapshot.boards.map(sBoard => {
+        const cBoard = currentBoardsById.get(sBoard.id);
+        if (!cBoard) return sBoard;
+
+        const pendingCards = [];
+        const pendingLists = [];
+        const pendingCheckItems = [];
+
+        // Categories — bump on content change, record lost trelloListId for archival.
+        const cCatsById = mapById(cBoard.categories);
+        const sCatsById = mapById(sBoard.categories);
+        const newCategories = (sBoard.categories || []).map(sCat => {
+            const cCat = cCatsById.get(sCat.id);
+            if (!cCat) return { ...sCat, updatedAt: now };
+            if (entityChanged(cCat, sCat, SYNC_FIELDS_CATEGORY)) return { ...sCat, updatedAt: now };
+            return sCat;
+        });
+        for (const cCat of (cBoard.categories || [])) {
+            if (!sCatsById.has(cCat.id) && cCat.trelloListId) pendingLists.push(cCat.trelloListId);
+        }
+
+        // Actions
+        const cActsById = mapById(cBoard.actions);
+        const sActsById = mapById(sBoard.actions);
+        const newActions = (sBoard.actions || []).map(sAct => {
+            const cAct = cActsById.get(sAct.id);
+            if (!cAct) return { ...sAct, updatedAt: now };
+            if (entityChanged(cAct, sAct, SYNC_FIELDS_ACTION)) {
+                const out = { ...sAct, updatedAt: now };
+                if (orderChanged(cAct, sAct)) out.orderUpdatedAt = now;
+                return out;
+            }
+            return sAct;
+        });
+        for (const cAct of (cBoard.actions || [])) {
+            if (!sActsById.has(cAct.id) && cAct.trelloCardId) pendingCards.push(cAct.trelloCardId);
+        }
+
+        // Tasks
+        const cTasksById = mapById(cBoard.tasks);
+        const sTasksById = mapById(sBoard.tasks);
+        const newTasks = (sBoard.tasks || []).map(sTask => {
+            const cTask = cTasksById.get(sTask.id);
+            if (!cTask) return { ...sTask, updatedAt: now };
+            if (entityChanged(cTask, sTask, SYNC_FIELDS_TASK)) {
+                const out = { ...sTask, updatedAt: now };
+                if (orderChanged(cTask, sTask)) out.orderUpdatedAt = now;
+                return out;
+            }
+            return sTask;
+        });
+        for (const cTask of (cBoard.tasks || [])) {
+            if (sTasksById.has(cTask.id)) continue;
+            // card-as-action tasks are checklist items → delete the item; card-as-task tasks → archive the card.
+            if (cTask.trelloCheckItemId && cTask.trelloChecklistId) {
+                pendingCheckItems.push({ checklistId: cTask.trelloChecklistId, itemId: cTask.trelloCheckItemId });
+            } else if (cTask.trelloCardId) {
+                pendingCards.push(cTask.trelloCardId);
+            }
+        }
+
+        const hasPending = pendingCards.length || pendingLists.length || pendingCheckItems.length;
+        let nextBoard = {
+            ...sBoard,
+            categories: newCategories,
+            actions: newActions,
+            tasks: newTasks
+        };
+        if (hasPending) {
+            const prev = sBoard.trelloSync?._pendingUndoDeletes || [];
+            nextBoard = {
+                ...nextBoard,
+                trelloSync: {
+                    ...(sBoard.trelloSync || {}),
+                    _pendingUndoDeletes: [
+                        ...prev,
+                        { cards: pendingCards, lists: pendingLists, checkItems: pendingCheckItems, at: Date.now() }
+                    ]
+                }
+            };
+        }
+        return nextBoard;
+    });
+
+    return { ...snapshot, boards: newBoards };
+}
+
 export default function useUndoRedo(setBoardData) {
     const historyRef = useRef([]);
     const indexRef = useRef(-1);
@@ -60,6 +182,12 @@ export default function useUndoRedo(setBoardData) {
         forceUpdate(n => n + 1);
     }, []);
 
+    const applyRestore = useCallback((restored) => {
+        isUndoRedoRef.current = true;
+        setBoardData(current => restoreSnapshot(current, restored));
+        setTimeout(() => { isUndoRedoRef.current = false; }, 0);
+    }, [setBoardData]);
+
     const undo = useCallback(() => {
         if (indexRef.current <= 0) return null;
 
@@ -69,13 +197,10 @@ export default function useUndoRedo(setBoardData) {
         try { restored = JSON.parse(entry.json); }
         catch (e) { console.warn('useUndoRedo: failed to parse undo state', e); return null; }
 
-        isUndoRedoRef.current = true;
-        setBoardData(restored);
-        setTimeout(() => { isUndoRedoRef.current = false; }, 0);
-
+        applyRestore(restored);
         forceUpdate(n => n + 1);
         return entry.label;
-    }, [setBoardData]);
+    }, [applyRestore]);
 
     const redo = useCallback(() => {
         if (indexRef.current >= historyRef.current.length - 1) return null;
@@ -86,13 +211,10 @@ export default function useUndoRedo(setBoardData) {
         try { restored = JSON.parse(entry.json); }
         catch (e) { console.warn('useUndoRedo: failed to parse redo state', e); return null; }
 
-        isUndoRedoRef.current = true;
-        setBoardData(restored);
-        setTimeout(() => { isUndoRedoRef.current = false; }, 0);
-
+        applyRestore(restored);
         forceUpdate(n => n + 1);
         return entry.label;
-    }, [setBoardData]);
+    }, [applyRestore]);
 
     const jumpTo = useCallback((targetIndex) => {
         if (targetIndex < 0 || targetIndex >= historyRef.current.length) return null;
@@ -104,13 +226,10 @@ export default function useUndoRedo(setBoardData) {
         catch (e) { console.warn('useUndoRedo: failed to parse jump state', e); return null; }
 
         indexRef.current = targetIndex;
-        isUndoRedoRef.current = true;
-        setBoardData(restored);
-        setTimeout(() => { isUndoRedoRef.current = false; }, 0);
-
+        applyRestore(restored);
         forceUpdate(n => n + 1);
         return entry.label;
-    }, [setBoardData]);
+    }, [applyRestore]);
 
     const clear = useCallback(() => {
         historyRef.current = [];
