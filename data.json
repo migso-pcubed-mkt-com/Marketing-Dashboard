@@ -64085,7 +64085,8 @@
           "trelloChecklistId": "69bae2979fe7490766f666e0",
           "trelloLastModified": "2026-04-22T09:53:36.152Z",
           "trelloChecklistName": "Test checklist 28",
-          "updatedAt": "2026-04-22T09:53:29.265Z"
+          "updatedAt": "2026-04-22T09:54:25.715Z",
+          "orderUpdatedAt": "2026-04-22T09:54:25.715Z"
         },
         {
           "id": "task-2cd76bba-b005-45cf-a63a-6b99766d3ff9",
@@ -68782,7 +68783,7 @@
           "_inheritCountries": [
             "romania"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.107Z",
+          "trelloLastModified": "2026-04-22T09:54:29.427Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -68859,7 +68860,7 @@
             "spain",
             "global"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.107Z",
+          "trelloLastModified": "2026-04-22T09:54:29.428Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -68923,7 +68924,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.107Z",
+          "trelloLastModified": "2026-04-22T09:54:29.428Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -68987,7 +68988,7 @@
           "_inheritCountries": [
             "spain"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.107Z",
+          "trelloLastModified": "2026-04-22T09:54:29.428Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69071,7 +69072,7 @@
           "_inheritCountries": [
             "switzerland"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.107Z",
+          "trelloLastModified": "2026-04-22T09:54:29.428Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -69130,7 +69131,7 @@
           "_inheritCountries": [
             "spain"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.107Z",
+          "trelloLastModified": "2026-04-22T09:54:29.428Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69184,7 +69185,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.107Z",
+          "trelloLastModified": "2026-04-22T09:54:29.428Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -69238,7 +69239,7 @@
           "_inheritCountries": [
             "spain"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.107Z",
+          "trelloLastModified": "2026-04-22T09:54:29.429Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69287,7 +69288,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.107Z",
+          "trelloLastModified": "2026-04-22T09:54:29.429Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69346,7 +69347,7 @@
           "_inheritCountries": [
             "netherlands"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.107Z",
+          "trelloLastModified": "2026-04-22T09:54:29.429Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -69410,7 +69411,7 @@
           "_inheritCountries": [
             "spain"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.108Z",
+          "trelloLastModified": "2026-04-22T09:54:29.429Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69544,7 +69545,7 @@
             "595ba887716dfffcb6b36106"
           ],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:05.108Z",
+          "trelloLastModified": "2026-04-22T09:54:29.429Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66847",
@@ -69599,7 +69600,7 @@
           "_inheritCountries": [
             "spain"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.108Z",
+          "trelloLastModified": "2026-04-22T09:54:29.429Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -69658,7 +69659,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.109Z",
+          "trelloLastModified": "2026-04-22T09:54:29.429Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -69717,7 +69718,7 @@
           "_inheritCountries": [
             "usa"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.109Z",
+          "trelloLastModified": "2026-04-22T09:54:29.430Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -69771,7 +69772,7 @@
           "_inheritCountries": [
             "canada"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.109Z",
+          "trelloLastModified": "2026-04-22T09:54:29.430Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70050,7 +70051,7 @@
             "595ba887716dfffcb6b36106"
           ],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:05.373Z",
+          "trelloLastModified": "2026-04-22T09:54:29.690Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6684f",
@@ -70095,7 +70096,7 @@
           "_inheritChannels": [],
           "_inheritAssignees": [],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:05.373Z",
+          "trelloLastModified": "2026-04-22T09:54:29.690Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66851",
@@ -70140,7 +70141,7 @@
           "_inheritChannels": [],
           "_inheritAssignees": [],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:05.373Z",
+          "trelloLastModified": "2026-04-22T09:54:29.690Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66842",
@@ -70179,7 +70180,7 @@
           "_inheritChannels": [],
           "_inheritAssignees": [],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:05.373Z",
+          "trelloLastModified": "2026-04-22T09:54:29.691Z",
           "_inheritOtherLabels": []
         },
         {
@@ -70227,7 +70228,7 @@
           "_inheritCountries": [
             "australia"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.373Z",
+          "trelloLastModified": "2026-04-22T09:54:29.691Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66840",
@@ -70286,7 +70287,7 @@
           "_inheritCountries": [
             "australia"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.373Z",
+          "trelloLastModified": "2026-04-22T09:54:29.691Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70432,7 +70433,7 @@
           "_inheritCountries": [
             "france"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.373Z",
+          "trelloLastModified": "2026-04-22T09:53:36.152Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70501,7 +70502,7 @@
           "_inheritCountries": [
             "italy"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70560,7 +70561,7 @@
           "_inheritCountries": [
             "germany"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70624,7 +70625,7 @@
           "_inheritCountries": [
             "canada"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70673,7 +70674,7 @@
           "_inheritChannels": [],
           "_inheritAssignees": [],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": []
         },
         {
@@ -70721,7 +70722,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70785,7 +70786,7 @@
           "_inheritCountries": [
             "france"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70854,7 +70855,7 @@
           "_inheritCountries": [
             "canada"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -70925,7 +70926,7 @@
             "595ba887716dfffcb6b36106"
           ],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66848",
@@ -71025,7 +71026,7 @@
             "global",
             "france"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -71085,7 +71086,7 @@
           "_inheritChannels": [],
           "_inheritAssignees": [],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f66857",
@@ -71151,7 +71152,7 @@
             "global",
             "france"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -71220,7 +71221,7 @@
             "595ba887716dfffcb6b36106"
           ],
           "_inheritCountries": [],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -71274,7 +71275,7 @@
           "_inheritCountries": [
             "uk"
           ],
-          "trelloLastModified": "2026-04-22T09:54:05.374Z",
+          "trelloLastModified": "2026-04-22T09:54:30.219Z",
           "_inheritOtherLabels": [
             {
               "id": "69bae2979fe7490766f6683f",
@@ -71304,7 +71305,7 @@
         }
       ],
       "createdAt": "2026-04-12T10:25:51.962Z",
-      "updatedAt": "2026-04-22T09:54:03.375Z",
+      "updatedAt": "2026-04-22T09:54:28.220Z",
       "categories": [
         {
           "id": "cat-a421fbdc-c65d-4fcd-a2fb-7d6cb983c0cb",
@@ -71459,7 +71460,7 @@
       ],
       "trelloSync": {
         "syncMode": "card-as-action",
-        "lastSyncAt": "2026-04-22T09:54:03.375Z",
+        "lastSyncAt": "2026-04-22T09:54:28.220Z",
         "syncEnabled": true,
         "labelMappings": {
           "69bae2979fe7490766f66840": {
@@ -75082,7 +75083,7 @@
       ]
     }
   ],
-  "_saveId": "d577a5a4-0e89-4323-9da9-e4b0903ebc46",
+  "_saveId": "41cd204d-cd86-4537-92eb-39e35855a1dd",
   "version": 2,
   "currentBoardId": "board-e1922ba8-6fe1-4db8-ba8c-db453eaae4f2"
 }
