@@ -142,9 +142,11 @@ export function getTaskPosition(task, { zoom, colWidth, selectedYear, weekBase }
 
 /**
  * Calculate swim lanes for overlapping tasks.
- * Tasks with an explicit `swimLane` number are pinned to that lane;
- * tasks without one are auto-placed in the first free lane that avoids collision
- * with already-placed tasks (pinned or auto).
+ * `swimLane` is treated as a *preference*, not a hard pin: tasks with an explicit
+ * value are placed in that lane first if it's free; otherwise the algorithm scans
+ * downward for the first lane that has no temporal collision. Tasks without a
+ * preference are auto-placed in the first free lane from zero. This gives the
+ * user vertical control without ever producing visual overlap.
  * resizingInfo: optional {taskId, originalStart, originalEnd}
  */
 export function calculateSwimLanes(tasksList, resizingInfo, layoutParams) {
@@ -163,79 +165,58 @@ export function calculateSwimLanes(tasksList, resizingInfo, layoutParams) {
             : getTaskPosition(task, layoutParams);
     };
 
-    // Phase 1: place pinned tasks in their explicit lane (sparse — no compaction).
-    // Collisions between pinned tasks in the same lane are allowed — user chose it.
-    tasksList.forEach(task => {
-        if (typeof task.swimLane !== 'number' || task.swimLane < 0) return;
+    const fits = (laneIdx, start, end) => {
+        if (laneIdx >= lanes.length) return true;
+        for (const existing of lanes[laneIdx]) {
+            if (start < existing.end && end > existing.start) return false;
+        }
+        return true;
+    };
+
+    const findFreeLaneFrom = (fromIdx, start, end) => {
+        let lane = Math.max(0, fromIdx);
+        while (!fits(lane, start, end)) lane += 1;
+        return lane;
+    };
+
+    // Sort: tasks with an explicit preference first (so they get their favourite lane
+    // when possible), then the rest by start date + order. Within each group we keep
+    // the deterministic order from the caller so identical inputs produce identical layouts.
+    const ordered = tasksList.slice().sort((a, b) => {
+        const aHas = typeof a.swimLane === 'number' && a.swimLane >= 0 ? 0 : 1;
+        const bHas = typeof b.swimLane === 'number' && b.swimLane >= 0 ? 0 : 1;
+        if (aHas !== bHas) return aHas - bHas;
+        const aStart = (resizingInfo && a.id === resizingInfo.taskId) ? resizingInfo.originalStart : a.startDate;
+        const bStart = (resizingInfo && b.id === resizingInfo.taskId) ? resizingInfo.originalStart : b.startDate;
+        if (!aStart || !bStart) return 0;
+        const dateDiff = new Date(aStart) - new Date(bStart);
+        if (dateDiff !== 0) return dateDiff;
+        return (a.order || 0) - (b.order || 0);
+    });
+
+    ordered.forEach(task => {
+        const preferred = (typeof task.swimLane === 'number' && task.swimLane >= 0) ? task.swimLane : 0;
+
         if (!task.startDate || !task.dueDate) {
-            swimLanes[task.id] = task.swimLane;
-            ensureLane(task.swimLane);
+            swimLanes[task.id] = preferred;
+            ensureLane(preferred);
             return;
         }
         const pos = computeSpan(task);
         if (!pos) {
-            swimLanes[task.id] = task.swimLane;
-            ensureLane(task.swimLane);
+            swimLanes[task.id] = preferred;
+            ensureLane(preferred);
             return;
         }
-        swimLanes[task.id] = task.swimLane;
-        ensureLane(task.swimLane).push({ id: task.id, start: pos.left, end: pos.left + pos.width });
+
+        const start = pos.left;
+        const end = pos.left + pos.width;
+        const lane = findFreeLaneFrom(preferred, start, end);
+        ensureLane(lane).push({ id: task.id, start, end });
+        swimLanes[task.id] = lane;
     });
 
-    // Phase 2: auto-place the rest, sorted by start date (stable tiebreak on order).
-    const autoTasks = tasksList
-        .filter(t => typeof t.swimLane !== 'number' || t.swimLane < 0)
-        .slice()
-        .sort((a, b) => {
-            const aStart = (resizingInfo && a.id === resizingInfo.taskId) ? resizingInfo.originalStart : a.startDate;
-            const bStart = (resizingInfo && b.id === resizingInfo.taskId) ? resizingInfo.originalStart : b.startDate;
-            if (!aStart || !bStart) return 0;
-            const dateDiff = new Date(aStart) - new Date(bStart);
-            if (dateDiff !== 0) return dateDiff;
-            return (a.order || 0) - (b.order || 0);
-        });
-
-    autoTasks.forEach(task => {
-        if (!task.startDate || !task.dueDate) {
-            swimLanes[task.id] = 0;
-            ensureLane(0);
-            return;
-        }
-        const pos = computeSpan(task);
-        if (!pos) {
-            swimLanes[task.id] = 0;
-            ensureLane(0);
-            return;
-        }
-        const taskStart = pos.left;
-        const taskEnd = pos.left + pos.width;
-
-        let assignedLane = -1;
-        for (let i = 0; i < lanes.length; i++) {
-            let canFit = true;
-            for (const existingTask of lanes[i]) {
-                if (taskStart < existingTask.end && taskEnd > existingTask.start) {
-                    canFit = false;
-                    break;
-                }
-            }
-            if (canFit) {
-                assignedLane = i;
-                lanes[i].push({ id: task.id, start: taskStart, end: taskEnd });
-                break;
-            }
-        }
-
-        if (assignedLane === -1) {
-            assignedLane = lanes.length;
-            lanes.push([{ id: task.id, start: taskStart, end: taskEnd }]);
-        }
-
-        swimLanes[task.id] = assignedLane;
-    });
-
-    const maxLanes = lanes.length;
-    return { swimLanes, maxLanes: Math.max(maxLanes, 1) };
+    return { swimLanes, maxLanes: Math.max(lanes.length, 1) };
 }
 
 /**

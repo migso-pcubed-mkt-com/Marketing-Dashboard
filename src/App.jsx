@@ -1613,7 +1613,6 @@ const App = () => {
                                 <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'month');}} className="dropdown-item" style={{paddingLeft:24}}>By month</button>
                                 <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'quarter');}} className="dropdown-item" style={{paddingLeft:24}}>By quarter</button>
                                 <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'country');}} className="dropdown-item" style={{paddingLeft:24}}>By country</button>
-                                <button onClick={async () => {setShowExportDropdown(false); const { exportCalendarXlsx } = await import('./lib/excelExport.js'); exportCalendarXlsx(tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Calendar (Excel)</button>
                                 <div className="dropdown-divider"/>
                                 <button onClick={() => {setShowExportDropdown(false);setShowExcelImport(true);}} className="dropdown-item">Import from Excel</button>
                             </div>}

@@ -779,36 +779,20 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const startDate=fmt(snapDate);
         const dueDate=fmt(endDate);
 
-        const rawTargetLane=Math.max(0,Math.floor((mouseY-8)/34));
+        // swimLane is a *preference* — calculateSwimLanes automatically slides to the
+        // next free lane if the chosen one collides, so we can safely store the raw
+        // target lane without manual collision handling here.
+        const targetLane=Math.max(0,Math.floor((mouseY-8)/34));
         const sameAction=draggedTask.actionId===targetAction.id;
-
-        // When pinning, find the first lane (starting at rawTargetLane) that does NOT
-        // temporally collide with another pinned task in the destination action. Without
-        // this, successive vertical drags dumped multiple tasks onto lane 0 because the
-        // mouse usually lands near the top of the row, and the bars stacked on top of
-        // each other. Auto-placed (unpinned) tasks are ignored here — calculateSwimLanes
-        // will flow them around the pin.
-        const pickPinLane=(actionId,ignoreTaskId)=>{
-            const candidates=tasks.filter(t=>t.actionId===actionId && t.id!==ignoreTaskId && typeof t.swimLane==='number' && t.swimLane>=0 && t.startDate && t.dueDate);
-            const ns=new Date(startDate), ne=new Date(dueDate);
-            const overlaps=(t)=>{
-                const ts=new Date(t.startDate), te=new Date(t.dueDate);
-                return ts<=ne && te>=ns;
-            };
-            let lane=rawTargetLane;
-            while(candidates.some(t=>t.swimLane===lane && overlaps(t))) lane+=1;
-            return lane;
-        };
 
         if(sameAction){
             const update={startDate,dueDate};
-            if(verticallyMoved) update.swimLane=pickPinLane(targetAction.id,taskId);
+            if(verticallyMoved) update.swimLane=targetLane;
             onUpdateTask(taskId,update);
         }else{
             const actionTasks=tasks.filter(t=>t.actionId===targetAction.id);
             const maxOrder=actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0)):0;
-            // Cross-action: pin to a collision-free lane if user moved vertically, else let auto-placement decide.
-            const update={actionId:targetAction.id,order:maxOrder+1,startDate,dueDate,swimLane:verticallyMoved?pickPinLane(targetAction.id,taskId):undefined};
+            const update={actionId:targetAction.id,order:maxOrder+1,startDate,dueDate,swimLane:verticallyMoved?targetLane:undefined};
             onUpdateTask(taskId,update);
         }
     };
