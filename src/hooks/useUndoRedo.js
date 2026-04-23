@@ -46,6 +46,25 @@ export function restoreSnapshot(current, snapshot) {
         const pendingLists = [];
         const pendingCheckItems = [];
 
+        // Helper — when a restored entity diverges from current state we must
+        // force the next Trello sync to push the restored values. Just bumping
+        // updatedAt is NOT enough: trelloSync.buildSelective*Update compares the
+        // entity against `_trelloBaseline` and only pushes fields that differ.
+        // The snapshot carries the pre-edit baseline, so the diff against the
+        // restored (also pre-edit) values looks empty → nothing gets pushed →
+        // Trello keeps the post-edit state and the undo silently reverts on the
+        // next sync. Stripping the baselines forces a full push (the "no
+        // baseline → full update" fallback in trelloSync.js) and makes the
+        // label-change detection (`_inheritChannels` etc.) fire correctly.
+        const stripBaselines = (entity) => {
+            const out = { ...entity, updatedAt: now };
+            delete out._trelloBaseline;
+            delete out._inheritChannels;
+            delete out._inheritCountries;
+            delete out._inheritOtherLabels;
+            return out;
+        };
+
         // Categories — bump on content change, record lost trelloListId for archival.
         const cCatsById = mapById(cBoard.categories);
         const sCatsById = mapById(sBoard.categories);
@@ -64,9 +83,9 @@ export function restoreSnapshot(current, snapshot) {
         const sActsById = mapById(sBoard.actions);
         const newActions = (sBoard.actions || []).map(sAct => {
             const cAct = cActsById.get(sAct.id);
-            if (!cAct) return { ...sAct, updatedAt: now };
+            if (!cAct) return stripBaselines(sAct);
             if (entityChanged(cAct, sAct, SYNC_FIELDS_ACTION)) {
-                const out = { ...sAct, updatedAt: now };
+                const out = stripBaselines(sAct);
                 if (orderChanged(cAct, sAct)) out.orderUpdatedAt = now;
                 return out;
             }
@@ -81,9 +100,9 @@ export function restoreSnapshot(current, snapshot) {
         const sTasksById = mapById(sBoard.tasks);
         const newTasks = (sBoard.tasks || []).map(sTask => {
             const cTask = cTasksById.get(sTask.id);
-            if (!cTask) return { ...sTask, updatedAt: now };
+            if (!cTask) return stripBaselines(sTask);
             if (entityChanged(cTask, sTask, SYNC_FIELDS_TASK)) {
-                const out = { ...sTask, updatedAt: now };
+                const out = stripBaselines(sTask);
                 if (orderChanged(cTask, sTask)) out.orderUpdatedAt = now;
                 return out;
             }

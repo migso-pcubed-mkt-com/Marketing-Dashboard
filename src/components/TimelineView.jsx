@@ -5,7 +5,7 @@ import { dateToPixel, pixelToDate, getTaskPosition, calculateSwimLanes, getDayHe
 import TimelineHeader from './timeline/TimelineHeader.jsx';
 import TimelineBar from './timeline/TimelineBar.jsx';
 
-const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef,isReadOnly,onRequestNewTask,isCardAsTask,boardGroups})=>{
+const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask,onBatchUpdateTasks,onUpdateAction,onReorderAction,onAddTask,filters,setFilters,selectedYear,onYearChange,isUserInteractingRef,isReadOnly,onRequestNewTask,isCardAsTask,boardGroups})=>{
     const timelineRef=useRef(null);
     const dragGhostRef=useRef(null);
     const[zoom,setZoom]=useState('month');
@@ -779,13 +779,55 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const startDate=fmt(snapDate);
         const dueDate=fmt(endDate);
 
-        // swimLane is a *preference* — calculateSwimLanes automatically slides to the
-        // next free lane if the chosen one collides, so we can safely store the raw
-        // target lane without manual collision handling here.
+        // swimLane is a *preference*. When the user drops ON TOP of an existing
+        // task that temporally overlaps the dragged task, we push the occupants
+        // of the target lane down by +1 so the drop behaves like a swap/insert
+        // instead of silently sliding the dragged task to the next free lane.
         const targetLane=Math.max(0,Math.floor((mouseY-8)/34));
         const sameAction=draggedTask.actionId===targetAction.id;
 
-        if(sameAction){
+        // Compute displaced tasks: same target action, currently rendered at
+        // targetLane, temporally overlapping the dragged task's NEW span.
+        // Uses calculateSwimLanes on the current state to know the rendered lane
+        // of auto-placed tasks (not just explicit swimLane preferences).
+        const computeDisplaced=()=>{
+            if(!verticallyMoved)return[];
+            const draggedNew={...draggedTask,startDate,dueDate};
+            const draggedPos=getTaskPosition(draggedNew,layoutParams);
+            if(!draggedPos)return[];
+            const dStart=draggedPos.left;
+            const dEnd=draggedPos.left+draggedPos.width;
+            const siblings=tasks.filter(t=>t.actionId===targetAction.id&&t.id!==taskId);
+            const{swimLanes:rendered}=calculateSwimLanes(siblings,null,layoutParams);
+            const out=[];
+            for(const t of siblings){
+                if((rendered[t.id]??-1)!==targetLane)continue;
+                const pos=getTaskPosition(t,layoutParams);
+                if(!pos)continue;
+                if(dStart<pos.left+pos.width&&dEnd>pos.left)out.push({id:t.id,renderedLane:rendered[t.id]});
+            }
+            return out;
+        };
+
+        const displaced=computeDisplaced();
+
+        if(displaced.length>0&&onBatchUpdateTasks){
+            // Atomic batch: dragged task takes targetLane, displaced tasks shift +1.
+            const baseChanges={startDate,dueDate,swimLane:targetLane};
+            const draggedChanges=sameAction?baseChanges:{
+                ...baseChanges,
+                actionId:targetAction.id,
+                order:(() => {
+                    const actionTasks=tasks.filter(t=>t.actionId===targetAction.id);
+                    return actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0))+1:1;
+                })()
+            };
+            const updates=[
+                {id:taskId,changes:draggedChanges},
+                ...displaced.map(d=>({id:d.id,changes:{swimLane:d.renderedLane+1}}))
+            ];
+            onBatchUpdateTasks(updates);
+        }else if(sameAction){
             const update={startDate,dueDate};
             if(verticallyMoved) update.swimLane=targetLane;
             onUpdateTask(taskId,update);
@@ -1020,8 +1062,8 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                             <div key={category.id}>
                                 {boardGroup && (
                                     <div className="timeline-board-group-row flex" style={{background:boardGroup.boardColor,color:'#fff',fontWeight:700,fontSize:13,letterSpacing:0.3,borderTop:'2px solid rgba(255,255,255,0.2)'}}>
-                                        <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-start" style={{background:boardGroup.boardColor,padding:'8px 12px'}}>
-                                            <span style={{whiteSpace:'normal',wordBreak:'break-word'}}>{boardGroup.boardName}</span>
+                                        <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-center" style={{background:boardGroup.boardColor,padding:'8px 12px',minWidth:0}}>
+                                            <span title={boardGroup.boardName} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block',width:'100%'}}>{boardGroup.boardName}</span>
                                         </div>
                                         <div className="flex-1" style={{background:boardGroup.boardColor}}/>
                                     </div>
@@ -1080,20 +1122,38 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                                                     <span>New task</span>
                                                 </div>);
                                             })()}
-                                            {actionTasks.sort((a,b)=>(a.order||0)-(b.order||0)).map(task=>{
-                                                const pos=getPos(task);
-                                                if(!pos)return null;
-                                                return(
-                                                    <TimelineBar key={task.id} task={task} pos={pos} action={action} zoom={zoom}
-                                                        swimLane={swimLanes[task.id]||0} isReadOnly={isReadOnly}
-                                                        isResizing={resizing?.taskId===task.id} justResized={justResized}
-                                                        isDragOver={dragOverTask?.taskId===task.id} dragOverPosition={dragOverTask?.taskId===task.id?dragOverTask.position:null}
-                                                        onOpenTask={onOpenTask} onDragStart={handleTaskDragStart} onDragEnd={handleTaskDragEnd}
-                                                        onDragOver={handleTaskDragOver} onDragLeave={handleTaskDragLeave} onDrop={handleTaskDrop}
-                                                        onStartResize={startResize}
-                                                        onResetLane={(id)=>onUpdateTask(id,{swimLane:undefined})}/>
-                                                );
-                                            })}
+                                            {(()=>{
+                                                // Pre-compute the left edge of the next task in the same lane so
+                                                // TimelineBar knows how much free space it has for its overflow
+                                                // label (skip the spill when a neighbour is too close).
+                                                const positioned=actionTasks.map(t=>({task:t,pos:getPos(t),lane:swimLanes[t.id]||0})).filter(e=>e.pos);
+                                                const nextLeftById={};
+                                                for(const e of positioned){
+                                                    let nearest=Infinity;
+                                                    for(const o of positioned){
+                                                        if(o.task.id===e.task.id)continue;
+                                                        if(o.lane!==e.lane)continue;
+                                                        if(o.pos.left>e.pos.left+e.pos.width&&o.pos.left<nearest)nearest=o.pos.left;
+                                                    }
+                                                    nextLeftById[e.task.id]=nearest;
+                                                }
+                                                return actionTasks.sort((a,b)=>(a.order||0)-(b.order||0)).map(task=>{
+                                                    const pos=getPos(task);
+                                                    if(!pos)return null;
+                                                    const neighborLeftEdge=nextLeftById[task.id];
+                                                    return(
+                                                        <TimelineBar key={task.id} task={task} pos={pos} action={action} zoom={zoom}
+                                                            swimLane={swimLanes[task.id]||0} isReadOnly={isReadOnly}
+                                                            neighborLeftEdge={Number.isFinite(neighborLeftEdge)?neighborLeftEdge:undefined}
+                                                            isResizing={resizing?.taskId===task.id} justResized={justResized}
+                                                            isDragOver={dragOverTask?.taskId===task.id} dragOverPosition={dragOverTask?.taskId===task.id?dragOverTask.position:null}
+                                                            onOpenTask={onOpenTask} onDragStart={handleTaskDragStart} onDragEnd={handleTaskDragEnd}
+                                                            onDragOver={handleTaskDragOver} onDragLeave={handleTaskDragLeave} onDrop={handleTaskDrop}
+                                                            onStartResize={startResize}
+                                                            onResetLane={(id)=>onUpdateTask(id,{swimLane:undefined})}/>
+                                                    );
+                                                });
+                                            })()}
                                         </div>
                                     </div>
                                     );

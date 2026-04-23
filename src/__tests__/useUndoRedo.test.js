@@ -114,4 +114,59 @@ describe('restoreSnapshot', () => {
         expect(restored.boards[0].id).toBe('b-new');
         expect(restored.boards[0].tasks[0].updatedAt).toBe(baseBoard.tasks[0].updatedAt);
     });
+
+    it('strips _trelloBaseline and _inherit* label baselines on tasks that diverged from current', () => {
+        // Scenario: snapshot was taken before the user's edit. Between snapshot and
+        // now, the user edited the task AND synced to Trello, so _trelloBaseline
+        // carries the POST-edit values. Undoing should not just revert fields —
+        // it must also clear the post-edit baseline so the next sync pushes the
+        // restored (pre-edit) values instead of seeing a "no diff" and doing nothing.
+        const snapshotTask = {
+            ...baseBoard.tasks[0],
+            title: 'Old title',
+            channels: ['social'],
+            _trelloBaseline: { title: 'Old title', description: '' },
+            _inheritChannels: ['social']
+        };
+        const currentTask = {
+            ...snapshotTask,
+            title: 'New title',
+            channels: ['social', 'email'],
+            _trelloBaseline: { title: 'New title', description: '' },
+            _inheritChannels: ['social', 'email'],
+            updatedAt: '2026-04-20T00:00:00.000Z'
+        };
+        const current = envelope({ ...baseBoard, tasks: [currentTask] });
+        const snapshot = envelope({ ...baseBoard, tasks: [snapshotTask] });
+
+        const restored = restoreSnapshot(current, snapshot);
+        const restoredTask = restored.boards[0].tasks[0];
+        expect(restoredTask.title).toBe('Old title');
+        expect(restoredTask._trelloBaseline).toBeUndefined();
+        expect(restoredTask._inheritChannels).toBeUndefined();
+    });
+
+    it('strips baselines on actions that diverged from current', () => {
+        const snapshotAction = {
+            ...baseBoard.actions[0],
+            name: 'Old name',
+            _trelloBaseline: { name: 'Old name' },
+            _inheritChannels: ['social']
+        };
+        const currentAction = {
+            ...snapshotAction,
+            name: 'New name',
+            _trelloBaseline: { name: 'New name' },
+            _inheritChannels: ['social', 'email'],
+            updatedAt: '2026-04-20T00:00:00.000Z'
+        };
+        const current = envelope({ ...baseBoard, actions: [currentAction] });
+        const snapshot = envelope({ ...baseBoard, actions: [snapshotAction] });
+
+        const restored = restoreSnapshot(current, snapshot);
+        const restoredAction = restored.boards[0].actions[0];
+        expect(restoredAction.name).toBe('Old name');
+        expect(restoredAction._trelloBaseline).toBeUndefined();
+        expect(restoredAction._inheritChannels).toBeUndefined();
+    });
 });

@@ -102,15 +102,30 @@ describe('buildKanbanWorkbook — category view', () => {
         }
     });
 
-    it('renders a status legend column after the columns', async () => {
+    it('omits the status legend for category view (redundant with column headers)', async () => {
         const wb = await buildKanbanWorkbook(categories, taskModeActions, taskModeTasks);
         const ws = wb.getWorksheet('Kanban');
-        // taskModeActions → 2 category columns, legend header goes at col 4 (1 spacer)
         const hdr = ws.getRow(1);
-        expect(hdr.getCell(4).value).toBe('Legend');
-        // 6 status names, one per row, starting at row 2
+        // No legend header at col 4 — only the 2 category columns remain.
+        expect(hdr.getCell(4).value).toBeFalsy();
+    });
+
+    it('omits the status legend for by-status view (redundant — columns already are statuses)', async () => {
+        const wb = await buildKanbanWorkbook(categories, taskModeActions, taskModeTasks, 'action');
+        const ws = wb.getWorksheet('Kanban');
+        const hdr = ws.getRow(1);
+        // 6 status columns (cols 1..6), col 8 would be legend header — must be empty.
+        expect(hdr.getCell(8).value).toBeFalsy();
+    });
+
+    it('keeps the status legend for month view (colour still carries status info)', async () => {
+        const wb = await buildKanbanWorkbook(categories, taskModeActions, taskModeTasks, 'month');
+        const ws = wb.getWorksheet('Kanban');
+        const hdr = ws.getRow(1);
+        // 12 month columns → legend at col 14 (spacer at 13)
+        expect(hdr.getCell(14).value).toBe('Legend');
         const names = [];
-        for (let i = 0; i < 6; i++) names.push(ws.getRow(2 + i).getCell(4).value);
+        for (let i = 0; i < 6; i++) names.push(ws.getRow(2 + i).getCell(14).value);
         expect(names).toEqual(['To Do', 'Creating', 'In Progress', 'In Review', 'Completed', 'Paused']);
     });
 });

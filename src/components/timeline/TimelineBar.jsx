@@ -12,8 +12,14 @@ const DARK_CHANNELS = ['gads', 'email'];
 // background — instead of ellipsizing it inside the bar.
 const OVERFLOW_LABEL_THRESHOLD = 80;
 
+// Minimum free pixels to the right of a narrow bar before we dare spill the
+// overflow label onto the timeline background. If the next bar in the same
+// lane is closer than this, we skip the label and rely on the hover tooltip
+// so the label never gets visually absorbed by the neighbour.
+const OVERFLOW_LABEL_MIN_SPACE = 40;
+
 const TimelineBar = ({
-    task, pos, action, zoom, swimLane, isReadOnly,
+    task, pos, action, zoom, swimLane, isReadOnly, neighborLeftEdge,
     isResizing, justResized, isDragOver, dragOverPosition,
     onOpenTask, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop, onStartResize, onResetLane,
 }) => {
@@ -27,7 +33,13 @@ const TimelineBar = ({
     const topOffset = 8 + swimLane * 34;
     const isPinned = typeof task.swimLane === 'number' && task.swimLane >= 0;
     const resizingStyle = isResizing ? { boxShadow: '0 0 0 3px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.3)', transform: 'scale(1.02)', zIndex: 30 } : {};
-    const showOverflowLabel = pos.width < OVERFLOW_LABEL_THRESHOLD;
+    const freeSpaceRight = typeof neighborLeftEdge === 'number'
+        ? Math.max(0, neighborLeftEdge - (pos.left + pos.width))
+        : Infinity;
+    const showOverflowLabel = pos.width < OVERFLOW_LABEL_THRESHOLD && freeSpaceRight >= OVERFLOW_LABEL_MIN_SPACE;
+    const overflowMaxWidth = freeSpaceRight === Infinity
+        ? undefined
+        : Math.max(0, freeSpaceRight - 6);
     const barWidth = Math.max(pos.width - 2, 4);
 
     const handleContextMenu = (e) => {
@@ -96,6 +108,9 @@ const TimelineBar = ({
                         display: 'flex',
                         alignItems: 'center',
                         whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: overflowMaxWidth,
                         color: 'var(--text-primary, #1f2937)',
                         fontSize: 10,
                         fontWeight: 500,
