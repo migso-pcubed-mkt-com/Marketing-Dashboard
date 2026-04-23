@@ -1625,6 +1625,9 @@ const App = () => {
                                 <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'quarter');}} className="dropdown-item" style={{paddingLeft:24}}>By quarter</button>
                                 <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'country');}} className="dropdown-item" style={{paddingLeft:24}}>By country</button>
                                 <div className="dropdown-divider"/>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportTimelinePPT } = await import('./lib/pptExport.js'); exportTimelinePPT(categories, actions, tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Timeline (PowerPoint)</button>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanPPT } = await import('./lib/pptExport.js'); exportKanbanPPT(categories, actions, tasks, currentBoard?.name);}} className="dropdown-item">Export Kanban (PowerPoint)</button>
+                                <div className="dropdown-divider"/>
                                 <button onClick={() => {setShowExportDropdown(false);setShowExcelImport(true);}} className="dropdown-item">Import from Excel</button>
                             </div>}
                         </div>

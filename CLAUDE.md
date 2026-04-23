@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-23 (Timeline drag push-down swap, Kanban legend omitted for category+status views, Timeline bar text non-bold, combined-view single-line banners, TimelineBar overflow label guard, restoreSnapshot strips Trello baselines)
+> Last updated: 2026-04-23 (Timeline drag push-down swap, Kanban legend omitted for category+status views, Timeline bar text non-bold, combined-view single-line banners, TimelineBar overflow label guard, restoreSnapshot strips Trello baselines, editable PPT export via pptxgenjs)
 
 ---
 
@@ -63,7 +63,7 @@ Marketing Project Tracker for MIGSO-PCUBED. Single-page React app managing **Cat
 - **React 18** + **Vite 5** (ES Modules, no CDN/Babel/UMD)
 - **Tailwind CSS 3** via PostCSS (not CDN)
 - **Supabase JS SDK** (`@supabase/supabase-js`)
-- **Vitest** for unit tests (536 tests across 17 files)
+- **Vitest** for unit tests (586 tests across 21 files)
 - **TypeScript 6** progressive (`strict:false`, `allowJs:true`, `noEmit:true`) — 4 files migrated so far
 - **ESLint 8** (`.eslintrc.cjs`) — 25 warnings remaining (unused vars)
 - **@tanstack/react-virtual** for Kanban column virtualization
@@ -85,6 +85,7 @@ src/
 │   ├── trelloMapping.js # Trello ↔ Dashboard entity conversion
 │   ├── trelloSync.js    # Bidirectional sync engine
 │   ├── trelloAuth.js    # Trello OAuth login/restore/logout
+│   ├── pptExport.js     # PowerPoint export (Timeline + Kanban) via pptxgenjs — editable native shapes
 │   └── migration.js     # v1→v2 data migration
 ├── components/
 │   ├── ErrorBoundary.jsx       # Error boundary wrapper for views
@@ -335,6 +336,9 @@ Tasks can be pinned to a specific lane via `task.swimLane: number`. `calculateSw
 
 ### TimelineBar — overflow label guard
 Narrow bars (< 80px) spill their title onto the timeline background to the right of the bar. The overflow label is skipped when a neighbour task in the same lane is closer than `OVERFLOW_LABEL_MIN_SPACE` (40px) — relying on the native `title` tooltip instead — to avoid visual collision. `TimelineView` pre-computes `neighborLeftEdge` per task (nearest lane-mate to the right) and passes it to `TimelineBar`. The overflow span also has `maxWidth` + `textOverflow: ellipsis` so it never spills past the available gap.
+
+### PowerPoint export — pptxgenjs, editable native shapes, 16:9 widescreen
+`src/lib/pptExport.js` exports `exportTimelinePPT(categories, actions, tasks, year, boardName)` and `exportKanbanPPT(categories, actions, tasks, boardName)`. Both emit **native editable shapes** (rect / roundRect + text boxes) — no rasterisation — so the user can edit titles, colours, and layout directly in PowerPoint. Slide size: `LAYOUT_WIDE` (13.333 × 7.5"). `pptxgenjs` is imported via dynamic `import('pptxgenjs')` and lands in a separate ~373 KB chunk (~127 KB gzipped). **Timeline**: single slide with a label column + 12 month columns (Jan–Dec). Rows: category banners (full-width, coloured), action sub-headers (when non-default), task bars positioned across `startDate..dueDate` using continuous grid units (month + day fraction). Row height auto-scales to fit all rows on one slide (min 0.14", max 0.32"). Completed tasks use a lightened fill + strike + muted text. Bars with `title` longer than the bar are ellipsized (PowerPoint auto-handles text overflow at runtime). **Kanban**: one slide per 6 columns (`MAX_COLS_PER_SLIDE`), categories only (card-as-action categories inline action cards + task counts). Each card: rounded rectangle with status-colour stripe on the left, title, optional footer with dates + budget. Contrast-aware text colour (luminance check) so dark columns get white headers and light ones get dark text.
 
 ### Excel export — exceljs for Kanban + Timeline, xlsx for Calendar
 `src/lib/excelExport.js` exports `exportKanbanXlsx(categories, actions, tasks, boardName, view)` / `exportTimelineXlsx` (both async, backed by `buildKanbanWorkbook` / `buildTimelineWorkbook` which return a raw `ExcelJS.Workbook` for tests) and `exportCalendarXlsx` (sync, still on `xlsx`). Kanban `view` accepts `'category'` (default), `'action'` (= by status, one column per CONFIG.STATUSES entry), `'month'` (Jan–Dec grouped by `dueDate||startDate`), `'quarter'` (Q1–Q4), `'country'`. App toolbar mini-dropdown has 5 options. **Status legend**: shown only for `month` / `quarter` / `country` views. Omitted for `category` + `action` views where the columns themselves already encode the grouping → legend is redundant and was confusing users. Timeline export keeps its status legend. In `view='category'` the builder detects card-as-action per-category (`actions.some(a => a.categoryId === cat.id && !a.isDefault)`): action-mode cells contain multi-line `action.name\n▸ checklist\n  · task` (wrapText); task-mode cells keep the per-task layout. Status-coloured thick left border on every card; completed tasks use a lightened fill + muted text. Timeline: **1 label column (A) + 12 month columns (B–M)**, mirroring the grid import layout — category rows span full-width (cat color fill) in col A, non-default action sub-headers prefix with 2 spaces, default actions are omitted (tasks appear directly under the category). **Task titles live inside the Gantt bar cells** merged across `startDate..dueDate`; col A is empty on task rows. Bar fill = `statusColor`; completed = lightened fill + dark muted text; task titles are **non-bold** (plain weight) per user readability preference. Frozen header (ySplit 1) + frozen A (xSplit 1). `exceljs` is imported via dynamic `import('exceljs')` inside each builder so it only lands in the bundle when an export is invoked (separate chunk ~271 KB gzipped). Do NOT move Calendar to exceljs — the month-per-sheet layout doesn't benefit from styling and duplicating the logic costs bundle size.
