@@ -7,6 +7,10 @@ const CHANNEL_COLORS = {
     video: '#f87171', lp: '#2dd4bf', ia: '#c4b5fd', auto: '#fb923c',
 };
 const DARK_CHANNELS = ['gads', 'email'];
+// Bars narrower than this (in pixels) can't realistically fit their title, so we spill the
+// full title as a dedicated overflow label to the right of the bar — on the white timeline
+// background — instead of ellipsizing it inside the bar.
+const OVERFLOW_LABEL_THRESHOLD = 80;
 
 const TimelineBar = ({
     task, pos, action, zoom, swimLane, isReadOnly,
@@ -23,6 +27,8 @@ const TimelineBar = ({
     const topOffset = 8 + swimLane * 34;
     const isPinned = typeof task.swimLane === 'number' && task.swimLane >= 0;
     const resizingStyle = isResizing ? { boxShadow: '0 0 0 3px rgba(255,255,255,0.5), 0 4px 12px rgba(0,0,0,0.3)', transform: 'scale(1.02)', zIndex: 30 } : {};
+    const showOverflowLabel = pos.width < OVERFLOW_LABEL_THRESHOLD;
+    const barWidth = Math.max(pos.width - 2, 4);
 
     const handleContextMenu = (e) => {
         if (!isPinned || isReadOnly || !onResetLane) return;
@@ -43,10 +49,11 @@ const TimelineBar = ({
             onDrop={(e) => onDrop(e, task)}
             className={`timeline-bar absolute flex items-center ${isResizing ? '' : 'cursor-move'} ${dragOverClass}`}
             style={{
-                left: pos.left, width: Math.max(pos.width - 2, 4), top: `${topOffset}px`, height: 26,
+                left: pos.left, width: barWidth, top: `${topOffset}px`, height: 26,
                 borderRadius: 5, padding: '0 8px', fontSize: 10, fontWeight: 500,
-                // overflow:visible so the title can spill to the right of short bars onto the
-                // timeline background instead of being ellipsized out of sight.
+                // overflow:visible so the optional overflow-label span (left:100%) isn't
+                // clipped. The inner .truncate span still ellipsizes its own content so
+                // the title inside the colored bar never spills onto neighbouring bars.
                 whiteSpace: 'nowrap', overflow: 'visible',
                 backgroundColor: barColor, color: textColor, zIndex: 1,
                 transition: 'transform 0.15s, box-shadow 0.15s',
@@ -64,20 +71,7 @@ const TimelineBar = ({
                     draggable={false}
                 />
             )}
-            <span
-                className="flex-1 pointer-events-none"
-                style={{
-                    whiteSpace: 'nowrap',
-                    overflow: 'visible',
-                    // Keep the title readable both inside the colored bar and on the white
-                    // timeline background when it spills to the right of a short bar.
-                    color: '#1f2937',
-                    textShadow: '0 0 3px rgba(255,255,255,0.85), 0 0 6px rgba(255,255,255,0.6)',
-                    ...(isCompleted ? { textDecoration: 'line-through' } : {})
-                }}
-            >
-                {task.title}
-            </span>
+            <span className="truncate flex-1 pointer-events-none" style={isCompleted ? { textDecoration: 'line-through' } : {}}>{task.title}</span>
             {task.budget > 0 && (zoom === 'month' || zoom === 'quarter') && (
                 <span style={{ marginLeft: 4, opacity: 0.8, fontSize: 9 }} className="pointer-events-none">({(task.budget / 1000).toFixed(0)}k)</span>
             )}
@@ -89,6 +83,29 @@ const TimelineBar = ({
                     onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
                     draggable={false}
                 />
+            )}
+            {showOverflowLabel && (
+                <span
+                    className="pointer-events-none"
+                    style={{
+                        position: 'absolute',
+                        left: '100%',
+                        marginLeft: 6,
+                        top: 0,
+                        height: 26,
+                        display: 'flex',
+                        alignItems: 'center',
+                        whiteSpace: 'nowrap',
+                        color: 'var(--text-primary, #1f2937)',
+                        fontSize: 10,
+                        fontWeight: 500,
+                        textDecoration: isCompleted ? 'line-through' : 'none',
+                        opacity: isCompleted ? 0.6 : 0.9,
+                        zIndex: 2,
+                    }}
+                >
+                    {task.title}
+                </span>
             )}
         </div>
     );

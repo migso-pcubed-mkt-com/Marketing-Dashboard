@@ -779,17 +779,19 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const startDate=fmt(snapDate);
         const dueDate=fmt(endDate);
 
+        // swimLane is a *preference* — calculateSwimLanes automatically slides to the
+        // next free lane if the chosen one collides, so we can safely store the raw
+        // target lane without manual collision handling here.
         const targetLane=Math.max(0,Math.floor((mouseY-8)/34));
         const sameAction=draggedTask.actionId===targetAction.id;
 
         if(sameAction){
             const update={startDate,dueDate};
-            if(verticallyMoved)update.swimLane=targetLane;
+            if(verticallyMoved) update.swimLane=targetLane;
             onUpdateTask(taskId,update);
         }else{
             const actionTasks=tasks.filter(t=>t.actionId===targetAction.id);
             const maxOrder=actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0)):0;
-            // Cross-action: pin to targetLane if user moved vertically, else let auto-placement decide.
             const update={actionId:targetAction.id,order:maxOrder+1,startDate,dueDate,swimLane:verticallyMoved?targetLane:undefined};
             onUpdateTask(taskId,update);
         }
@@ -990,7 +992,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                             </div>
                         )}
                         <div className={`flex border-b border-[var(--border)] ${(zoom==='week'||zoom==='day')?'sticky top-[37px] z-30':'sticky top-0 z-40'} bg-[var(--bg-primary)] relative`}>
-                            <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 bg-[var(--bg-primary)] border-r border-[var(--border)]`} style={{zIndex:2}}>{isCardAsTask?'Tasks':'Actions'}</div>
+                            <div className={`w-[250px] flex-shrink-0 p-3 font-semibold text-sm sticky left-0 bg-[var(--bg-primary)] border-r border-[var(--border)]`} style={{zIndex:2}}>Actions</div>
                             {zoom==='quarter'?headers.map(h=>(
                                 <div key={h.q} className={`flex-shrink-0 p-3 text-center font-semibold border-l border-[var(--border)]`} style={{width:colWidth}}>
                                     <div>{h.label}</div>
@@ -1017,10 +1019,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                             return (
                             <div key={category.id}>
                                 {boardGroup && (
-                                    <div className="timeline-board-group-row flex" style={{background:boardGroup.boardColor,color:'#fff',fontWeight:700,fontSize:12,letterSpacing:0.5,borderTop:'2px solid rgba(255,255,255,0.2)'}}>
-                                        <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-center" style={{background:boardGroup.boardColor,padding:'6px 12px',gap:8}}>
-                                            <span style={{fontSize:14}}>●</span>
-                                            <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>Board: {boardGroup.boardName}</span>
+                                    <div className="timeline-board-group-row flex" style={{background:boardGroup.boardColor,color:'#fff',fontWeight:700,fontSize:13,letterSpacing:0.3,borderTop:'2px solid rgba(255,255,255,0.2)'}}>
+                                        <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-start" style={{background:boardGroup.boardColor,padding:'8px 12px'}}>
+                                            <span style={{whiteSpace:'normal',wordBreak:'break-word'}}>{boardGroup.boardName}</span>
                                         </div>
                                         <div className="flex-1" style={{background:boardGroup.boardColor}}/>
                                     </div>

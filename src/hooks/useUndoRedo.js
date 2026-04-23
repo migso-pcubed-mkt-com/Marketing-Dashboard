@@ -130,6 +130,10 @@ export default function useUndoRedo(setBoardData) {
     const indexRef = useRef(-1);
     const isUndoRedoRef = useRef(false);
     const suspendedRef = useRef(false);
+    // Timestamp (ms) of the most recent undo/redo/jumpTo. App.jsx uses this to
+    // gate Realtime merges and the pre-save conflict fetch for a short window
+    // so an incoming echo of the pre-undo state can't silently revert the UI.
+    const recentUndoRef = useRef(0);
 
     const [, forceUpdate] = useState(0);
 
@@ -184,6 +188,7 @@ export default function useUndoRedo(setBoardData) {
 
     const applyRestore = useCallback((restored) => {
         isUndoRedoRef.current = true;
+        recentUndoRef.current = Date.now();
         setBoardData(current => restoreSnapshot(current, restored));
         setTimeout(() => { isUndoRedoRef.current = false; }, 0);
     }, [setBoardData]);
@@ -253,6 +258,7 @@ export default function useUndoRedo(setBoardData) {
         pushState, undo, redo, jumpTo, clear,
         canUndo, canRedo,
         isUndoRedoRef,
+        recentUndoRef,
         suspend, resume,
         getHistory,
         currentIndex: indexRef.current

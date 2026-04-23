@@ -46,18 +46,19 @@ const downloadWorkbook = (wb, filename) => {
 // for the hierarchy (category → action), then 12 month columns (B…M). Task titles
 // live inside the Gantt bar — the cells merged across startDate..dueDate — so the
 // sheet matches what the import parser expects and produces a round-trip friendly file.
+// A status legend is rendered to the right of December (col N–O).
 export async function buildTimelineWorkbook(categories, actions, tasks, year) {
     const { default: ExcelJS } = await import('exceljs');
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Marketing Dashboard';
-    const ws = wb.addWorksheet('Timeline', {
-        views: [{ state: 'frozen', xSplit: 1, ySplit: 1 }]
-    });
+    // No frozen views — users prefer to scroll the whole sheet freely.
+    const ws = wb.addWorksheet('Timeline');
 
     const months = CONFIG.MONTHS;
-    const header = ['', ...months];
+    const header = ['', ...months, '', 'Legend'];
     const headerRow = ws.addRow(header);
-    headerRow.eachCell((cell) => {
+    headerRow.eachCell((cell, col) => {
+        if (col === 14) return; // spacer column stays blank
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F2937' } };
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
@@ -67,11 +68,21 @@ export async function buildTimelineWorkbook(categories, actions, tasks, year) {
 
     ws.getColumn(1).width = 45;
     for (let c = 2; c <= 13; c++) ws.getColumn(c).width = 10;
+    ws.getColumn(14).width = 2;
+    ws.getColumn(15).width = 22;
+
+    // Roughly estimate the row height needed to fit a title across N merged month columns.
+    // Each month column is ~10 chars wide, minus 2 chars of padding/indent.
+    const estimateTitleHeight = (title, spanMonths) => {
+        const perLine = Math.max(6, spanMonths * 10 - 2);
+        const lines = Math.max(1, Math.ceil((title || '').length / perLine));
+        return Math.max(20, lines * 14 + 6);
+    };
 
     const sortedCats = [...categories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
     sortedCats.forEach(cat => {
-        // Category band row — label in A, merged across all 13 columns for a full-width section header.
+        // Category band row — label in A, merged across the 13 timeline columns.
         const catRow = ws.addRow([cat.name, '', '', '', '', '', '', '', '', '', '', '', '']);
         ws.mergeCells(catRow.number, 1, catRow.number, 13);
         const catCell = catRow.getCell(1);
@@ -90,7 +101,11 @@ export async function buildTimelineWorkbook(categories, actions, tasks, year) {
                 const actionRow = ws.addRow([`  ${action.name}`, '', '', '', '', '', '', '', '', '', '', '', '']);
                 ws.mergeCells(actionRow.number, 1, actionRow.number, 13);
                 const actionCell = actionRow.getCell(1);
-                actionCell.font = { bold: true, color: { argb: 'FF111827' }, size: 10 };
+                const actionDone = action.status === 'completed';
+                actionCell.font = {
+                    bold: true, color: { argb: 'FF111827' }, size: 10,
+                    strike: actionDone
+                };
                 actionCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: lightenARGB(toARGB(cat.color), 0.75) } };
                 actionCell.alignment = { vertical: 'middle', horizontal: 'left' };
                 actionRow.height = 18;
@@ -113,14 +128,17 @@ export async function buildTimelineWorkbook(categories, actions, tasks, year) {
                 if (startMonth === -1) return;
 
                 const row = ws.addRow(['', '', '', '', '', '', '', '', '', '', '', '', '']);
-                row.height = 18;
 
                 const startCol = 2 + startMonth;
                 const endCol = 2 + endMonth;
+                const spanMonths = endMonth - startMonth + 1;
                 if (endCol > startCol) ws.mergeCells(row.number, startCol, row.number, endCol);
 
+                const title = task.title || '';
+                row.height = estimateTitleHeight(title, spanMonths);
+
                 const barCell = row.getCell(startCol);
-                barCell.value = task.title || '';
+                barCell.value = title;
                 const isDone = task.status === 'completed';
                 const statusARGB = toARGB(statusColor(task.status));
                 barCell.fill = {
@@ -130,6 +148,7 @@ export async function buildTimelineWorkbook(categories, actions, tasks, year) {
                 };
                 barCell.font = {
                     bold: !isDone,
+                    strike: isDone,
                     color: { argb: isDone ? 'FF4B5563' : 'FFFFFFFF' },
                     size: 10
                 };
@@ -138,6 +157,18 @@ export async function buildTimelineWorkbook(categories, actions, tasks, year) {
                 barCell.border = { top: border, left: border, right: border, bottom: border };
             });
         });
+    });
+
+    // Status legend — written last so it lands in the existing data rows (2..N)
+    // instead of creating empty rows above the category bands.
+    CONFIG.STATUSES.forEach((st, idx) => {
+        const r = ws.getRow(2 + idx);
+        const cell = r.getCell(15);
+        cell.value = st.name;
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(st.color) } };
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+        cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        cell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
     });
 
     return wb;
@@ -160,16 +191,30 @@ function isCardAsActionCategory(categoryId, actions) {
     return actions.some(a => a.categoryId === categoryId && !a.isDefault);
 }
 
-// Render an action as a multi-line cell value.
-// Layout:
-//   [Action name]
+// Render an action as a multi-line cell. Bold styling is applied ONLY to the
+// action name (via exceljs richText segments); checklist headings and task
+// items stay in the default weight. Completed tasks are strike-through within
+// the same cell. Layout:
+//   [Action name]              ← bold (+ strike if action.status === completed)
 //   ▸ Checklist 1
-//     · Task A
+//     · Task A                 ← strike if task.status === completed
 //     · Task B
 //   ▸ Checklist 2
 //     · Task C
-function buildActionCellText(action, actionTasks) {
-    if (actionTasks.length === 0) return action.name || '';
+// Returns { richText, plainText, lineCount } so callers can drive styling +
+// row height without re-parsing the text.
+function buildActionCell(action, actionTasks) {
+    const actionDone = action.status === 'completed';
+    const actionName = action.name || '';
+
+    if (actionTasks.length === 0) {
+        return {
+            richText: [{ text: actionName, font: { bold: true, size: 10, strike: actionDone } }],
+            plainText: actionName,
+            lineCount: 1
+        };
+    }
+
     const groups = new Map();
     const groupOrder = [];
     for (const t of actionTasks) {
@@ -180,14 +225,26 @@ function buildActionCellText(action, actionTasks) {
         }
         groups.get(key).push(t);
     }
-    const lines = [action.name || ''];
+
+    const segments = [{ text: actionName, font: { bold: true, size: 10, strike: actionDone } }];
+    const plainLines = [actionName];
+
     for (const name of groupOrder) {
         const items = groups.get(name).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-        lines.push('');
-        lines.push(`▸ ${name}`);
-        for (const t of items) lines.push(`  · ${t.title || ''}`);
+        segments.push({ text: `\n\n▸ ${name}`, font: { bold: false, size: 10 } });
+        plainLines.push('', `▸ ${name}`);
+        for (const t of items) {
+            const done = t.status === 'completed';
+            segments.push({ text: `\n  · ${t.title || ''}`, font: { bold: false, size: 10, strike: done } });
+            plainLines.push(`  · ${t.title || ''}`);
+        }
     }
-    return lines.join('\n');
+
+    return {
+        richText: segments,
+        plainText: plainLines.join('\n'),
+        lineCount: plainLines.length
+    };
 }
 
 // Build a uniform list of columns for any Kanban view.
@@ -290,35 +347,70 @@ export async function buildKanbanWorkbook(categories, actions, tasks, view = 'ca
     if (columns.length === 0) return wb;
 
     const maxRows = Math.max(...columns.map(c => c.items.length), 0);
+    const legendCol = columns.length + 2; // one spacer column then the legend
 
-    const headerRow = ws.addRow(columns.map(c => c.label));
+    // Header row: column labels + Legend
+    const headerValues = [...columns.map(c => c.label), '', 'Legend'];
+    const headerRow = ws.addRow(headerValues);
     headerRow.eachCell((cell, colIdx) => {
+        if (colIdx === columns.length + 1) return; // spacer — keep blank
         const col = columns[colIdx - 1];
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(col.color) } };
+        const fillColor = col ? toARGB(col.color) : 'FF1F2937'; // legend header = dark slate
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
         cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
     });
     headerRow.height = 28;
 
     columns.forEach((_, ci) => { ws.getColumn(ci + 1).width = 34; });
+    ws.getColumn(columns.length + 1).width = 2;
+    ws.getColumn(legendCol).width = 22;
+
+    // Rough wrap estimate: 34-char column width at size 10 ≈ 30 usable chars per line.
+    const estimateLinesForText = (text) => {
+        if (!text) return 1;
+        const rawLines = String(text).split('\n');
+        let total = 0;
+        for (const line of rawLines) total += Math.max(1, Math.ceil(line.length / 30));
+        return total;
+    };
 
     for (let r = 0; r < maxRows; r++) {
-        const rowValues = columns.map(col => {
+        const cellValues = columns.map(col => {
             const item = col.items[r];
-            if (!item) return '';
-            if (item.kind === 'action') return buildActionCellText(item.data, item.tasks);
+            if (!item) return null;
+            if (item.kind === 'action') return buildActionCell(item.data, item.tasks);
             const task = item.data;
-            const p = task.priority ? `\n[${priorityName(task.priority)}]` : '';
-            return `${task.title || ''}${p}`;
+            const done = task.status === 'completed';
+            const title = task.title || '';
+            const prio = task.priority ? `\n[${priorityName(task.priority)}]` : '';
+            return {
+                richText: [
+                    { text: title, font: { size: 10, bold: false, strike: done, color: { argb: done ? 'FF6B7280' : 'FF111827' } } },
+                    ...(prio ? [{ text: prio, font: { size: 9, bold: false, color: { argb: 'FF6B7280' } } }] : [])
+                ],
+                plainText: title + prio,
+                lineCount: 1 + (prio ? 1 : 0)
+            };
         });
-        const row = ws.addRow(rowValues);
-        // Taller row for action cells so their multi-line content stays readable.
-        const hasActionItem = columns.some(col => col.items[r]?.kind === 'action');
-        row.height = hasActionItem ? 90 : 34;
-        row.eachCell((cell, colIdx) => {
+
+        const row = ws.addRow(cellValues.map(() => ''));
+        // Dynamic height driven by the tallest cell (lineCount + wrap estimate).
+        let maxLines = 1;
+        cellValues.forEach((cv) => {
+            if (!cv) return;
+            const lines = Math.max(cv.lineCount || 1, estimateLinesForText(cv.plainText || ''));
+            if (lines > maxLines) maxLines = lines;
+        });
+        row.height = Math.max(34, maxLines * 14 + 8);
+
+        row.eachCell({ includeEmpty: true }, (cell, colIdx) => {
+            if (colIdx > columns.length) return;
+            const cv = cellValues[colIdx - 1];
             const item = columns[colIdx - 1].items[r];
-            if (!item) return;
-            const statusId = item.kind === 'action' ? item.data.status : item.data.status;
+            if (!cv || !item) return;
+            cell.value = { richText: cv.richText };
+            const statusId = item.data.status;
             const statusARGB = toARGB(statusColor(statusId));
             const isDone = statusId === 'completed';
             cell.border = {
@@ -333,13 +425,23 @@ export async function buildKanbanWorkbook(categories, actions, tasks, view = 'ca
                 fgColor: { argb: isDone ? lightenARGB(statusARGB, 0.82) : 'FFF8FAFC' }
             };
             cell.alignment = { vertical: 'top', horizontal: 'left', wrapText: true, indent: 1 };
-            cell.font = {
-                size: 10,
-                color: { argb: isDone ? 'FF6B7280' : 'FF111827' },
-                bold: item.kind === 'action'
-            };
+            // cell.font intentionally not overridden — richText carries per-segment style.
         });
     }
+
+    // Status legend — written after data rows so it lands on existing rows 2..7.
+    CONFIG.STATUSES.forEach((st, idx) => {
+        const r = ws.getRow(2 + idx);
+        const cell = r.getCell(legendCol);
+        cell.value = st.name;
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(st.color) } };
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+        cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+            bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+        };
+    });
 
     return wb;
 }

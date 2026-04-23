@@ -213,6 +213,25 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
 
     const canDragColumns = (viewMode === 'category' || viewMode === 'country') && !isReadOnly;
 
+    // Combined view: group columns by source board so each board's columns cluster
+    // together under a horizontal colored banner (instead of a vertical separator).
+    const groupedColumns = useMemo(() => {
+        if (!boardGroups || boardGroups.length === 0 || viewMode !== 'category') {
+            return [{ group: null, cols: columns.map((c, i) => ({ col: c, colIdx: i })) }];
+        }
+        const bySource = new Map();
+        columns.forEach((col, i) => {
+            const sourceId = categories.find(c => c.id === col.key)?._sourceBoardId || null;
+            const key = sourceId || '__unassigned__';
+            if (!bySource.has(key)) bySource.set(key, []);
+            bySource.get(key).push({ col, colIdx: i });
+        });
+        return Array.from(bySource.entries()).map(([sourceId, cols]) => ({
+            group: boardGroups.find(g => g.boardId === sourceId) || null,
+            cols
+        }));
+    }, [columns, categories, boardGroups, viewMode]);
+
     const handleColumnDragStart = (e, idx) => {
         if (!canDragColumns) return;
         setDragColIdx(idx);
@@ -316,7 +335,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             <div className="kanban-toolbar">
                 <div className="kanban-toolbar-left">
                     <div className="view-btn-group">
-                        {[{id:'category',label:isCardAsTask?'Categories (tasks)':'Categories (actions)'},{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
+                        {[{id:'category',label:(boardGroups&&boardGroups.length>0)?'By Board':(isCardAsTask?'Categories (tasks)':'Categories (actions)')},{id:'month',label:'By Month'},{id:'quarter',label:'By Quarter'},{id:'action',label:'By Status'},{id:'country',label:'By Country'}].map(v=>(
                             <button key={v.id} onClick={()=>{setViewMode(v.id);if(v.id!=='action')setSelectedAction(null);}} className={`view-btn ${viewMode===v.id?'active':''}`}>{v.label}</button>
                         ))}
                     </div>
@@ -340,35 +359,22 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                 </div>
             </div>
             <div className="kanban-board">
-                    {columns.map((col, colIdx)=>{
+                    {groupedColumns.map(({ group, cols: groupCols }, groupIdx) => (
+                    <div key={group?.boardId || `group-${groupIdx}`} className="kanban-board-group" style={{display:'flex',flexDirection:'column',minWidth:0,gap:4}}>
+                        {group && (
+                            <div className="kanban-board-banner" style={{
+                                background: group.boardColor, color: '#fff',
+                                padding: '8px 14px', fontWeight: 700, fontSize: 13,
+                                borderRadius: 6, letterSpacing: 0.3,
+                                whiteSpace: 'normal', wordBreak: 'break-word'
+                            }}>
+                                {group.boardName}
+                            </div>
+                        )}
+                        <div className="kanban-board-columns" style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+                    {groupCols.map(({ col, colIdx })=>{
                     const isActionView = viewMode==='category'&&!col.directTasks;
                     const useVirtual = col.items.length > VIRTUALIZE_THRESHOLD;
-                    // Combined view: when the column belongs to a different source board
-                    // than the previous one, prepend a vertical board-group separator.
-                    let boardSeparator = null;
-                    if (boardGroups && boardGroups.length > 0 && viewMode === 'category') {
-                        const sourceId = categories.find(c => c.id === col.key)?._sourceBoardId;
-                        const prevSourceId = colIdx > 0
-                            ? categories.find(c => c.id === columns[colIdx - 1].key)?._sourceBoardId
-                            : null;
-                        if (sourceId && sourceId !== prevSourceId) {
-                            const group = boardGroups.find(g => g.boardId === sourceId);
-                            if (group) {
-                                boardSeparator = (
-                                    <div key={`__board-${sourceId}`} className="kanban-board-separator" style={{
-                                        minWidth: 22, maxWidth: 22, alignSelf: 'stretch',
-                                        background: group.boardColor, borderRadius: 6, margin: '0 6px',
-                                        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-                                        paddingTop: 14, color: '#fff', fontSize: 11, fontWeight: 700,
-                                        writingMode: 'vertical-rl', letterSpacing: 0.5,
-                                        whiteSpace: 'nowrap', overflow: 'hidden'
-                                    }} title={`Board: ${group.boardName}`}>
-                                        ● {group.boardName}
-                                    </div>
-                                );
-                            }
-                        }
-                    }
                     const inlineReorderTask = (viewMode==='country'||viewMode==='month'||viewMode==='quarter'||(viewMode==='category'&&col.directTasks))?(draggedId,targetId,position)=>{
                                     const colItems=[...col.items].sort((a,b)=>(a.order||0)-(b.order||0));
                                     const dragIdx=colItems.findIndex(t=>t.id===draggedId);
@@ -466,7 +472,6 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                         : (item) => <TaskCard key={item.id} task={item} action={actions.find(a=>a.id===item.actionId)} onOpen={onOpenTask} onMoveTask={isReadOnly?null:(sortBy==='order'?onMoveTask:null)} onReorderTask={isReadOnly?null:(sortBy==='order'?inlineReorderTask:null)} showAction={viewMode==='month'||viewMode==='country'} categories={categories} allCountries={allCountries} isReadOnly={isReadOnly}/>;
                     return (
                         <Fragment key={col.key}>
-                        {boardSeparator}
                         <div
                             data-col-idx={colIdx}
                             draggable={canDragColumns && col.key !== '_unassigned'}
@@ -645,6 +650,9 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                         </Fragment>
                     );
                     })}
+                        </div>
+                    </div>
+                    ))}
                     {viewMode==='category'&&!isReadOnly&&onAddCategory&&(
                         showAddCategory?(
                             <div className="kanban-column" style={{minWidth:200,background:'var(--bg-secondary)',border:'1px dashed var(--border)',borderRadius:8,padding:12}}>
