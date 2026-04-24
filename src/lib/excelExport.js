@@ -350,7 +350,9 @@ export async function buildKanbanWorkbook(categories, actions, tasks, view = 'ca
     // Per user request: no legend for the Category and By-Status views (columns
     // already encode the semantic — legend is redundant). Kept for Month /
     // Quarter / Country views where task colour still carries extra info.
-    const showLegend = view !== 'category' && view !== 'action';
+    // App.jsx passes view='status' while KanbanView UI uses view='action' for the
+    // same "by status" concept — match both to be safe.
+    const showLegend = view !== 'category' && view !== 'action' && view !== 'status';
     const legendCol = showLegend ? columns.length + 2 : null;
 
     // Header row: column labels (+ legend header when shown)
