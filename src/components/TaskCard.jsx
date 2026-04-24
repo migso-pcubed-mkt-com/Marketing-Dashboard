@@ -88,6 +88,14 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
         }
     };
 
+    // Combined-view: 4px vertical stripe on the left of the card coloured by the
+    // source board. Shape + position deliberately distinct from the priority dot
+    // on the right so the two visual signals can't be confused.
+    const sourceStripe = task._sourceBoardColor ? (
+        <span aria-hidden="true" title={`Board: ${task._sourceBoardName || ''}`}
+            style={{position:'absolute',left:0,top:0,bottom:0,width:4,background:task._sourceBoardColor,borderTopLeftRadius:'inherit',borderBottomLeftRadius:'inherit',pointerEvents:'none'}}/>
+    ) : null;
+
     return (
         <div
             ref={cardRef}
@@ -101,12 +109,11 @@ const TaskCard = ({task, action, onOpen, onMoveTask, onReorderTask, showAction=f
             onTouchMove={isReadOnly ? undefined : handleTouchMove}
             onTouchEnd={isReadOnly ? undefined : handleTouchEnd}
             onClick={() => onOpen(task)}
+            style={task._sourceBoardColor ? {position:'relative',paddingLeft:16} : undefined}
             className={`kanban-card ${task.status === 'completed' ? 'completed' : ''} ${touching ? 'touch-dragging' : ''} ${dragOverPosition === 'before' ? 'drop-indicator-before' : dragOverPosition === 'after' ? 'drop-indicator-after' : ''}`}>
+            {sourceStripe}
             <div className="card-header">
                 <div className="card-title" style={task.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : task.trelloArchived ? {color:'var(--text-muted)'} : {}}>
-                    {task._sourceBoardColor && (
-                        <span title={`Board: ${task._sourceBoardName || ''}`} style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:task._sourceBoardColor,marginRight:6,verticalAlign:'middle'}}/>
-                    )}
                     {task.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{task.title}
                 </div>
                 <div className={`card-priority ${task.priority}`}/>

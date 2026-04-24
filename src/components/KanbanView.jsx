@@ -358,6 +358,17 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                     </div>}
                 </div>
             </div>
+            {boardGroups && boardGroups.length > 0 && (
+                <div style={{display:'flex',gap:16,flexWrap:'wrap',alignItems:'center',padding:'6px 12px',marginBottom:8,fontSize:11,color:'var(--text-muted)',background:'var(--bg-secondary)',borderRadius:6}}>
+                    <span style={{fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Boards</span>
+                    {boardGroups.map(g => (
+                        <span key={g.boardId} style={{display:'inline-flex',alignItems:'center',gap:6}}>
+                            <span style={{display:'inline-block',width:12,height:12,borderRadius:3,background:g.boardColor}}/>
+                            <span style={{color:'var(--text-primary)'}}>{g.boardName}</span>
+                        </span>
+                    ))}
+                </div>
+            )}
             <div className="kanban-board">
                     {groupedColumns.map(({ group, cols: groupCols }, groupIdx) => (
                     <div key={group?.boardId || `group-${groupIdx}`} className="kanban-board-group" style={{display:'flex',flexDirection:'column',flexShrink:0,gap:4}}>

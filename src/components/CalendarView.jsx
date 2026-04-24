@@ -4,7 +4,7 @@ import { Icon, StatusIcon } from './Icons.jsx';
 
 const DAYS_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
-const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, onAddTask, filters, selectedYear, onYearChange, isReadOnly }) => {
+const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, onAddTask, filters, selectedYear, onYearChange, isReadOnly, boardGroups }) => {
     const [mode, setMode] = useState('month');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [expandedDay, setExpandedDay] = useState(null); // dateStr of day showing all tasks
@@ -308,8 +308,11 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                     fontSize: 11, fontWeight: 500,
                     opacity: task.status === 'completed' ? 0.6 : 1,
                 }}
-                title={`${task.title}\n${action?.name || ''}`}
+                title={`${task.title}\n${action?.name || ''}${task._sourceBoardName ? '\nBoard: ' + task._sourceBoardName : ''}`}
             >
+                {task._sourceBoardColor && (
+                    <span aria-hidden="true" style={{width:4,height:14,borderRadius:2,background:task._sourceBoardColor,flexShrink:0}}/>
+                )}
                 <StatusIcon statusId={task.status} size={7}/>
                 <span style={{
                     overflow: 'hidden', textOverflow: 'ellipsis', flex: 1,
@@ -493,9 +496,12 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                                     padding: '4px 8px', overflow: 'hidden',
                                     opacity: task.status === 'completed' ? 0.6 : 1,
                                 }}
-                                title={`${task.title}\n${action?.name || ''}`}
+                                title={`${task.title}\n${action?.name || ''}${task._sourceBoardName ? '\nBoard: ' + task._sourceBoardName : ''}`}
                             >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                                    {task._sourceBoardColor && (
+                                        <span aria-hidden="true" style={{width:4,height:14,borderRadius:2,background:task._sourceBoardColor,flexShrink:0}}/>
+                                    )}
                                     <StatusIcon statusId={task.status} size={9}/>
                                     <span style={{
                                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
@@ -544,6 +550,17 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
                     </div>
                 </div>
             </div>
+            {boardGroups && boardGroups.length > 0 && (
+                <div style={{display:'flex',gap:16,flexWrap:'wrap',alignItems:'center',padding:'6px 12px',margin:'0 12px 8px',fontSize:11,color:'var(--text-muted)',background:'var(--bg-secondary)',borderRadius:6}}>
+                    <span style={{fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Boards</span>
+                    {boardGroups.map(g => (
+                        <span key={g.boardId} style={{display:'inline-flex',alignItems:'center',gap:6}}>
+                            <span style={{display:'inline-block',width:12,height:12,borderRadius:3,background:g.boardColor}}/>
+                            <span style={{color:'var(--text-primary)'}}>{g.boardName}</span>
+                        </span>
+                    ))}
+                </div>
+            )}
             {mode === 'month' ? renderMonthView() : renderWeekView()}
             </div>
         </div>

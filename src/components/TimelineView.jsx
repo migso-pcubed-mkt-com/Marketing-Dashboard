@@ -1070,9 +1070,13 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                             return (
                             <div key={category.id}>
                                 {boardGroup && (
+                                    // Board name overflows the 250px sticky label into the months zone on
+                                    // purpose: the next sibling (flex-1) shares the same background so the
+                                    // label reads correctly as one continuous banner, and the name stays
+                                    // fully visible — no ellipsis — regardless of length.
                                     <div className="timeline-board-group-row flex" style={{background:boardGroup.boardColor,color:'#fff',fontWeight:700,fontSize:13,letterSpacing:0.3,borderTop:'2px solid rgba(255,255,255,0.2)'}}>
-                                        <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-center" style={{background:boardGroup.boardColor,padding:'8px 12px',minWidth:0}}>
-                                            <span title={boardGroup.boardName} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block',width:'100%'}}>{boardGroup.boardName}</span>
+                                        <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-center" style={{background:boardGroup.boardColor,padding:'8px 12px',overflow:'visible'}}>
+                                            <span title={boardGroup.boardName} style={{whiteSpace:'nowrap'}}>{boardGroup.boardName}</span>
                                         </div>
                                         <div className="flex-1" style={{background:boardGroup.boardColor}}/>
                                     </div>
