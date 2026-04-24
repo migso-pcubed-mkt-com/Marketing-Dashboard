@@ -1205,25 +1205,38 @@ const App = () => {
     }, []);
 
     // --- Excel import ---
-    const handleExcelImport = useCallback((previewData, boardName) => {
-        const newBoard = {
+    // Accepts either a single preview (legacy single-board form) or an array of
+    // pre-built boards. The modal's new multi-sheet path passes an array; old
+    // single-board callers still work via the first branch.
+    const handleExcelImport = useCallback((payload, boardNameMaybe) => {
+        const list = Array.isArray(payload) ? payload : [{
+            name: boardNameMaybe || 'Excel Import',
+            categories: payload.categories,
+            actions: payload.actions,
+            tasks: payload.tasks
+        }];
+
+        const now = new Date().toISOString();
+        const newBoards = list.map(b => ({
             id: `board-${crypto.randomUUID()}`,
-            name: boardName || 'Excel Import',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            categories: previewData.categories,
-            actions: previewData.actions,
-            tasks: previewData.tasks,
+            name: b.name || 'Excel Import',
+            createdAt: now,
+            updatedAt: now,
+            categories: b.categories || [],
+            actions: b.actions || [],
+            tasks: b.tasks || [],
             members: []
-        };
+        }));
+
         setBoardData(prev => ({
             ...prev,
-            currentBoardId: newBoard.id,
-            boards: [...prev.boards, newBoard]
+            currentBoardId: newBoards[newBoards.length - 1].id,
+            boards: [...prev.boards, ...newBoards]
         }));
-        setCurrentBoardId(newBoard.id);
+        setCurrentBoardId(newBoards[newBoards.length - 1].id);
         setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
-        showNotification(`✅ Imported "${boardName || 'Excel Import'}" from Excel`);
+        const verb = newBoards.length === 1 ? `Imported "${newBoards[0].name}"` : `Imported ${newBoards.length} boards`;
+        showNotification(`✅ ${verb} from Excel`);
     }, []);
 
     // --- Member management ---
@@ -1625,6 +1638,9 @@ const App = () => {
                                 <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'quarter');}} className="dropdown-item" style={{paddingLeft:24}}>By quarter</button>
                                 <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanXlsx } = await import('./lib/excelExport.js'); exportKanbanXlsx(categories, actions, tasks, currentBoard?.name, 'country');}} className="dropdown-item" style={{paddingLeft:24}}>By country</button>
                                 <div className="dropdown-divider"/>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportTimelinePPT } = await import('./lib/pptExport.js'); exportTimelinePPT(categories, actions, tasks, selectedYear, currentBoard?.name);}} className="dropdown-item">Export Timeline (PowerPoint)</button>
+                                <button onClick={async () => {setShowExportDropdown(false); const { exportKanbanPPT } = await import('./lib/pptExport.js'); exportKanbanPPT(categories, actions, tasks, currentBoard?.name);}} className="dropdown-item">Export Kanban (PowerPoint)</button>
+                                <div className="dropdown-divider"/>
                                 <button onClick={() => {setShowExportDropdown(false);setShowExcelImport(true);}} className="dropdown-item">Import from Excel</button>
                             </div>}
                         </div>
@@ -1670,7 +1686,7 @@ const App = () => {
                     <ErrorBoundary>
                     <Suspense fallback={<ViewSkeleton view={currentView} />}>
                     {currentView === 'kanban' && <KanbanView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef} boardGroups={multiBoardMode ? multiBoardData.boardGroups : null}/>}
-                    {currentView === 'timeline' && <TimelineView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} boardGroups={multiBoardMode ? multiBoardData.boardGroups : null}/>}
+                    {currentView === 'timeline' && <TimelineView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} boardGroups={multiBoardMode ? multiBoardData.boardGroups : null}/>}
                     {currentView === 'calendar' && <CalendarView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
                     {currentView === 'dashboard' && <DashboardView categories={categories} actions={visibleActions} tasks={visibleTasks} members={effectiveMembers}/>}
                     </Suspense>

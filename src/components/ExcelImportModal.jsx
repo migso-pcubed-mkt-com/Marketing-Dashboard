@@ -1,24 +1,18 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { Icon } from './Icons.jsx';
-import { parseWorkbook, detectFormat, detectColumnMappings, parseGrid, parseList, analyzeGridRows, autoAssignLevels, buildGridHierarchy } from '../lib/excelMapping.js';
+import {
+    parseWorkbook,
+    analyzeWorkbook,
+    buildBoard,
+    buildBoardFromList,
+    detectColumnMappings
+} from '../lib/excelMapping.js';
 
 const LEVEL_OPTIONS = [
-    { value: 'super', label: 'Super-category' },
-    { value: 'category', label: 'Category' },
-    { value: 'flat-category', label: 'Category (with tasks in month cells)' },
-    { value: 'action', label: 'Action' },
-    { value: 'task', label: 'Task' },
-    { value: 'ignore', label: 'Ignore' }
+    { value: 'category', label: 'Category', color: '#6366f1', desc: 'Section header' },
+    { value: 'action',   label: 'Action',   color: '#f59e0b', desc: 'A row of tasks across months' },
+    { value: 'empty',    label: 'Skip',     color: '#94a3b8', desc: 'Ignore this row' }
 ];
-
-const LEVEL_COLORS = {
-    super: '#8b5cf6',
-    category: '#6366f1',
-    'flat-category': '#10b981',
-    action: '#f59e0b',
-    task: '#22c55e',
-    ignore: '#94a3b8'
-};
 
 const FIELD_OPTIONS = [
     { value: '', label: '— Ignore —' },
@@ -31,30 +25,26 @@ const FIELD_OPTIONS = [
     { value: 'category', label: 'Category' },
     { value: 'action', label: 'Action' },
     { value: 'owner', label: 'Owner / Assignee' },
-    { value: 'budget', label: 'Budget' },
-    { value: 'channel', label: 'Channel' },
+    { value: 'budget', label: 'Budget' }
 ];
 
+const currentYear = new Date().getFullYear();
+
 const ExcelImportModal = ({ onClose, onImport }) => {
-    // step: upload | sheet | format | mapping | review | preview
+    // step: upload | review | preview
     const [step, setStep] = useState('upload');
-    const [workbook, setWorkbook] = useState(null);
-    const [selectedSheet, setSelectedSheet] = useState(0);
-    const [format, setFormat] = useState(null);  // 'grid' | 'list'
-    const [columnMappings, setColumnMappings] = useState({});
-    const [preview, setPreview] = useState(null);
-    const [boardName, setBoardName] = useState('');
     const [error, setError] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
-    // Grid review step state
-    const [gridAnalysis, setGridAnalysis] = useState(null);
-    const [leveledRows, setLeveledRows] = useState([]);
-    const [flattenSuper, setFlattenSuper] = useState(false);
-    // rowIdx of the row whose "Apply to…" popover is currently open (null = closed).
-    const [applyMenuOpenFor, setApplyMenuOpenFor] = useState(null);
+    const [year, setYear] = useState(currentYear);
+
+    // After parsing: array of { name, sheet, analysis } — one per workbook sheet.
+    const [sheets, setSheets] = useState([]);
+    // Per-sheet user state: { included, boardName, overrides{rowIdx:level}, listMappings? }
+    const [sheetState, setSheetState] = useState({});
+    const [activeSheet, setActiveSheet] = useState(0);
     const fileInputRef = useRef(null);
 
-    // ─── Step 1: File Upload ─────────────────────────────
+    // ─── Step 1: Upload ──────────────────────────────────
     const handleFile = useCallback(async (file) => {
         if (!file) return;
         setError(null);
@@ -65,15 +55,23 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                 setError('No sheets found in the file.');
                 return;
             }
-            setWorkbook(wb);
-            setBoardName(file.name.replace(/\.(xlsx?|csv)$/i, ''));
-            if (wb.sheets.length === 1) {
-                // Skip sheet selection
-                setSelectedSheet(0);
-                goToFormatStep(wb.sheets[0]);
-            } else {
-                setStep('sheet');
-            }
+            const analyzed = analyzeWorkbook(wb);
+            setSheets(analyzed);
+            // Initialize per-sheet state — included by default, boardName = sheet name.
+            const baseFile = file.name.replace(/\.(xlsx?|csv)$/i, '');
+            const initial = {};
+            analyzed.forEach((s, i) => {
+                const isList = s.analysis.kind === 'list';
+                initial[i] = {
+                    included: true,
+                    boardName: analyzed.length > 1 ? `${baseFile} — ${s.name}` : (baseFile || s.name),
+                    overrides: {},
+                    listMappings: isList ? detectColumnMappings(s.sheet.data?.[0] || []) : null
+                };
+            });
+            setSheetState(initial);
+            setActiveSheet(0);
+            setStep('review');
         } catch (err) {
             setError(`Failed to parse file: ${err.message}`);
         }
@@ -86,594 +84,373 @@ const ExcelImportModal = ({ onClose, onImport }) => {
         if (file) handleFile(file);
     }, [handleFile]);
 
-    // ─── Step 2: Sheet Selection ─────────────────────────
-    const handleSheetSelect = (idx) => {
-        setSelectedSheet(idx);
-        goToFormatStep(workbook.sheets[idx]);
+    // ─── Step 2: Review (per sheet) ──────────────────────
+    const updateSheetState = (idx, patch) => {
+        setSheetState(prev => ({ ...prev, [idx]: { ...prev[idx], ...patch } }));
     };
 
-    // Helper: branch into review (grid) or mapping (list) once a sheet is picked.
-    const goToFormatStep = (sheet) => {
-        const detected = detectFormat(sheet.data);
-        setFormat(detected);
-        if (detected === 'list') {
-            const mappings = detectColumnMappings(sheet.data[0]);
-            setColumnMappings(mappings);
-            setStep('mapping');
-        } else {
-            const analysis = analyzeGridRows(sheet.data, sheet.merges, sheet.cellColors);
-            if (analysis) {
-                setGridAnalysis(analysis);
-                setLeveledRows(autoAssignLevels(analysis));
-                setStep('review');
-            } else {
-                setFormat('list');
-                const mappings = detectColumnMappings(sheet.data[0]);
-                setColumnMappings(mappings);
-                setStep('mapping');
-            }
-        }
-    };
-
-    // ─── Review step (grid): per-row level override ──────
-    const setRowLevel = (rowIdx, newLevel) => {
-        setLeveledRows(rows => rows.map(r => r.rowIdx === rowIdx ? { ...r, level: newLevel } : r));
-    };
-
-    // Scopes for propagating a row's level to similar rows. Each scope is explicit
-    // so users know what "similar" means before clicking.
-    const rowsInScope = (target, scope) => {
-        if (!target) return [];
-        if (scope === 'same-indent') {
-            return leveledRows.filter(r => r.rowIdx !== target.rowIdx && r.depth === target.depth);
-        }
-        if (scope === 'same-signal') {
-            // Rows with the same month-signal kind (task-like vs header-like).
-            const targetIsTaskLike = !!target.hasMonthSignal;
-            return leveledRows.filter(r => r.rowIdx !== target.rowIdx && !!r.hasMonthSignal === targetIsTaskLike);
-        }
-        if (scope === 'same-section') {
-            // Rows between the nearest section boundary above the target and the next one below.
-            // A section boundary is any row at a strictly shallower depth than the target.
-            const sorted = leveledRows.slice().sort((a, b) => a.rowIdx - b.rowIdx);
-            const targetIdxInSorted = sorted.findIndex(r => r.rowIdx === target.rowIdx);
-            let startIdx = 0;
-            for (let i = targetIdxInSorted - 1; i >= 0; i--) {
-                if (sorted[i].depth < target.depth) { startIdx = i + 1; break; }
-            }
-            let endIdx = sorted.length;
-            for (let i = targetIdxInSorted + 1; i < sorted.length; i++) {
-                if (sorted[i].depth < target.depth) { endIdx = i; break; }
-            }
-            return sorted.slice(startIdx, endIdx).filter(r => r.rowIdx !== target.rowIdx && r.depth === target.depth);
-        }
-        return [];
-    };
-
-    const applyLevelToScope = (rowIdx, newLevel, scope) => {
-        const target = leveledRows.find(r => r.rowIdx === rowIdx);
-        if (!target) return;
-        const affectedIds = new Set(rowsInScope(target, scope).map(r => r.rowIdx));
-        setLeveledRows(rows => rows.map(r => (
-            affectedIds.has(r.rowIdx) ? { ...r, level: newLevel } : r
-        )));
-        setApplyMenuOpenFor(null);
-    };
-
-    const handleReviewToPreview = () => {
-        const sheet = workbook.sheets[selectedSheet];
-        const result = buildGridHierarchy(sheet.data, gridAnalysis, leveledRows, { flattenSuper });
-        setPreview(result);
-        setStep('preview');
-    };
-
-    // ─── Step 3: Column Mapping (list mode) ──────────────
-    const handleMappingChange = (colIdx, field) => {
-        setColumnMappings(prev => {
-            const next = { ...prev };
-            // Remove old assignment of this field
-            for (const [key, val] of Object.entries(next)) {
-                if (val === colIdx && key !== field) delete next[key];
-            }
-            // Remove old assignment of this column
-            for (const [key, val] of Object.entries(next)) {
-                if (val === colIdx) delete next[key];
-            }
-            if (field) next[field] = colIdx;
-            return next;
+    const setRowLevel = (sheetIdx, rowIdx, level) => {
+        setSheetState(prev => {
+            const cur = prev[sheetIdx];
+            const newOverrides = { ...cur.overrides, [rowIdx]: level };
+            return { ...prev, [sheetIdx]: { ...cur, overrides: newOverrides } };
         });
     };
 
-    const handleProceedToPreview = () => {
-        const sheet = workbook.sheets[selectedSheet];
-        if (format === 'grid') {
-            // Route grid through the review step so users can adjust levels
-            const analysis = analyzeGridRows(sheet.data, sheet.merges, sheet.cellColors);
-            if (analysis) {
-                setGridAnalysis(analysis);
-                setLeveledRows(autoAssignLevels(analysis));
-                setStep('review');
-                return;
+    const applyToSimilar = (sheetIdx, rowIdx, level) => {
+        const target = sheets[sheetIdx];
+        if (!target || target.analysis.kind !== 'grid') return;
+        const sourceRow = target.analysis.rows.find(r => r.rowIdx === rowIdx);
+        if (!sourceRow) return;
+        const sourceSig = sourceRow.suggested;
+        setSheetState(prev => {
+            const cur = prev[sheetIdx];
+            const newOverrides = { ...cur.overrides };
+            for (const r of target.analysis.rows) {
+                if (r.rowIdx === rowIdx) continue;
+                if (r.suggested === sourceSig) newOverrides[r.rowIdx] = level;
             }
-            const result = parseGrid(sheet.data, sheet.merges);
-            setPreview(result);
-        } else {
-            const result = parseList(sheet.data, columnMappings);
-            setPreview(result);
-        }
-        setStep('preview');
+            newOverrides[rowIdx] = level;
+            return { ...prev, [sheetIdx]: { ...cur, overrides: newOverrides } };
+        });
     };
 
-    // ─── Step 5: Import ──────────────────────────────────
+    // ─── Build preview boards from current state ─────────
+    const previews = useMemo(() => {
+        return sheets.map((s, i) => {
+            const st = sheetState[i];
+            if (!st || !st.included) return null;
+            if (s.analysis.kind === 'list' && st.listMappings) {
+                return buildBoardFromList(s.sheet, st.listMappings, { boardName: st.boardName });
+            }
+            return buildBoard(s.sheet, s.analysis, {
+                year,
+                boardName: st.boardName,
+                overrides: st.overrides
+            });
+        });
+    }, [sheets, sheetState, year]);
+
+    const includedCount = previews.filter(Boolean).length;
+
     const handleImport = () => {
-        if (!preview) return;
-        onImport(preview, boardName.trim() || 'Excel Import');
+        const list = previews.filter(Boolean).map(b => ({
+            name: b.name,
+            categories: b.categories,
+            actions: b.actions,
+            tasks: b.tasks
+        }));
+        if (list.length === 0) {
+            setError('Select at least one sheet to import.');
+            return;
+        }
+        onImport(list);
         onClose();
     };
 
-    // ─── Rendering ───────────────────────────────────────
+    // ─── UI helpers ──────────────────────────────────────
+    const levelButton = (level, current, onClick) => {
+        const def = LEVEL_OPTIONS.find(o => o.value === level);
+        const isActive = current === level;
+        return (
+            <button
+                onClick={onClick}
+                className="v11-btn-ghost"
+                style={{
+                    padding: '3px 8px',
+                    fontSize: 11,
+                    border: `1.5px solid ${isActive ? def.color : 'var(--border)'}`,
+                    background: isActive ? def.color : 'var(--bg-primary)',
+                    color: isActive ? '#fff' : 'var(--text-secondary)',
+                    fontWeight: isActive ? 600 : 500,
+                    borderRadius: 4
+                }}
+                title={def.desc}
+            >
+                {def.label}
+            </button>
+        );
+    };
 
-    const sheet = workbook?.sheets?.[selectedSheet];
-    const headerRow = sheet?.data?.[0] || [];
-    const dataRows = sheet?.data?.slice(1) || [];
+    const renderUpload = () => (
+        <div
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+                border: `2px dashed ${isDragging ? 'var(--accent)' : 'var(--border)'}`,
+                borderRadius: 12,
+                padding: '40px 24px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: isDragging ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                transition: 'all 0.15s'
+            }}
+        >
+            <Icon.Upload size={36} style={{ color: 'var(--text-muted)', marginBottom: 12 }} />
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Drop your Excel file here</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>or click to browse — .xlsx, .xls, .csv</div>
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                style={{ display: 'none' }}
+                onChange={(e) => handleFile(e.target.files?.[0])}
+            />
+        </div>
+    );
+
+    const renderSheetTabs = () => (
+        <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border)', marginBottom: 12, flexWrap: 'wrap' }}>
+            {sheets.map((s, i) => {
+                const st = sheetState[i];
+                const isActive = activeSheet === i;
+                const cls = st?.included ? '' : 'opacity-50';
+                return (
+                    <button
+                        key={i}
+                        onClick={() => setActiveSheet(i)}
+                        className={cls}
+                        style={{
+                            padding: '6px 12px',
+                            fontSize: 12,
+                            borderBottom: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+                            background: 'transparent',
+                            color: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+                            fontWeight: isActive ? 600 : 500
+                        }}
+                        title={st?.included ? '' : '(skipped)'}
+                    >
+                        {s.name} {!st?.included && '⊘'}
+                    </button>
+                );
+            })}
+        </div>
+    );
+
+    const renderListMapping = (sheet, st) => {
+        const headerRow = sheet.sheet.data?.[0] || [];
+        const onChange = (col, field) => {
+            const m = { ...st.listMappings };
+            // Remove any previous column assigned to this field
+            for (const k of Object.keys(m)) if (m[k] === col) delete m[k];
+            if (field) m[field] = col;
+            updateSheetState(activeSheet, { listMappings: m });
+        };
+        return (
+            <div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                    No month grid detected — map each column to a task field.
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 220px', gap: 6 }}>
+                    {headerRow.map((h, c) => {
+                        const currentField = Object.entries(st.listMappings).find(([, col]) => col === c)?.[0] || '';
+                        return (
+                            <div key={c} style={{ display: 'contents' }}>
+                                <div style={{ padding: '6px 0', fontSize: 12 }}>
+                                    <span style={{ color: 'var(--text-muted)', marginRight: 6 }}>Col {c + 1}</span>
+                                    <strong>{h || '(empty)'}</strong>
+                                </div>
+                                <select
+                                    value={currentField}
+                                    onChange={(e) => onChange(c, e.target.value)}
+                                    className="v11-select"
+                                    style={{ fontSize: 12, padding: '4px 8px' }}
+                                >
+                                    {FIELD_OPTIONS.map(o => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    const renderGridReview = (sheet, st) => {
+        const analysis = sheet.analysis;
+        // Group rows for compact visual: a category followed by its actions (until next category).
+        return (
+            <div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                    Detected {analysis.rows.filter(r => r.suggested === 'category').length} categories,
+                    {' '}{analysis.rows.filter(r => r.suggested === 'action').length} actions across
+                    {' '}{analysis.monthCols.length} months. Adjust any misclassified row below.
+                </div>
+                <div style={{ maxHeight: '40vh', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+                    <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                        <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-secondary)', zIndex: 1 }}>
+                            <tr>
+                                <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>Row</th>
+                                <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>Label</th>
+                                <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>Months</th>
+                                <th style={{ textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>Classification</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {analysis.rows.map(row => {
+                                const current = st.overrides[row.rowIdx] || row.level;
+                                return (
+                                    <tr key={row.rowIdx} style={{
+                                        borderBottom: '1px solid var(--border-light)',
+                                        background: current === 'empty' ? 'var(--bg-page)' : 'transparent',
+                                        opacity: current === 'empty' ? 0.5 : 1
+                                    }}>
+                                        <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>{row.rowIdx + 1}</td>
+                                        <td style={{ padding: '6px 10px', fontWeight: current === 'category' ? 600 : 400 }}>
+                                            {row.label || <span style={{ color: 'var(--text-muted)' }}>(empty)</span>}
+                                        </td>
+                                        <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>
+                                            {row.monthSignals.length > 0
+                                                ? `${row.monthSignals.length} cell${row.monthSignals.length > 1 ? 's' : ''}`
+                                                : '—'}
+                                        </td>
+                                        <td style={{ padding: '6px 10px' }}>
+                                            <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                                                {LEVEL_OPTIONS.map(o => (
+                                                    <span key={o.value}>
+                                                        {levelButton(o.value, current, () => setRowLevel(activeSheet, row.rowIdx, o.value))}
+                                                    </span>
+                                                ))}
+                                                <button
+                                                    className="v11-btn-ghost"
+                                                    onClick={() => applyToSimilar(activeSheet, row.rowIdx, current)}
+                                                    style={{ fontSize: 10, padding: '2px 6px', color: 'var(--text-muted)' }}
+                                                    title="Apply this classification to every row that was auto-detected the same way"
+                                                >
+                                                    Apply to similar
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    const renderReview = () => {
+        const sheet = sheets[activeSheet];
+        const st = sheetState[activeSheet];
+        if (!sheet || !st) return null;
+        return (
+            <div>
+                {sheets.length > 1 && renderSheetTabs()}
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Board name</label>
+                        <input
+                            value={st.boardName}
+                            onChange={(e) => updateSheetState(activeSheet, { boardName: e.target.value })}
+                            className="v11-input"
+                            style={{ width: '100%' }}
+                            placeholder="Board name"
+                        />
+                    </div>
+                    <div style={{ width: 90 }}>
+                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Year</label>
+                        <input
+                            type="number"
+                            value={year}
+                            onChange={(e) => setYear(Number(e.target.value) || currentYear)}
+                            className="v11-input"
+                            style={{ width: '100%' }}
+                        />
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, paddingBottom: 6 }}>
+                        <input
+                            type="checkbox"
+                            checked={st.included}
+                            onChange={(e) => updateSheetState(activeSheet, { included: e.target.checked })}
+                        />
+                        Include this sheet
+                    </label>
+                </div>
+                {sheet.analysis.kind === 'list'
+                    ? renderListMapping(sheet, st)
+                    : renderGridReview(sheet, st)}
+            </div>
+        );
+    };
+
+    const renderPreview = () => {
+        const valid = previews.filter(Boolean);
+        return (
+            <div>
+                <div style={{ fontSize: 13, marginBottom: 12 }}>
+                    Ready to import <strong>{valid.length} board{valid.length > 1 ? 's' : ''}</strong>:
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '50vh', overflowY: 'auto' }}>
+                    {valid.map((b, i) => (
+                        <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10 }}>
+                            <div style={{ fontWeight: 600, marginBottom: 4 }}>{b.name}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                {b.categories.length} categories · {b.actions.length} actions · {b.tasks.length} tasks
+                            </div>
+                            {b.categories.length > 0 && (
+                                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+                                    {b.categories.slice(0, 6).map(c => c.name).join(' · ')}
+                                    {b.categories.length > 6 && ' …'}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} onClick={onClose}/>
-            <div style={{
-                position: 'relative', background: 'var(--bg-primary)', borderRadius: 'var(--radius-xl)',
-                boxShadow: 'var(--shadow-xl)', width: 560, maxWidth: '90vw', maxHeight: '85vh',
-                display: 'flex', flexDirection: 'column', zIndex: 1
-            }}>
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px 0' }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                        Import from Excel
-                        {step !== 'upload' && <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 8 }}>
-                            {step === 'sheet' ? '— Select sheet' : step === 'mapping' ? '— Map columns' : step === 'review' ? '— Review structure' : step === 'preview' ? '— Preview' : ''}
-                        </span>}
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+             role="dialog" aria-modal="true" aria-labelledby="excel-import-title">
+            <div className="modal-content" style={{ width: 720, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+                <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 id="excel-import-title" style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
+                        Import from Excel {step === 'review' && sheets.length > 0 && `— step 2 of 3`}
+                        {step === 'preview' && '— step 3 of 3'}
                     </h2>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
-                        <Icon.Close/>
-                    </button>
+                    <button onClick={onClose} className="v11-btn-icon" aria-label="Close"><Icon.X size={18} /></button>
                 </div>
 
-                <div style={{ padding: '16px 24px', overflowY: 'auto', flex: 1 }}>
+                <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
                     {error && (
-                        <div style={{ background: '#fef2f2', color: '#dc2626', padding: '10px 14px', borderRadius: 'var(--radius-md)', fontSize: 13, marginBottom: 16 }}>
+                        <div style={{
+                            padding: '10px 14px', borderRadius: 8, background: 'var(--error-light)',
+                            color: 'var(--error)', fontSize: 13, marginBottom: 12
+                        }}>
                             {error}
                         </div>
                     )}
-
-                    {/* ─── UPLOAD STEP ─── */}
-                    {step === 'upload' && (
-                        <div
-                            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-                            onDragLeave={() => setIsDragging(false)}
-                            onDrop={handleDrop}
-                            onClick={() => fileInputRef.current?.click()}
-                            style={{
-                                border: `2px dashed ${isDragging ? 'var(--accent)' : 'var(--border)'}`,
-                                borderRadius: 'var(--radius-lg)',
-                                padding: '48px 24px',
-                                textAlign: 'center',
-                                cursor: 'pointer',
-                                background: isDragging ? 'rgba(99,102,241,0.05)' : 'var(--bg-secondary)',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
-                            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 4 }}>
-                                Drop your Excel file here
-                            </div>
-                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                or click to browse — .xlsx, .xls, .csv supported
-                            </div>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".xlsx,.xls,.csv"
-                                style={{ display: 'none' }}
-                                onChange={e => handleFile(e.target.files?.[0])}
-                            />
-                        </div>
-                    )}
-
-                    {/* ─── SHEET SELECTION STEP ─── */}
-                    {step === 'sheet' && workbook && (
-                        <div>
-                            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-                                This file has {workbook.sheets.length} sheets. Select one to import:
-                            </p>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {workbook.sheets.map((s, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => handleSheetSelect(idx)}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                            padding: '12px 14px', borderRadius: 'var(--radius-md)',
-                                            border: '1px solid var(--border)', background: 'var(--bg-primary)',
-                                            color: 'var(--text-primary)', fontSize: 13, fontWeight: 500,
-                                            cursor: 'pointer', textAlign: 'left'
-                                        }}
-                                        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                                        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-                                    >
-                                        <span>{s.name}</span>
-                                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                                            {s.data.length} rows
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── COLUMN MAPPING STEP (list mode) ─── */}
-                    {step === 'mapping' && sheet && (
-                        <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
-                                    Detected format: <strong style={{ color: 'var(--text-primary)' }}>{format === 'grid' ? 'Grid / Roadmap' : 'List / Table'}</strong>
-                                </p>
-                                {format === 'list' && (
-                                    <button
-                                        onClick={() => { setFormat('grid'); handleProceedToPreview(); }}
-                                        style={{ fontSize: 11, padding: '3px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-muted)', cursor: 'pointer' }}
-                                    >
-                                        Try as grid
-                                    </button>
-                                )}
-                            </div>
-                            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-                                Map each column to a field. Unmapped columns will be ignored.
-                            </p>
-
-                            {/* Data preview table */}
-                            <div style={{ overflowX: 'auto', marginBottom: 16, border: '1px solid var(--border)', borderRadius: 'var(--radius-md)' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                                    <thead>
-                                        <tr>
-                                            {headerRow.map((h, ci) => (
-                                                <th key={ci} style={{ padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', textAlign: 'left' }}>
-                                                    {String(h || `Col ${ci + 1}`)}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                        <tr>
-                                            {headerRow.map((_, ci) => {
-                                                const currentField = Object.entries(columnMappings).find(([, v]) => v === ci)?.[0] || '';
-                                                return (
-                                                    <th key={ci} style={{ padding: '4px 4px', background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border)' }}>
-                                                        <select
-                                                            value={currentField}
-                                                            onChange={e => handleMappingChange(ci, e.target.value)}
-                                                            style={{
-                                                                width: '100%', padding: '3px 4px', borderRadius: 'var(--radius-sm)',
-                                                                border: `1px solid ${currentField ? 'var(--accent)' : 'var(--border)'}`,
-                                                                background: currentField ? 'rgba(99,102,241,0.08)' : 'var(--bg-primary)',
-                                                                color: 'var(--text-primary)', fontSize: 10, cursor: 'pointer'
-                                                            }}
-                                                        >
-                                                            {FIELD_OPTIONS.map(opt => (
-                                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                            ))}
-                                                        </select>
-                                                    </th>
-                                                );
-                                            })}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {dataRows.slice(0, 5).map((row, ri) => (
-                                            <tr key={ri}>
-                                                {headerRow.map((_, ci) => (
-                                                    <td key={ci} style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', whiteSpace: 'nowrap', maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {String(row[ci] ?? '')}
-                                                    </td>
-                                                ))}
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {dataRows.length > 5 && (
-                                <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-                                    Showing 5 of {dataRows.length} rows
-                                </p>
-                            )}
-                        </div>
-                    )}
-
-                    {/* ─── GRID REVIEW STEP ─── */}
-                    {step === 'review' && gridAnalysis && (
-                        <div>
-                            {workbook && workbook.sheets.length > 1 && (
-                                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
-                                    {workbook.sheets.map((s, idx) => (
-                                        <button
-                                            key={idx}
-                                            onClick={() => { if (idx !== selectedSheet) handleSheetSelect(idx); }}
-                                            style={{
-                                                fontSize: 11, padding: '4px 10px',
-                                                borderRadius: 'var(--radius-sm)',
-                                                border: `1px solid ${idx === selectedSheet ? 'var(--accent)' : 'var(--border)'}`,
-                                                background: idx === selectedSheet ? 'rgba(99,102,241,0.08)' : 'var(--bg-secondary)',
-                                                color: idx === selectedSheet ? 'var(--accent)' : 'var(--text-muted)',
-                                                fontWeight: idx === selectedSheet ? 600 : 400,
-                                                cursor: idx === selectedSheet ? 'default' : 'pointer'
-                                            }}
-                                        >
-                                            {s.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>
-                                We detected a multi-level structure. Adjust any row whose level is wrong — use the
-                                &laquo;&nbsp;Apply to&hellip;&nbsp;&raquo; menu to propagate a change to similar rows.
-                            </p>
-                            {(() => {
-                                const counts = leveledRows.reduce((acc, r) => {
-                                    acc[r.level] = (acc[r.level] || 0) + 1;
-                                    return acc;
-                                }, {});
-                                const labels = [
-                                    ['super', 'supers'], ['category', 'categories'],
-                                    ['flat-category', 'flat categories'],
-                                    ['action', 'actions'], ['task', 'tasks'], ['ignore', 'ignored']
-                                ];
-                                const chips = labels.filter(([k]) => counts[k]).map(([k, name]) => (
-                                    <span key={k} style={{ display: 'inline-block', padding: '2px 8px', marginRight: 6, marginBottom: 4, borderRadius: 10, fontSize: 11, fontWeight: 500, background: LEVEL_COLORS[k], color: '#fff' }}>
-                                        {counts[k]} {name}
-                                    </span>
-                                ));
-                                if (leveledRows.length === 0) {
-                                    return (
-                                        <div style={{ padding: '10px 12px', marginBottom: 10, borderRadius: 'var(--radius-md)', background: '#fef3c7', color: '#92400e', fontSize: 12 }}>
-                                            No rows detected on this sheet — the month header may be missing or the sheet uses a list/table layout.
-                                            Pick another sheet above, or go back and re-select the sheet to switch to table mode.
-                                        </div>
-                                    );
-                                }
-                                return <div style={{ marginBottom: 10 }}>{chips}</div>;
-                            })()}
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                                <input type="checkbox" checked={flattenSuper} onChange={e => setFlattenSuper(e.target.checked)} />
-                                Flatten super-categories (create a separate category per super, instead of prefixing child names)
-                            </label>
-                            <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', maxHeight: 360, overflowY: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                                    <thead>
-                                        <tr>
-                                            <th style={{ position: 'sticky', top: 0, padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Label</th>
-                                            <th style={{ position: 'sticky', top: 0, padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', width: 130 }}>Level</th>
-                                            <th style={{ position: 'sticky', top: 0, padding: '6px 8px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)', width: 150 }}></th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {leveledRows.map(r => (
-                                            <tr key={r.rowIdx}>
-                                                <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', whiteSpace: 'nowrap', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                    <span style={{ display: 'inline-block', width: r.depth * 12, verticalAlign: 'middle' }} />
-                                                    <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: LEVEL_COLORS[r.level] || 'var(--border)', marginRight: 6, verticalAlign: 'middle' }} />
-                                                    {r.label || <em style={{ color: 'var(--text-muted)' }}>(empty)</em>}
-                                                    {r.countryId && <span style={{ marginLeft: 6, fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'rgba(99,102,241,0.12)', color: 'var(--accent)', fontWeight: 600 }}>{r.countryId.toUpperCase()}</span>}
-                                                </td>
-                                                <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)' }}>
-                                                    <select
-                                                        value={r.level}
-                                                        onChange={e => setRowLevel(r.rowIdx, e.target.value)}
-                                                        style={{ width: '100%', padding: '3px 4px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 10 }}
-                                                    >
-                                                        {LEVEL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                                    </select>
-                                                </td>
-                                                <td style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)', position: 'relative' }}>
-                                                    {(() => {
-                                                        const sameIndentCount = rowsInScope(r, 'same-indent').length;
-                                                        const sameSectionCount = rowsInScope(r, 'same-section').length;
-                                                        const sameSignalCount = rowsInScope(r, 'same-signal').length;
-                                                        const totalAvailable = sameIndentCount + sameSectionCount + sameSignalCount;
-                                                        const disabled = totalAvailable === 0;
-                                                        const isOpen = applyMenuOpenFor === r.rowIdx;
-                                                        return (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => setApplyMenuOpenFor(isOpen ? null : r.rowIdx)}
-                                                                    disabled={disabled}
-                                                                    title="Propagate this row's level to other rows — pick a scope"
-                                                                    style={{ fontSize: 10, padding: '2px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: isOpen ? 'var(--accent)' : 'var(--bg-secondary)', color: disabled ? 'var(--border)' : (isOpen ? '#fff' : 'var(--text-muted)'), cursor: disabled ? 'default' : 'pointer' }}
-                                                                >
-                                                                    Apply to… ▾
-                                                                </button>
-                                                                {isOpen && (
-                                                                    <div style={{ position: 'absolute', right: 8, top: '100%', zIndex: 10, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)', padding: 4, minWidth: 220 }}>
-                                                                        <button
-                                                                            onClick={() => applyLevelToScope(r.rowIdx, r.level, 'same-indent')}
-                                                                            disabled={sameIndentCount === 0}
-                                                                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', border: 'none', background: 'none', fontSize: 11, color: sameIndentCount === 0 ? 'var(--border)' : 'var(--text-primary)', cursor: sameIndentCount === 0 ? 'default' : 'pointer', borderRadius: 'var(--radius-sm)' }}
-                                                                            onMouseEnter={e => { if (sameIndentCount) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-                                                                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                                                                        >
-                                                                            Apply to <strong>{sameIndentCount}</strong> {sameIndentCount === 1 ? 'row' : 'rows'} at the same indent
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => applyLevelToScope(r.rowIdx, r.level, 'same-section')}
-                                                                            disabled={sameSectionCount === 0}
-                                                                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', border: 'none', background: 'none', fontSize: 11, color: sameSectionCount === 0 ? 'var(--border)' : 'var(--text-primary)', cursor: sameSectionCount === 0 ? 'default' : 'pointer', borderRadius: 'var(--radius-sm)' }}
-                                                                            onMouseEnter={e => { if (sameSectionCount) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-                                                                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                                                                        >
-                                                                            Apply to <strong>{sameSectionCount}</strong> {sameSectionCount === 1 ? 'row' : 'rows'} in this section only
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => applyLevelToScope(r.rowIdx, r.level, 'same-signal')}
-                                                                            disabled={sameSignalCount === 0}
-                                                                            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', border: 'none', background: 'none', fontSize: 11, color: sameSignalCount === 0 ? 'var(--border)' : 'var(--text-primary)', cursor: sameSignalCount === 0 ? 'default' : 'pointer', borderRadius: 'var(--radius-sm)' }}
-                                                                            onMouseEnter={e => { if (sameSignalCount) e.currentTarget.style.background = 'var(--bg-secondary)'; }}
-                                                                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                                                                        >
-                                                                            Apply to <strong>{sameSignalCount}</strong> {sameSignalCount === 1 ? 'row' : 'rows'} with the same signal
-                                                                        </button>
-                                                                    </div>
-                                                                )}
-                                                            </>
-                                                        );
-                                                    })()}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ─── PREVIEW STEP ─── */}
-                    {step === 'preview' && (
-                        <div>
-                            {preview ? (
-                                <>
-                                    <div style={{ marginBottom: 16 }}>
-                                        <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6 }}>Board name</label>
-                                        <input
-                                            value={boardName}
-                                            onChange={e => setBoardName(e.target.value)}
-                                            style={{
-                                                width: '100%', padding: '8px 12px', borderRadius: 'var(--radius-md)',
-                                                border: '1px solid var(--border)', background: 'var(--bg-secondary)',
-                                                color: 'var(--text-primary)', fontSize: 13, outline: 'none', boxSizing: 'border-box'
-                                            }}
-                                        />
-                                    </div>
-
-                                    {/* Summary */}
-                                    <div style={{
-                                        background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)',
-                                        padding: 14, marginBottom: 16, fontSize: 13
-                                    }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                            <span style={{ color: 'var(--text-muted)' }}>Format</span>
-                                            <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{format === 'grid' ? 'Grid / Roadmap' : 'List / Table'}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                            <span style={{ color: 'var(--text-muted)' }}>Categories</span>
-                                            <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{preview.categories.length}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                                            <span style={{ color: 'var(--text-muted)' }}>Actions</span>
-                                            <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{preview.actions.length}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span style={{ color: 'var(--text-muted)' }}>Tasks</span>
-                                            <span style={{ fontWeight: 600, color: 'var(--accent)' }}>{preview.tasks.length}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Category breakdown */}
-                                    <div style={{ fontSize: 12, marginBottom: 8, fontWeight: 500, color: 'var(--text-primary)' }}>Categories breakdown</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
-                                        {preview.categories.map(cat => {
-                                            const catActions = preview.actions.filter(a => a.categoryId === cat.id);
-                                            const catTasks = preview.tasks.filter(t => catActions.some(a => a.id === t.actionId));
-                                            return (
-                                                <div key={cat.id} style={{
-                                                    display: 'flex', alignItems: 'center', gap: 8,
-                                                    padding: '6px 10px', borderRadius: 'var(--radius-sm)',
-                                                    background: 'var(--bg-secondary)', fontSize: 12
-                                                }}>
-                                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: cat.color, flexShrink: 0 }}/>
-                                                    <span style={{ flex: 1, color: 'var(--text-primary)', fontWeight: 500 }}>{cat.name}</span>
-                                                    <span style={{ color: 'var(--text-muted)' }}>
-                                                        {catActions.filter(a => !a.isDefault).length > 0 && `${catActions.filter(a => !a.isDefault).length} actions · `}
-                                                        {catTasks.length} tasks
-                                                    </span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </>
-                            ) : (
-                                <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>
-                                    No data could be parsed from this sheet. Try a different format or sheet.
-                                </div>
-                            )}
-                        </div>
-                    )}
+                    {step === 'upload' && renderUpload()}
+                    {step === 'review' && renderReview()}
+                    {step === 'preview' && renderPreview()}
                 </div>
 
-                {/* Footer */}
-                <div style={{ display: 'flex', gap: 8, padding: '16px 24px', borderTop: '1px solid var(--border)' }}>
-                    {step !== 'upload' && (
-                        <button
-                            onClick={() => {
-                                if (step === 'preview' && format === 'list') setStep('mapping');
-                                else if (step === 'preview' && format === 'grid') setStep('review');
-                                else if (step === 'review') setStep(workbook.sheets.length > 1 ? 'sheet' : 'upload');
-                                else if (step === 'mapping') setStep(workbook.sheets.length > 1 ? 'sheet' : 'upload');
-                                else if (step === 'sheet') setStep('upload');
-                                else setStep('upload');
-                            }}
-                            style={{
-                                padding: '10px 16px', borderRadius: 'var(--radius-md)',
-                                border: '1px solid var(--border)', background: 'var(--bg-primary)',
-                                color: 'var(--text-primary)', fontSize: 13, fontWeight: 500, cursor: 'pointer'
-                            }}
-                        >
-                            Back
-                        </button>
-                    )}
-                    <div style={{ flex: 1 }}/>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            padding: '10px 16px', borderRadius: 'var(--radius-md)',
-                            border: '1px solid var(--border)', background: 'var(--bg-primary)',
-                            color: 'var(--text-primary)', fontSize: 13, fontWeight: 500, cursor: 'pointer'
-                        }}
-                    >
-                        Cancel
-                    </button>
-                    {step === 'mapping' && (
-                        <button
-                            onClick={handleProceedToPreview}
-                            disabled={!columnMappings.title && columnMappings.title !== 0}
-                            style={{
-                                padding: '10px 20px', borderRadius: 'var(--radius-md)', border: 'none',
-                                background: (columnMappings.title !== undefined) ? 'var(--accent)' : 'var(--bg-tertiary)',
-                                color: (columnMappings.title !== undefined) ? 'white' : 'var(--text-muted)',
-                                fontSize: 13, fontWeight: 500, cursor: (columnMappings.title !== undefined) ? 'pointer' : 'default'
-                            }}
-                        >
-                            Preview
-                        </button>
-                    )}
-                    {step === 'review' && (
-                        <button
-                            onClick={handleReviewToPreview}
-                            style={{
-                                padding: '10px 20px', borderRadius: 'var(--radius-md)', border: 'none',
-                                background: 'var(--accent)', color: 'white',
-                                fontSize: 13, fontWeight: 500, cursor: 'pointer'
-                            }}
-                        >
-                            Preview
-                        </button>
-                    )}
-                    {step === 'preview' && preview && (
-                        <button
-                            onClick={handleImport}
-                            style={{
-                                padding: '10px 20px', borderRadius: 'var(--radius-md)', border: 'none',
-                                background: 'var(--accent)', color: 'white',
-                                fontSize: 13, fontWeight: 600, cursor: 'pointer'
-                            }}
-                        >
-                            Import {preview.tasks.length} tasks
-                        </button>
-                    )}
+                <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
+                    <button onClick={onClose} className="v11-btn-secondary">Cancel</button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        {step === 'review' && (
+                            <button
+                                onClick={() => setStep('preview')}
+                                className="v11-btn-primary"
+                                disabled={includedCount === 0}
+                            >
+                                Preview {includedCount} board{includedCount > 1 ? 's' : ''} →
+                            </button>
+                        )}
+                        {step === 'preview' && (
+                            <>
+                                <button onClick={() => setStep('review')} className="v11-btn-secondary">← Back</button>
+                                <button onClick={handleImport} className="v11-btn-primary">Import</button>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

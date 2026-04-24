@@ -360,13 +360,14 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             </div>
             <div className="kanban-board">
                     {groupedColumns.map(({ group, cols: groupCols }, groupIdx) => (
-                    <div key={group?.boardId || `group-${groupIdx}`} className="kanban-board-group" style={{display:'flex',flexDirection:'column',minWidth:0,gap:4}}>
+                    <div key={group?.boardId || `group-${groupIdx}`} className="kanban-board-group" style={{display:'flex',flexDirection:'column',flexShrink:0,gap:4}}>
                         {group && (
-                            <div className="kanban-board-banner" style={{
+                            <div className="kanban-board-banner" title={group.boardName} style={{
                                 background: group.boardColor, color: '#fff',
                                 padding: '8px 14px', fontWeight: 700, fontSize: 13,
                                 borderRadius: 6, letterSpacing: 0.3,
-                                whiteSpace: 'normal', wordBreak: 'break-word'
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                minHeight: 32, boxSizing: 'border-box'
                             }}>
                                 {group.boardName}
                             </div>

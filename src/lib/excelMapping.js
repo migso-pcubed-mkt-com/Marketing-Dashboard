@@ -1,8 +1,7 @@
 import * as XLSX from 'xlsx';
-import { CONFIG } from '../config.js';
 
 // ─────────────────────────────────────────────
-// HELPERS
+// Constants & helpers
 // ─────────────────────────────────────────────
 
 const CATEGORY_COLORS = ['#6366f1','#f59e0b','#22c55e','#3b82f6','#ef4444','#8b5cf6','#ec4899','#14b8a6','#d97706','#f97316'];
@@ -12,11 +11,29 @@ const GRADIENTS = [
     'from-pink-400 to-pink-600','from-teal-400 to-teal-600','from-amber-500 to-amber-700','from-orange-400 to-orange-600'
 ];
 
-/**
- * Parse a workbook from a File/ArrayBuffer.
- * Returns { sheets: [{ name, data, merges, cellColors }] }. `cellColors[r][c]` is an ARGB string or null.
- * Colors are read via exceljs (loaded on demand) so styling signals survive the xlsx→json conversion.
- */
+const genId = (prefix) => {
+    const uuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    return prefix ? `${prefix}-${uuid}` : uuid;
+};
+
+const cellToString = (val) => {
+    if (val == null) return '';
+    if (val instanceof Date) return val.toISOString().slice(0, 10);
+    return String(val).trim();
+};
+
+const isEmptyCell = (val) => {
+    if (val == null) return true;
+    if (typeof val === 'string') return val.trim() === '';
+    return false;
+};
+
+// ─────────────────────────────────────────────
+// Workbook parsing — same shape as before so the modal stays in sync.
+// ─────────────────────────────────────────────
+
 export async function parseWorkbook(buffer) {
     const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
     const xlsxSheets = wb.SheetNames.map(name => {
@@ -31,7 +48,6 @@ export async function parseWorkbook(buffer) {
         const ExcelJSMod = await import('exceljs');
         const ExcelJS = ExcelJSMod.default || ExcelJSMod;
         const exWb = new ExcelJS.Workbook();
-        // exceljs expects an ArrayBuffer or Uint8Array — both work with the same buffer.
         await exWb.xlsx.load(buffer);
         for (const ws of exWb.worksheets) {
             const grid = [];
@@ -47,7 +63,6 @@ export async function parseWorkbook(buffer) {
             colorsByName[ws.name] = grid;
         }
     } catch {
-        // Legacy .xls or missing styles — proceed without color signal.
         colorsByName = {};
     }
 
@@ -57,739 +72,487 @@ export async function parseWorkbook(buffer) {
     };
 }
 
-/**
- * ARGB (from exceljs) represents a non-neutral fill color (user-applied highlight).
- * Excludes transparent/default whites, pure black (often a font-default), and empty values.
- */
-function isMeaningfulFill(argb) {
-    if (!argb) return false;
-    const up = String(argb).toUpperCase();
-    if (up === '00000000') return false;           // fully transparent
-    if (up === 'FFFFFFFF' || up === 'FFFFFF') return false; // white
-    if (up === 'FF000000' || up === '000000') return false; // pure black — almost never a real highlight
-    return true;
-}
-
 // ─────────────────────────────────────────────
-// FORMAT DETECTION
+// Month detection — anchors the whole grid layout.
 // ─────────────────────────────────────────────
 
+// Month names accepted as headers. Match must consume the WHOLE cell (after trim
+// + lowercase) — without that, plain prose like "Marketing" would silently match
+// "mar" and corrupt the column map.
 const MONTH_PATTERNS = [
-    /^jan/i, /^feb/i, /^mar/i, /^apr/i, /^may/i, /^jun/i,
-    /^jul/i, /^aug/i, /^sep/i, /^oct/i, /^nov/i, /^dec/i,
-    // French
-    /^janv/i, /^f[eé]v/i, /^mars/i, /^avr/i, /^mai/i, /^juin/i,
-    /^juil/i, /^ao[uû]/i, /^sept/i, /^oct/i, /^nov/i, /^d[eé]c/i
+    [0, /^(jan|janv|january|janvier)\.?$/],
+    [1, /^(feb|fev|fév|february|février)\.?$/],
+    [2, /^(mar|mars|march)\.?$/],
+    [3, /^(apr|avr|april|avril)\.?$/],
+    [4, /^(may|mai)\.?$/],
+    [5, /^(jun|juin|june)\.?$/],
+    [6, /^(jul|juil|july|juillet)\.?$/],
+    [7, /^(aug|aoû|aou|aout|août|august)\.?$/],
+    [8, /^(sep|sept|september|septembre)\.?$/],
+    [9, /^(oct|october|octobre)\.?$/],
+    [10, /^(nov|november|novembre)\.?$/],
+    [11, /^(dec|déc|december|décembre)\.?$/]
 ];
 
-const isMonthLike = (val) => {
-    if (!val) return false;
-    const s = String(val).trim();
-    return MONTH_PATTERNS.some(p => p.test(s));
-};
-
-const isDateLike = (val) => {
-    if (!val) return false;
-    const s = String(val).trim();
-    // Try to parse as a date
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return true;
-    if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(s)) return true;
-    const d = new Date(s);
-    return !isNaN(d.getTime()) && d.getFullYear() > 1990 && d.getFullYear() < 2100;
-};
-
-/**
- * Detect if a sheet looks like a grid/roadmap (months as columns) or a flat list.
- * Returns 'grid' | 'list'
- */
-export function detectFormat(sheetData) {
-    if (!sheetData || sheetData.length < 2) return 'list';
-
-    // Check the first 3 rows for month-like headers
-    for (let r = 0; r < Math.min(3, sheetData.length); r++) {
-        const row = sheetData[r];
-        if (!row) continue;
-        let monthCount = 0;
-        for (let c = 1; c < row.length; c++) {
-            if (isMonthLike(row[c])) monthCount++;
-        }
-        // If 3+ columns look like months, it's a grid
-        if (monthCount >= 3) return 'grid';
-    }
-
-    return 'list';
+function monthOf(text) {
+    const s = cellToString(text).trim().toLowerCase();
+    if (!s || s.length > 12) return -1;
+    for (const [idx, re] of MONTH_PATTERNS) if (re.test(s)) return idx;
+    return -1;
 }
 
-// ─────────────────────────────────────────────
-// GRID / ROADMAP PARSING
-// ─────────────────────────────────────────────
-
-// Country aliases → country id (case-insensitive, punctuation-stripped)
-const COUNTRY_ALIASES = {
-    'global': 'global', 'world': 'global', 'worldwide': 'global', 'monde': 'global',
-    'australia': 'australia', 'australie': 'australia',
-    'canada': 'canada',
-    'france': 'france', 'fr': 'france', 'french': 'france',
-    'germany': 'germany', 'deutschland': 'germany', 'allemagne': 'germany', 'de': 'germany',
-    'india': 'india', 'inde': 'india',
-    'italy': 'italy', 'italia': 'italy', 'italie': 'italy', 'it': 'italy',
-    'mexico': 'mexico', 'méxico': 'mexico', 'mexique': 'mexico',
-    'netherlands': 'netherlands', 'pays bas': 'netherlands', 'paysbas': 'netherlands', 'holland': 'netherlands', 'nl': 'netherlands',
-    'portugal': 'portugal', 'pt': 'portugal',
-    'romania': 'romania', 'roumanie': 'romania', 'ro': 'romania',
-    'sea': 'southeast-asia', 'south east asia': 'southeast-asia', 'southeast asia': 'southeast-asia',
-    'spain': 'spain', 'espagne': 'spain', 'españa': 'spain', 'espana': 'spain', 'es': 'spain', 'sp': 'spain',
-    'switzerland': 'switzerland', 'suisse': 'switzerland', 'schweiz': 'switzerland', 'ch': 'switzerland',
-    'uk': 'uk', 'united kingdom': 'uk', 'royaume uni': 'uk', 'royaumeuni': 'uk', 'grande bretagne': 'uk', 'britain': 'uk', 'england': 'uk', 'gb': 'uk',
-    'usa': 'usa', 'us': 'usa', 'united states': 'usa', 'etats unis': 'usa', 'états unis': 'usa', 'america': 'usa', 'amérique': 'usa'
-};
-
-function detectCountryId(label) {
-    if (!label) return null;
-    const s = String(label).trim().toLowerCase().replace(/[^a-zÀ-ɏ\s]/g, ' ').replace(/\s+/g, ' ').trim();
-    if (COUNTRY_ALIASES[s]) return COUNTRY_ALIASES[s];
-    // Also try bare alphanum without accents
-    const ascii = s.normalize('NFD').replace(/[̀-ͯ]/g, '');
-    return COUNTRY_ALIASES[ascii] || null;
-}
-
-/**
- * Parse month header row to get column-to-month mapping.
- * Returns { headerRow: number, monthColumns: [{col, month(0-11), year}] }
- */
-function findMonthHeader(data) {
-    const allMonths = CONFIG.MONTHS.map(m => m.toLowerCase());
-    const allMonthsFull = CONFIG.MONTHS_FULL.map(m => m.toLowerCase());
-    // Also French month names
-    const frenchMonths = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
-
-    // Scan the first 15 rows rather than 5 so roadmaps with a multi-line title or
-    // country band above the month row still get detected.
-    for (let r = 0; r < Math.min(15, data.length); r++) {
-        const row = data[r];
-        if (!row) continue;
-        const monthColumns = [];
-        for (let c = 0; c < row.length; c++) {
-            const val = String(row[c] || '').trim().toLowerCase();
-            if (!val) continue;
-
-            // Try matching month names
-            let monthIdx = allMonths.indexOf(val);
-            if (monthIdx < 0) monthIdx = allMonthsFull.indexOf(val);
-            if (monthIdx < 0) monthIdx = frenchMonths.indexOf(val);
-            // Partial match (e.g., "Jan 2026")
-            if (monthIdx < 0) {
-                for (let m = 0; m < allMonths.length; m++) {
-                    if (val.startsWith(allMonths[m]) || val.startsWith(allMonthsFull[m].toLowerCase()) || val.startsWith(frenchMonths[m])) {
-                        monthIdx = m;
-                        break;
-                    }
-                }
-            }
-            if (monthIdx >= 0) {
-                // Try extracting year from the cell
-                const yearMatch = String(row[c]).match(/\d{4}/);
-                const year = yearMatch ? parseInt(yearMatch[0]) : new Date().getFullYear();
-                monthColumns.push({ col: c, month: monthIdx, year });
-            }
-        }
-        if (monthColumns.length >= 3) {
-            return { headerRow: r, monthColumns };
-        }
-    }
-    return null;
-}
-
-/**
- * Expand merged cells: for each merge, copy the top-left value to all cells in the range.
- * Modifies data in-place.
- */
-function expandMerges(data, merges) {
-    for (const merge of merges) {
-        const val = data[merge.s.r]?.[merge.s.c];
-        if (!val) continue;
-        for (let r = merge.s.r; r <= merge.e.r; r++) {
-            for (let c = merge.s.c; c <= merge.e.c; c++) {
-                if (r === merge.s.r && c === merge.s.c) continue;
-                if (!data[r]) data[r] = [];
-                data[r][c] = val;
-            }
-        }
-    }
-}
-
-/**
- * Index merges by starting row for quick lookup. Returns Map<rowIdx, Array<{startCol,endCol,startRow,endRow}>>.
- */
-function indexMergesByRow(merges) {
-    const map = new Map();
-    for (const m of merges || []) {
-        const r = m.s.r;
-        if (!map.has(r)) map.set(r, []);
-        map.get(r).push({ startCol: m.s.c, endCol: m.e.c, startRow: m.s.r, endRow: m.e.r });
-    }
-    return map;
-}
-
-/**
- * Analyze each grid row to detect indent depth, merge span, country tag, month coverage.
- * This powers both auto-detection and the manual review UI.
- * Returns { monthHeader, rows: [{rowIdx, label, depth, mergeSpan, hasMonthContent, hasMonthSignal, countryId, startMonthCol, endMonthCol}] }
- */
-export function analyzeGridRows(sheetData, merges = [], cellColors = []) {
-    const data = sheetData.map(row => [...(row || [])]);
-    // Do NOT expand merges yet — we want to detect the original blank cells for depth computation.
-    // Build a side-copy with merges expanded for label lookup only.
-    const expanded = sheetData.map(row => [...(row || [])]);
-    expandMerges(expanded, merges);
-
-    const monthHeader = findMonthHeader(expanded);
-    if (!monthHeader) return null;
-
-    const mergesByRow = indexMergesByRow(merges);
-    const { headerRow, monthColumns } = monthHeader;
-    const firstMonthCol = monthColumns[0].col;
-    const rows = [];
-
-    for (let r = headerRow + 1; r < data.length; r++) {
+// Scan the first 20 rows; return the row with the most distinct month matches
+// alongside the column index of each detected month. Tie → earliest row wins.
+export function detectMonthHeader(data) {
+    let best = { rowIdx: -1, monthCols: {}, score: 0 };
+    const limit = Math.min(20, data.length);
+    for (let r = 0; r < limit; r++) {
         const row = data[r] || [];
-        // Depth: first non-empty column BEFORE the month columns (prefer unexpanded data so that merged-down cells don't falsely lift depth)
-        let depth = -1;
-        for (let c = 0; c < firstMonthCol; c++) {
-            if (String(row[c] || '').trim()) { depth = c; break; }
-        }
-        // Fallback: use expanded to at least resolve a label
-        let labelFromExpanded = '';
-        let labelCol = depth;
-        if (depth < 0) {
-            for (let c = 0; c < firstMonthCol; c++) {
-                if (String(expanded[r]?.[c] || '').trim()) { labelFromExpanded = String(expanded[r][c]).trim(); labelCol = c; break; }
+        const monthCols = {};
+        let score = 0;
+        for (let c = 0; c < row.length; c++) {
+            const m = monthOf(row[c]);
+            if (m >= 0 && monthCols[m] === undefined) {
+                monthCols[m] = c;
+                score++;
             }
         }
-        const label = depth >= 0 ? String(row[depth]).trim() : labelFromExpanded;
+        if (score > best.score) best = { rowIdx: r, monthCols, score };
+    }
+    // Even small templates with just 2 month columns are valid.
+    return best.score >= 2 ? best : null;
+}
 
-        // Month content (text) + colored-cell signal. Either one flags the row as a task candidate.
-        // `monthSignals` records EVERY month cell that carried a signal so the flat-category
-        // builder can emit one task per highlighted cell.
-        let hasMonthContent = false;
-        let hasMonthColor = false;
-        let startMonthCol = null;
-        let endMonthCol = null;
+// ─────────────────────────────────────────────
+// Sheet analysis — classify each row as empty / category / action.
+// ─────────────────────────────────────────────
+
+function indexMergesByOrigin(merges) {
+    const byCell = new Map();
+    for (const m of merges || []) {
+        byCell.set(`${m.s.r}:${m.s.c}`, { endRow: m.e.r, endCol: m.e.c });
+    }
+    return byCell;
+}
+
+function indexVerticalMergeFragments(merges) {
+    const fragments = new Set();
+    for (const m of merges || []) {
+        if (m.e.r > m.s.r) {
+            for (let r = m.s.r + 1; r <= m.e.r; r++) {
+                for (let c = m.s.c; c <= m.e.c; c++) fragments.add(`${r}:${c}`);
+            }
+        }
+    }
+    return fragments;
+}
+
+function getLabel(row, labelCol = 0) {
+    for (let c = labelCol; c < row.length; c++) {
+        if (!isEmptyCell(row[c])) return cellToString(row[c]);
+    }
+    return '';
+}
+
+const isNumeric = (val) => {
+    if (val == null || val === '') return false;
+    if (typeof val === 'number') return true;
+    const cleaned = String(val).replace(/[, ]/g, '').replace(/[€$£]/g, '');
+    if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return false;
+    return !isNaN(Number(cleaned));
+};
+
+const toNumber = (val) => {
+    if (typeof val === 'number') return val;
+    return Number(String(val).replace(/[, ]/g, '').replace(/[€$£]/g, '')) || 0;
+};
+
+// Analyze every row below the month header — returns per-row classification
+// with enough context for both the auto-build and the manual review step.
+export function analyzeSheet(sheet) {
+    const data = sheet.data || [];
+    const merges = sheet.merges || [];
+    const header = detectMonthHeader(data);
+    if (!header) return { kind: 'list', headerRow: 0, rows: [] };
+
+    const monthEntries = Object.entries(header.monthCols)
+        .map(([m, c]) => ({ monthIdx: Number(m), col: c }))
+        .sort((a, b) => a.monthIdx - b.monthIdx);
+    const minMonthCol = Math.min(...monthEntries.map(e => e.col));
+
+    const mergeOrigins = indexMergesByOrigin(merges);
+    const verticalFragments = indexVerticalMergeFragments(merges);
+
+    const rows = [];
+    for (let r = header.rowIdx + 1; r < data.length; r++) {
+        const row = data[r] || [];
+        const label = getLabel(row, 0);
+
         const monthSignals = [];
-        for (const mc of monthColumns) {
-            const val = String(expanded[r]?.[mc.col] || '').trim();
-            const textSignal = val && val !== label;
-            const colorSignal = isMeaningfulFill(cellColors?.[r]?.[mc.col]);
-            if (textSignal || colorSignal) {
-                if (textSignal) hasMonthContent = true;
-                if (colorSignal) hasMonthColor = true;
-                if (startMonthCol === null) startMonthCol = mc;
-                endMonthCol = mc;
-                monthSignals.push({ col: mc.col, month: mc.month, year: mc.year, text: textSignal ? val : '', hasColor: colorSignal });
+        for (const { monthIdx, col } of monthEntries) {
+            if (verticalFragments.has(`${r}:${col}`)) continue;
+            const value = row[col];
+            const merge = mergeOrigins.get(`${r}:${col}`);
+            const hasContent = !isEmptyCell(value);
+            if (!hasContent && !merge) continue;
+
+            let endCol = col;
+            if (merge && merge.endCol > col) {
+                endCol = Math.min(merge.endCol, monthEntries[monthEntries.length - 1].col);
             }
+            let endMonth = monthIdx;
+            for (const e of monthEntries) {
+                if (e.col <= endCol) endMonth = Math.max(endMonth, e.monthIdx);
+            }
+            monthSignals.push({
+                monthIdx,
+                endMonthIdx: endMonth,
+                col,
+                endCol,
+                value: cellToString(value),
+                rawValue: value,
+                isNumeric: isNumeric(value)
+            });
         }
-        const hasMonthSignal = hasMonthContent || hasMonthColor;
 
-        // Merge span at this row for the label cell
-        const mergesHere = mergesByRow.get(r) || [];
-        const labelMerge = mergesHere.find(m => m.startCol === (depth >= 0 ? depth : labelCol));
-        const mergeSpan = labelMerge ? (labelMerge.endCol - labelMerge.startCol + 1) : 1;
-        // Large horizontal merge = section/super heading signal
-        const wideMerge = labelMerge && labelMerge.endCol >= firstMonthCol - 1;
-        // labelFromMerge = the row itself is blank in label columns, but a vertical merge
-        // propagates a value from above (typical "UK" super-band spanning many rows).
-        const labelFromMerge = depth < 0 && Boolean(labelFromExpanded);
+        const hasLabel = !!label;
+        const hasMonthData = monthSignals.length > 0;
 
-        if (!label && !hasMonthSignal) continue; // fully empty row
-
-        // Distinct text values across the month cells: used to tell "one long task
-        // spanning several months" (single value, e.g. all 'x' markers) apart from
-        // "category with multiple distinct tasks per month cell".
-        const distinctMonthTexts = new Set(monthSignals.map(s => (s.text || '').trim()).filter(t => t.length > 0));
+        let suggested;
+        if (!hasLabel && !hasMonthData) suggested = 'empty';
+        else if (hasLabel && !hasMonthData) suggested = 'category';
+        else suggested = 'action';
 
         rows.push({
             rowIdx: r,
-            label: label || '',
-            depth: depth >= 0 ? depth : 0,
-            colIndex: depth >= 0 ? depth : labelCol,
-            mergeSpan,
-            wideMerge: !!wideMerge,
-            hasMonthContent,
-            hasMonthColor,
-            hasMonthSignal,
-            labelFromMerge,
-            startMonthCol,
-            endMonthCol,
+            label,
             monthSignals,
-            distinctMonthTexts: distinctMonthTexts.size,
-            countryId: detectCountryId(label)
+            hasMonthData,
+            suggested,
+            level: suggested
         });
     }
 
-    return { headerRow, monthColumns, rows };
+    return {
+        kind: 'grid',
+        headerRow: header.rowIdx,
+        labelCol: 0,
+        monthCols: monthEntries,
+        firstMonthCol: minMonthCol,
+        rows
+    };
 }
 
-/**
- * Auto-assign a level ('super' | 'category' | 'flat-category' | 'action' | 'task' | 'ignore') to each row.
- * Heuristics:
- *   - label + hasMonthSignal (own label, not from a merge) → 'flat-category'
- *     (one row per category with its tasks lined up across month columns).
- *   - no label + hasMonthSignal (or label came from a vertical merge) → 'task'
- *     (classic sibling row under a header).
- *   - labelFromMerge without any month signal → 'ignore' (the row is really empty;
- *     a merged label above just leaked into it).
- *   - otherwise header → shallowest depth = 'super' or 'category' depending on depth count.
- */
-export function autoAssignLevels(analysis) {
-    if (!analysis) return [];
-    const { rows } = analysis;
+// ─────────────────────────────────────────────
+// Hierarchy builder — turn classified rows into Categories / Actions / Tasks.
+// ─────────────────────────────────────────────
 
-    // Header rows = non-task, non-flat-category. Flat-category rows have their own label
-    // AND month signal; they're categories that also carry tasks inline so we exclude them
-    // from the depth-count used to infer the super/category/action split.
-    const headerRows = rows.filter(r => !r.hasMonthSignal && !r.labelFromMerge);
-    const headerDepths = Array.from(new Set(headerRows.map(r => r.depth))).sort((a, b) => a - b);
-    const shallowestIsSuper = headerRows.some(r =>
-        r.depth === headerDepths[0] && (r.countryId || r.wideMerge)
-    );
-    const depthToLevel = new Map();
-    if (headerDepths.length >= 3) {
-        depthToLevel.set(headerDepths[0], 'super');
-        depthToLevel.set(headerDepths[1], 'category');
-        for (let i = 2; i < headerDepths.length; i++) depthToLevel.set(headerDepths[i], 'action');
-    } else if (headerDepths.length === 2) {
-        if (shallowestIsSuper) {
-            depthToLevel.set(headerDepths[0], 'super');
-            depthToLevel.set(headerDepths[1], 'category');
-        } else {
-            depthToLevel.set(headerDepths[0], 'category');
-            depthToLevel.set(headerDepths[1], 'action');
-        }
-    } else if (headerDepths.length === 1) {
-        depthToLevel.set(headerDepths[0], 'category');
-    }
+const monthDates = (monthIdx, year) => {
+    const start = new Date(year, monthIdx, 1);
+    const end = new Date(year, monthIdx + 1, 0);
+    const fmt = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    return { startDate: fmt(start), dueDate: fmt(end) };
+};
 
-    return rows.map(r => {
-        // Flat-category pattern: the row's own label is the category name AND each
-        // month-signal cell carries its own task title. We require >= 2 distinct
-        // non-empty texts in month cells — that's how we tell apart "FR Campaign |
-        // Webinar A | Webinar B" (flat-cat) from "Campaign A | x | x | x" (single
-        // task that runs three months).
-        if (r.hasMonthSignal && r.label && !r.labelFromMerge && (r.distinctMonthTexts || 0) >= 2) {
-            return { ...r, level: 'flat-category' };
-        }
-        if (r.hasMonthSignal) return { ...r, level: 'task' };
-        if (r.labelFromMerge) return { ...r, level: 'ignore' };
-        let level = depthToLevel.get(r.depth) || 'category';
-        if (r.countryId && r.depth === headerDepths[0] && headerDepths.length >= 2) level = 'super';
-        return { ...r, level };
-    });
-}
+const monthRangeDates = (startMonth, endMonth, year) => {
+    const start = new Date(year, startMonth, 1);
+    const end = new Date(year, endMonth + 1, 0);
+    const fmt = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    return { startDate: fmt(start), dueDate: fmt(end) };
+};
 
-/**
- * Build { categories, actions, tasks } from the level-assigned rows.
- * Defaults: super-categories become categories (with country tag propagated to descendants). Sub-categories are prefixed
- * with the super name (e.g. "France - Internal Coms") unless `flattenSuper` is true (super becomes only a country tag).
- */
-export function buildGridHierarchy(sheetData, analysis, leveledRows, options = {}) {
-    const { flattenSuper = false } = options;
-    const { monthColumns } = analysis;
-    const expanded = sheetData.map(row => [...(row || [])]);
-    // We need merges to expand again for month cell lookup
-    // Already handled by caller; analyzeGridRows used expanded for month detection but here we only need labels & contents.
+// Build a Board envelope from the analyzed sheet using the user-confirmed
+// classifications. Categories with zero actions get a default action so the
+// data model stays consistent with the rest of the app.
+export function buildBoard(sheet, analysis, options = {}) {
+    const year = options.year || new Date().getFullYear();
+    const boardName = options.boardName || sheet.name || 'Imported board';
+    const overrides = options.overrides || {};
 
-    const categories = [];
-    const actions = [];
-    const tasks = [];
-    const now = new Date().toISOString();
+    const board = {
+        id: genId('board'),
+        name: boardName,
+        color: CATEGORY_COLORS[0],
+        gradient: GRADIENTS[0],
+        categories: [],
+        actions: [],
+        tasks: []
+    };
 
-    let currentSuper = null;  // { name, countryId } OR null
+    if (analysis.kind !== 'grid') return board;
+
     let currentCategory = null;
-    let currentAction = null;
-    let catColorIdx = 0;
+    let categoryIdx = 0;
 
-    const ensureCategory = (name, countryId) => {
-        const displayName = (currentSuper && !flattenSuper && currentSuper.name && !currentSuper.countryId)
-            ? `${currentSuper.name} - ${name}`
-            : name;
+    const ensureFallbackCategory = () => {
+        if (currentCategory) return currentCategory;
         const cat = {
-            id: `cat-${crypto.randomUUID()}`,
-            name: displayName,
-            color: CATEGORY_COLORS[catColorIdx % CATEGORY_COLORS.length],
-            gradient: GRADIENTS[catColorIdx % GRADIENTS.length],
-            order: categories.length,
-            createdAt: now,
-            updatedAt: now
+            id: genId('cat'),
+            name: 'General',
+            color: CATEGORY_COLORS[0],
+            gradient: GRADIENTS[0],
+            order: 0
         };
-        categories.push(cat);
-        catColorIdx++;
+        board.categories.push(cat);
+        currentCategory = cat;
+        categoryIdx = 1;
         return cat;
     };
 
-    const ensureDefaultAction = (cat) => {
-        const action = {
-            id: `a-${crypto.randomUUID()}`,
-            name: cat.name,
-            categoryId: cat.id,
-            isDefault: true,
-            budget: 0,
-            priority: 'medium',
-            tags: [],
-            countries: [],
-            status: 'inprogress',
-            order: actions.length,
-            createdAt: now,
-            updatedAt: now
-        };
-        actions.push(action);
-        return action;
-    };
+    for (const row of analysis.rows) {
+        const level = overrides[row.rowIdx] || row.level;
+        if (level === 'empty') continue;
 
-    for (const row of leveledRows) {
-        if (row.level === 'ignore' || row.level === 'empty') continue;
-
-        if (row.level === 'super') {
-            // Apply super as prefix for following categories; if it's a country, don't prefix - use as country tag
-            currentSuper = { name: row.label, countryId: row.countryId };
-            // If flattenSuper AND it's a named non-country super, create a standalone category
-            if (flattenSuper && !row.countryId && row.label) {
-                currentCategory = ensureCategory(row.label, null);
-                currentAction = ensureDefaultAction(currentCategory);
-            } else {
-                // Wait for child category row — reset current cat/action
-                currentCategory = null;
-                currentAction = null;
-            }
+        if (level === 'category') {
+            const cat = {
+                id: genId('cat'),
+                name: row.label || `Category ${categoryIdx + 1}`,
+                color: CATEGORY_COLORS[categoryIdx % CATEGORY_COLORS.length],
+                gradient: GRADIENTS[categoryIdx % GRADIENTS.length],
+                order: categoryIdx
+            };
+            board.categories.push(cat);
+            currentCategory = cat;
+            categoryIdx++;
             continue;
         }
 
-        if (row.level === 'category') {
-            const countryForCat = currentSuper?.countryId || row.countryId || null;
-            // Country-only super: the child category keeps its own name (not prefixed), gets country tag via tasks
-            currentCategory = ensureCategory(row.label || 'Category', countryForCat);
-            currentAction = ensureDefaultAction(currentCategory);
-            continue;
-        }
+        if (level === 'action') {
+            const cat = ensureFallbackCategory();
+            const action = {
+                id: genId('act'),
+                name: row.label || `Action ${board.actions.length + 1}`,
+                categoryId: cat.id,
+                isDefault: false,
+                order: board.actions.filter(a => a.categoryId === cat.id).length,
+                description: '',
+                tags: [], channels: [], countries: [], otherLabels: [],
+                status: 'todo',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            board.actions.push(action);
 
-        // Flat-category row: a "calendar-style" row where col A is the category name
-        // and every month column with content/color is its own task. We create the
-        // category + default action, then emit one task per month signal.
-        if (row.level === 'flat-category') {
-            const countryForCat = currentSuper?.countryId || row.countryId || null;
-            currentCategory = ensureCategory(row.label || 'Category', countryForCat);
-            currentAction = ensureDefaultAction(currentCategory);
-
-            const signals = Array.isArray(row.monthSignals) ? row.monthSignals : [];
-            const expandedRow = expanded[row.rowIdx] || [];
-            const countries = currentSuper?.countryId ? [currentSuper.countryId] : (row.countryId ? [row.countryId] : []);
-            for (const sig of signals) {
-                const year = sig.year || new Date().getFullYear();
-                const title = (sig.text || String(expandedRow[sig.col] || '').trim() || `${CONFIG.MONTHS[sig.month]} task`);
-                const lastDay = new Date(year, sig.month + 1, 0).getDate();
-                const startDate = `${year}-${String(sig.month + 1).padStart(2, '0')}-01`;
-                const dueDate = `${year}-${String(sig.month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-                tasks.push({
-                    id: `t-${crypto.randomUUID()}`,
-                    actionId: currentAction.id,
-                    title,
+            // One task per month signal. Numeric cells become budget-only tasks
+            // named after the row label + month name; text cells become titled
+            // tasks (the cell content IS the title).
+            let taskOrder = 0;
+            for (const sig of row.monthSignals) {
+                const dates = sig.endMonthIdx > sig.monthIdx
+                    ? monthRangeDates(sig.monthIdx, sig.endMonthIdx, year)
+                    : monthDates(sig.monthIdx, year);
+                const monthLabel = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][sig.monthIdx];
+                const isBudget = sig.isNumeric;
+                const title = isBudget
+                    ? `${row.label || action.name} — ${monthLabel}`
+                    : (sig.value || `${row.label} (${monthLabel})`);
+                const task = {
+                    id: genId('task'),
+                    actionId: action.id,
+                    title: title.slice(0, 200),
                     description: '',
                     status: 'todo',
                     priority: 'medium',
-                    budget: 0,
-                    month: sig.month,
-                    startDate,
-                    dueDate,
-                    channels: [],
-                    countries,
+                    startDate: dates.startDate,
+                    dueDate: dates.dueDate,
+                    month: sig.monthIdx,
+                    budget: isBudget ? toNumber(sig.rawValue) : 0,
+                    channels: [], countries: [], otherLabels: [],
+                    assignees: [],
                     checklist: [],
-                    comments: [],
-                    attachments: [],
-                    order: tasks.length,
-                    createdAt: now,
-                    updatedAt: now
-                });
+                    order: taskOrder++,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                board.tasks.push(task);
             }
             continue;
         }
+    }
 
-        if (row.level === 'action') {
-            if (!currentCategory) {
-                currentCategory = ensureCategory('Imported', null);
-            }
-            currentAction = {
-                id: `a-${crypto.randomUUID()}`,
-                name: row.label || 'Action',
-                categoryId: currentCategory.id,
-                isDefault: false,
-                budget: 0,
-                priority: 'medium',
-                tags: [],
-                countries: currentSuper?.countryId ? [currentSuper.countryId] : [],
-                status: 'inprogress',
-                order: actions.length,
-                createdAt: now,
-                updatedAt: now
-            };
-            actions.push(currentAction);
-            continue;
-        }
-
-        if (row.level === 'task') {
-            if (!currentCategory) {
-                currentCategory = ensureCategory('Imported', null);
-            }
-            if (!currentAction) {
-                currentAction = ensureDefaultAction(currentCategory);
-            }
-            const startMc = row.startMonthCol;
-            const endMc = row.endMonthCol || row.startMonthCol;
-            if (!startMc) continue;
-            const year = startMc.year || new Date().getFullYear();
-            const startDate = `${year}-${String(startMc.month + 1).padStart(2, '0')}-01`;
-            const lastDay = new Date(year, endMc.month + 1, 0).getDate();
-            const dueDate = `${year}-${String(endMc.month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-            // Title: prefer row label, else first non-empty month cell content
-            let title = row.label;
-            if (!title) {
-                for (const mc of monthColumns) {
-                    const v = String(expanded[row.rowIdx]?.[mc.col] || '').trim();
-                    if (v) { title = v; break; }
-                }
-            }
-            if (!title) title = 'Task';
-
-            const countries = currentSuper?.countryId ? [currentSuper.countryId] : (row.countryId ? [row.countryId] : []);
-
-            tasks.push({
-                id: `t-${crypto.randomUUID()}`,
-                actionId: currentAction.id,
-                title,
+    // Categories with zero actions get a default action so the data model stays
+    // consistent (handleAddCategory pattern in App.jsx).
+    for (const cat of board.categories) {
+        const hasAction = board.actions.some(a => a.categoryId === cat.id);
+        if (!hasAction) {
+            board.actions.push({
+                id: genId('act'),
+                name: 'Tasks',
+                categoryId: cat.id,
+                isDefault: true,
+                order: 0,
                 description: '',
+                tags: [], channels: [], countries: [], otherLabels: [],
                 status: 'todo',
-                priority: 'medium',
-                budget: 0,
-                month: startMc.month,
-                startDate,
-                dueDate,
-                channels: [],
-                countries,
-                checklist: [],
-                comments: [],
-                attachments: [],
-                order: tasks.length,
-                createdAt: now,
-                updatedAt: now
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             });
         }
     }
 
-    return categories.length > 0 ? { categories, actions, tasks } : null;
+    return board;
 }
 
-/**
- * Parse a grid/roadmap sheet.
- * Returns { categories: [...], actions: [...], tasks: [...] }
- */
-export function parseGrid(sheetData, merges = []) {
-    const analysis = analyzeGridRows(sheetData, merges);
-    if (!analysis) return null;
-    const leveledRows = autoAssignLevels(analysis);
-    return buildGridHierarchy(sheetData, analysis, leveledRows);
+// Run analyzeSheet on every sheet — the modal uses this to drive a one-board-
+// per-sheet import wizard.
+export function analyzeWorkbook(parsed) {
+    return parsed.sheets.map(sheet => ({
+        name: sheet.name,
+        sheet,
+        analysis: analyzeSheet(sheet)
+    }));
 }
 
 // ─────────────────────────────────────────────
-// LIST / TABLE PARSING
+// LIST FORMAT — kept for back-compat with column-based sheets.
 // ─────────────────────────────────────────────
 
-// Known column name patterns for auto-detection
 const COLUMN_PATTERNS = {
-    title:       /^(title|name|task|tâche|titre|nom)/i,
-    description: /^(desc|description)/i,
-    status:      /^(status|statut|état|state)/i,
-    priority:    /^(priority|priorit[eé]|prio)/i,
-    startDate:   /^(start|début|begin|from)/i,
-    dueDate:     /^(end|due|fin|deadline|echeance|échéance|to$)/i,
-    category:    /^(category|categorie|catégorie|group|groupe)/i,
-    action:      /^(action|initiative|project|projet)/i,
-    owner:       /^(owner|assignee|responsable|assigned|member|membre)/i,
-    budget:      /^(budget|cost|coût|co[uû]t)/i,
-    channel:     /^(channel|canal|type)/i
+    title:       [/^(title|name|task|action|item|t[âa]che|nom|titre)$/i],
+    description: [/^(desc|description|note|notes|detail)/i],
+    status:      [/^(status|state|[ée]tat|statut)$/i],
+    priority:    [/^(priority|priorit[eé]|importance)$/i],
+    startDate:   [/^(start|debut|d[eé]but|begin|from|date debut)/i],
+    dueDate:     [/^(due|deadline|fin|end|to|date fin|due date)/i],
+    category:    [/^(category|cat[eé]gorie|theme|th[eè]me|group|groupe)$/i],
+    action:      [/^(action|campaign|campagne|project|projet)$/i],
+    owner:       [/^(owner|assignee|responsible|attribu[eé]|propri[eé]taire)$/i],
+    budget:      [/^(budget|cost|co[uû]t|amount|montant)$/i],
+    channel:     [/^(channel|canal|m[eé]dia|media|type)$/i],
+    country:     [/^(country|pays|region|r[eé]gion)$/i]
 };
 
-/**
- * Auto-detect column mappings from header row.
- * Returns { [fieldName]: columnIndex }
- */
 export function detectColumnMappings(headerRow) {
     const mappings = {};
     if (!headerRow) return mappings;
-
-    headerRow.forEach((cell, idx) => {
-        const val = String(cell || '').trim();
-        if (!val) return;
-        for (const [field, pattern] of Object.entries(COLUMN_PATTERNS)) {
-            if (pattern.test(val) && !mappings[field]) {
-                mappings[field] = idx;
-                break;
-            }
-        }
-    });
-
-    // If no title column found, use the first non-empty text column
-    if (mappings.title === undefined) {
-        for (let i = 0; i < headerRow.length; i++) {
-            if (headerRow[i] && !Object.values(mappings).includes(i)) {
-                mappings.title = i;
-                break;
-            }
+    for (let c = 0; c < headerRow.length; c++) {
+        const cell = cellToString(headerRow[c]).toLowerCase();
+        if (!cell) continue;
+        for (const [field, patterns] of Object.entries(COLUMN_PATTERNS)) {
+            if (mappings[field] !== undefined) continue;
+            if (patterns.some(p => p.test(cell))) { mappings[field] = c; break; }
         }
     }
-
     return mappings;
 }
 
-/**
- * Match a status string to a CONFIG.STATUSES id
- */
-function matchStatus(val) {
-    if (!val) return 'todo';
-    const s = String(val).trim().toLowerCase();
-    for (const status of CONFIG.STATUSES) {
-        if (s === status.id || s === status.name.toLowerCase()) return status.id;
-    }
-    if (/done|complet|finish|terminé/i.test(s)) return 'completed';
-    if (/progress|en cours|wip/i.test(s)) return 'inprogress';
-    if (/review|revu/i.test(s)) return 'review';
-    if (/creat|créa/i.test(s)) return 'creating';
-    if (/pause|hold|suspen/i.test(s)) return 'paused';
+const STATUS_LOOKUP = [
+    [/(todo|to ?do|à ?faire|backlog)/i, 'todo'],
+    [/(creat|cr[eé]at)/i, 'creating'],
+    [/(progres|en ?cours|wip|doing)/i, 'inprogress'],
+    [/(review|relecture|valid)/i, 'review'],
+    [/(complete|done|termin|fini)/i, 'completed'],
+    [/(paus|hold|stop|annul)/i, 'paused']
+];
+
+const PRIO_LOOKUP = [
+    [/(high|haute|urg|critical)/i, 'high'],
+    [/(low|basse|faible|minor)/i, 'low'],
+    [/(med|normal|moyen)/i, 'medium']
+];
+
+const matchStatus = (val) => {
+    const s = cellToString(val).toLowerCase();
+    if (!s) return 'todo';
+    for (const [re, id] of STATUS_LOOKUP) if (re.test(s)) return id;
     return 'todo';
-}
+};
 
-/**
- * Match a priority string
- */
-function matchPriority(val) {
-    if (!val) return 'medium';
-    const s = String(val).trim().toLowerCase();
-    if (/high|haute|élevée|haut/i.test(s)) return 'high';
-    if (/low|basse|faible|bas/i.test(s)) return 'low';
+const matchPriority = (val) => {
+    const s = cellToString(val).toLowerCase();
+    if (!s) return 'medium';
+    for (const [re, id] of PRIO_LOOKUP) if (re.test(s)) return id;
     return 'medium';
-}
+};
 
-/**
- * Parse a date string into YYYY-MM-DD
- */
-function parseDate(val) {
+const parseDate = (val) => {
     if (!val) return null;
-    const s = String(val).trim();
-    // Already ISO
-    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
-    // Try Date parse
-    const d = new Date(s);
-    if (!isNaN(d.getTime()) && d.getFullYear() > 1990) {
-        return d.toISOString().split('T')[0];
+    if (val instanceof Date) return val.toISOString().slice(0, 10);
+    const s = cellToString(val);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (m) {
+        const yy = m[3].length === 2 ? Number(m[3]) + 2000 : Number(m[3]);
+        return `${yy}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
     }
+    const d = new Date(s);
+    if (!isNaN(d.getTime()) && d.getFullYear() > 1990) return d.toISOString().slice(0, 10);
     return null;
-}
+};
 
-/**
- * Parse a list/table sheet with column mappings.
- * Returns { categories: [...], actions: [...], tasks: [...] }
- */
-export function parseList(sheetData, mappings) {
-    if (!sheetData || sheetData.length < 2) return null;
+export function buildBoardFromList(sheet, mappings, options = {}) {
+    const data = sheet.data || [];
+    const boardName = options.boardName || sheet.name || 'Imported board';
+    const board = {
+        id: genId('board'),
+        name: boardName,
+        color: CATEGORY_COLORS[0],
+        gradient: GRADIENTS[0],
+        categories: [], actions: [], tasks: []
+    };
+    if (data.length < 2 || mappings.title === undefined) return board;
 
-    const categories = [];
-    const actions = [];
-    const tasks = [];
-    const categoryMap = new Map();  // name → category
-    const actionMap = new Map();    // "catId|actionName" → action
-    let catColorIdx = 0;
-    const now = new Date().toISOString();
-
-    const getOrCreateCategory = (name) => {
+    const catMap = new Map();
+    const actMap = new Map();
+    const ensureCategory = (name) => {
         const key = (name || 'General').trim();
-        if (categoryMap.has(key)) return categoryMap.get(key);
+        if (catMap.has(key)) return catMap.get(key);
         const cat = {
-            id: `cat-${crypto.randomUUID()}`,
+            id: genId('cat'),
             name: key,
-            color: CATEGORY_COLORS[catColorIdx % CATEGORY_COLORS.length],
-            gradient: GRADIENTS[catColorIdx % GRADIENTS.length],
-            order: categories.length,
-            createdAt: now,
-            updatedAt: now
+            color: CATEGORY_COLORS[catMap.size % CATEGORY_COLORS.length],
+            gradient: GRADIENTS[catMap.size % GRADIENTS.length],
+            order: catMap.size
         };
-        categories.push(cat);
-        categoryMap.set(key, cat);
-        catColorIdx++;
+        board.categories.push(cat);
+        catMap.set(key, cat);
         return cat;
     };
-
-    const getOrCreateAction = (catId, name) => {
-        const actionName = (name || 'Tasks').trim();
-        const key = `${catId}|${actionName}`;
-        if (actionMap.has(key)) return actionMap.get(key);
+    const ensureAction = (catId, name) => {
+        const key = `${catId}::${(name || '').trim() || '__default__'}`;
+        if (actMap.has(key)) return actMap.get(key);
         const action = {
-            id: `a-${crypto.randomUUID()}`,
-            name: actionName,
+            id: genId('act'),
+            name: name || 'Tasks',
             categoryId: catId,
             isDefault: !name,
-            budget: 0,
-            priority: 'medium',
-            tags: [],
-            status: 'inprogress',
-            order: actions.length,
-            createdAt: now,
-            updatedAt: now
+            order: board.actions.filter(a => a.categoryId === catId).length,
+            description: '',
+            tags: [], channels: [], countries: [], otherLabels: [],
+            status: 'todo',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         };
-        actions.push(action);
-        actionMap.set(key, action);
+        board.actions.push(action);
+        actMap.set(key, action);
         return action;
     };
 
-    // Skip header row (index 0)
-    for (let r = 1; r < sheetData.length; r++) {
-        const row = sheetData[r];
-        if (!row) continue;
-
-        const title = mappings.title !== undefined ? String(row[mappings.title] || '').trim() : '';
-        if (!title) continue;  // Skip empty rows
-
-        const catName = mappings.category !== undefined ? String(row[mappings.category] || '').trim() : '';
-        const actionName = mappings.action !== undefined ? String(row[mappings.action] || '').trim() : '';
-
-        const cat = getOrCreateCategory(catName || 'General');
-        const action = getOrCreateAction(cat.id, actionName || null);
-
-        const startDate = mappings.startDate !== undefined ? parseDate(row[mappings.startDate]) : null;
-        const dueDate = mappings.dueDate !== undefined ? parseDate(row[mappings.dueDate]) : null;
-        const month = dueDate ? new Date(dueDate).getMonth() : (startDate ? new Date(startDate).getMonth() : new Date().getMonth());
-
-        const budgetVal = mappings.budget !== undefined ? row[mappings.budget] : 0;
-        const budget = typeof budgetVal === 'number' ? budgetVal : parseFloat(String(budgetVal).replace(/[^0-9.-]/g, '')) || 0;
-
-        tasks.push({
-            id: `t-${crypto.randomUUID()}`,
+    for (let r = 1; r < data.length; r++) {
+        const row = data[r] || [];
+        const title = cellToString(row[mappings.title]);
+        if (!title) continue;
+        const cat = ensureCategory(mappings.category !== undefined ? cellToString(row[mappings.category]) : 'General');
+        const action = ensureAction(cat.id, mappings.action !== undefined ? cellToString(row[mappings.action]) : '');
+        const task = {
+            id: genId('task'),
             actionId: action.id,
-            title,
-            description: mappings.description !== undefined ? String(row[mappings.description] || '') : '',
-            status: matchStatus(mappings.status !== undefined ? row[mappings.status] : ''),
-            priority: matchPriority(mappings.priority !== undefined ? row[mappings.priority] : ''),
-            budget,
-            month,
-            startDate: startDate || new Date().toISOString().split('T')[0],
-            dueDate: dueDate || null,
-            channels: [],
-            assignees: [],
+            title: title.slice(0, 200),
+            description: mappings.description !== undefined ? cellToString(row[mappings.description]) : '',
+            status: mappings.status !== undefined ? matchStatus(row[mappings.status]) : 'todo',
+            priority: mappings.priority !== undefined ? matchPriority(row[mappings.priority]) : 'medium',
+            startDate: mappings.startDate !== undefined ? parseDate(row[mappings.startDate]) : null,
+            dueDate: mappings.dueDate !== undefined ? parseDate(row[mappings.dueDate]) : null,
+            budget: mappings.budget !== undefined ? toNumber(row[mappings.budget]) : 0,
+            channels: [], countries: [], otherLabels: [],
+            assignees: mappings.owner !== undefined ? [cellToString(row[mappings.owner])].filter(Boolean) : [],
             checklist: [],
-            comments: [],
-            attachments: [],
-            order: tasks.length,
-            createdAt: now,
-            updatedAt: now
-        });
+            order: board.tasks.filter(t => t.actionId === action.id).length,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        if (task.dueDate) task.month = new Date(task.dueDate).getMonth();
+        board.tasks.push(task);
     }
-
-    return categories.length > 0 ? { categories, actions, tasks } : null;
+    return board;
 }

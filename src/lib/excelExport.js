@@ -147,7 +147,7 @@ export async function buildTimelineWorkbook(categories, actions, tasks, year) {
                     fgColor: { argb: isDone ? lightenARGB(statusARGB, 0.55) : statusARGB }
                 };
                 barCell.font = {
-                    bold: !isDone,
+                    bold: false,
                     strike: isDone,
                     color: { argb: isDone ? 'FF4B5563' : 'FFFFFFFF' },
                     size: 10
@@ -347,13 +347,19 @@ export async function buildKanbanWorkbook(categories, actions, tasks, view = 'ca
     if (columns.length === 0) return wb;
 
     const maxRows = Math.max(...columns.map(c => c.items.length), 0);
-    const legendCol = columns.length + 2; // one spacer column then the legend
+    // Per user request: no legend for the Category and By-Status views (columns
+    // already encode the semantic — legend is redundant). Kept for Month /
+    // Quarter / Country views where task colour still carries extra info.
+    const showLegend = view !== 'category' && view !== 'action';
+    const legendCol = showLegend ? columns.length + 2 : null;
 
-    // Header row: column labels + Legend
-    const headerValues = [...columns.map(c => c.label), '', 'Legend'];
+    // Header row: column labels (+ legend header when shown)
+    const headerValues = showLegend
+        ? [...columns.map(c => c.label), '', 'Legend']
+        : [...columns.map(c => c.label)];
     const headerRow = ws.addRow(headerValues);
     headerRow.eachCell((cell, colIdx) => {
-        if (colIdx === columns.length + 1) return; // spacer — keep blank
+        if (showLegend && colIdx === columns.length + 1) return; // spacer — keep blank
         const col = columns[colIdx - 1];
         cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
         const fillColor = col ? toARGB(col.color) : 'FF1F2937'; // legend header = dark slate
@@ -363,8 +369,10 @@ export async function buildKanbanWorkbook(categories, actions, tasks, view = 'ca
     headerRow.height = 28;
 
     columns.forEach((_, ci) => { ws.getColumn(ci + 1).width = 34; });
-    ws.getColumn(columns.length + 1).width = 2;
-    ws.getColumn(legendCol).width = 22;
+    if (showLegend) {
+        ws.getColumn(columns.length + 1).width = 2;
+        ws.getColumn(legendCol).width = 22;
+    }
 
     // Rough wrap estimate: 34-char column width at size 10 ≈ 30 usable chars per line.
     const estimateLinesForText = (text) => {
@@ -430,18 +438,20 @@ export async function buildKanbanWorkbook(categories, actions, tasks, view = 'ca
     }
 
     // Status legend — written after data rows so it lands on existing rows 2..7.
-    CONFIG.STATUSES.forEach((st, idx) => {
-        const r = ws.getRow(2 + idx);
-        const cell = r.getCell(legendCol);
-        cell.value = st.name;
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(st.color) } };
-        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
-        cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
-        cell.border = {
-            top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
-            bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }
-        };
-    });
+    if (showLegend) {
+        CONFIG.STATUSES.forEach((st, idx) => {
+            const r = ws.getRow(2 + idx);
+            const cell = r.getCell(legendCol);
+            cell.value = st.name;
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toARGB(st.color) } };
+            cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+            cell.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FFE5E7EB' } },
+                bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }
+            };
+        });
+    }
 
     return wb;
 }
