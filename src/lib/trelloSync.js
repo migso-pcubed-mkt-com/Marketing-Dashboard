@@ -1118,15 +1118,42 @@ const _syncWithTrelloInner = async (board, mappingConfig, { readOnly = false } =
         // Remove from map (processed)
         trelloCardMap.delete(task.trelloCardId);
 
-        // Handle archived cards
-        if (card.closed) {
+        // Handle archived cards. Normally we pull the archive state from Trello,
+        // but if the local task has been modified AFTER the last successful sync
+        // (typically via an undo that restored a previously-deleted task), the
+        // user's intent is to resurrect the card — push un-archive to Trello
+        // instead of mirroring Trello's archived state locally.
+        const trelloTime0 = new Date(card.dateLastActivity).getTime();
+        const lastSyncTime0 = new Date(task.trelloLastModified || 0).getTime();
+        const localUpdateTime0 = new Date(task.updatedAt || 0).getTime();
+        const localIsFresher = localUpdateTime0 > lastSyncTime0 && localUpdateTime0 > trelloTime0;
+
+        if (card.closed && !(localIsFresher && !task.trelloArchived)) {
             if (!task.trelloArchived || task.status !== 'paused') {
                 updatedTasks[i] = { ...task, status: 'paused', trelloArchived: true, trelloLastModified: card.dateLastActivity };
                 result.updated++;
             }
             continue;
-        } else if (task.trelloArchived) {
-            // Card was unarchived on Trello — restore
+        }
+        if (card.closed && localIsFresher && !task.trelloArchived) {
+            // Undo restored a deleted task — push un-archive to Trello so both
+            // sides stay in sync. Fall through to the regular "local wins" push
+            // path below by updating the card's closed flag synthetically.
+            if (!readOnly) {
+                try {
+                    await updateTrelloCard(task.trelloCardId, { closed: 'false' });
+                    card.closed = false;
+                    result.pushed++;
+                } catch (err) {
+                    result.errors++;
+                    result.errorDetails.push({ name: task.title, error: err.message });
+                    continue;
+                }
+            } else {
+                continue;
+            }
+        } else if (!card.closed && task.trelloArchived) {
+            // Card was unarchived on Trello — restore locally
             updatedTasks[i] = { ...task, trelloArchived: false, status: task.status === 'paused' ? 'todo' : task.status };
             task = updatedTasks[i]; // Use updated task for further processing
             result.updated++;
@@ -2053,8 +2080,17 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
             continue;
         }
 
-        // Handle archived cards
-        if (card.closed) {
+        // Handle archived cards. Mirror the card-as-task behaviour: if the
+        // local action's updatedAt is fresher than both the last sync and the
+        // card's dateLastActivity, the user's intent (typically an undo that
+        // restored a deleted action) overrides Trello's closed state — push
+        // un-archive instead of mirroring the archive locally.
+        const trelloTimeA = new Date(card.dateLastActivity || 0).getTime();
+        const lastSyncTimeA = new Date(action.trelloLastModified || 0).getTime();
+        const localUpdateTimeA = new Date(action.updatedAt || 0).getTime();
+        const actionLocalFresher = localUpdateTimeA > lastSyncTimeA && localUpdateTimeA > trelloTimeA;
+
+        if (card.closed && !(actionLocalFresher && !action.trelloArchived)) {
             // Card archived on Trello — pause action AND all its tasks
             updatedActions[i] = { ...action, status: 'paused', trelloArchived: true };
             for (let j = 0; j < updatedTasks.length; j++) {
@@ -2065,6 +2101,22 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 }
             }
             continue;
+        }
+        if (card.closed && actionLocalFresher && !action.trelloArchived) {
+            // Undo-restored action — push un-archive to Trello.
+            if (!readOnly) {
+                try {
+                    await updateTrelloCard(action.trelloCardId, { closed: 'false' });
+                    card.closed = false;
+                    result.pushed++;
+                } catch (err) {
+                    result.errors++;
+                    result.errorDetails.push({ name: action.name, error: err.message });
+                    continue;
+                }
+            } else {
+                continue;
+            }
         }
 
         // Handle unarchived cards (card was archived, now restored)

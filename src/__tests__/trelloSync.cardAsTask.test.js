@@ -279,6 +279,41 @@ describe('syncWithTrello — card-as-task', () => {
     });
 
     // ════════════════════════════════════════════════════════
+    // Undo of a delete restores the task — we must push un-archive
+    // ════════════════════════════════════════════════════════
+    it('pushes un-archive to Trello when an undo restored a locally-deleted task (local fresher than Trello)', async () => {
+        updateTrelloCard.mockClear();
+        const board = makeBoard({
+            categories: [{ id: 'c1', trelloListId: 'list-1' }],
+            actions: [{ id: 'a1', categoryId: 'c1', isDefault: true }],
+            tasks: [{
+                id: 't1', title: 'Restored', actionId: 'a1', status: 'todo',
+                trelloCardId: 'card-1',
+                // Simulating post-undo state: updatedAt bumped fresh; trelloLastModified
+                // still reflects the pre-archive sync; Trello card is closed (archived).
+                trelloLastModified: T.OLD, updatedAt: T.NEWER,
+                trelloArchived: false,
+                dueDate: '2026-03-31', startDate: '2026-03-01', month: 2,
+                description: '', checklists: [], comments: [], attachments: [],
+                channels: [], countries: [], assignees: [], otherLabels: [], order: 0
+            }]
+        });
+        fetchTrelloBoardFull.mockResolvedValue(makeTrelloResponse({
+            lists: [makeList()],
+            cards: [makeCard({ id: 'card-1', closed: true, dateLastActivity: T.MID })]
+        }));
+
+        const { board: synced } = await syncWithTrello(board, { labelMappings: {} });
+
+        // Local state should NOT revert to paused/archived — undo wins.
+        expect(synced.tasks[0].status).toBe('todo');
+        expect(synced.tasks[0].trelloArchived).toBeFalsy();
+        // And we must have pushed closed=false to Trello so both sides agree.
+        const unarchiveCall = updateTrelloCard.mock.calls.find(c => c[0] === 'card-1' && c[1]?.closed === 'false');
+        expect(unarchiveCall).toBeDefined();
+    });
+
+    // ════════════════════════════════════════════════════════
     // Card unarchived on Trello → task restored
     // ════════════════════════════════════════════════════════
     it('restores task when previously archived card is unarchived', async () => {
