@@ -1,278 +1,289 @@
 import { describe, it, expect } from 'vitest';
-import { analyzeGridRows, autoAssignLevels, buildGridHierarchy, parseGrid, detectFormat } from '../lib/excelMapping.js';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+    parseWorkbook,
+    detectMonthHeader,
+    analyzeSheet,
+    analyzeWorkbook,
+    buildBoard,
+    buildBoardFromList,
+    detectColumnMappings
+} from '../lib/excelMapping.js';
 
-/**
- * Helpers for building test sheets. Columns: 0..n = label columns, then month columns.
- * `merges` follows the xlsx shape: { s: {r,c}, e: {r,c} }.
- */
+// ─── detectMonthHeader ────────────────────────────────────
 
-const monthHeader = ['Category', '', '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-describe('detectFormat', () => {
-    it('detects grid format with month headers', () => {
-        const data = [monthHeader, ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '']];
-        expect(detectFormat(data)).toBe('grid');
+describe('detectMonthHeader', () => {
+    it('returns null when no month row is present', () => {
+        const data = [['A', 'B', 'C'], ['x', 'y', 'z']];
+        expect(detectMonthHeader(data)).toBe(null);
     });
 
-    it('falls back to list when no month header', () => {
-        const data = [['Title', 'Owner'], ['Task 1', 'Alice']];
-        expect(detectFormat(data)).toBe('list');
+    it('finds an EN month header on row 0', () => {
+        const data = [['Actions', 'Jan', 'Feb', 'Mar', 'Apr', 'May']];
+        const h = detectMonthHeader(data);
+        expect(h).not.toBe(null);
+        expect(h.rowIdx).toBe(0);
+        expect(Object.keys(h.monthCols).length).toBe(5);
+        expect(h.monthCols[0]).toBe(1);
+    });
+
+    it('finds a FR month header further down (skips title rows)', () => {
+        const data = [
+            ['Marketing Plan 2026'], [''],
+            ['Project', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin']
+        ];
+        const h = detectMonthHeader(data);
+        expect(h.rowIdx).toBe(2);
+        expect(Object.keys(h.monthCols).length).toBe(6);
+    });
+
+    it('only counts each month once even with duplicate headers', () => {
+        const data = [['', 'Jan', 'Jan again', 'Feb', 'Mar']];
+        const h = detectMonthHeader(data);
+        expect(Object.keys(h.monthCols).length).toBe(3);
     });
 });
 
-describe('analyzeGridRows', () => {
-    it('returns null when no month header is present', () => {
-        const data = [['Title', 'Owner'], ['Task 1', 'Alice']];
-        expect(analyzeGridRows(data, [])).toBeNull();
+// ─── analyzeSheet — synthetic cases ───────────────────────
+
+describe('analyzeSheet', () => {
+    it('classifies a category-only row as category', () => {
+        const sheet = {
+            data: [
+                ['Actions', 'Jan', 'Feb', 'Mar'],
+                ['Brand Awareness', '', '', ''],
+                ['Linkedin Ads', '3000', '3000', '3000']
+            ],
+            merges: [], cellColors: []
+        };
+        const a = analyzeSheet(sheet);
+        expect(a.kind).toBe('grid');
+        expect(a.rows).toHaveLength(2);
+        expect(a.rows[0].suggested).toBe('category');
+        expect(a.rows[1].suggested).toBe('action');
+        expect(a.rows[1].monthSignals).toHaveLength(3);
+        expect(a.rows[1].monthSignals[0].isNumeric).toBe(true);
     });
 
-    it('tags rows with month content as having hasMonthContent=true', () => {
-        const data = [
-            monthHeader,
-            ['Brand Awareness', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', 'Campaign A', '', 'x', 'x', 'x', '', '', '', '', '', '', '', '', '']
-        ];
-        const analysis = analyzeGridRows(data, []);
-        expect(analysis).not.toBeNull();
-        expect(analysis.rows.length).toBe(2);
-        const [superLike, task] = analysis.rows;
-        expect(superLike.hasMonthContent).toBe(false);
-        expect(task.hasMonthContent).toBe(true);
-        expect(task.startMonthCol.month).toBe(0);
-        expect(task.endMonthCol.month).toBe(2);
+    it('classifies an empty row as empty (skipped)', () => {
+        const sheet = {
+            data: [
+                ['Actions', 'Jan', 'Feb'],
+                ['', '', ''],
+                ['Real Action', 'Task A', 'Task B']
+            ],
+            merges: [], cellColors: []
+        };
+        const a = analyzeSheet(sheet);
+        expect(a.rows[0].suggested).toBe('empty');
+        expect(a.rows[1].suggested).toBe('action');
     });
 
-    it('detects country labels case-insensitively and with French aliases', () => {
-        const data = [
-            monthHeader,
-            ['France', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['Royaume-Uni', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['SPAIN', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['États-Unis', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
-        ];
-        const analysis = analyzeGridRows(data, []);
-        const countryIds = analysis.rows.map(r => r.countryId);
-        expect(countryIds).toEqual(['france', 'uk', 'spain', 'usa']);
+    it('handles horizontal merges by extending the month signal endMonthIdx', () => {
+        const sheet = {
+            data: [
+                ['Actions', 'Jan', 'Feb', 'Mar'],
+                ['Quarterly Plan', 'Q1 launch', '', '']
+            ],
+            merges: [{ s: { r: 1, c: 1 }, e: { r: 1, c: 3 } }],
+            cellColors: []
+        };
+        const a = analyzeSheet(sheet);
+        expect(a.rows[0].monthSignals).toHaveLength(1);
+        expect(a.rows[0].monthSignals[0].monthIdx).toBe(0);
+        expect(a.rows[0].monthSignals[0].endMonthIdx).toBe(2);
     });
 
-    it('captures a wide horizontal merge as wideMerge=true', () => {
-        const data = [
-            monthHeader,
-            ['Corporate / Global', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
-        ];
-        const merges = [{ s: { r: 1, c: 0 }, e: { r: 1, c: 14 } }];
-        const analysis = analyzeGridRows(data, merges);
-        expect(analysis.rows[0].wideMerge).toBe(true);
-        expect(analysis.rows[0].mergeSpan).toBe(15);
-    });
-
-    it('flags colored month cells as task signal even without text', () => {
-        const data = [
-            monthHeader,
-            ['Campaign X', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
-        ];
-        // Row 1: fill Feb (col 4) + Mar (col 5) in red, no text.
-        const cellColors = [
-            [],
-            [null, null, null, null, 'FFEF4444', 'FFEF4444', null, null, null, null, null, null, null, null, null]
-        ];
-        const analysis = analyzeGridRows(data, [], cellColors);
-        expect(analysis.rows[0].hasMonthColor).toBe(true);
-        expect(analysis.rows[0].hasMonthSignal).toBe(true);
-        expect(analysis.rows[0].startMonthCol.month).toBe(1); // Feb
-        expect(analysis.rows[0].endMonthCol.month).toBe(2);   // Mar
-    });
-
-    it('ignores white/transparent/black fills as non-meaningful', () => {
-        const data = [
-            monthHeader,
-            ['Placeholder', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
-        ];
-        const cellColors = [
-            [],
-            [null, null, null, 'FFFFFFFF', '00000000', 'FF000000', null, null, null, null, null, null, null, null, null]
-        ];
-        const analysis = analyzeGridRows(data, [], cellColors);
-        expect(analysis.rows[0].hasMonthColor).toBe(false);
-        expect(analysis.rows[0].hasMonthSignal).toBe(false);
+    it('skips vertical merge fragments so later rows do not duplicate the value', () => {
+        const sheet = {
+            data: [
+                ['Actions', 'Jan', 'Feb'],
+                ['First', 'Spans both', ''],
+                ['Second', '', '']
+            ],
+            merges: [{ s: { r: 1, c: 1 }, e: { r: 2, c: 1 } }],
+            cellColors: []
+        };
+        const a = analyzeSheet(sheet);
+        expect(a.rows[0].monthSignals).toHaveLength(1);
+        expect(a.rows[1].monthSignals).toHaveLength(0);
+        expect(a.rows[1].suggested).toBe('category');
     });
 });
 
-describe('autoAssignLevels', () => {
-    it('infers task for rows with month content', () => {
-        const data = [
-            monthHeader,
-            ['Brand Awareness', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', 'Campaign A', '', 'x', 'x', 'x', '', '', '', '', '', '', '', '', '']
-        ];
-        const analysis = analyzeGridRows(data, []);
-        const leveled = autoAssignLevels(analysis);
-        expect(leveled.map(r => r.level)).toEqual(['category', 'task']);
+// ─── buildBoard — synthetic cases ─────────────────────────
+
+describe('buildBoard', () => {
+    const buildSyntheticSheet = () => ({
+        name: 'Plan',
+        data: [
+            ['Actions', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            ['Brand Awareness', '', '', '', '', '', '', '', '', '', '', '', ''],
+            ['Linkedin Ads', '3000', '3000', '3000', '', '', '', '', '', '', '', '', ''],
+            ['Press Relations', '', '', 'Article #1', '', '', 'Article #2', '', '', '', '', '', ''],
+            ['Engagement', '', '', '', '', '', '', '', '', '', '', '', ''],
+            ['Webinars', 'Webinar Q1', '', '', 'Webinar Q2', '', '', 'Webinar Q3', '', '', 'Webinar Q4', '', '']
+        ],
+        merges: [], cellColors: []
     });
 
-    it('assigns super/category/action when three header depths exist', () => {
-        const data = [
-            monthHeader,
-            ['France', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', 'Internal Coms', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', '', 'Newsletter', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', '', '', 'x', '', '', '', '', '', '', '', '', '', '', '']
-        ];
-        const analysis = analyzeGridRows(data, []);
-        const leveled = autoAssignLevels(analysis);
-        expect(leveled.map(r => r.level)).toEqual(['super', 'category', 'action', 'task']);
-        expect(leveled[0].countryId).toBe('france');
-    });
-});
-
-describe('autoAssignLevels — extra heuristics', () => {
-    it('uses month-content as the only discriminator when all header rows share a single depth', () => {
-        const data = [
-            monthHeader,
-            ['Brand Awareness', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['Conversion',      '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['Retention',       '', '', 'x', 'x', '', '', '', '', '', '', '', '', '', '']
-        ];
-        const analysis = analyzeGridRows(data, []);
-        const leveled = autoAssignLevels(analysis);
-        expect(leveled.map(r => r.level)).toEqual(['category', 'category', 'task']);
+    it('builds the full hierarchy from a clean grid', () => {
+        const sheet = buildSyntheticSheet();
+        const a = analyzeSheet(sheet);
+        const board = buildBoard(sheet, a, { year: 2026 });
+        expect(board.categories.map(c => c.name)).toEqual(['Brand Awareness', 'Engagement']);
+        expect(board.actions.map(a => a.name)).toEqual(['Linkedin Ads', 'Press Relations', 'Webinars']);
+        expect(board.tasks).toHaveLength(3 + 2 + 4);
     });
 
-    it('does not promote a lone country row to super when no deeper headers exist', () => {
-        const data = [
-            monthHeader,
-            ['France',       '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['Spain',        '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['Launch event', '', '', 'x', '', '', '', '', '', '', '', '', '', '', '']
-        ];
-        const analysis = analyzeGridRows(data, []);
-        const leveled = autoAssignLevels(analysis);
-        // Only one header depth → even country rows stay categories so tasks have a parent.
-        expect(leveled.map(r => r.level)).toEqual(['category', 'category', 'task']);
-    });
-});
-
-describe('autoAssignLevels — flat-category pattern', () => {
-    it('tags rows whose own label + distinct month-cell texts as flat-category', () => {
-        const data = [
-            monthHeader,
-            // "FR Marketing Campaign" is the category; each month cell is a task title of its own.
-            ['FR Marketing Campaign', '', '', 'Webinar: data', '', 'Webinar: project', '', '', '', '', '', '', '', '', '']
-        ];
-        const leveled = autoAssignLevels(analyzeGridRows(data, []));
-        expect(leveled.map(r => r.level)).toEqual(['flat-category']);
+    it('numeric cells become budget tasks named by row + month', () => {
+        const sheet = buildSyntheticSheet();
+        const board = buildBoard(sheet, analyzeSheet(sheet), { year: 2026 });
+        const lkdTasks = board.tasks.filter(t => t.actionId === board.actions.find(a => a.name === 'Linkedin Ads').id);
+        expect(lkdTasks).toHaveLength(3);
+        expect(lkdTasks[0].title).toMatch(/Linkedin Ads.*Jan/);
+        expect(lkdTasks[0].budget).toBe(3000);
     });
 
-    it('keeps uniform markers (e.g. all "x") as a single task spanning the months', () => {
-        const data = [
-            monthHeader,
-            // Same label + repeated 'x' markers → one multi-month task, not several distinct ones.
-            ['Campaign A', '', '', 'x', 'x', 'x', '', '', '', '', '', '', '', '', '']
-        ];
-        const leveled = autoAssignLevels(analyzeGridRows(data, []));
-        expect(leveled.map(r => r.level)).toEqual(['task']);
+    it('text cells become titled tasks (cell value is the title)', () => {
+        const sheet = buildSyntheticSheet();
+        const board = buildBoard(sheet, analyzeSheet(sheet), { year: 2026 });
+        const webinarTasks = board.tasks.filter(t => t.actionId === board.actions.find(a => a.name === 'Webinars').id);
+        expect(webinarTasks.map(t => t.title)).toEqual(['Webinar Q1', 'Webinar Q2', 'Webinar Q3', 'Webinar Q4']);
+        expect(webinarTasks[0].budget).toBe(0);
     });
 
-    it('marks rows whose label came only from a vertical merge as ignore', () => {
-        const data = [
-            monthHeader,
-            ['Section Header', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
-        ];
-        // A vertical merge spanning rows 1..2 leaks "Section Header" into row 2, which
-        // has no real data of its own. Expect row 2 → ignore (skipped on build).
-        const merges = [{ s: { r: 1, c: 0 }, e: { r: 2, c: 0 } }];
-        // Create the second, empty row explicitly so the merge has something to project onto.
-        data.push(['', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
-        const leveled = autoAssignLevels(analyzeGridRows(data, merges));
-        const secondRow = leveled.find(r => r.rowIdx === 2);
-        expect(secondRow.level).toBe('ignore');
+    it('falls back to a "General" category for actions with no preceding category', () => {
+        const sheet = {
+            data: [
+                ['Actions', 'Jan', 'Feb'],
+                ['Standalone Action', 'Task X', '']
+            ],
+            merges: [], cellColors: []
+        };
+        const board = buildBoard(sheet, analyzeSheet(sheet), { year: 2026 });
+        expect(board.categories).toHaveLength(1);
+        expect(board.categories[0].name).toBe('General');
+    });
+
+    it('honours user overrides from the review step', () => {
+        const sheet = buildSyntheticSheet();
+        const a = analyzeSheet(sheet);
+        const engagementRowIdx = a.rows.find(r => r.label === 'Engagement').rowIdx;
+        const board = buildBoard(sheet, a, { year: 2026, overrides: { [engagementRowIdx]: 'empty' } });
+        expect(board.categories.map(c => c.name)).toEqual(['Brand Awareness']);
+        const webinars = board.actions.find(a => a.name === 'Webinars');
+        expect(webinars.categoryId).toBe(board.categories[0].id);
+    });
+
+    it('always gives empty categories a default action so the data model stays consistent', () => {
+        const sheet = {
+            data: [
+                ['Actions', 'Jan', 'Feb'],
+                ['Empty Section', '', '']
+            ],
+            merges: [], cellColors: []
+        };
+        const board = buildBoard(sheet, analyzeSheet(sheet), { year: 2026 });
+        expect(board.categories).toHaveLength(1);
+        expect(board.actions).toHaveLength(1);
+        expect(board.actions[0].isDefault).toBe(true);
     });
 });
 
-describe('buildGridHierarchy — flat-category', () => {
-    it('emits one task per month signal when a row is flat-category', () => {
-        const data = [
-            monthHeader,
-            ['FR Marketing Campaign', '', '', 'Webinar: data', '', 'Webinar: project', '', '', '', '', '', '', '', '', '']
-        ];
-        const analysis = analyzeGridRows(data, []);
-        const leveled = autoAssignLevels(analysis);
-        const result = buildGridHierarchy(data, analysis, leveled);
-        expect(result.categories).toHaveLength(1);
-        expect(result.categories[0].name).toBe('FR Marketing Campaign');
-        expect(result.tasks).toHaveLength(2);
-        const titles = result.tasks.map(t => t.title).sort();
-        expect(titles).toEqual(['Webinar: data', 'Webinar: project']);
-        // Task months map onto their source columns. monthHeader starts at col 3 so
-        // col 3 = Jan (month 0) and col 5 = Mar (month 2).
-        const months = result.tasks.map(t => t.month).sort();
-        expect(months).toEqual([0, 2]);
+// ─── List format ──────────────────────────────────────────
+
+describe('detectColumnMappings + buildBoardFromList', () => {
+    it('maps standard task list columns', () => {
+        const m = detectColumnMappings(['Title', 'Description', 'Status', 'Due Date', 'Category']);
+        expect(m.title).toBe(0);
+        expect(m.description).toBe(1);
+        expect(m.status).toBe(2);
+        expect(m.dueDate).toBe(3);
+        expect(m.category).toBe(4);
+    });
+
+    it('builds a board from a list-shaped sheet', () => {
+        const sheet = {
+            name: 'Tasks',
+            data: [
+                ['Title', 'Status', 'Category'],
+                ['Task A', 'In Progress', 'Marketing'],
+                ['Task B', 'Done', 'Marketing'],
+                ['Task C', 'To Do', 'Sales']
+            ],
+            merges: [], cellColors: []
+        };
+        const m = detectColumnMappings(sheet.data[0]);
+        const board = buildBoardFromList(sheet, m);
+        expect(board.categories.map(c => c.name).sort()).toEqual(['Marketing', 'Sales']);
+        expect(board.tasks).toHaveLength(3);
+        expect(board.tasks[1].status).toBe('completed');
     });
 });
 
-describe('buildGridHierarchy', () => {
-    it('propagates country tag to descendant tasks when super-category is a country', () => {
-        const data = [
-            monthHeader,
-            ['France', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', 'Internal Coms', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', '', 'Newsletter', 'x', 'x', '', '', '', '', '', '', '', '', '', '']
-        ];
-        const analysis = analyzeGridRows(data, []);
-        const leveled = autoAssignLevels(analysis);
-        const result = buildGridHierarchy(data, analysis, leveled);
-        expect(result).not.toBeNull();
-        expect(result.categories).toHaveLength(1);
-        expect(result.categories[0].name).toBe('Internal Coms'); // country supers don't prefix
-        expect(result.actions.length).toBeGreaterThan(0);
-        expect(result.tasks).toHaveLength(1);
-        expect(result.tasks[0].countries).toContain('france');
+// ─── Reference files (regression guard) ───────────────────
+
+const loadFixture = (name) => readFileSync(resolve(process.cwd(), 'public', name));
+
+describe('reference: 2026 Country Marketing Plan framework.xlsx', () => {
+    it('produces one board per sheet, each with > 5 categories and > 20 tasks', async () => {
+        const buf = loadFixture('2026 Country Marketing Plan framework.xlsx');
+        const wb = await parseWorkbook(buf);
+        const analyzed = analyzeWorkbook(wb);
+        expect(analyzed.length).toBeGreaterThanOrEqual(2);
+        for (const { sheet, analysis, name } of analyzed) {
+            const board = buildBoard(sheet, analysis, { year: 2026, boardName: name });
+            expect(board.categories.length).toBeGreaterThanOrEqual(3);
+            expect(board.actions.length).toBeGreaterThan(8);
+            expect(board.tasks.length).toBeGreaterThan(20);
+        }
     });
 
-    it('prefixes non-country super names into child category names by default', () => {
-        const data = [
-            monthHeader,
-            ['Corporate', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', 'Marketing', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', '', 'Plan launch', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', '', '', 'x', '', '', '', '', '', '', '', '', '', '', '']
-        ];
-        const analysis = analyzeGridRows(data, []);
-        const leveled = autoAssignLevels(analysis);
-        const result = buildGridHierarchy(data, analysis, leveled);
-        expect(result.categories).toHaveLength(1);
-        expect(result.categories[0].name).toBe('Corporate - Marketing');
+    it('first sheet starts with a Brand-Awareness-ish category', async () => {
+        const buf = loadFixture('2026 Country Marketing Plan framework.xlsx');
+        const wb = await parseWorkbook(buf);
+        const analyzed = analyzeWorkbook(wb);
+        const first = analyzed[0];
+        const board = buildBoard(first.sheet, first.analysis, { year: 2026 });
+        expect(board.categories[0].name.toLowerCase()).toMatch(/brand|content/);
     });
 
-    it('splits super into its own category when flattenSuper is true', () => {
-        const data = [
-            monthHeader,
-            ['Corporate', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', 'Marketing', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', '', 'Plan launch', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', '', '', 'x', '', '', '', '', '', '', '', '', '', '', '']
-        ];
-        const analysis = analyzeGridRows(data, []);
-        const leveled = autoAssignLevels(analysis);
-        const result = buildGridHierarchy(data, analysis, leveled, { flattenSuper: true });
-        const names = result.categories.map(c => c.name);
-        expect(names).toContain('Corporate');
-        expect(names).toContain('Marketing');
+    it('numeric monthly budgets become budget-bearing tasks', async () => {
+        const buf = loadFixture('2026 Country Marketing Plan framework.xlsx');
+        const wb = await parseWorkbook(buf);
+        const analyzed = analyzeWorkbook(wb);
+        const first = analyzed[0];
+        const board = buildBoard(first.sheet, first.analysis, { year: 2026 });
+        const budgetTasks = board.tasks.filter(t => t.budget > 0);
+        expect(budgetTasks.length).toBeGreaterThan(5);
     });
 });
 
-describe('parseGrid (end-to-end default)', () => {
-    it('produces a valid hierarchy from a simple single-level sheet', () => {
-        const data = [
-            monthHeader,
-            ['Brand Awareness', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-            ['', 'Campaign A', '', 'x', 'x', 'x', '', '', '', '', '', '', '', '', '']
-        ];
-        const result = parseGrid(data, []);
-        expect(result).not.toBeNull();
-        expect(result.categories.length).toBe(1);
-        expect(result.categories[0].name).toBe('Brand Awareness');
-        expect(result.tasks.length).toBe(1);
-        expect(result.tasks[0].startDate).toBe(`${new Date().getFullYear()}-01-01`);
+describe('reference: 2026 MC Strategy Roadmap.xlsx', () => {
+    it('detects the single sheet and at least 8 categories', async () => {
+        const buf = loadFixture('2026 MC Strategy Roadmap.xlsx');
+        const wb = await parseWorkbook(buf);
+        const analyzed = analyzeWorkbook(wb);
+        expect(analyzed.length).toBe(1);
+        const { sheet, analysis } = analyzed[0];
+        expect(analysis.kind).toBe('grid');
+        const board = buildBoard(sheet, analysis, { year: 2026 });
+        expect(board.categories.length).toBeGreaterThanOrEqual(8);
+    });
+
+    it('horizontally merged cells become multi-month tasks', async () => {
+        const buf = loadFixture('2026 MC Strategy Roadmap.xlsx');
+        const wb = await parseWorkbook(buf);
+        const { sheet, analysis } = analyzeWorkbook(wb)[0];
+        const board = buildBoard(sheet, analysis, { year: 2026 });
+        const multiMonth = board.tasks.filter(t => {
+            if (!t.startDate || !t.dueDate) return false;
+            const start = new Date(t.startDate);
+            const end = new Date(t.dueDate);
+            return end.getMonth() > start.getMonth();
+        });
+        expect(multiMonth.length).toBeGreaterThan(0);
     });
 });

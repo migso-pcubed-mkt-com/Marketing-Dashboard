@@ -1205,25 +1205,38 @@ const App = () => {
     }, []);
 
     // --- Excel import ---
-    const handleExcelImport = useCallback((previewData, boardName) => {
-        const newBoard = {
+    // Accepts either a single preview (legacy single-board form) or an array of
+    // pre-built boards. The modal's new multi-sheet path passes an array; old
+    // single-board callers still work via the first branch.
+    const handleExcelImport = useCallback((payload, boardNameMaybe) => {
+        const list = Array.isArray(payload) ? payload : [{
+            name: boardNameMaybe || 'Excel Import',
+            categories: payload.categories,
+            actions: payload.actions,
+            tasks: payload.tasks
+        }];
+
+        const now = new Date().toISOString();
+        const newBoards = list.map(b => ({
             id: `board-${crypto.randomUUID()}`,
-            name: boardName || 'Excel Import',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            categories: previewData.categories,
-            actions: previewData.actions,
-            tasks: previewData.tasks,
+            name: b.name || 'Excel Import',
+            createdAt: now,
+            updatedAt: now,
+            categories: b.categories || [],
+            actions: b.actions || [],
+            tasks: b.tasks || [],
             members: []
-        };
+        }));
+
         setBoardData(prev => ({
             ...prev,
-            currentBoardId: newBoard.id,
-            boards: [...prev.boards, newBoard]
+            currentBoardId: newBoards[newBoards.length - 1].id,
+            boards: [...prev.boards, ...newBoards]
         }));
-        setCurrentBoardId(newBoard.id);
+        setCurrentBoardId(newBoards[newBoards.length - 1].id);
         setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
-        showNotification(`✅ Imported "${boardName || 'Excel Import'}" from Excel`);
+        const verb = newBoards.length === 1 ? `Imported "${newBoards[0].name}"` : `Imported ${newBoards.length} boards`;
+        showNotification(`✅ ${verb} from Excel`);
     }, []);
 
     // --- Member management ---
