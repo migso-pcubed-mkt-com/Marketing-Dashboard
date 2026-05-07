@@ -110,6 +110,43 @@ describe('analyzeSheet', () => {
         expect(a.rows[1].monthSignals).toHaveLength(0);
         expect(a.rows[1].suggested).toBe('category');
     });
+
+    it('treats coloured cells with no text as task signals', () => {
+        const sheet = {
+            data: [
+                ['Actions', 'Jan', 'Feb', 'Mar'],
+                ['Highlight row', '', '', '']
+            ],
+            merges: [],
+            // Header has no colour, then row 1 has Feb (col 2) coloured.
+            cellColors: [
+                [null, null, null, null],
+                [null, null, 'FFFF8800', null]
+            ]
+        };
+        const a = analyzeSheet(sheet);
+        expect(a.rows[0].monthSignals).toHaveLength(1);
+        expect(a.rows[0].monthSignals[0].monthIdx).toBe(1);
+        expect(a.rows[0].monthSignals[0].hasColorOnly).toBe(true);
+        expect(a.rows[0].suggested).toBe('action');
+    });
+
+    it('ignores neutral fills (white, transparent, pure black) on otherwise empty cells', () => {
+        const sheet = {
+            data: [
+                ['Actions', 'Jan', 'Feb'],
+                ['Just a label', '', '']
+            ],
+            merges: [],
+            cellColors: [
+                [null, null, null],
+                [null, 'FFFFFFFF', '00000000']
+            ]
+        };
+        const a = analyzeSheet(sheet);
+        expect(a.rows[0].monthSignals).toHaveLength(0);
+        expect(a.rows[0].suggested).toBe('category');
+    });
 });
 
 // ─── buildBoard — synthetic cases ─────────────────────────
