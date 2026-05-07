@@ -116,132 +116,121 @@ export async function exportTimelinePPT(categories, actions, tasks, year, boardN
     const gridRight = SLIDE_W - MARGIN;
     const labelW = 2.0;
     const monthW = (gridRight - gridLeft - labelW) / 12;
+    const tableW = gridRight - gridLeft;
 
-    // Month header row
-    const headerH = 0.32;
-    slide.addShape(pptx.ShapeType.rect, {
-        x: gridLeft, y: gridTop, w: labelW, h: headerH,
-        fill: { color: '1F2937' }, line: { color: 'E5E7EB', width: 0.5 }
-    });
-    slide.addText('Actions', {
-        x: gridLeft, y: gridTop, w: labelW, h: headerH,
-        fontSize: 10, bold: true, color: 'FFFFFF', align: 'left',
-        fontFace: 'Calibri', valign: 'middle', margin: [0, 0, 0, 6]
-    });
-    CONFIG.MONTHS.forEach((m, i) => {
-        const x = gridLeft + labelW + i * monthW;
-        slide.addShape(pptx.ShapeType.rect, {
-            x, y: gridTop, w: monthW, h: headerH,
-            fill: { color: 'F3F4F6' }, line: { color: 'E5E7EB', width: 0.5 }
-        });
-        slide.addText(m, {
-            x, y: gridTop, w: monthW, h: headerH,
-            fontSize: 10, bold: true, color: '374151', align: 'center',
-            fontFace: 'Calibri', valign: 'middle'
-        });
-    });
-
-    // Plan rows & compute dynamic row height to fit on one slide.
+    // Plan data rows first so we can size the table to fit exactly.
     const rows = buildTimelineRows(categories, actions, tasks);
     if (rows.length === 0) {
         slide.addText('No data to display', {
-            x: gridLeft, y: gridTop + headerH + 0.2, w: gridRight - gridLeft, h: 0.3,
+            x: gridLeft, y: gridTop + 0.2, w: tableW, h: 0.3,
             fontSize: 11, color: '6B7280', align: 'center', italic: true
         });
         return pptx.writeFile({ fileName: `timeline-${sanitize(boardName)}-${year}.pptx` });
     }
+
+    const headerH = 0.32;
     const availableH = gridBottom - gridTop - headerH;
     const rowH = Math.max(0.14, Math.min(0.32, availableH / rows.length));
+    const fontSize = Math.min(10, Math.max(6, rowH * 28));
 
-    let y = gridTop + headerH;
+    // Build the table rows. Single source of truth — no manual shape-per-cell.
+    const colW = [labelW, ...Array(12).fill(monthW)];
+    const borderThin = { type: 'solid', color: 'E5E7EB', pt: 0.5 };
+    const headerCellOpts = { bold: true, color: 'FFFFFF', fill: { color: '1F2937' }, valign: 'middle', fontSize: 10, fontFace: 'Calibri', border: borderThin };
+    const monthHeaderOpts = { bold: true, color: '374151', fill: { color: 'F3F4F6' }, valign: 'middle', align: 'center', fontSize: 10, fontFace: 'Calibri', border: borderThin };
+
+    const tableRows = [];
+    tableRows.push([
+        { text: 'Actions', options: { ...headerCellOpts, align: 'left' } },
+        ...CONFIG.MONTHS.map(m => ({ text: m, options: monthHeaderOpts }))
+    ]);
+
+    // Remember each data row's index so we can compute its Y when overlaying bars.
+    const dataRowYOffsets = []; // absolute Y of the top of each data row (index matches rows[])
+    let cursorY = gridTop + headerH;
+
     for (const row of rows) {
+        dataRowYOffsets.push(cursorY);
         if (row.type === 'category') {
             const color = toHex(row.category.color);
-            slide.addShape(pptx.ShapeType.rect, {
-                x: gridLeft, y, w: gridRight - gridLeft, h: rowH,
+            const catOpts = {
+                bold: true,
+                color: contrastText(color),
                 fill: { color },
-                line: { color: 'FFFFFF', width: 0.5 }
-            });
-            slide.addText(row.category.name.toUpperCase(), {
-                x: gridLeft + 0.08, y, w: gridRight - gridLeft - 0.16, h: rowH,
-                fontSize: Math.min(10, Math.max(7, rowH * 30)),
-                bold: true, color: contrastText(color),
-                fontFace: 'Calibri', valign: 'middle', align: 'left'
-            });
+                valign: 'middle',
+                align: 'left',
+                fontSize,
+                fontFace: 'Calibri',
+                border: { type: 'solid', color: 'FFFFFF', pt: 0.5 },
+                colspan: 13
+            };
+            tableRows.push([{ text: row.category.name.toUpperCase(), options: catOpts }]);
         } else if (row.type === 'action') {
-            slide.addShape(pptx.ShapeType.rect, {
-                x: gridLeft, y, w: gridRight - gridLeft, h: rowH,
-                fill: { color: 'F9FAFB' }, line: { color: 'E5E7EB', width: 0.3 }
-            });
-            slide.addText(row.action.name, {
-                x: gridLeft + 0.1, y, w: labelW - 0.1, h: rowH,
-                fontSize: Math.min(9, Math.max(6, rowH * 28)),
-                bold: true, color: '1F2937', italic: false,
-                fontFace: 'Calibri', valign: 'middle', align: 'left'
-            });
+            const actionCell = { text: row.action.name, options: { bold: true, color: '1F2937', fill: { color: 'F9FAFB' }, valign: 'middle', align: 'left', fontSize, fontFace: 'Calibri', border: borderThin, margin: 0.05 } };
+            const emptyMonth = { text: '', options: { fill: { color: 'F9FAFB' }, border: borderThin } };
+            tableRows.push([actionCell, ...Array(12).fill(emptyMonth)]);
         } else {
-            // task
-            slide.addShape(pptx.ShapeType.rect, {
-                x: gridLeft, y, w: labelW, h: rowH,
-                fill: { color: 'FFFFFF' }, line: { color: 'E5E7EB', width: 0.3 }
-            });
-            // Month grid cells
-            for (let i = 0; i < 12; i++) {
-                slide.addShape(pptx.ShapeType.rect, {
-                    x: gridLeft + labelW + i * monthW, y, w: monthW, h: rowH,
-                    fill: { color: 'FFFFFF' }, line: { color: 'F3F4F6', width: 0.3 }
-                });
-            }
-
-            const task = row.task;
-            if (task.startDate && task.dueDate) {
-                const start = clampToYear(task.startDate, year, null);
-                const end = clampToYear(task.dueDate, year, null);
-                if (start && end) {
-                    const u1 = dateToGridUnit(start, year);
-                    // Due date is inclusive — add 1 day for visual span.
-                    const endPlus = new Date(end);
-                    endPlus.setDate(endPlus.getDate() + 1);
-                    const u2Raw = dateToGridUnit(endPlus, year);
-                    const u2 = Math.min(12, u2Raw);
-                    if (u2 > u1) {
-                        const barX = gridLeft + labelW + u1 * monthW + 0.02;
-                        const barW = Math.max(0.15, (u2 - u1) * monthW - 0.04);
-                        const barY = y + rowH * 0.15;
-                        const barH = rowH * 0.7;
-                        const isDone = task.status === 'completed';
-                        const baseColor = toHex(statusColor(task.status));
-                        const fillColor = isDone ? lighten(baseColor, 0.55) : baseColor;
-                        const textColor = isDone ? '4B5563' : contrastText(fillColor);
-
-                        slide.addShape(pptx.ShapeType.roundRect, {
-                            x: barX, y: barY, w: barW, h: barH,
-                            fill: { color: fillColor },
-                            line: { color: fillColor, width: 0.5 },
-                            rectRadius: 0.04
-                        });
-                        const titleText = row.indentAction ? `  ${task.title}` : task.title;
-                        slide.addText(titleText, {
-                            x: barX + 0.03, y: barY, w: Math.max(0.05, barW - 0.06), h: barH,
-                            fontSize: Math.min(9, Math.max(6, barH * 30)),
-                            color: textColor, fontFace: 'Calibri',
-                            valign: 'middle', align: 'left',
-                            strike: isDone
-                        });
-                    }
-                }
-            } else {
-                // Task without dates — just show the title in the label column.
-                slide.addText(task.title, {
-                    x: gridLeft + (row.indentAction ? 0.25 : 0.1), y,
-                    w: labelW - (row.indentAction ? 0.3 : 0.15), h: rowH,
-                    fontSize: Math.min(8, Math.max(6, rowH * 26)),
-                    color: '6B7280', fontFace: 'Calibri',
-                    valign: 'middle', align: 'left', italic: true
-                });
-            }
+            // task row: empty grid cells — the bar shape is drawn on top afterwards.
+            const labelCell = { text: row.task.startDate && row.task.dueDate ? '' : (row.indentAction ? `  ${row.task.title}` : row.task.title),
+                options: { fill: { color: 'FFFFFF' }, valign: 'middle', align: 'left', fontSize: Math.min(fontSize, 8), color: '6B7280', fontFace: 'Calibri', italic: !row.task.startDate, border: borderThin, margin: 0.05 } };
+            const emptyCell = { text: '', options: { fill: { color: 'FFFFFF' }, border: { type: 'solid', color: 'F3F4F6', pt: 0.3 } } };
+            tableRows.push([labelCell, ...Array(12).fill(emptyCell)]);
         }
-        y += rowH;
+        cursorY += rowH;
+    }
+
+    slide.addTable(tableRows, {
+        x: gridLeft,
+        y: gridTop,
+        w: tableW,
+        colW,
+        rowH: [headerH, ...Array(rows.length).fill(rowH)],
+        fontFace: 'Calibri',
+        fontSize,
+        border: borderThin
+    });
+
+    // Overlay task bars as native roundRect shapes on top of the table — same
+    // editable primitive as before, but with far fewer shapes (1 per task vs
+    // 13 rects + text per task in the previous implementation).
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.type !== 'task') continue;
+        const task = row.task;
+        if (!task.startDate || !task.dueDate) continue;
+        const start = clampToYear(task.startDate, year, null);
+        const end = clampToYear(task.dueDate, year, null);
+        if (!start || !end) continue;
+
+        const u1 = dateToGridUnit(start, year);
+        const endPlus = new Date(end);
+        endPlus.setDate(endPlus.getDate() + 1);
+        const u2 = Math.min(12, dateToGridUnit(endPlus, year));
+        if (u2 <= u1) continue;
+
+        const barX = gridLeft + labelW + u1 * monthW + 0.02;
+        const barW = Math.max(0.15, (u2 - u1) * monthW - 0.04);
+        const rowY = dataRowYOffsets[i];
+        const barY = rowY + rowH * 0.15;
+        const barH = rowH * 0.7;
+        const isDone = task.status === 'completed';
+        const baseColor = toHex(statusColor(task.status));
+        const fillColor = isDone ? lighten(baseColor, 0.55) : baseColor;
+        const textColor = isDone ? '4B5563' : contrastText(fillColor);
+
+        slide.addShape(pptx.ShapeType.roundRect, {
+            x: barX, y: barY, w: barW, h: barH,
+            fill: { color: fillColor },
+            line: { color: fillColor, width: 0.5 },
+            rectRadius: 0.04
+        });
+        slide.addText(row.indentAction ? `  ${task.title}` : task.title, {
+            x: barX + 0.03, y: barY, w: Math.max(0.05, barW - 0.06), h: barH,
+            fontSize: Math.min(9, Math.max(6, barH * 30)),
+            color: textColor, fontFace: 'Calibri',
+            valign: 'middle', align: 'left',
+            strike: isDone
+        });
     }
 
     return pptx.writeFile({ fileName: `timeline-${sanitize(boardName)}-${year}.pptx` });
@@ -410,7 +399,9 @@ function renderTaskCard(pptx, slide, task, x, y, w, h) {
 }
 
 function renderActionCard(pptx, slide, action, tasks, x, y, w, h) {
-    // Action grouping card: bold action name + inline task count.
+    // Action grouping card: bold action name + inline task list (matches the
+    // Excel Kanban card-as-action layout — action name bold, nested tasks
+    // regular weight with strike on completed). Footer shows done/total.
     slide.addShape(pptx.ShapeType.roundRect, {
         x, y, w, h,
         fill: { color: 'F9FAFB' },
@@ -419,16 +410,47 @@ function renderActionCard(pptx, slide, action, tasks, x, y, w, h) {
     });
     const padL = 0.1;
     const padR = 0.1;
+    const titleH = Math.min(0.28, h * 0.35);
+    const footerH = 0.18;
     slide.addText(action.name || '(action)', {
-        x: x + padL, y: y + 0.04, w: w - padL - padR, h: Math.min(0.3, h * 0.5),
+        x: x + padL, y: y + 0.04, w: w - padL - padR, h: titleH,
         fontSize: Math.min(10, Math.max(7, h * 18)),
         bold: true, color: '111827', fontFace: 'Calibri', valign: 'top', align: 'left'
     });
-    if (tasks.length > 0 && h > 0.35) {
+
+    // Task list — render inline, truncated to fit the card. Each task appears
+    // as a bullet with strike-through when completed. Overflow collapses into
+    // a "+ N more" line so cards with many tasks still fit.
+    const listTop = y + titleH + 0.05;
+    const listBottom = y + h - footerH - 0.04;
+    const listH = Math.max(0, listBottom - listTop);
+    const taskFontSize = 7;
+    const lineH = 0.14;
+    const maxLines = Math.max(0, Math.floor(listH / lineH));
+    if (maxLines > 0 && tasks.length > 0) {
+        const visibleCount = tasks.length > maxLines ? maxLines - 1 : tasks.length;
+        const segs = [];
+        for (let i = 0; i < visibleCount; i++) {
+            const t = tasks[i];
+            const isDone = t.status === 'completed';
+            segs.push({ text: `• ${t.title || '(untitled)'}\n`, options: { fontSize: taskFontSize, color: isDone ? '9CA3AF' : '374151', strike: isDone, fontFace: 'Calibri' } });
+        }
+        if (tasks.length > visibleCount) {
+            segs.push({ text: `+ ${tasks.length - visibleCount} more\n`, options: { fontSize: taskFontSize, color: '9CA3AF', italic: true, fontFace: 'Calibri' } });
+        }
+        if (segs.length > 0) {
+            slide.addText(segs, {
+                x: x + padL + 0.05, y: listTop, w: w - padL - padR - 0.05, h: listH,
+                valign: 'top', align: 'left', margin: 0
+            });
+        }
+    }
+
+    if (tasks.length > 0) {
         const done = tasks.filter(t => t.status === 'completed').length;
         slide.addText(`${done}/${tasks.length} tasks`, {
-            x: x + padL, y: y + h - 0.22, w: w - padL - padR, h: 0.18,
-            fontSize: 7, color: '6B7280', fontFace: 'Calibri', valign: 'middle', align: 'left'
+            x: x + padL, y: y + h - footerH - 0.02, w: w - padL - padR, h: footerH,
+            fontSize: 7, color: '6B7280', fontFace: 'Calibri', valign: 'middle', align: 'left', bold: true
         });
     }
 }

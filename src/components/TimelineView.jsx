@@ -741,12 +741,16 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         e.preventDefault();
         e.stopPropagation();
 
-        // Measure how far the user dragged vertically from the grab point. > VERTICAL_PIN_THRESHOLD px
-        // means they intentionally changed row → pin to the lane under the cursor. ≤ threshold means
-        // a mostly-horizontal drag → keep existing swimLane so auto-placement isn't disturbed.
+        // Measure the gesture in both axes. Vertical delta > VERTICAL_PIN_THRESHOLD
+        // pins to the lane under the cursor. Horizontal delta < HORIZONTAL_NOOP_THRESHOLD
+        // means the user didn't intend to reschedule → keep the original dates so a
+        // clean vertical drag doesn't drift the task's timeline (drag DOWN bug).
         const VERTICAL_PIN_THRESHOLD=8;
+        const HORIZONTAL_NOOP_THRESHOLD=10;
         const deltaY=dragging?.startY!=null?Math.abs(e.clientY-dragging.startY):0;
+        const deltaX=dragging?.startX!=null?Math.abs(e.clientX-dragging.startX):0;
         const verticallyMoved=deltaY>VERTICAL_PIN_THRESHOLD;
+        const horizontallyMoved=deltaX>HORIZONTAL_NOOP_THRESHOLD;
 
         cleanUpDragState();
 
@@ -768,16 +772,21 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             duration=Math.max(1,Math.ceil((oldEnd-oldStart)/(1000*60*60*24))+1);
         }
 
-        // Apply grab offset — same logic as preview for exact match
-        const adjustedX=absX-(dragging?.grabOffset||0);
-        const snapDate=p2d(adjustedX);
-
-        const endDate=new Date(snapDate);
-        endDate.setDate(endDate.getDate()+duration-1);
-
-        const fmt=(d)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-        const startDate=fmt(snapDate);
-        const dueDate=fmt(endDate);
+        // Dates: if the drag is almost purely vertical, preserve the original
+        // schedule. Otherwise snap to the cursor's X position like before.
+        let startDate,dueDate;
+        if(!horizontallyMoved&&draggedTask.startDate&&draggedTask.dueDate){
+            startDate=draggedTask.startDate;
+            dueDate=draggedTask.dueDate;
+        }else{
+            const adjustedX=absX-(dragging?.grabOffset||0);
+            const snapDate=p2d(adjustedX);
+            const endDate=new Date(snapDate);
+            endDate.setDate(endDate.getDate()+duration-1);
+            const fmt=(d)=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+            startDate=fmt(snapDate);
+            dueDate=fmt(endDate);
+        }
 
         // swimLane is a *preference*. When the user drops ON TOP of an existing
         // task that temporally overlaps the dragged task, we push the occupants
@@ -1061,9 +1070,13 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                             return (
                             <div key={category.id}>
                                 {boardGroup && (
+                                    // Board name overflows the 250px sticky label into the months zone on
+                                    // purpose: the next sibling (flex-1) shares the same background so the
+                                    // label reads correctly as one continuous banner, and the name stays
+                                    // fully visible — no ellipsis — regardless of length.
                                     <div className="timeline-board-group-row flex" style={{background:boardGroup.boardColor,color:'#fff',fontWeight:700,fontSize:13,letterSpacing:0.3,borderTop:'2px solid rgba(255,255,255,0.2)'}}>
-                                        <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-center" style={{background:boardGroup.boardColor,padding:'8px 12px',minWidth:0}}>
-                                            <span title={boardGroup.boardName} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',display:'block',width:'100%'}}>{boardGroup.boardName}</span>
+                                        <div className="w-[250px] flex-shrink-0 sticky left-0 z-30 flex items-center" style={{background:boardGroup.boardColor,padding:'8px 12px',overflow:'visible'}}>
+                                            <span title={boardGroup.boardName} style={{whiteSpace:'nowrap'}}>{boardGroup.boardName}</span>
                                         </div>
                                         <div className="flex-1" style={{background:boardGroup.boardColor}}/>
                                     </div>

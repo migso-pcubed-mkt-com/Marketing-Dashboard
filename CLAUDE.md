@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-05-07 (visibilitychange = Realtime catch-up — fetchServerState on tab-visible to defeat browser background throttling)
+> Last updated: 2026-05-07 (Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs, 2-pass OCC + visibilitychange Realtime catch-up)
 
 ---
 
@@ -63,7 +63,7 @@ Marketing Project Tracker for MIGSO-PCUBED. Single-page React app managing **Cat
 - **React 18** + **Vite 5** (ES Modules, no CDN/Babel/UMD)
 - **Tailwind CSS 3** via PostCSS (not CDN)
 - **Supabase JS SDK** (`@supabase/supabase-js`)
-- **Vitest** for unit tests (587 tests across 21 files)
+- **Vitest** for unit tests (589 tests across 21 files)
 - **TypeScript 6** progressive (`strict:false`, `allowJs:true`, `noEmit:true`) — 4 files migrated so far
 - **ESLint 8** (`.eslintrc.cjs`) — 25 warnings remaining (unused vars)
 - **@tanstack/react-virtual** for Kanban column virtualization
@@ -501,6 +501,12 @@ The callback logic lives in `public/trello-callback.js`, referenced by `public/t
 
 ### useUndoRedo — restored state must push back to Trello
 `undo` / `redo` / `jumpTo` route through `restoreSnapshot(current, snapshot)` (exported from `useUndoRedo.js`). It diffs current vs snapshot by id for categories/actions/tasks, and bumps `updatedAt: now` (+ `orderUpdatedAt` when order changed) on every entity whose sync-visible fields differ. Without this, the snapshot's ancient `updatedAt` would lose last-write-wins against `trelloLastModified` (set by the last push) → next sync pulls from Trello → the undo is silently reverted. Entities deleted by the undo but still live on Trello (e.g. user undoes a card creation) are queued on `board.trelloSync._pendingUndoDeletes` as `[{ cards, lists, checkItems, at }]`. `flushPendingUndoDeletes` in `trelloSync.js` runs at the start of `_syncWithTrelloInner`, archives cards/lists + deletes checklist items, then folds the IDs into `_recentlyDeletedCardIds`/`_recentlyDeletedListIds` so the pull phase doesn't re-import them. Read-only mode skips the actual API calls. Do NOT restore the snapshot via a plain `setBoardData(restored)` — always diff against the current state via the functional setter form.
+
+### Undo-restored deletions must push un-archive to Trello
+When `handleDeleteTask` / `handleDeleteAction` archive a Trello card (`closed: true`) and the user then undoes the deletion, the restored local entity has fresh `updatedAt` but its linked Trello card is still `closed: true`. The sync's archive-pull branches (`syncWithTrelloCardAsTask` around the `if (card.closed)` block and `syncWithTrelloCardAsAction` around the matching block) compare `task/action.updatedAt` to `trelloLastModified` and `card.dateLastActivity`: when the local side is fresher than both, they push `{ closed: 'false' }` via `updateTrelloCard` and fall through to the normal "local wins" push path. Without this, the next sync overwrites the undo by re-marking the entity as archived/paused locally. `result.pushed` is incremented on the unarchive call; errors on the unarchive are surfaced via `result.errorDetails` and the iteration `continue`s so we don't also try to push stale local data for a card we failed to unarchive.
+
+### Sync / interaction watchdogs — auto-reset stuck refs
+`App.jsx` runs two watchdog effects: (a) if `trelloSyncStatus === 'syncing'` persists > 45 s, it force-resets to `'idle'` — covers any error path that forgets to clear the status and prevents the orange Trello dot from spinning forever. (b) If `isUserInteractingRef.current` stays true for > 60 s (Kanban/Timeline drag interrupted without a matching dragEnd — popup, window blur, browser cancel), the interval clears it so auto-save can resume. Polling-based reset — the watchdog fires every 15 s, requires two consecutive "still stuck" ticks before acting.
 
 ### useUndoRedo — restoreSnapshot must strip _trelloBaseline + _inherit* on changed entities
 Just bumping `updatedAt` is not enough to make the undo survive the next Trello sync. `buildSelective*Update` (in `trelloSync.js`) compares the entity against `_trelloBaseline` and only pushes fields that differ — the snapshot carries the **pre-edit** baseline, which after restore matches the restored (also pre-edit) values → diff looks empty → nothing gets pushed → Trello keeps the post-edit state and the undo silently reverts at the next sync. `restoreSnapshot` (`src/hooks/useUndoRedo.js`) calls a `stripBaselines` helper on every task/action whose `SYNC_FIELDS_*` diverge from current — deletes `_trelloBaseline`, `_inheritChannels`, `_inheritCountries`, `_inheritOtherLabels`. Missing baseline triggers the "no baseline → full update" fallback, pushing the restored state completely. Do NOT add new baseline fields without extending `stripBaselines`.

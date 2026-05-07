@@ -10,7 +10,8 @@ const EmptyState = ({ icon, title, description }) => (
     </div>
 );
 
-const DashboardView = ({categories, actions, tasks, members = []}) => {
+const DashboardView = ({categories, actions, tasks, members = [], boardGroups = null}) => {
+    const allCountries = CONFIG.COUNTRIES;
     if (tasks.length === 0) return <EmptyState icon={<Icon.BarChart size={40}/>} title="No data yet" description="Create tasks to see dashboard statistics" />;
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
@@ -56,19 +57,37 @@ const DashboardView = ({categories, actions, tasks, members = []}) => {
             <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
                 <h3 className="font-semibold mb-4">Progress by category</h3>
                 <div className="space-y-4">
-                    {categories.map(cat => {
-                        const catActions = actions.filter(a => a.categoryId === cat.id);
-                        const catTasks = tasks.filter(t => catActions.some(a => a.id === t.actionId));
-                        const catCompleted = catTasks.filter(t => t.status === 'completed').length;
-                        const catPct = catTasks.length > 0 ? Math.round((catCompleted / catTasks.length) * 100) : 0;
-                        const catBudget = catActions.reduce((s, a) => s + (a.budget || 0), 0) + catTasks.reduce((s, t) => s + (t.budget || 0), 0);
-                        return (
-                            <div key={cat.id}>
-                                <div className="flex items-center justify-between mb-2"><div className="flex items-center space-x-3"><div className={`w-3 h-3 rounded-full bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium text-sm">{cat.name}</span></div><div className="flex items-center space-x-4 text-sm"><span style={{color:'var(--text-muted)'}}>{catCompleted}/{catTasks.length}</span><span className="font-semibold text-secondary">{(catBudget/1000).toFixed(0)}k€</span><span className="font-bold">{catPct}%</span></div></div>
-                                <div className="v11-progress-bar" style={{height:12}}><div className={`h-full rounded-full bg-gradient-to-r ${cat.gradient}`} style={{width:`${catPct}%`}}/></div>
-                            </div>
-                        );
-                    })}
+                    {(() => {
+                        // One renderer reused by the single-board path and each per-board group.
+                        const renderCategoryBar = (cat) => {
+                            const catActions = actions.filter(a => a.categoryId === cat.id);
+                            const catTasks = tasks.filter(t => catActions.some(a => a.id === t.actionId));
+                            const catCompleted = catTasks.filter(t => t.status === 'completed').length;
+                            const catPct = catTasks.length > 0 ? Math.round((catCompleted / catTasks.length) * 100) : 0;
+                            const catBudget = catActions.reduce((s, a) => s + (a.budget || 0), 0) + catTasks.reduce((s, t) => s + (t.budget || 0), 0);
+                            return (
+                                <div key={cat.id}>
+                                    <div className="flex items-center justify-between mb-2"><div className="flex items-center space-x-3"><div className={`w-3 h-3 rounded-full bg-gradient-to-r ${cat.gradient}`}/><span className="font-medium text-sm">{cat.name}</span></div><div className="flex items-center space-x-4 text-sm"><span style={{color:'var(--text-muted)'}}>{catCompleted}/{catTasks.length}</span><span className="font-semibold text-secondary">{(catBudget/1000).toFixed(0)}k€</span><span className="font-bold">{catPct}%</span></div></div>
+                                    <div className="v11-progress-bar" style={{height:12}}><div className={`h-full rounded-full bg-gradient-to-r ${cat.gradient}`} style={{width:`${catPct}%`}}/></div>
+                                </div>
+                            );
+                        };
+                        if (boardGroups && boardGroups.length > 0) {
+                            // Combined view: one visual block per source board with a coloured banner.
+                            return boardGroups.map(g => (
+                                <div key={g.boardId} style={{marginBottom:12}}>
+                                    <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 10px',background:g.boardColor,color:'#fff',borderRadius:6,fontWeight:700,fontSize:12,letterSpacing:0.3,marginBottom:8}}>
+                                        <span style={{display:'inline-block',width:10,height:10,borderRadius:3,background:'rgba(255,255,255,0.6)'}}/>
+                                        {g.boardName}
+                                    </div>
+                                    <div className="space-y-3">
+                                        {g.categories.map(renderCategoryBar)}
+                                    </div>
+                                </div>
+                            ));
+                        }
+                        return categories.map(renderCategoryBar);
+                    })()}
                 </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -107,6 +126,40 @@ const DashboardView = ({categories, actions, tasks, members = []}) => {
                     </div>
                 </div>
             )}
+            {(() => {
+                // By Country — aggregate tasks by task.countries[]. A task can contribute
+                // to several countries. Only render cells for countries that have at least
+                // one tagged task (otherwise we'd list the full 16-country config, noisy).
+                const countryBuckets = allCountries
+                    .map(c => {
+                        const cTasks = tasks.filter(t => (t.countries || []).includes(c.id));
+                        const done = cTasks.filter(t => t.status === 'completed').length;
+                        return { ...c, taskCount: cTasks.length, completed: done, pct: cTasks.length > 0 ? Math.round((done / cTasks.length) * 100) : 0 };
+                    })
+                    .filter(c => c.taskCount > 0)
+                    .sort((a, b) => b.taskCount - a.taskCount);
+                if (countryBuckets.length === 0) return null;
+                return (
+                    <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
+                        <h3 className="font-semibold mb-4">🌍 By Country</h3>
+                        <div className="space-y-3">
+                            {countryBuckets.map(c => (
+                                <div key={c.id} className="flex items-center">
+                                    <div className="w-36 flex items-center space-x-2">
+                                        <span style={{fontSize:16}}>{c.flag}</span>
+                                        <span className="text-sm" style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.name}</span>
+                                    </div>
+                                    <div className="flex-1 h-4 rounded-full mx-3" style={{background:'var(--bg-secondary)'}}>
+                                        <div className="h-full rounded-full" style={{width:`${c.pct}%`,backgroundColor:c.color,transition:'width 0.3s'}}/>
+                                    </div>
+                                    <span style={{fontSize:12,color:'var(--text-muted)',width:70,textAlign:'right'}}>{c.completed}/{c.taskCount}</span>
+                                    <span className="w-10 text-right text-sm font-semibold">{c.pct}%</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })()}
             <div className="v11-card" style={{padding:'var(--space-6)',cursor:'default'}}>
                 <h3 className="font-semibold mb-4">📢 By Channel</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">

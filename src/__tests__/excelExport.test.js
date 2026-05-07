@@ -110,11 +110,17 @@ describe('buildKanbanWorkbook — category view', () => {
         expect(hdr.getCell(4).value).toBeFalsy();
     });
 
-    it('omits the status legend for by-status view (redundant — columns already are statuses)', async () => {
+    it('omits the status legend for by-status view — "action" alias (KanbanView UI)', async () => {
         const wb = await buildKanbanWorkbook(categories, taskModeActions, taskModeTasks, 'action');
         const ws = wb.getWorksheet('Kanban');
         const hdr = ws.getRow(1);
-        // 6 status columns (cols 1..6), col 8 would be legend header — must be empty.
+        expect(hdr.getCell(8).value).toBeFalsy();
+    });
+
+    it('omits the status legend for by-status view — "status" alias (App.jsx dropdown)', async () => {
+        const wb = await buildKanbanWorkbook(categories, taskModeActions, taskModeTasks, 'status');
+        const ws = wb.getWorksheet('Kanban');
+        const hdr = ws.getRow(1);
         expect(hdr.getCell(8).value).toBeFalsy();
     });
 

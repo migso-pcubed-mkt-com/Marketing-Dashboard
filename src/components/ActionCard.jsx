@@ -52,6 +52,12 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
     const totalComments = (action.comments?.length || 0) + actionTasks.reduce((s, t) => s + (t.comments?.length || 0), 0);
     const totalAttachments = (action.attachments?.length || 0) + actionTasks.reduce((s, t) => s + (t.attachments?.length || 0), 0);
 
+    // Combined-view: 4px vertical source-board stripe, same language as TaskCard.
+    const sourceStripe = action._sourceBoardColor ? (
+        <span aria-hidden="true" title={`Board: ${action._sourceBoardName || ''}`}
+            style={{position:'absolute',left:0,top:0,bottom:0,width:4,background:action._sourceBoardColor,borderTopLeftRadius:'inherit',borderBottomLeftRadius:'inherit',pointerEvents:'none'}}/>
+    ) : null;
+
     return (
         <div
             ref={cardRef}
@@ -64,7 +70,9 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
             onDrop={handleDrop}
             {...(isReadOnly ? {} : touchHandlers)}
             onClick={(e) => { if (!e.defaultPrevented) onOpen(action); }}
+            style={action._sourceBoardColor ? {position:'relative',paddingLeft:16} : undefined}
             className={`action-card ${dragOverPosition === 'before' ? 'drop-indicator-before' : dragOverPosition === 'after' ? 'drop-indicator-after' : ''}`}>
+            {sourceStripe}
             <div className="card-header">
                 <div className="card-title" style={action.status === 'completed' ? {textDecoration:'line-through',color:'var(--text-muted)'} : action.trelloArchived ? {color:'var(--text-muted)'} : {}}>{action.trelloArchived && <span style={{fontSize:9,background:'var(--text-muted)',color:'white',borderRadius:3,padding:'1px 4px',marginRight:4,verticalAlign:'middle',fontWeight:600}}>ARCHIVED</span>}{action.name}</div>
                 <div className={`card-priority ${action.priority || 'medium'}`}/>

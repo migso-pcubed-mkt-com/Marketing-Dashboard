@@ -415,7 +415,7 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                         Import from Excel {step === 'review' && sheets.length > 0 && `— step 2 of 3`}
                         {step === 'preview' && '— step 3 of 3'}
                     </h2>
-                    <button onClick={onClose} className="v11-btn-icon" aria-label="Close"><Icon.X size={18} /></button>
+                    <button onClick={onClose} className="v11-btn-icon" aria-label="Close"><Icon.Close /></button>
                 </div>
 
                 <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: 20 }}>

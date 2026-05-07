@@ -12,9 +12,10 @@ class FakePptx {
     }
     get ShapeType() { return new Proxy({}, { get: (_, k) => k }); }
     addSlide() {
-        const s = { shapes: [], texts: [] };
+        const s = { shapes: [], texts: [], tables: [] };
         s.addShape = (...args) => s.shapes.push(args);
         s.addText = (...args) => s.texts.push(args);
+        s.addTable = (...args) => s.tables.push(args);
         this.slides.push(s);
         return s;
     }

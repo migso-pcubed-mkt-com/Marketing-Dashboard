@@ -1482,6 +1482,38 @@ const App = () => {
     // Keep ref pointing to latest handleTrelloSync (avoids stale closure in setInterval)
     useEffect(() => { handleTrelloSyncRef.current = handleTrelloSync; }, [handleTrelloSync]);
 
+    // Watchdog: if the Trello sync indicator stays on 'syncing' for more than
+    // 45s, force-reset it to 'idle'. Covers any path that forgets to clear the
+    // status (unhandled rejection, torn DOM, unmounted component) and keeps the
+    // user-visible spinner from running forever.
+    useEffect(() => {
+        if (trelloSyncStatus !== 'syncing') return;
+        const t = setTimeout(() => {
+            console.warn('[Trello sync] UI status stuck in "syncing" for 45s — forcing reset to "idle"');
+            setTrelloSyncStatus('idle');
+        }, 45000);
+        return () => clearTimeout(t);
+    }, [trelloSyncStatus]);
+
+    // Safety net: clear `isUserInteractingRef` after 60s. The ref is set on
+    // Kanban/Timeline drag start and cleared on dragEnd — but if a drag is
+    // interrupted (browser-level cancel, modal ate the drag-end event, mouse
+    // released outside the window), the ref can get stuck TRUE and silently
+    // block auto-save indefinitely. A slow watchdog notices and resets.
+    useEffect(() => {
+        let firstSeenAt = 0;
+        const interval = setInterval(() => {
+            if (!isUserInteractingRef.current) { firstSeenAt = 0; return; }
+            if (!firstSeenAt) { firstSeenAt = Date.now(); return; }
+            if (Date.now() - firstSeenAt > 60000) {
+                console.warn('[UX] isUserInteractingRef stuck > 60s — force-clearing so auto-save can resume');
+                isUserInteractingRef.current = false;
+                firstSeenAt = 0;
+            }
+        }, 15000);
+        return () => clearInterval(interval);
+    }, []);
+
     // --- Trello polling lifecycle ---
     // IMPORTANT: Does NOT depend on handleTrelloSync — uses ref instead.
     // Without this, every board change or sync status change would recreate
@@ -1730,8 +1762,8 @@ const App = () => {
                     <Suspense fallback={<ViewSkeleton view={currentView} />}>
                     {currentView === 'kanban' && <KanbanView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onUpdateAction={handleUpdateAction} onBatchUpdateTasks={handleBatchUpdateTasks} onAddTask={handleAddNewTask} onAddAction={handleAddAction} onMoveTask={handleMoveTask} onReorderTask={handleReorderTask} onMoveAction={handleMoveAction} onReorderAction={handleReorderAction} filters={filters} setFilters={setFilters} allCountries={allCountries} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} onUpdateCategory={handleUpdateCategory} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} isUserInteractingRef={isUserInteractingRef} boardGroups={multiBoardMode ? multiBoardData.boardGroups : null}/>}
                     {currentView === 'timeline' && <TimelineView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onOpenAction={setSelectedAction} onUpdateTask={handleUpdateTask} onBatchUpdateTasks={handleBatchUpdateTasks} onUpdateAction={handleUpdateAction} onReorderAction={isReadOnly ? null : handleReorderAction} onAddTask={handleAddTask} filters={filters} setFilters={setFilters} selectedYear={selectedYear} onYearChange={setSelectedYear} isUserInteractingRef={isUserInteractingRef} isReadOnly={isReadOnly} onRequestNewTask={handleCreateNewTask} isCardAsTask={currentBoard?.trelloSync?.syncMode === 'card-as-task'} boardGroups={multiBoardMode ? multiBoardData.boardGroups : null}/>}
-                    {currentView === 'calendar' && <CalendarView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly}/>}
-                    {currentView === 'dashboard' && <DashboardView categories={categories} actions={visibleActions} tasks={visibleTasks} members={effectiveMembers}/>}
+                    {currentView === 'calendar' && <CalendarView categories={categories} actions={visibleActions} tasks={visibleTasks} onOpenTask={handleOpenTask} onUpdateTask={handleUpdateTask} onAddTask={handleAddNewTask} filters={filters} selectedYear={selectedYear} onYearChange={setSelectedYear} isReadOnly={isReadOnly} boardGroups={multiBoardMode ? multiBoardData.boardGroups : null}/>}
+                    {currentView === 'dashboard' && <DashboardView categories={categories} actions={visibleActions} tasks={visibleTasks} members={effectiveMembers} boardGroups={multiBoardMode ? multiBoardData.boardGroups : null}/>}
                     </Suspense>
                     </ErrorBoundary>
                 </main>
