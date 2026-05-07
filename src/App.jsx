@@ -840,13 +840,66 @@ const App = () => {
 
     const handleSync = useCallback(() => saveData(), []);
 
+    // Pick a label suffix from the diff between current entity and incoming
+    // updates, so distinct user actions get distinct history labels and never
+    // coalesce into each other. Two consecutive "schedule" pushes still
+    // coalesce (one drag = one entry). A "schedule" push followed by a
+    // "description" push lives on its own entry.
+    // The diff is needed because TaskDetailModal sends the whole form object on
+    // close — we must ignore the keys that didn't actually change.
+    const stableJSON = (v) => { try { return JSON.stringify(v); } catch { return String(v); } };
+    const changedKeys = (current, updates) => {
+        if (!updates || typeof updates !== 'object') return [];
+        const out = [];
+        for (const k of Object.keys(updates)) {
+            const a = current ? current[k] : undefined;
+            const b = updates[k];
+            if (stableJSON(a) !== stableJSON(b)) out.push(k);
+        }
+        return out;
+    };
+    const labelSuffixForTaskDiff = (changed) => {
+        const set = new Set(changed);
+        if (set.has('description')) return 'description edited';
+        if (changed.some(x => ['startDate','dueDate','month'].includes(x))) return 'schedule changed';
+        if (set.has('swimLane') || set.has('order')) return 'reordered';
+        if (set.has('actionId')) return 'moved';
+        if (set.has('status')) return 'status changed';
+        if (set.has('priority')) return 'priority changed';
+        if (set.has('title')) return 'renamed';
+        if (set.has('checklist') || set.has('checklists')) return 'checklist edited';
+        if (changed.some(x => ['comments','attachments'].includes(x))) return 'extras edited';
+        if (changed.some(x => ['channels','countries','otherLabels','assignees'].includes(x))) return 'tags changed';
+        if (set.has('budget')) return 'budget changed';
+        return 'updated';
+    };
+    const labelSuffixForActionDiff = (changed) => {
+        const set = new Set(changed);
+        if (set.has('description')) return 'description edited';
+        if (set.has('name')) return 'renamed';
+        if (set.has('categoryId')) return 'moved';
+        if (set.has('status')) return 'status changed';
+        if (changed.some(x => ['startDate','dueDate'].includes(x))) return 'schedule changed';
+        if (changed.some(x => ['tags','channels','countries','otherLabels','assignees'].includes(x))) return 'tags changed';
+        if (set.has('budget')) return 'budget changed';
+        if (set.has('order')) return 'reordered';
+        return 'updated';
+    };
+
     const handleUpdateTask = useCallback((taskId, updates) => {
         if (!isUndoRedoRef.current) {
             const task = tasks.find(t => t.id === taskId);
             const title = task?.title || 'Task';
-            // Coalesce resize/drag (continuous updates on the same task within 400ms
-            // collapse into one history entry).
-            pushState(boardDataRef.current, `Task "${title}" updated`);
+            const changed = changedKeys(task, updates);
+            if (changed.length === 0) {
+                // No-op update (e.g. modal close with no edits) — don't pollute history.
+                setTasks(prev => applyTaskUpdate(prev, taskId, updates));
+                return;
+            }
+            // Typed label = one entry per distinct kind of edit. Same kind of
+            // edit on the same task within 400ms still coalesces (the drag
+            // gesture keeps producing one snapshot of the pre-drag state).
+            pushState(boardDataRef.current, `Task "${title}" — ${labelSuffixForTaskDiff(changed)}`);
         }
         setTasks(prev => applyTaskUpdate(prev, taskId, updates));
         showNotification('✅ Task updated');
@@ -855,14 +908,27 @@ const App = () => {
     const handleBatchUpdateTasks = useCallback((updates) => {
         if (!isUndoRedoRef.current) {
             const count = Array.isArray(updates) ? updates.length : 0;
-            pushState(boardDataRef.current, `Batch update (${count} task${count === 1 ? '' : 's'})`);
+            // Use the keys actually present in the first entry's changes object
+            // — batch updates rarely include unchanged fields, so the keys map
+            // 1:1 to the user's intent.
+            const firstChanges = Array.isArray(updates) && updates[0]?.changes;
+            const keys = firstChanges ? Object.keys(firstChanges) : [];
+            const suffix = labelSuffixForTaskDiff(keys);
+            pushState(boardDataRef.current, `Batch ${suffix} (${count} task${count === 1 ? '' : 's'})`);
         }
         setTasks(prev => applyBatchTaskUpdate(prev, updates));
     }, [setTasks, pushState]);
 
     const handleUpdateAction = useCallback((actionId, updates) => {
         const oldAction = actions.find(a => a.id === actionId);
-        if (!isUndoRedoRef.current) pushState(boardDataRef.current, `Action "${oldAction?.name || 'Action'}" updated`);
+        if (!isUndoRedoRef.current) {
+            const changed = changedKeys(oldAction, updates);
+            if (changed.length === 0) {
+                setActions(prev => applyActionUpdate(prev, actionId, updates));
+                return;
+            }
+            pushState(boardDataRef.current, `Action "${oldAction?.name || 'Action'}" — ${labelSuffixForActionDiff(changed)}`);
+        }
         setActions(prev => applyActionUpdate(prev, actionId, updates));
         const linkedTasks = tasks.filter(t => t.actionId === actionId);
         const batchUpdates = computeTagPropagation(oldAction, updates, linkedTasks);

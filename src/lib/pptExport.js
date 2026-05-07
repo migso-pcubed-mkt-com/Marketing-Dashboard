@@ -216,20 +216,24 @@ export async function exportTimelinePPT(categories, actions, tasks, year, boardN
         const isDone = task.status === 'completed';
         const baseColor = toHex(statusColor(task.status));
         const fillColor = isDone ? lighten(baseColor, 0.55) : baseColor;
-        const textColor = isDone ? '4B5563' : contrastText(fillColor);
+        const titleText = row.indentAction ? `  ${task.title}` : task.title;
 
+        // Single shape with the title baked in. Always black text per user preference,
+        // wrap disabled so long titles overflow horizontally instead of stacking
+        // onto two lines inside the bar (which made narrow bars unreadable).
         slide.addShape(pptx.ShapeType.roundRect, {
             x: barX, y: barY, w: barW, h: barH,
             fill: { color: fillColor },
             line: { color: fillColor, width: 0.5 },
-            rectRadius: 0.04
-        });
-        slide.addText(row.indentAction ? `  ${task.title}` : task.title, {
-            x: barX + 0.03, y: barY, w: Math.max(0.05, barW - 0.06), h: barH,
+            rectRadius: 0.04,
+            text: titleText,
+            color: '000000',
+            fontFace: 'Calibri',
             fontSize: Math.min(9, Math.max(6, barH * 30)),
-            color: textColor, fontFace: 'Calibri',
-            valign: 'middle', align: 'left',
-            strike: isDone
+            align: 'left', valign: 'middle',
+            wrap: false,
+            strike: isDone,
+            margin: 0.04
         });
     }
 
@@ -399,9 +403,15 @@ function renderTaskCard(pptx, slide, task, x, y, w, h) {
 }
 
 function renderActionCard(pptx, slide, action, tasks, x, y, w, h) {
-    // Action grouping card: bold action name + inline task list (matches the
-    // Excel Kanban card-as-action layout — action name bold, nested tasks
-    // regular weight with strike on completed). Footer shows done/total.
+    // Action grouping card mirrors the Excel `buildActionCell` output:
+    //   <Action name>            ← bold (+ strike if action.status === completed)
+    //   ▸ Checklist 1
+    //     · Task A                ← strike if task.status === completed
+    //     · Task B
+    //   ▸ Checklist 2
+    //     · Task C
+    // Tasks without a trelloChecklistName fall under a synthetic "(Tasks)" group
+    // so card-as-action and the plain-action paths render identically.
     slide.addShape(pptx.ShapeType.roundRect, {
         x, y, w, h,
         fill: { color: 'F9FAFB' },
@@ -410,41 +420,44 @@ function renderActionCard(pptx, slide, action, tasks, x, y, w, h) {
     });
     const padL = 0.1;
     const padR = 0.1;
-    const titleH = Math.min(0.28, h * 0.35);
     const footerH = 0.18;
-    slide.addText(action.name || '(action)', {
-        x: x + padL, y: y + 0.04, w: w - padL - padR, h: titleH,
-        fontSize: Math.min(10, Math.max(7, h * 18)),
-        bold: true, color: '111827', fontFace: 'Calibri', valign: 'top', align: 'left'
-    });
+    const actionDone = action.status === 'completed';
+    const groups = new Map();
+    const groupOrder = [];
+    for (const t of tasks) {
+        const key = t.trelloChecklistName || '(Tasks)';
+        if (!groups.has(key)) { groups.set(key, []); groupOrder.push(key); }
+        groups.get(key).push(t);
+    }
 
-    // Task list — render inline, truncated to fit the card. Each task appears
-    // as a bullet with strike-through when completed. Overflow collapses into
-    // a "+ N more" line so cards with many tasks still fit.
-    const listTop = y + titleH + 0.05;
-    const listBottom = y + h - footerH - 0.04;
-    const listH = Math.max(0, listBottom - listTop);
-    const taskFontSize = 7;
-    const lineH = 0.14;
-    const maxLines = Math.max(0, Math.floor(listH / lineH));
-    if (maxLines > 0 && tasks.length > 0) {
-        const visibleCount = tasks.length > maxLines ? maxLines - 1 : tasks.length;
-        const segs = [];
-        for (let i = 0; i < visibleCount; i++) {
-            const t = tasks[i];
-            const isDone = t.status === 'completed';
-            segs.push({ text: `• ${t.title || '(untitled)'}\n`, options: { fontSize: taskFontSize, color: isDone ? '9CA3AF' : '374151', strike: isDone, fontFace: 'Calibri' } });
-        }
-        if (tasks.length > visibleCount) {
-            segs.push({ text: `+ ${tasks.length - visibleCount} more\n`, options: { fontSize: taskFontSize, color: '9CA3AF', italic: true, fontFace: 'Calibri' } });
-        }
-        if (segs.length > 0) {
-            slide.addText(segs, {
-                x: x + padL + 0.05, y: listTop, w: w - padL - padR - 0.05, h: listH,
-                valign: 'top', align: 'left', margin: 0
+    // Build a single richText sequence — action name first, then each group with
+    // its tasks. The whole block lives in one addText call so it fits inside the
+    // card with consistent line spacing.
+    const segments = [];
+    segments.push({
+        text: action.name || '(action)',
+        options: { fontSize: 10, bold: true, strike: actionDone, color: '111827', fontFace: 'Calibri' }
+    });
+    for (const name of groupOrder) {
+        const items = groups.get(name).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        segments.push({ text: `\n▸ ${name}`, options: { fontSize: 8, color: '374151', fontFace: 'Calibri' } });
+        for (const t of items) {
+            const done = t.status === 'completed';
+            segments.push({
+                text: `\n  · ${t.title || ''}`,
+                options: { fontSize: 7, color: done ? '9CA3AF' : '374151', strike: done, fontFace: 'Calibri' }
             });
         }
     }
+
+    const listTop = y + 0.06;
+    const listBottom = y + h - footerH - 0.04;
+    const listH = Math.max(0.18, listBottom - listTop);
+    slide.addText(segments, {
+        x: x + padL, y: listTop, w: w - padL - padR, h: listH,
+        valign: 'top', align: 'left', margin: 0,
+        fit: 'shrink' // pptxgenjs auto-shrinks text to fit when needed
+    });
 
     if (tasks.length > 0) {
         const done = tasks.filter(t => t.status === 'completed').length;

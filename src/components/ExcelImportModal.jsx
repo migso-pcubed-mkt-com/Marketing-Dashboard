@@ -407,10 +407,10 @@ const ExcelImportModal = ({ onClose, onImport }) => {
     };
 
     return (
-        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        <div className="v11-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
              role="dialog" aria-modal="true" aria-labelledby="excel-import-title">
-            <div className="modal-content" style={{ width: 720, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
-                <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="v11-modal" style={{ width: 720, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+                <div className="v11-modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 id="excel-import-title" style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
                         Import from Excel {step === 'review' && sheets.length > 0 && `— step 2 of 3`}
                         {step === 'preview' && '— step 3 of 3'}
@@ -418,7 +418,7 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                     <button onClick={onClose} className="v11-btn-icon" aria-label="Close"><Icon.Close /></button>
                 </div>
 
-                <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
+                <div className="v11-modal-body" style={{ flex: 1, overflowY: 'auto', padding: 20 }}>
                     {error && (
                         <div style={{
                             padding: '10px 14px', borderRadius: 8, background: 'var(--error-light)',
@@ -432,7 +432,7 @@ const ExcelImportModal = ({ onClose, onImport }) => {
                     {step === 'preview' && renderPreview()}
                 </div>
 
-                <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
+                <div className="v11-modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid var(--border)' }}>
                     <button onClick={onClose} className="v11-btn-secondary">Cancel</button>
                     <div style={{ display: 'flex', gap: 8 }}>
                         {step === 'review' && (

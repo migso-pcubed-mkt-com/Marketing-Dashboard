@@ -167,11 +167,25 @@ const toNumber = (val) => {
     return Number(String(val).replace(/[, ]/g, '').replace(/[€$£]/g, '')) || 0;
 };
 
+// A cell with a meaningful background fill (highlight) is treated as a task
+// signal even when it carries no text. We reject the obvious "no-fill" ARGBs
+// (transparent, white, pure black — the latter is almost always a font default
+// rather than a real highlight) and accept everything else.
+const isMeaningfulFill = (argb) => {
+    if (!argb) return false;
+    const up = String(argb).toUpperCase();
+    if (up === '00000000') return false; // transparent
+    if (up === 'FFFFFFFF' || up === 'FFFFFF') return false; // white
+    if (up === 'FF000000' || up === '000000') return false; // pure black default
+    return true;
+};
+
 // Analyze every row below the month header — returns per-row classification
 // with enough context for both the auto-build and the manual review step.
 export function analyzeSheet(sheet) {
     const data = sheet.data || [];
     const merges = sheet.merges || [];
+    const cellColors = sheet.cellColors || [];
     const header = detectMonthHeader(data);
     if (!header) return { kind: 'list', headerRow: 0, rows: [] };
 
@@ -194,7 +208,11 @@ export function analyzeSheet(sheet) {
             const value = row[col];
             const merge = mergeOrigins.get(`${r}:${col}`);
             const hasContent = !isEmptyCell(value);
-            if (!hasContent && !merge) continue;
+            // Cells with no text but a coloured fill are still task signals —
+            // many roadmaps colour-block months instead of writing a label.
+            const cellColor = cellColors?.[r]?.[col];
+            const hasColor = isMeaningfulFill(cellColor);
+            if (!hasContent && !merge && !hasColor) continue;
 
             let endCol = col;
             if (merge && merge.endCol > col) {
@@ -211,7 +229,8 @@ export function analyzeSheet(sheet) {
                 endCol,
                 value: cellToString(value),
                 rawValue: value,
-                isNumeric: isNumeric(value)
+                isNumeric: isNumeric(value),
+                hasColorOnly: !hasContent && !merge && hasColor
             });
         }
 
@@ -333,9 +352,11 @@ export function buildBoard(sheet, analysis, options = {}) {
             };
             board.actions.push(action);
 
-            // One task per month signal. Numeric cells become budget-only tasks
-            // named after the row label + month name; text cells become titled
-            // tasks (the cell content IS the title).
+            // One task per month signal. Numeric cells become budget tasks named
+            // after the row label + month. Text cells use the cell content as
+            // the task title. Cells with only a coloured fill (no text, no
+            // merge value) are tagged `hasColorOnly` and use the row label +
+            // month, same naming as budget tasks for visual consistency.
             let taskOrder = 0;
             for (const sig of row.monthSignals) {
                 const dates = sig.endMonthIdx > sig.monthIdx
@@ -343,7 +364,7 @@ export function buildBoard(sheet, analysis, options = {}) {
                     : monthDates(sig.monthIdx, year);
                 const monthLabel = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][sig.monthIdx];
                 const isBudget = sig.isNumeric;
-                const title = isBudget
+                const title = (isBudget || sig.hasColorOnly)
                     ? `${row.label || action.name} — ${monthLabel}`
                     : (sig.value || `${row.label} (${monthLabel})`);
                 const task = {
