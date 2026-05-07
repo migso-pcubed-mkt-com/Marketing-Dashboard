@@ -544,7 +544,9 @@ const App = () => {
             // state can't sneak back into boardDataRef on the way to Supabase.
             if (useSupabase && serverUpdatedAtRef.current && !isRecentUndo()) {
                 try {
-                    const server = await fetchServerState();
+                    // Pass our last-known timestamp so the helper skips fetching board_data
+                    // when nothing has changed (the common case) — avoids egress on every save.
+                    const server = await fetchServerState(serverUpdatedAtRef.current);
                     if (server && server.updated_at !== serverUpdatedAtRef.current && server.board_data?.version === 2) {
                         boardDataRef.current = mergeBoardsEntityLevel(boardDataRef.current, server.board_data);
                         serverUpdatedAtRef.current = server.updated_at;
@@ -605,6 +607,20 @@ const App = () => {
                 postSaveSyncTimeoutRef.current = null;
             }
         };
+    }, []);
+
+    // Mirror the pending edits to localStorage when the tab becomes hidden.
+    // The debounced cloud save keeps running (browsers usually grant a short grace
+    // period before suspending), but localStorage is the synchronous safety net that
+    // guarantees recovery even if the cloud upsert is killed mid-flight.
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.hidden && autoSaveTimeoutRef.current && boardDataRef.current) {
+                saveToLocalStorage();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, []);
 
     // Network online/offline detection

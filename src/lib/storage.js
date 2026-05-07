@@ -106,21 +106,21 @@ export const saveToSupabase = async (boardDataRef, setSyncing, showNotification,
     }
     setSyncing(true);
     try {
-        // Find active board for backward-compatible legacy columns
-        const activeBoard = boardData.boards.find(b => b.id === boardData.currentBoardId) || boardData.boards[0];
-        // Try full save with board_data column — capture updated_at for OCC
+        // Try full save with board_data column — capture updated_at for OCC.
+        // Legacy columns (categories/actions/tasks) are NOT written here: they're fully
+        // contained inside board_data and writing them duplicates payload (~20-40%).
+        // The legacy fallback below still writes them when board_data column is missing.
         const { data, error } = await supabaseClient.from('app_data').upsert({
             id: 'default',
             board_data: boardData,
-            categories: activeBoard?.categories,
-            actions: activeBoard?.actions,
-            tasks: activeBoard?.tasks,
             updated_at: new Date().toISOString()
         }).select('updated_at').single();
 
         if (error) {
-            // If board_data column doesn't exist, retry with legacy columns only
+            // board_data column doesn't exist (migration not applied) — retry with legacy columns.
+            // board_data: null is critical: stale board_data would otherwise be preferred by readers.
             console.warn('Supabase save with board_data failed, retrying legacy-only:', error.message);
+            const activeBoard = boardData.boards.find(b => b.id === boardData.currentBoardId) || boardData.boards[0];
             const { data: legacyData, error: legacyError } = await supabaseClient.from('app_data').upsert({
                 id: 'default',
                 board_data: null,
@@ -145,15 +145,27 @@ export const saveToSupabase = async (boardDataRef, setSyncing, showNotification,
     }
 };
 
-// Lightweight fetch for pre-save conflict detection (OCC)
-export const fetchServerState = async () => {
+// Lightweight fetch for pre-save conflict detection (OCC).
+// Two-pass design: only fetches the full board_data when there is a real conflict.
+// Pass A — select('updated_at') only: ~50 bytes, runs on every save.
+// Pass B — select('updated_at, board_data'): only when timestamps diverge from knownUpdatedAt.
+// Returns { updated_at, board_data }; board_data is null when there is no conflict.
+export const fetchServerState = async (knownUpdatedAt) => {
     if (!supabaseClient) return null;
     try {
-        const { data } = await supabaseClient.from('app_data')
+        const { data: meta } = await supabaseClient.from('app_data')
+            .select('updated_at')
+            .eq('id', 'default')
+            .single();
+        if (!meta) return null;
+        if (knownUpdatedAt && meta.updated_at === knownUpdatedAt) {
+            return { updated_at: meta.updated_at, board_data: null };
+        }
+        const { data: full } = await supabaseClient.from('app_data')
             .select('updated_at, board_data')
             .eq('id', 'default')
             .single();
-        return data;
+        return full;
     } catch (e) {
         console.warn('fetchServerState failed:', e.message);
         return null;
