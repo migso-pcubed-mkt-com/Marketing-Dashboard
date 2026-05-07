@@ -447,7 +447,7 @@ const App = () => {
             try {
                 let result;
                 if (useSupabase) {
-                    result = await loadFromSupabase(showNotification);
+                    result = await loadFromSupabase(showNotification, serverUpdatedAtRef);
                 } else {
                     result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
                 }
@@ -1418,7 +1418,7 @@ const App = () => {
             if (useSupabase) {
                 setTimeout(async () => {
                     try {
-                        const freshData = await loadFromSupabase(() => {});
+                        const freshData = await loadFromSupabase(() => {}, serverUpdatedAtRef);
                         if (freshData && freshData.boards) {
                             // Only apply if there are boards we don't know about
                             const localBoardIds = new Set(boardDataRef.current?.boards?.map(b => b.id) || []);
