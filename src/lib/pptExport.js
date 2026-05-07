@@ -216,20 +216,24 @@ export async function exportTimelinePPT(categories, actions, tasks, year, boardN
         const isDone = task.status === 'completed';
         const baseColor = toHex(statusColor(task.status));
         const fillColor = isDone ? lighten(baseColor, 0.55) : baseColor;
-        const textColor = isDone ? '4B5563' : contrastText(fillColor);
+        const titleText = row.indentAction ? `  ${task.title}` : task.title;
 
+        // Single shape with the title baked in. Always black text per user preference,
+        // wrap disabled so long titles overflow horizontally instead of stacking
+        // onto two lines inside the bar (which made narrow bars unreadable).
         slide.addShape(pptx.ShapeType.roundRect, {
             x: barX, y: barY, w: barW, h: barH,
             fill: { color: fillColor },
             line: { color: fillColor, width: 0.5 },
-            rectRadius: 0.04
-        });
-        slide.addText(row.indentAction ? `  ${task.title}` : task.title, {
-            x: barX + 0.03, y: barY, w: Math.max(0.05, barW - 0.06), h: barH,
+            rectRadius: 0.04,
+            text: titleText,
+            color: '000000',
+            fontFace: 'Calibri',
             fontSize: Math.min(9, Math.max(6, barH * 30)),
-            color: textColor, fontFace: 'Calibri',
-            valign: 'middle', align: 'left',
-            strike: isDone
+            align: 'left', valign: 'middle',
+            wrap: false,
+            strike: isDone,
+            margin: 0.04
         });
     }
 
