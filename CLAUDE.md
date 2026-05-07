@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-05-04 (Supabase egress reductions — two-pass OCC in fetchServerState, drop legacy column writes in saveToSupabase success path, visibilitychange localStorage safety net)
+> Last updated: 2026-05-07 (visibilitychange = Realtime catch-up — fetchServerState on tab-visible to defeat browser background throttling)
 
 ---
 
@@ -447,6 +447,9 @@ The "local changed, Trello didn't" push path for checklist items uses `buildSele
 
 ### fetchServerState two-pass OCC
 `fetchServerState(knownUpdatedAt)` is invoked before every Supabase auto-save (`App.jsx:545-555`). It runs a cheap `select('updated_at')` first and only fetches the full `board_data` when the timestamp differs from the caller's `knownUpdatedAt`. Returns `{ updated_at, board_data: null }` when there is no conflict — the caller's merge branch is gated on `server.board_data?.version === 2` so a null `board_data` short-circuits naturally. Do NOT remove the `knownUpdatedAt` parameter or always fetch `board_data` — that re-introduces the egress regression where every save downloaded the entire envelope just to discard it.
+
+### visibilitychange handler — hidden = backup, visible = Realtime catch-up
+The `visibilitychange` listener in App.jsx covers both directions. **Hidden** path mirrors any pending edits to localStorage as a safety net (browsers may suspend the tab mid cloud-save). **Visible** path runs `fetchServerState(serverUpdatedAtRef.current)` and routes any conflict through `processRealtimePayload` (or queues into `pendingRealtimeRef` when guards are active). This is necessary because Chrome/Safari aggressively throttle WebSocket delivery on background tabs — without the catch-up fetch, a Realtime UPDATE emitted while tab B was hidden could take many seconds (or minutes) to be delivered to tab B's JS. The same `_saveId` echo filter and same guard set as the Realtime handler are applied so we never overwrite local edits or re-process our own save. Do NOT skip the visible-path fetch on the assumption that Realtime will eventually deliver — background throttling makes "eventually" arbitrarily long.
 
 ### visibleActions filtering for archived actions
 `visibleActions` memo in App.jsx filters `trelloArchived` actions (same pattern as `visibleTasks`). Passed to KanbanView, TimelineView, CalendarView, DashboardView. Do NOT pass `visibleActions` to TaskDetailModal, ActionDetailModal, NewTaskModal, FilterSidebar, or filteredTasks computation — those need the full action list.
