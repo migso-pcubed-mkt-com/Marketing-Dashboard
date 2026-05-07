@@ -52,7 +52,7 @@ export const base64DecodeUnicode = (str) => {
 
 // --- Supabase ---
 
-export const loadFromSupabase = async (showNotification) => {
+export const loadFromSupabase = async (showNotification, serverUpdatedAtRef) => {
     try {
         const { data, error } = await supabaseClient.from('app_data').select('*').eq('id', 'default').single();
         if (error) {
@@ -68,12 +68,16 @@ export const loadFromSupabase = async (showNotification) => {
                 };
                 const { error: insertError } = await supabaseClient.from('app_data').insert(defaultData);
                 if (insertError) throw insertError;
+                if (serverUpdatedAtRef) serverUpdatedAtRef.current = defaultData.updated_at;
                 showNotification('✅ Default data initialized in Supabase');
                 return defaultV2;
             }
             throw error;
         }
         if (data) {
+            // Capture the server timestamp so OCC + visibilitychange catch-up have a baseline
+            // immediately after load, without waiting for the first save or Realtime event.
+            if (serverUpdatedAtRef && data.updated_at) serverUpdatedAtRef.current = data.updated_at;
             // Prefer board_data column (v2), fall back to legacy columns
             let boardData;
             if (data.board_data && data.board_data.version === 2) {
