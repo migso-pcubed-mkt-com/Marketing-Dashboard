@@ -790,15 +790,29 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
 
         // swimLane is a *preference*. When the user drops ON TOP of an existing
         // task that temporally overlaps the dragged task, we push the occupants
-        // of the target lane down by +1 so the drop behaves like a swap/insert
-        // instead of silently sliding the dragged task to the next free lane.
+        // of the target lane so the drop behaves like a swap/insert.
+        // Direction matters:
+        //   - drag DOWN (dragStartLane < targetLane) → displaced task takes the
+        //     dragged task's previous lane (true swap, no empty hole).
+        //   - drag UP (dragStartLane > targetLane) → displaced task shifts +1
+        //     (the dragged task's previous lane stays naturally filled by gravity).
         const targetLane=Math.max(0,Math.floor((mouseY-8)/34));
         const sameAction=draggedTask.actionId===targetAction.id;
 
+        // Pre-drag rendered lane of the dragged task (with the task still in place).
+        // We need this to know whether the user is moving DOWN or UP within the action.
+        let dragStartLane=0;
+        if(sameAction){
+            const actionTasksAll=tasks.filter(t=>t.actionId===targetAction.id);
+            const{swimLanes:preDragLanes}=calculateSwimLanes(actionTasksAll,null,layoutParams);
+            dragStartLane=preDragLanes[taskId]??(draggedTask.swimLane||0);
+        }
+        const draggingDown=sameAction && dragStartLane < targetLane;
+
         // Compute displaced tasks: same target action, currently rendered at
         // targetLane, temporally overlapping the dragged task's NEW span.
-        // Uses calculateSwimLanes on the current state to know the rendered lane
-        // of auto-placed tasks (not just explicit swimLane preferences).
+        // Uses calculateSwimLanes on the sibling-only view to know where each
+        // existing task would render after the dragged task leaves its lane.
         const computeDisplaced=()=>{
             if(!verticallyMoved)return[];
             const draggedNew={...draggedTask,startDate,dueDate};
@@ -821,7 +835,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         const displaced=computeDisplaced();
 
         if(displaced.length>0&&onBatchUpdateTasks){
-            // Atomic batch: dragged task takes targetLane, displaced tasks shift +1.
+            // Atomic batch: dragged task takes targetLane, displaced tasks
+            // either drop into the dragged task's old lane (drag DOWN = true swap)
+            // or shift +1 (drag UP / cross-action = insert).
             const baseChanges={startDate,dueDate,swimLane:targetLane};
             const draggedChanges=sameAction?baseChanges:{
                 ...baseChanges,
@@ -831,9 +847,10 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                     return actionTasks.length>0?Math.max(...actionTasks.map(t=>t.order||0))+1:1;
                 })()
             };
+            const displacedLane=draggingDown?dragStartLane:null; // null → +1 fallback
             const updates=[
                 {id:taskId,changes:draggedChanges},
-                ...displaced.map(d=>({id:d.id,changes:{swimLane:d.renderedLane+1}}))
+                ...displaced.map(d=>({id:d.id,changes:{swimLane:displacedLane!==null?displacedLane:d.renderedLane+1}}))
             ];
             onBatchUpdateTasks(updates);
         }else if(sameAction){
