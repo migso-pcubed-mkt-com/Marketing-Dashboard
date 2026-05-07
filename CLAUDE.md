@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-04-24 (Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs)
+> Last updated: 2026-05-07 (Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs, 2-pass OCC + visibilitychange Realtime catch-up)
 
 ---
 
@@ -443,7 +443,13 @@ The "local changed, Trello didn't" push path for checklist items uses `buildSele
 `saveData()` tries Supabase first. If Supabase fails and GitHub token is available, falls back to GitHub. If both fail, saves to localStorage only and warns the user. Do NOT remove the fallback chain — without it, a Supabase outage silently loses unsaved data.
 
 ### saveToSupabase legacy-column fallback
-`saveToSupabase` first tries upsert with `board_data` + legacy columns. If that fails (e.g. `board_data` column missing because migration wasn't run), retries with legacy columns only AND sets `board_data: null`. The null is critical — without it, stale `board_data` persists in Supabase, causing the Realtime handler to use old data (echo filter fails on mismatched `_saveId`, handler prefers stale `board_data` over fresh legacy columns). Do NOT remove `board_data: null` from the fallback.
+`saveToSupabase` success path writes **only** `board_data` + `updated_at` (legacy `categories`/`actions`/`tasks` are fully contained inside `board_data`, writing them duplicates ~20-40 % of payload per save). On error (typically `board_data` column missing because migration wasn't run), the catch retries with legacy columns + `board_data: null`. The null is critical — without it, stale `board_data` persists in Supabase, causing the Realtime handler to use old data (echo filter fails on mismatched `_saveId`, handler prefers stale `board_data` over fresh legacy columns). Do NOT remove `board_data: null` from the fallback. Do NOT re-introduce legacy column writes in the success path — `loadFromSupabase` and `processRealtimePayload` only fall back to legacy columns when `board_data` is missing/non-v2, so the success-path columns are dead weight.
+
+### fetchServerState two-pass OCC
+`fetchServerState(knownUpdatedAt)` is invoked before every Supabase auto-save (`App.jsx:545-555`). It runs a cheap `select('updated_at')` first and only fetches the full `board_data` when the timestamp differs from the caller's `knownUpdatedAt`. Returns `{ updated_at, board_data: null }` when there is no conflict — the caller's merge branch is gated on `server.board_data?.version === 2` so a null `board_data` short-circuits naturally. Do NOT remove the `knownUpdatedAt` parameter or always fetch `board_data` — that re-introduces the egress regression where every save downloaded the entire envelope just to discard it.
+
+### visibilitychange handler — hidden = backup, visible = Realtime catch-up
+The `visibilitychange` listener in App.jsx covers both directions. **Hidden** path mirrors any pending edits to localStorage as a safety net (browsers may suspend the tab mid cloud-save). **Visible** path runs `fetchServerState(serverUpdatedAtRef.current)` and routes any conflict through `processRealtimePayload` (or queues into `pendingRealtimeRef` when guards are active). This is necessary because Chrome/Safari aggressively throttle WebSocket delivery on background tabs — without the catch-up fetch, a Realtime UPDATE emitted while tab B was hidden could take many seconds (or minutes) to be delivered to tab B's JS. The same `_saveId` echo filter and same guard set as the Realtime handler are applied so we never overwrite local edits or re-process our own save. Do NOT skip the visible-path fetch on the assumption that Realtime will eventually deliver — background throttling makes "eventually" arbitrarily long.
 
 ### visibleActions filtering for archived actions
 `visibleActions` memo in App.jsx filters `trelloArchived` actions (same pattern as `visibleTasks`). Passed to KanbanView, TimelineView, CalendarView, DashboardView. Do NOT pass `visibleActions` to TaskDetailModal, ActionDetailModal, NewTaskModal, FilterSidebar, or filteredTasks computation — those need the full action list.
