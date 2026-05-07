@@ -609,19 +609,46 @@ const App = () => {
         };
     }, []);
 
-    // Mirror the pending edits to localStorage when the tab becomes hidden.
-    // The debounced cloud save keeps running (browsers usually grant a short grace
-    // period before suspending), but localStorage is the synchronous safety net that
-    // guarantees recovery even if the cloud upsert is killed mid-flight.
+    // visibilitychange handler — two roles:
+    //   hidden  → mirror pending edits to localStorage as a safety net
+    //             (browsers may suspend the tab mid cloud-save).
+    //   visible → catch up on Realtime events the browser may have throttled while hidden.
+    //             Chrome/Safari batch or delay WebSocket messages aggressively on background
+    //             tabs, so the next Realtime UPDATE can be many seconds (or minutes) late.
+    //             Doing a 2-pass OCC fetch on return is cheap (~50 bytes when nothing changed)
+    //             and routes through the same merge path as the Realtime handler.
     useEffect(() => {
         const handleVisibilityChange = () => {
-            if (document.hidden && autoSaveTimeoutRef.current && boardDataRef.current) {
-                saveToLocalStorage();
+            if (document.hidden) {
+                if (autoSaveTimeoutRef.current && boardDataRef.current) {
+                    saveToLocalStorage();
+                }
+                return;
             }
+            if (!useSupabase || !loadCompletedRef.current || !serverUpdatedAtRef.current) return;
+            if (isRecentUndo()) return;
+            fetchServerState(serverUpdatedAtRef.current).then(server => {
+                if (!server) return;
+                if (server.updated_at === serverUpdatedAtRef.current) return;
+                if (!server.board_data || server.board_data.version !== 2) return;
+                // Echo filter — same logic as the Realtime handler.
+                const incomingSaveId = server.board_data._saveId;
+                if (incomingSaveId && incomingSaveId === lastSaveIdRef.current) {
+                    serverUpdatedAtRef.current = server.updated_at;
+                    return;
+                }
+                const payload = { new: { board_data: server.board_data, updated_at: server.updated_at } };
+                // Same guards as the Realtime handler — queue if active, the drain useEffect picks it up.
+                if (selectedTask || selectedAction || syncing || savingStatus === 'saving' || isUserInteractingRef.current || isSyncInProgress() || syncRealtimeGuardRef.current || autoSaveTimeoutRef.current || Date.now() - justSavedTimestampRef.current < 3000 || isRecentUndo()) {
+                    pendingRealtimeRef.current = payload;
+                    return;
+                }
+                processRealtimePayload(payload);
+            }).catch(() => { /* network error — next Realtime event will catch up */ });
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }, []);
+    }, [selectedTask, selectedAction, syncing, savingStatus]);
 
     // Network online/offline detection
     useEffect(() => {
