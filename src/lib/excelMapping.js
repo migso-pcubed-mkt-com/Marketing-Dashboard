@@ -55,7 +55,21 @@ export async function parseWorkbook(buffer) {
                 const rowArr = [];
                 row.eachCell({ includeEmpty: true }, (cell, cIdx) => {
                     const fill = cell.fill;
-                    const argb = fill?.fgColor?.argb || fill?.bgColor?.argb || null;
+                    // Prefer the explicit ARGB. Fall back to a 'THEME-<n>'
+                    // sentinel for theme-based fills (Microsoft templates
+                    // expose theme + tint instead of ARGB). Theme 0 (background
+                    // 1) and theme 1 (text 1) are the default white/black —
+                    // they are template defaults, not user highlights, so we
+                    // ignore them. Themes 2-9 are accent colours = real
+                    // highlights → they pass through and isMeaningfulFill
+                    // accepts the sentinel string.
+                    let argb = fill?.fgColor?.argb || fill?.bgColor?.argb || null;
+                    if (!argb && fill && fill.type === 'pattern' && fill.pattern && fill.pattern !== 'none') {
+                        const themeIdx = fill.fgColor?.theme ?? fill.bgColor?.theme;
+                        if (themeIdx !== undefined && themeIdx !== 0 && themeIdx !== 1) {
+                            argb = `THEME-${themeIdx}`;
+                        }
+                    }
                     rowArr[cIdx - 1] = argb || null;
                 });
                 grid[rIdx - 1] = rowArr;
@@ -180,6 +194,33 @@ const isMeaningfulFill = (argb) => {
     return true;
 };
 
+// Determine the "background" fill for a given row's month cells: the most
+// common non-null fill across the month columns. When most month cells share
+// the same colour, that colour is row template styling — not a per-cell user
+// highlight. The actual signal cells are the ones whose fill differs from
+// this background. Returns null when no clear background exists (rows where
+// every cell is uniquely coloured, or none is filled).
+const findRowBackgroundFill = (cellColors, rowIdx, monthColumns) => {
+    const counts = new Map();
+    let total = 0;
+    for (const col of monthColumns) {
+        const c = cellColors?.[rowIdx]?.[col];
+        if (!isMeaningfulFill(c)) continue;
+        const key = String(c);
+        counts.set(key, (counts.get(key) || 0) + 1);
+        total += 1;
+    }
+    if (counts.size === 0) return null;
+    // The dominant fill must cover more than half the month cells AND appear
+    // at least 4 times to qualify as "row background".
+    let best = null, bestCount = 0;
+    for (const [key, count] of counts) {
+        if (count > bestCount) { best = key; bestCount = count; }
+    }
+    if (bestCount >= 4 && bestCount > total / 2) return best;
+    return null;
+};
+
 // Analyze every row below the month header — returns per-row classification
 // with enough context for both the auto-build and the manual review step.
 export function analyzeSheet(sheet) {
@@ -197,10 +238,14 @@ export function analyzeSheet(sheet) {
     const mergeOrigins = indexMergesByOrigin(merges);
     const verticalFragments = indexVerticalMergeFragments(merges);
 
+    const monthColIndices = monthEntries.map(e => e.col);
     const rows = [];
     for (let r = header.rowIdx + 1; r < data.length; r++) {
         const row = data[r] || [];
         const label = getLabel(row, 0);
+        // Row-level background fill — when most month cells share the same
+        // colour it's template styling, not a user highlight per cell.
+        const bgFill = findRowBackgroundFill(cellColors, r, monthColIndices);
 
         const monthSignals = [];
         for (const { monthIdx, col } of monthEntries) {
@@ -210,8 +255,10 @@ export function analyzeSheet(sheet) {
             const hasContent = !isEmptyCell(value);
             // Cells with no text but a coloured fill are still task signals —
             // many roadmaps colour-block months instead of writing a label.
+            // Skip cells whose fill matches the row's background (uniform
+            // template styling, not a per-cell highlight).
             const cellColor = cellColors?.[r]?.[col];
-            const hasColor = isMeaningfulFill(cellColor);
+            const hasColor = isMeaningfulFill(cellColor) && (!bgFill || String(cellColor) !== bgFill);
             if (!hasContent && !merge && !hasColor) continue;
 
             let endCol = col;

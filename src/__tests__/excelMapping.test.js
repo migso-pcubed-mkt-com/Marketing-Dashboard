@@ -131,6 +131,24 @@ describe('analyzeSheet', () => {
         expect(a.rows[0].suggested).toBe('action');
     });
 
+    it('treats the THEME-<n> sentinel as a colour signal (accent themes 2-9)', () => {
+        const sheet = {
+            data: [
+                ['Actions', 'Jan', 'Feb', 'Mar'],
+                ['Theme highlight', '', '', '']
+            ],
+            merges: [],
+            cellColors: [
+                [null, null, null, null],
+                [null, null, 'THEME-4', null]
+            ]
+        };
+        const a = analyzeSheet(sheet);
+        expect(a.rows[0].monthSignals).toHaveLength(1);
+        expect(a.rows[0].monthSignals[0].hasColorOnly).toBe(true);
+        expect(a.rows[0].suggested).toBe('action');
+    });
+
     it('ignores neutral fills (white, transparent, pure black) on otherwise empty cells', () => {
         const sheet = {
             data: [
