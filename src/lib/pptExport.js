@@ -334,16 +334,27 @@ function renderKanbanSlide(pptx, columns, boardName, pageNum, totalPages) {
             fontFace: 'Calibri', valign: 'middle', align: 'left'
         });
 
-        // Cards
+        // Cards — pre-compute the natural height of each card from its
+        // content so action cards adapt to their nested task list. A uniform
+        // scale factor is applied if the column would overflow the slide.
         const listTop = gridTop + headerH + 0.08;
         const listH = gridBottom - listTop;
         if (col.items.length === 0) return;
         const cardGap = 0.06;
-        const cardH = Math.max(0.35, Math.min(0.8, (listH - cardGap * (col.items.length - 1)) / col.items.length));
+
+        const naturalHeights = col.items.map(item => (
+            item.kind === 'action'
+                ? naturalActionCardHeight(item.action, item.tasks)
+                : naturalTaskCardHeight(item.task)
+        ));
+        const totalNatural = naturalHeights.reduce((s, h) => s + h, 0) + cardGap * (col.items.length - 1);
+        const scale = totalNatural > listH ? listH / totalNatural : 1;
 
         let y = listTop;
-        for (const item of col.items) {
-            if (y + cardH > gridBottom) break; // clip overflow
+        for (let i = 0; i < col.items.length; i++) {
+            const item = col.items[i];
+            const cardH = naturalHeights[i] * scale;
+            if (y + cardH > gridBottom + 0.001) break; // safety clip
             if (item.kind === 'action') {
                 renderActionCard(pptx, slide, item.action, item.tasks, x, y, colW, cardH);
             } else {
@@ -353,6 +364,32 @@ function renderKanbanSlide(pptx, columns, boardName, pageNum, totalPages) {
         }
     });
 }
+
+// Per-content card-height heuristics. Numbers are inches and tuned to look
+// right at the default font sizes used by renderActionCard / renderTaskCard.
+const naturalActionCardHeight = (action, tasks) => {
+    const groups = new Map();
+    for (const t of tasks) {
+        const key = t.trelloChecklistName || '(Tasks)';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(t);
+    }
+    const headerH = 0.22;       // action name line
+    const groupHeaderH = 0.18;  // ▸ checklist line
+    const taskH = 0.16;         // · task line
+    const footerH = 0.20;       // X/Y tasks line
+    const padding = 0.10;       // top + bottom paddings combined
+    const groupCount = groups.size || 1;
+    const taskCount = tasks.length;
+    return headerH + groupCount * groupHeaderH + taskCount * taskH + footerH + padding;
+};
+
+const naturalTaskCardHeight = (task) => {
+    const titleH = 0.34;
+    const footerH = task.startDate || task.dueDate || (task.budget && task.budget > 0) ? 0.22 : 0;
+    const padding = 0.06;
+    return titleH + footerH + padding;
+};
 
 function renderTaskCard(pptx, slide, task, x, y, w, h) {
     const isDone = task.status === 'completed';
@@ -405,24 +442,17 @@ function renderTaskCard(pptx, slide, task, x, y, w, h) {
 }
 
 function renderActionCard(pptx, slide, action, tasks, x, y, w, h) {
-    // Action grouping card mirrors the Excel `buildActionCell` output:
-    //   <Action name>            ← bold (+ strike if action.status === completed)
+    // Action grouping card mirrors the Excel `buildActionCell` output, but
+    // renders as a SINGLE shape+text primitive (addText with `shape:`) so the
+    // light-grey card grows with its content and the user can edit everything
+    // inside one PowerPoint object instead of two overlapping ones.
+    //   <Action name>             ← bold (+ strike if action.status === completed)
     //   ▸ Checklist 1
-    //     · Task A                ← strike if task.status === completed
+    //     · Task A                 ← strike if task.status === completed
     //     · Task B
     //   ▸ Checklist 2
     //     · Task C
-    // Tasks without a trelloChecklistName fall under a synthetic "(Tasks)" group
-    // so card-as-action and the plain-action paths render identically.
-    slide.addShape(pptx.ShapeType.roundRect, {
-        x, y, w, h,
-        fill: { color: 'F9FAFB' },
-        line: { color: 'E5E7EB', width: 0.5 },
-        rectRadius: 0.04
-    });
-    const padL = 0.1;
-    const padR = 0.1;
-    const footerH = 0.18;
+    //   X/Y tasks                  ← footer baked in as the last segment
     const actionDone = action.status === 'completed';
     const groups = new Map();
     const groupOrder = [];
@@ -432,9 +462,6 @@ function renderActionCard(pptx, slide, action, tasks, x, y, w, h) {
         groups.get(key).push(t);
     }
 
-    // Build a single richText sequence — action name first, then each group with
-    // its tasks. The whole block lives in one addText call so it fits inside the
-    // card with consistent line spacing.
     const segments = [];
     segments.push({
         text: action.name || '(action)',
@@ -451,23 +478,24 @@ function renderActionCard(pptx, slide, action, tasks, x, y, w, h) {
             });
         }
     }
-
-    const listTop = y + 0.06;
-    const listBottom = y + h - footerH - 0.04;
-    const listH = Math.max(0.18, listBottom - listTop);
-    slide.addText(segments, {
-        x: x + padL, y: listTop, w: w - padL - padR, h: listH,
-        valign: 'top', align: 'left', margin: 0,
-        fit: 'shrink' // pptxgenjs auto-shrinks text to fit when needed
-    });
-
     if (tasks.length > 0) {
         const done = tasks.filter(t => t.status === 'completed').length;
-        slide.addText(`${done}/${tasks.length} tasks`, {
-            x: x + padL, y: y + h - footerH - 0.02, w: w - padL - padR, h: footerH,
-            fontSize: 7, color: '6B7280', fontFace: 'Calibri', valign: 'middle', align: 'left', bold: true
+        segments.push({
+            text: `\n${done}/${tasks.length} tasks`,
+            options: { fontSize: 7, bold: true, color: '6B7280', fontFace: 'Calibri' }
         });
     }
+
+    slide.addText(segments, {
+        shape: pptx.ShapeType.roundRect,
+        x, y, w, h,
+        fill: { color: 'F9FAFB' },
+        line: { color: 'E5E7EB', width: 0.5 },
+        rectRadius: 0.04,
+        valign: 'top', align: 'left',
+        margin: 0.08,
+        fit: 'shrink'
+    });
 }
 
 // ─────────────────────────────────────────────
