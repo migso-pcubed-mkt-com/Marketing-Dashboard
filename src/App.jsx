@@ -145,7 +145,7 @@ const App = () => {
     const { filters, setFilters, showFilterSidebar, setShowFilterSidebar, searchInputRef, visibleTasks, visibleActions, activeFilterCount, filteredTasks, filteredBudget, isFiltered } = useFilters(tasks, actions);
 
     // --- Undo/Redo + History panel ---
-    const { pushState, undo, redo, jumpTo, clear: clearHistory, getHistory, suspend: suspendHistory, resume: resumeHistory, canUndo, canRedo, isUndoRedoRef, recentUndoRef, currentIndex: historyCurrentIndex } = useUndoRedo(setBoardData);
+    const { pushState, undo, redo, jumpTo, clear: clearHistory, getHistory, suspend: suspendHistory, resume: resumeHistory, canUndo, canRedo, isUndoRedoRef, recentUndoRef, currentIndex: historyCurrentIndex } = useUndoRedo(setBoardData, boardDataRef);
     // Window (ms) during which incoming Realtime events + pre-save merge fetches are
     // blocked after an undo/redo/jumpTo. Without this guard, the server echo of the
     // pre-undo state would silently overwrite the restored board before the user

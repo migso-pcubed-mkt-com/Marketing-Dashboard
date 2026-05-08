@@ -144,9 +144,72 @@ export function restoreSnapshot(current, snapshot) {
     return { ...snapshot, boards: newBoards };
 }
 
-export default function useUndoRedo(setBoardData) {
+// ─────────────────────────────────────────────
+// Pure history-store helpers — exported for unit tests. The React hook below
+// wraps these in refs + setState, but the algorithm is identical.
+// store shape: { history: [{ json, label, timestamp }], index, redoStack: [{ json, label }] }
+// ─────────────────────────────────────────────
+
+export const makeHistoryStore = () => ({ history: [], index: -1, redoStack: [] });
+
+export function applyPush(store, json, label = '', { coalesceMs = DEFAULT_COALESCE_MS, now = Date.now() } = {}) {
+    // Any fresh action invalidates redo.
+    if (store.redoStack.length > 0) store.redoStack = [];
+
+    const last = store.history[store.history.length - 1];
+    if (
+        coalesceMs > 0 && last && label && last.label === label &&
+        now - last.timestamp < coalesceMs &&
+        store.index === store.history.length - 1
+    ) {
+        last.timestamp = now;
+        return { coalesced: true };
+    }
+    store.history.push({ json, label, timestamp: now });
+    if (store.history.length > MAX_HISTORY) {
+        store.history = store.history.slice(store.history.length - MAX_HISTORY);
+    }
+    store.index = store.history.length - 1;
+    return { coalesced: false };
+}
+
+export function applyUndo(store, currentJson) {
+    if (store.index < 0) return null;
+    const entry = store.history[store.index];
+    store.redoStack.push({ json: currentJson, label: entry.label });
+    store.index -= 1;
+    return entry; // { json, label, timestamp }
+}
+
+export function applyRedo(store) {
+    if (store.redoStack.length === 0) return null;
+    const entry = store.redoStack.pop();
+    store.index += 1;
+    return entry; // { json, label }
+}
+
+export function applyJumpTo(store, targetIndex) {
+    if (targetIndex < 0 || targetIndex >= store.history.length) return null;
+    if (targetIndex === store.index) return null;
+    store.redoStack = [];
+    store.index = targetIndex;
+    return store.history[targetIndex];
+}
+
+export default function useUndoRedo(setBoardData, boardDataRef) {
+    // history holds pre-mutation snapshots. After N actions, indexRef points
+    // to the most recently pushed snapshot (= state BEFORE the last action,
+    // which equals the state AFTER the previous action). The current live
+    // state is NOT in history — it sits "above" indexRef.
+    //
+    // To support redo, undo captures the live state (boardDataRef.current)
+    // into redoStackRef before applying the restore. Redo pops from that
+    // stack to bring the user back forward. Any new pushState (= a fresh
+    // user action) clears redoStackRef because the redo branch is no longer
+    // reachable.
     const historyRef = useRef([]);
     const indexRef = useRef(-1);
+    const redoStackRef = useRef([]); // stack of { json, label } for redo
     const isUndoRedoRef = useRef(false);
     const suspendedRef = useRef(false);
     // Timestamp (ms) of the most recent undo/redo/jumpTo. App.jsx uses this to
@@ -156,8 +219,8 @@ export default function useUndoRedo(setBoardData) {
 
     const [, forceUpdate] = useState(0);
 
-    const canUndo = indexRef.current > 0;
-    const canRedo = indexRef.current < historyRef.current.length - 1;
+    const canUndo = indexRef.current >= 0;
+    const canRedo = redoStackRef.current.length > 0;
 
     // pushState(boardData, label, { coalesceMs })
     // label: describes the user-visible change (e.g. "Task 'Foo' updated")
@@ -165,6 +228,22 @@ export default function useUndoRedo(setBoardData) {
     //   this window, skip the new push to keep the pre-change snapshot intact.
     //   Used for continuous actions like Timeline resize/drag so a single entry is
     //   kept per gesture.
+    // The hook keeps the history store split across refs (history, index, redo
+    // stack) so each piece can be inspected independently in DevTools. The
+    // applyPush / applyUndo / applyRedo / applyJumpTo helpers mutate a
+    // synthetic store object that mirrors those refs, then we sync back. Same
+    // algorithm, fully testable.
+    const buildStore = () => ({
+        history: historyRef.current,
+        index: indexRef.current,
+        redoStack: redoStackRef.current
+    });
+    const syncStore = (store) => {
+        historyRef.current = store.history;
+        indexRef.current = store.index;
+        redoStackRef.current = store.redoStack;
+    };
+
     const pushState = useCallback((boardData, label = '', options = {}) => {
         if (isUndoRedoRef.current) return;
         if (suspendedRef.current) return;
@@ -174,34 +253,10 @@ export default function useUndoRedo(setBoardData) {
         try { json = JSON.stringify(boardData); }
         catch (e) { console.warn('useUndoRedo: failed to serialize state, skipping snapshot', e); return; }
 
-        if (indexRef.current < historyRef.current.length - 1) {
-            historyRef.current = historyRef.current.slice(0, indexRef.current + 1);
-        }
-
         const coalesceMs = Number.isFinite(options.coalesceMs) ? options.coalesceMs : DEFAULT_COALESCE_MS;
-        const last = historyRef.current[historyRef.current.length - 1];
-        if (
-            coalesceMs > 0 &&
-            last &&
-            label &&
-            last.label === label &&
-            Date.now() - last.timestamp < coalesceMs &&
-            indexRef.current === historyRef.current.length - 1
-        ) {
-            // Keep the earlier (pre-change) snapshot, just bump timestamp so
-            // subsequent pushes within the window continue to coalesce.
-            last.timestamp = Date.now();
-            forceUpdate(n => n + 1);
-            return;
-        }
-
-        historyRef.current.push({ json, label, timestamp: Date.now() });
-
-        if (historyRef.current.length > MAX_HISTORY) {
-            historyRef.current = historyRef.current.slice(historyRef.current.length - MAX_HISTORY);
-        }
-
-        indexRef.current = historyRef.current.length - 1;
+        const store = buildStore();
+        applyPush(store, json, label, { coalesceMs });
+        syncStore(store);
         forceUpdate(n => n + 1);
     }, []);
 
@@ -213,10 +268,17 @@ export default function useUndoRedo(setBoardData) {
     }, [setBoardData]);
 
     const undo = useCallback(() => {
-        if (indexRef.current <= 0) return null;
+        // Capture the live (post-action) board state into the redo stack BEFORE
+        // restoring — that's the only place we have access to it.
+        let currentJson = '';
+        try { currentJson = JSON.stringify(boardDataRef?.current || null); }
+        catch (e) { console.warn('useUndoRedo: failed to serialize current state for redo', e); return null; }
 
-        indexRef.current -= 1;
-        const entry = historyRef.current[indexRef.current];
+        const store = buildStore();
+        const entry = applyUndo(store, currentJson);
+        if (!entry) return null;
+        syncStore(store);
+
         let restored;
         try { restored = JSON.parse(entry.json); }
         catch (e) { console.warn('useUndoRedo: failed to parse undo state', e); return null; }
@@ -224,13 +286,14 @@ export default function useUndoRedo(setBoardData) {
         applyRestore(restored);
         forceUpdate(n => n + 1);
         return entry.label;
-    }, [applyRestore]);
+    }, [applyRestore, boardDataRef]);
 
     const redo = useCallback(() => {
-        if (indexRef.current >= historyRef.current.length - 1) return null;
+        const store = buildStore();
+        const entry = applyRedo(store);
+        if (!entry) return null;
+        syncStore(store);
 
-        indexRef.current += 1;
-        const entry = historyRef.current[indexRef.current];
         let restored;
         try { restored = JSON.parse(entry.json); }
         catch (e) { console.warn('useUndoRedo: failed to parse redo state', e); return null; }
@@ -241,15 +304,15 @@ export default function useUndoRedo(setBoardData) {
     }, [applyRestore]);
 
     const jumpTo = useCallback((targetIndex) => {
-        if (targetIndex < 0 || targetIndex >= historyRef.current.length) return null;
-        if (targetIndex === indexRef.current) return null;
+        const store = buildStore();
+        const entry = applyJumpTo(store, targetIndex);
+        if (!entry) return null;
+        syncStore(store);
 
-        const entry = historyRef.current[targetIndex];
         let restored;
         try { restored = JSON.parse(entry.json); }
         catch (e) { console.warn('useUndoRedo: failed to parse jump state', e); return null; }
 
-        indexRef.current = targetIndex;
         applyRestore(restored);
         forceUpdate(n => n + 1);
         return entry.label;
@@ -257,6 +320,7 @@ export default function useUndoRedo(setBoardData) {
 
     const clear = useCallback(() => {
         historyRef.current = [];
+        redoStackRef.current = [];
         indexRef.current = -1;
         forceUpdate(n => n + 1);
     }, []);

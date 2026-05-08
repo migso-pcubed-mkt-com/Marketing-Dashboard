@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-05-12 (Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs, 2-pass OCC + visibilitychange Realtime catch-up, Timeline drag-down true swap, PPT Timeline black-text-in-shape, Excel import v11 modal + colour cells, typed history labels)
+> Last updated: 2026-05-19 (undo/redo off-by-one fix + redo stack, PPT Timeline text via addText with shape, PPT Kanban action card unified shape+text + adaptive height, Excel theme-fill detection)
 
 ---
 
@@ -495,6 +495,12 @@ The callback logic lives in `public/trello-callback.js`, referenced by `public/t
 
 ### lastSaveIdRef persisted in sessionStorage
 `lastSaveIdRef` is initialized from `sessionStorage('mkt_last_save_id')` instead of `null`. Each auto-save writes the new saveId to sessionStorage. This allows the app to detect Realtime echoes from its own previous instance after a page reload/deploy. Without this, the first Realtime event after reload would be treated as a new update and could overwrite freshly loaded data.
+
+### useUndoRedo — undo restores `history[index]`, then decrements (off-by-one fix)
+The history holds **pre-mutation snapshots** (one per user action). After N actions the index points at the most recently pushed snapshot — that's the state BEFORE the last action = the state AFTER the previous one. Undo must restore `history[indexRef.current]` first, **then** decrement the index. The earlier implementation decremented before reading the entry, which silently jumped two actions back. Tests in `src/__tests__/useUndoRedo.test.js` lock the correct order.
+
+### useUndoRedo — redo stack captures live state at undo time
+Pre-state-only history can't redo because the state we're leaving (post-N-th-action) is never in `historyRef`. The hook receives `boardDataRef` and, on undo, captures the live `JSON.stringify(boardDataRef.current)` into `redoStackRef` BEFORE applying the restore. `redo` pops the most recent entry and replays it. Any new `pushState` (= a fresh user action) clears the redo stack — the forward branch is no longer reachable. `applyPush` / `applyUndo` / `applyRedo` / `applyJumpTo` are exported pure functions; the hook is a thin React wrapper around them.
 
 ### useUndoRedo coalescing — skip new push, do NOT replace previous
 `pushState(data, label, { coalesceMs = 400 })` coalesces continuous gestures (resize/drag) into a single history entry. When the last entry shares the same `label` AND was pushed within `coalesceMs`, the new push is **skipped** (not replaced) and only the timestamp of the last entry is bumped. This preserves the pre-change snapshot: undo takes the user back to the state BEFORE the whole gesture, not to an intermediate frame. Do NOT "replace previous entry with new snapshot" — that would make undo revert only the last frame of a resize. `HistoryPanel` truncates labels to 60 chars with a tooltip showing the full label.

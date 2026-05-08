@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { restoreSnapshot } from '../hooks/useUndoRedo.js';
+import {
+    restoreSnapshot,
+    makeHistoryStore,
+    applyPush,
+    applyUndo,
+    applyRedo,
+    applyJumpTo
+} from '../hooks/useUndoRedo.js';
 
 /**
  * restoreSnapshot is the bridge between the client-side history buffer and
@@ -168,5 +175,139 @@ describe('restoreSnapshot', () => {
         expect(restoredAction.name).toBe('Old name');
         expect(restoredAction._trelloBaseline).toBeUndefined();
         expect(restoredAction._inheritChannels).toBeUndefined();
+    });
+});
+
+// ─────────────────────────────────────────────
+// History store algorithm — undo/redo offsets, redo stack, coalescing.
+// These are the v4 fixes that turn the bug where an undo skipped two actions
+// and a redo couldn't bring the user back into a working two-direction
+// time-travel.
+// ─────────────────────────────────────────────
+
+describe('applyPush', () => {
+    it('records each new action and points index at the latest entry', () => {
+        const s = makeHistoryStore();
+        applyPush(s, '"S0"', 'A1', { coalesceMs: 0, now: 1000 });
+        applyPush(s, '"S1"', 'A2', { coalesceMs: 0, now: 2000 });
+        expect(s.history).toHaveLength(2);
+        expect(s.index).toBe(1);
+        expect(s.history[0].json).toBe('"S0"');
+        expect(s.history[1].label).toBe('A2');
+    });
+
+    it('coalesces consecutive pushes that share a label within coalesceMs', () => {
+        const s = makeHistoryStore();
+        applyPush(s, '"S0"', 'A1', { coalesceMs: 400, now: 1000 });
+        applyPush(s, '"S0bis"', 'A1', { coalesceMs: 400, now: 1100 });
+        expect(s.history).toHaveLength(1);
+        expect(s.history[0].json).toBe('"S0"'); // first snapshot kept
+        expect(s.history[0].timestamp).toBe(1100); // timestamp bumped
+    });
+
+    it('does NOT coalesce when the label differs', () => {
+        const s = makeHistoryStore();
+        applyPush(s, '"S0"', 'schedule', { coalesceMs: 400, now: 1000 });
+        applyPush(s, '"S1"', 'description', { coalesceMs: 400, now: 1100 });
+        expect(s.history).toHaveLength(2);
+        expect(s.history[0].label).toBe('schedule');
+        expect(s.history[1].label).toBe('description');
+    });
+
+    it('clears the redo stack on any new action (forward branch becomes invalid)', () => {
+        const s = makeHistoryStore();
+        s.redoStack = [{ json: '"R0"', label: 'redo' }, { json: '"R1"', label: 'redo' }];
+        applyPush(s, '"S0"', 'A1', { coalesceMs: 0, now: 1000 });
+        expect(s.redoStack).toHaveLength(0);
+    });
+});
+
+describe('applyUndo + applyRedo', () => {
+    const setup = () => {
+        const s = makeHistoryStore();
+        // Two actions: A1 produced state S1, A2 produced state S2.
+        // Pre-A1 snapshot = S0 (initial empty).
+        // Pre-A2 snapshot = S1.
+        applyPush(s, '"S0"', 'A1', { coalesceMs: 0, now: 1000 });
+        applyPush(s, '"S1"', 'A2', { coalesceMs: 0, now: 2000 });
+        return s;
+    };
+
+    it('undo from index N restores history[N] (NOT history[N-1] — fixes the v3 off-by-one bug)', () => {
+        const s = setup();
+        // Current live state when user clicks undo = S2 (post-A2).
+        const entry = applyUndo(s, '"S2"');
+        expect(entry.json).toBe('"S1"'); // pre-A2 = post-A1 — the right state to revert A2
+        expect(s.index).toBe(0); // decremented after restore
+        expect(s.redoStack).toHaveLength(1); // S2 captured for redo
+        expect(s.redoStack[0].json).toBe('"S2"');
+    });
+
+    it('two consecutive undos walk back through history one action at a time', () => {
+        const s = setup();
+        const e1 = applyUndo(s, '"S2"'); // revert A2
+        expect(e1.json).toBe('"S1"');
+        const e2 = applyUndo(s, '"S1"'); // revert A1 — current state is now S1
+        expect(e2.json).toBe('"S0"');
+        expect(s.index).toBe(-1);
+        expect(s.redoStack.map(e => e.json)).toEqual(['"S2"', '"S1"']);
+    });
+
+    it('returns null when there is nothing left to undo', () => {
+        const s = makeHistoryStore();
+        expect(applyUndo(s, '"X"')).toBe(null);
+        applyPush(s, '"S0"', 'A1', { coalesceMs: 0, now: 1000 });
+        applyUndo(s, '"S1"'); // OK
+        expect(applyUndo(s, '"S0"')).toBe(null);
+    });
+
+    it('redo replays the most recently undone state (LIFO)', () => {
+        const s = setup();
+        applyUndo(s, '"S2"'); // S2 → redoStack
+        const r = applyRedo(s);
+        expect(r.json).toBe('"S2"');
+        expect(s.index).toBe(1);
+        expect(s.redoStack).toHaveLength(0);
+    });
+
+    it('multiple undo/redo round-trips return to the exact starting state', () => {
+        const s = setup();
+        applyUndo(s, '"S2"');
+        applyUndo(s, '"S1"');
+        applyRedo(s);
+        applyRedo(s);
+        expect(s.index).toBe(1);
+        expect(s.redoStack).toHaveLength(0);
+        expect(s.history.map(e => e.json)).toEqual(['"S0"', '"S1"']);
+    });
+
+    it('any push after an undo invalidates the redo branch', () => {
+        const s = setup();
+        applyUndo(s, '"S2"'); // redoStack = [S2]
+        applyPush(s, '"S1"', 'A3', { coalesceMs: 0, now: 3000 });
+        expect(s.redoStack).toHaveLength(0);
+        expect(applyRedo(s)).toBe(null);
+    });
+});
+
+describe('applyJumpTo', () => {
+    it('restores the chosen entry, sets the index, and clears redo', () => {
+        const s = makeHistoryStore();
+        applyPush(s, '"S0"', 'A1', { coalesceMs: 0, now: 1000 });
+        applyPush(s, '"S1"', 'A2', { coalesceMs: 0, now: 2000 });
+        applyPush(s, '"S2"', 'A3', { coalesceMs: 0, now: 3000 });
+        applyUndo(s, '"S3"'); // redoStack populated
+        const entry = applyJumpTo(s, 0);
+        expect(entry.json).toBe('"S0"');
+        expect(s.index).toBe(0);
+        expect(s.redoStack).toHaveLength(0);
+    });
+
+    it('rejects out-of-range targets and the current index', () => {
+        const s = makeHistoryStore();
+        applyPush(s, '"S0"', 'A1', { coalesceMs: 0, now: 1000 });
+        expect(applyJumpTo(s, -1)).toBe(null);
+        expect(applyJumpTo(s, 5)).toBe(null);
+        expect(applyJumpTo(s, 0)).toBe(null); // already there
     });
 });
