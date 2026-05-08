@@ -218,15 +218,17 @@ export async function exportTimelinePPT(categories, actions, tasks, year, boardN
         const fillColor = isDone ? lighten(baseColor, 0.55) : baseColor;
         const titleText = row.indentAction ? `  ${task.title}` : task.title;
 
-        // Single shape with the title baked in. Always black text per user preference,
-        // wrap disabled so long titles overflow horizontally instead of stacking
-        // onto two lines inside the bar (which made narrow bars unreadable).
-        slide.addShape(pptx.ShapeType.roundRect, {
+        // pptxgenjs renders shape + text as a single primitive when you call
+        // addText(text, { shape, ...fillOpts }) — `addShape` does NOT honour a
+        // `text:` option (that was the v3 regression). One unified object also
+        // means the user can click and edit the bar in PowerPoint as a single
+        // textbox-shape, not two overlapping primitives.
+        slide.addText(titleText, {
+            shape: pptx.ShapeType.roundRect,
             x: barX, y: barY, w: barW, h: barH,
             fill: { color: fillColor },
             line: { color: fillColor, width: 0.5 },
             rectRadius: 0.04,
-            text: titleText,
             color: '000000',
             fontFace: 'Calibri',
             fontSize: Math.min(9, Math.max(6, barH * 30)),
