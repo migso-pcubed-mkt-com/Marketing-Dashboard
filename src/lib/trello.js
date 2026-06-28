@@ -255,6 +255,7 @@ export const fetchTrelloMe = async (token) => {
         const err = new Error(parts.join(' — '));
         err.tokenLength = body.tokenLength;
         err.trelloStatus = body.trelloStatus;
+        err.status = r.status; // proxy status (401 = invalid token, 5xx/429 = transient)
         throw err;
     }
     return r.json();

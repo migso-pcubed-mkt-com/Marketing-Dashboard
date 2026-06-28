@@ -99,8 +99,12 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
             for(const k of SYNC_FIELDS){if(JSON.stringify(f[k])===JSON.stringify(prev[k]))next[k]=action[k];}
             return next;
         });
-        if(!descriptionEditing)setDescriptionDraft(action.description||'');
-    },[action,descriptionEditing]);
+        // Re-sync the description draft only if the user hasn't locally diverged it — same
+        // guard as the SYNC_FIELDS loop. handleClose persists descriptionDraft, so an
+        // unconditional reset here would silently drop an unsaved description edit when the
+        // action is bumped for an unrelated reason (e.g. adding a comment).
+        if(!descriptionEditing&&JSON.stringify(descriptionDraft)===JSON.stringify(prev.description||''))setDescriptionDraft(action.description||'');
+    },[action,descriptionEditing,descriptionDraft]);
 
     useEffect(()=>{
         if(descriptionEditing&&descEditableRef.current){

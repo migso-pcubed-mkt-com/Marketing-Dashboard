@@ -345,6 +345,7 @@ const App = () => {
     // that re-runs the auto-save effect once the window closes so that edit gets persisted.
     const lastRealtimeBoardRef = useRef(null);
     const pendingRealtimeEditRef = useRef(false);
+    const skipNextAutoSaveRef = useRef(false); // one-shot: skip the save re-triggered by preSaveOccMerge's setBoardData
 
     const saveToLocalStorage = () => {
         saveToLocalStorageFn(boardDataRef);
@@ -399,6 +400,10 @@ const App = () => {
                 const merged = mergeBoardsEntityLevel(boardDataRef.current, server.board_data);
                 boardDataRef.current = merged;
                 serverUpdatedAtRef.current = server.updated_at;
+                // The in-flight save already persists `merged` (via boardDataRef). Showing it
+                // in the UI re-fires the auto-save effect; skip that one redundant save so a
+                // detected conflict doesn't cause a second cloud write + duplicate Trello sync.
+                skipNextAutoSaveRef.current = true;
                 setBoardData(merged);
             }
         } catch (e) {
@@ -530,15 +535,16 @@ const App = () => {
     useEffect(() => {
         // The initial `authenticated` state is optimistic (true if a trello_user_token
         // string exists, regardless of validity). restoreTrelloUser validates it against
-        // Trello and removes it if invalid/expired. If validation fails and the user is
-        // not a guest, downgrade to unauthenticated so an expired/forged token can't
-        // bypass the AuthGate (M4). Guests (sessionStorage.guest_auth) stay authenticated.
+        // Trello: it returns null ONLY for a confirmed-invalid token (401/403) and throws a
+        // transient error for network/outage. Downgrade to unauthenticated only on the
+        // confirmed-invalid case so an expired/forged token can't bypass the AuthGate (M4) —
+        // but a transient blip must NOT eject a valid user. Guests stay authenticated.
         const hadToken = !!localStorage.getItem('trello_user_token');
         const failAuth = () => { if (!sessionStorage.getItem('guest_auth')) setAuthenticated(false); };
         restoreTrelloUser().then(user => {
             if (user) { setTrelloUser(user); setAuthenticated(true); }
-            else if (hadToken) failAuth();
-        }).catch(failAuth);
+            else if (hadToken) failAuth(); // confirmed invalid token → require re-auth
+        }).catch(() => { /* transient (offline/outage) — keep optimistic auth, don't eject */ });
     }, []);
 
     const handleTrelloLogin = useCallback(async () => {
@@ -591,6 +597,9 @@ const App = () => {
     // Auto-save with debounce
     useEffect(() => {
         if (!dataLoaded || !loadCompleted || !boardData) return;
+        // Skip exactly one cycle when preSaveOccMerge merged a remote conflict into the UI —
+        // that data was already persisted by the in-flight save, so re-saving it is redundant.
+        if (skipNextAutoSaveRef.current) { skipNextAutoSaveRef.current = false; return; }
         if (isReceivingRealtimeRef.current) {
             // Inside the Realtime guard window. If this boardData is the very object the
             // Realtime merge just applied, it's not a local edit — skip. If it's a different
@@ -653,12 +662,14 @@ const App = () => {
                 clearTimeout(postSaveSyncTimeoutRef.current);
                 postSaveSyncTimeoutRef.current = null;
             }
-            if (autoSaveTimeoutRef.current && boardDataRef.current) {
+            if (autoSaveTimeoutRef.current) {
                 clearTimeout(autoSaveTimeoutRef.current);
                 autoSaveTimeoutRef.current = null;
-                // Synchronous localStorage save — guaranteed to complete before page unloads
-                saveToLocalStorage();
             }
+            // Always mirror current state to localStorage on unload — covers a pending
+            // debounced save AND an in-flight save (autoSaveTimeoutRef is null during the
+            // latter now that doSave clears it at start). Synchronous, completes before unload.
+            if (boardDataRef.current) saveToLocalStorage();
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => {
@@ -682,9 +693,10 @@ const App = () => {
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.hidden) {
-                if (autoSaveTimeoutRef.current && boardDataRef.current) {
-                    saveToLocalStorage();
-                }
+                // Mirror current state to localStorage when the tab is hidden — covers a
+                // pending debounced save AND an in-flight save (autoSaveTimeoutRef is null
+                // during the latter now that doSave clears it at start).
+                if (boardDataRef.current) saveToLocalStorage();
                 return;
             }
             if (!useSupabase || !loadCompletedRef.current || !serverUpdatedAtRef.current) return;

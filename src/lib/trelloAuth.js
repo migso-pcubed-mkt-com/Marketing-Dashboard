@@ -156,9 +156,19 @@ export const restoreTrelloUser = async () => {
         const user = await fetchTrelloMe(token);
         setTrelloUserToken(token);
         return { ...buildUserResult(user, token).user, token };
-    } catch {
-        localStorage.removeItem(STORAGE_KEY);
-        return null;
+    } catch (e) {
+        // Only a confirmed auth rejection (401/403) means the token is invalid → remove it
+        // and signal "not authenticated". A transient failure (network error, 5xx, timeout)
+        // must NOT log a valid user out — keep the token and throw a transient error so the
+        // caller can stay optimistically authenticated.
+        const status = e?.status ?? e?.trelloStatus;
+        if (status === 401 || status === 403) {
+            localStorage.removeItem(STORAGE_KEY);
+            return null;
+        }
+        const transient = new Error('Trello temporarily unreachable');
+        transient.transient = true;
+        throw transient;
     }
 };
 
