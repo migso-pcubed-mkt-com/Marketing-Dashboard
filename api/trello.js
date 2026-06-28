@@ -22,9 +22,16 @@ export default async function handler(req, res) {
     const TRELLO_API_KEY = process.env.TRELLO_API_KEY;
     const TRELLO_TOKEN_ENV = process.env.TRELLO_TOKEN;
 
-    // Use per-user token from header if present, otherwise fall back to env var
+    // Per-user token from the header. SECURITY (M1): do NOT silently fall back to the
+    // server's TRELLO_TOKEN for arbitrary callers — that makes this proxy an open relay
+    // that drives the server's Trello account (list/create/delete boards & cards) for any
+    // anonymous request. The env token is used ONLY when explicitly opted in via
+    // ALLOW_SERVER_TRELLO_TOKEN=true (e.g. a single shared-account deployment, or guests
+    // reading a Trello-linked board). Secure by default; flip the flag to restore the old
+    // shared-token behaviour.
     const userToken = req.headers['x-trello-token'];
-    const TRELLO_TOKEN = userToken || TRELLO_TOKEN_ENV;
+    const allowServerToken = process.env.ALLOW_SERVER_TRELLO_TOKEN === 'true';
+    const TRELLO_TOKEN = userToken || (allowServerToken ? TRELLO_TOKEN_ENV : undefined);
 
     const { action, boardId, cardId, listId, skipComments, cardIds } = req.method === 'GET' || req.method === 'DELETE'
         ? req.query
