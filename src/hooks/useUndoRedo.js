@@ -10,8 +10,8 @@ const DEFAULT_COALESCE_MS = 400;
 // restored values winning and pushes them back to Trello. Without this,
 // undo would silently lose the push because the snapshot's updatedAt
 // predates trelloLastModified and LWW would pull from Trello instead.
-const SYNC_FIELDS_TASK = ['title','description','startDate','dueDate','status','priority','budget','month','channels','countries','otherLabels','order','assignees','trelloChecklistName','trelloChecklistId','checklist','swimLane','actionId'];
-const SYNC_FIELDS_ACTION = ['name','description','budget','priority','tags','channels','countries','otherLabels','status','order','categoryId','assignees'];
+const SYNC_FIELDS_TASK = ['title','description','startDate','dueDate','status','priority','budget','month','channels','countries','otherLabels','order','assignees','trelloChecklistName','trelloChecklistId','checklist','checklists','swimLane','actionId'];
+const SYNC_FIELDS_ACTION = ['name','description','startDate','dueDate','budget','priority','tags','channels','countries','otherLabels','status','order','categoryId','assignees'];
 const SYNC_FIELDS_CATEGORY = ['name','color','order'];
 
 const mapById = (arr) => {

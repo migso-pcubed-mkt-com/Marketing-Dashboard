@@ -388,9 +388,11 @@ const App = () => {
                 }
                 return;
             }
-            // Undo: Ctrl+Z / Cmd+Z
+            // Undo: Ctrl+Z / Cmd+Z — blocked in read-only (combined view / guest) so the
+            // keyboard shortcut can't mutate board data that the UI otherwise locks.
             if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
                 e.preventDefault();
+                if (isReadOnly) return;
                 const label = undo();
                 if (label) { setNotification('↩ Undo: ' + label); setTimeout(() => setNotification(null), 3000); }
                 return;
@@ -398,6 +400,7 @@ const App = () => {
             // Redo: Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y / Cmd+Y
             if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
                 e.preventDefault();
+                if (isReadOnly) return;
                 const label = redo();
                 if (label) { setNotification('↪ Redo: ' + label); setTimeout(() => setNotification(null), 3000); }
                 return;
@@ -424,7 +427,9 @@ const App = () => {
         };
         document.addEventListener('keydown', handleKeyPress);
         return () => document.removeEventListener('keydown', handleKeyPress);
-    }, [selectedTask, selectedAction, showCategoriesModal, showNewActionModal, showNewTaskModal, showFilterSidebar, showCreateDropdown, undo, redo]);
+        // Note: handleCreateNewTask is a stable useCallback([]) so it's intentionally
+        // omitted from deps (and would be a TDZ reference here — it's defined later).
+    }, [selectedTask, selectedAction, showCategoriesModal, showNewActionModal, showNewTaskModal, showFilterSidebar, showCreateDropdown, undo, redo, isReadOnly]);
 
     // Data loading on mount
     useEffect(() => {
@@ -949,9 +954,12 @@ const App = () => {
         setActions(prev => applyActionUpdate(prev, actionId, updates));
         const linkedTasks = tasks.filter(t => t.actionId === actionId);
         const batchUpdates = computeTagPropagation(oldAction, updates, linkedTasks);
-        if (batchUpdates.length > 0) handleBatchUpdateTasks(batchUpdates);
+        // Apply tag propagation directly (no separate pushState): the action's snapshot
+        // above already captured the whole board pre-change, so a second history entry
+        // would force the user to press undo twice for one logical edit. (M7)
+        if (batchUpdates.length > 0) setTasks(prev => applyBatchTaskUpdate(prev, batchUpdates));
         showNotification('✅ Action updated');
-    }, [actions, tasks, setActions, handleBatchUpdateTasks, showNotification, pushState]);
+    }, [actions, tasks, setActions, setTasks, showNotification, pushState]);
 
     const handleDeleteAction = useCallback(async (actionId) => {
         const actionForLabel = actions.find(a => a.id === actionId);

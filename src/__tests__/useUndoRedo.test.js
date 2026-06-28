@@ -146,6 +146,31 @@ describe('restoreSnapshot', () => {
         expect(restoredTask._inheritChannels).toBeUndefined();
     });
 
+    it('bumps updatedAt when task checklists change (M12 — undo of a checklist edit must survive sync)', () => {
+        const current = envelope({
+            ...baseBoard,
+            tasks: [{ ...baseBoard.tasks[0], checklists: [{ id: 'cl', name: 'C', items: [{ id: 'i', text: 'x', done: true }] }], updatedAt: '2026-04-15T00:00:00.000Z' }]
+        });
+        // Snapshot: no checklists (the pre-change state).
+        const snapshot = envelope({ ...baseBoard, tasks: [{ ...baseBoard.tasks[0], checklists: [] }] });
+        const restored = restoreSnapshot(current, snapshot);
+        const t = restored.boards[0].tasks[0];
+        expect(t.checklists).toEqual([]);
+        expect(new Date(t.updatedAt).getTime()).toBeGreaterThan(new Date('2026-04-15T00:00:00.000Z').getTime());
+    });
+
+    it('bumps updatedAt when action startDate/dueDate change (M13 — undo of an action schedule edit must survive sync)', () => {
+        const current = envelope({
+            ...baseBoard,
+            actions: [{ ...baseBoard.actions[0], startDate: '2026-05-01', dueDate: '2026-05-31', updatedAt: '2026-04-15T00:00:00.000Z' }]
+        });
+        const snapshot = envelope({ ...baseBoard, actions: [{ ...baseBoard.actions[0], startDate: '2026-04-01', dueDate: '2026-04-30' }] });
+        const restored = restoreSnapshot(current, snapshot);
+        const a = restored.boards[0].actions[0];
+        expect(a.startDate).toBe('2026-04-01');
+        expect(new Date(a.updatedAt).getTime()).toBeGreaterThan(new Date('2026-04-15T00:00:00.000Z').getTime());
+    });
+
     it('strips baselines on actions that diverged from current', () => {
         const snapshotAction = {
             ...baseBoard.actions[0],
