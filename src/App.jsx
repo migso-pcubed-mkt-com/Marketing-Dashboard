@@ -451,8 +451,14 @@ const App = () => {
             }
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
             if (e.key === 'Escape') {
-                if (selectedTask) setSelectedTask(null);
-                else if (selectedAction) setSelectedAction(null);
+                // Task/Action detail modals own their Escape handling (save-then-close via
+                // their own window keydown listener). App must NOT close them here: App's
+                // document listener fires before the modal's window listener in the bubble
+                // phase, so setSelectedTask/Action(null) would unmount the modal synchronously
+                // and tear down its window listener BEFORE the save-on-close runs. That
+                // silently discarded any edit made while focus was outside an input (e.g. on
+                // <body> after a blur). Leave the close to the modal's handleClose.
+                if (selectedTask || selectedAction) { /* handled by the modal's own Escape (saves then closes) */ }
                 else if (showCategoriesModal) setShowCategoriesModal(false);
                 else if (showCreateDropdown) setShowCreateDropdown(false);
                 else if (showNewActionModal) setShowNewActionModal(false);

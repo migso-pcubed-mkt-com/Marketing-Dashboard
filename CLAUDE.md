@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-05-12 (Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs, 2-pass OCC + visibilitychange Realtime catch-up, Timeline drag-down true swap, PPT Timeline black-text-in-shape, Excel import v11 modal + colour cells, typed history labels)
+> Last updated: 2026-06-28 (QA hardening sweep + Escape-to-close save fix: detail-modal Escape no longer discards edits when focus is outside an input; Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs, 2-pass OCC + visibilitychange Realtime catch-up, Timeline drag-down true swap, PPT Timeline black-text-in-shape, Excel import v11 modal + colour cells, typed history labels)
 
 ---
 
@@ -296,6 +296,9 @@ Bidirectional sync of the board name via `resolveBoardNameSync(localName, trello
 ---
 
 ## Known Pitfalls
+
+### Escape-to-close must not bypass the modal's save-on-close
+App.jsx's global `document` keydown listener must NOT close `selectedTask`/`selectedAction` on Escape (`setSelectedTask/Action(null)`). Those detail modals own their Escape handling via their own `window` keydown listener → `handleClose` (saves the form, then `onClose`). The `document` listener fires **before** the modal's `window` listener in the bubble phase, so closing from App unmounts the modal synchronously and tears down its `window` listener before the save-on-close runs → any edit made while focus was outside an input (e.g. on `<body>` after a blur) was silently discarded. App's Escape block leaves `selectedTask || selectedAction` to the modal and only handles the other overlays (categories, create dropdown, New Action/Task modals — those are creation flows where Escape = cancel-without-save is correct). Do NOT re-add a `setSelectedTask/Action(null)` Escape branch in App. App's line `if (e.target.tagName === 'INPUT' || 'TEXTAREA' || isContentEditable) return;` previously masked the bug (it skipped App's handler while a field was focused), so it only reproduced after a blur.
 
 ### Checklist position sync direction
 `pushTaskExtrasToTrello(task, card, isPushWinner)` — positions are only pushed to Trello when `isPushWinner=true` (local won last-write-wins). When `isPushWinner=false`, local checklists/items are reordered to match Trello positions. Do NOT remove the `isPushWinner` parameter or always push positions — this causes Trello reorder to be overwritten. `mergeTrelloExtrasIntoTask` must also capture `order` from Trello `pos` on both checklist and item objects, and sort arrays by `order` — without this, the position pull from `pushTaskExtrasToTrello` gets overwritten.
