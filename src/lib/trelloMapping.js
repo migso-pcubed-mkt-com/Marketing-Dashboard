@@ -8,6 +8,13 @@ const TRELLO_PROTECTED_STATUSES = new Set(['creating', 'review', 'paused']);
 // --- ID generation (crypto.randomUUID for collision-free IDs) ---
 const genId = (prefix) => `${prefix}-${crypto.randomUUID()}`;
 
+// --- Timezone-safe date-string helpers (M29) ---
+// dueDate/startDate are stored date-only ('YYYY-MM-DD'). `new Date('2026-03-01')` parses as
+// UTC midnight, which is the previous day/month in negative-UTC zones, shifting getMonth()/
+// getFullYear() by one. Read the fields straight from the string instead.
+const monthFromDateStr = (s) => (s ? parseInt(String(s).slice(5, 7), 10) - 1 : undefined);
+const startOfMonthStr = (s) => (s ? String(s).slice(0, 7) + '-01' : undefined);
+
 // --- Trello color → Dashboard color/gradient ---
 const colorMap = {
     green:  { color: '#22c55e', gradient: 'from-green-400 to-emerald-600' },
@@ -105,12 +112,11 @@ export const mapTrelloCardToTask = (card, actionId, categoryId, mappingConfig) =
     if (card.start) {
         startDate = card.start.split('T')[0];
     } else if (dueDate) {
-        const d = new Date(dueDate);
-        startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        startDate = startOfMonthStr(dueDate);
     } else {
         startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     }
-    const month = dueDate ? new Date(dueDate).getMonth() : now.getMonth();
+    const month = dueDate ? monthFromDateStr(dueDate) : now.getMonth();
 
     // Map card labels to channels based on mappingConfig
     const channels = [];
@@ -452,12 +458,11 @@ export const mapTrelloCheckItemToTask = (item, actionId, card, checklistId, chec
     if (card.start) {
         startDate = card.start.split('T')[0];
     } else if (dueDate) {
-        const d = new Date(dueDate);
-        startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        startDate = startOfMonthStr(dueDate);
     } else {
         startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     }
-    const month = dueDate ? new Date(dueDate).getMonth() : now.getMonth();
+    const month = dueDate ? monthFromDateStr(dueDate) : now.getMonth();
 
     // Inherit channels, countries, otherLabels from card labels
     const channels = [];
@@ -684,11 +689,10 @@ export const mergeCheckItemIntoTask = (existingTask, item, card, allCards) => {
     const itemDue = item.due ? item.due.split('T')[0] : null;
     const cardDue = card.due ? card.due.split('T')[0] : null;
     const dueDate = itemDue || cardDue || existingTask.dueDate;
-    const month = dueDate ? new Date(dueDate).getMonth() : existingTask.month;
+    const month = dueDate ? monthFromDateStr(dueDate) : existingTask.month;
     let startDate = existingTask.startDate;
     if (dueDate && !existingTask.startDate) {
-        const d = new Date(dueDate);
-        startDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+        startDate = startOfMonthStr(dueDate);
     }
     // Composite order: incorporate checklist position so group order is preserved.
     // When checklists are reordered on Trello, item.pos within each checklist doesn't
@@ -1152,7 +1156,7 @@ export const mergeCardIntoTask = (existingTask, card, mappingConfig, listToCatId
         description: card.desc || existingTask.description,
         startDate: card.start ? card.start.split('T')[0] : existingTask.startDate,
         dueDate: newDueDate,
-        month: newDueDate ? new Date(newDueDate).getMonth() : existingTask.month,
+        month: newDueDate ? monthFromDateStr(newDueDate) : existingTask.month,
         status: TRELLO_PROTECTED_STATUSES.has(existingTask.status) ? existingTask.status : (card.dueComplete ? 'completed' : existingTask.status),
         checklists: mergedChecklists,
         attachments: mergedAttachments,

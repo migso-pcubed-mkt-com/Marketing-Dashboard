@@ -1613,7 +1613,9 @@ const App = () => {
         } finally {
             resumeHistory();
         }
-    }, [currentBoard, trelloSyncStatus, suspendHistory, resumeHistory, handleTrelloLogout]);
+        // trelloUser is read as `isGuest = !trelloUser` inside — must be a dep so the
+        // ref-based polling picks up login/logout (guest read-only ↔ full sync) (M3-minor).
+    }, [currentBoard, trelloSyncStatus, suspendHistory, resumeHistory, handleTrelloLogout, trelloUser]);
 
     // Keep ref pointing to latest handleTrelloSync (avoids stale closure in setInterval)
     useEffect(() => { handleTrelloSyncRef.current = handleTrelloSync; }, [handleTrelloSync]);

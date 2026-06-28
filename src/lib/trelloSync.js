@@ -2637,13 +2637,18 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                 if (action.status === 'completed') cardData.dueComplete = 'true';
                 const created = await createTrelloCard(listId, cardData);
                 // Store baseline for selective push on future syncs
+                // Baseline must use LOCAL entity field names — buildSelectiveActionUpdate
+                // compares action.{description,startDate,dueDate,status,assignees} against
+                // baseline.{description,startDate,dueDate,status,assignees}. Storing Trello
+                // field names (desc/start/due/dueComplete/idMembers) defeated the selective
+                // push so every field looked "changed" on the next sync (M23).
                 const actionBaseline = {
-                    name: action.name,
-                    desc: action.description || '',
-                    start: action.startDate || null,
-                    due: action.dueDate || null,
-                    dueComplete: action.status === 'completed',
-                    idMembers: action.assignees || []
+                    name: action.name || '',
+                    description: action.description || '',
+                    startDate: action.startDate || null,
+                    dueDate: action.dueDate || null,
+                    status: action.status === 'completed' ? 'completed' : null,
+                    assignees: action.assignees || []
                 };
 
                 // Push local tasks under this action as checklist items
@@ -2657,11 +2662,13 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                         for (let k = 0; k < actionTasks.length && k < createdItems.length; k++) {
                             const tIdx = updatedTasks.findIndex(t => t.id === actionTasks[k].id);
                             if (tIdx >= 0) {
+                                // Local field names — buildSelectiveCheckItemUpdate compares
+                                // against task.{title,dueDate,status,assignees} (M22).
                                 const taskBaseline = {
-                                    name: updatedTasks[tIdx].title,
-                                    state: updatedTasks[tIdx].status === 'completed' ? 'complete' : 'incomplete',
-                                    due: updatedTasks[tIdx].dueDate || null,
-                                    idMember: updatedTasks[tIdx].assignees?.[0] || null
+                                    title: updatedTasks[tIdx].title || '',
+                                    dueDate: updatedTasks[tIdx].dueDate || null,
+                                    status: updatedTasks[tIdx].status === 'completed' ? 'completed' : 'todo',
+                                    assignees: updatedTasks[tIdx].assignees || []
                                 };
                                 const createItemBufferedTs = new Date(new Date(created.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
                                 updatedTasks[tIdx] = {
@@ -2762,11 +2769,13 @@ const syncWithTrelloCardAsAction = async (board, mappingConfig, { readOnly = fal
                     const createdItems = itemResults?.items || [];
                     for (let k = 0; k < entries.length && k < createdItems.length; k++) {
                         const task = entries[k].task;
+                        // Local field names — buildSelectiveCheckItemUpdate compares against
+                        // task.{title,dueDate,status,assignees} (M22).
                         const taskBaseline = {
-                            name: task.title,
-                            state: task.status === 'completed' ? 'complete' : 'incomplete',
-                            due: task.dueDate || null,
-                            idMember: task.assignees?.[0] || null
+                            title: task.title || '',
+                            dueDate: task.dueDate || null,
+                            status: task.status === 'completed' ? 'completed' : 'todo',
+                            assignees: task.assignees || []
                         };
                         const recreateBufferedTs = new Date(new Date(card?.dateLastActivity || new Date().toISOString()).getTime() + 2000).toISOString();
                         updatedTasks[entries[k].index] = {

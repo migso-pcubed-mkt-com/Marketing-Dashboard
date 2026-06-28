@@ -56,6 +56,17 @@ describe('mergeCardIntoTask', () => {
         expect(result.dueDate).toBe('2026-04-15');
     });
 
+    it('computes month from dueDate without timezone shift (M29)', () => {
+        // A due date on the 1st of a month is the case that produced an off-by-one month
+        // in negative-UTC timezones with new Date(str).getMonth(). The string-based parse
+        // must yield the same month in every timezone.
+        const card = { ...baseCard, due: '2026-04-01T12:00:00.000Z' };
+        const result = mergeCardIntoTask(baseTask, card, {}, {}, []);
+        expect(result.dueDate).toBe('2026-04-01');
+        expect(result.month).toBe(3); // April, 0-indexed
+        expect(result.startDate).toBe('2026-04-01');
+    });
+
     it('updates startDate from Trello card', () => {
         const result = mergeCardIntoTask(baseTask, baseCard, {}, {}, []);
         expect(result.startDate).toBe('2026-04-01');
