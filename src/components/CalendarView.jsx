@@ -196,10 +196,16 @@ const CalendarView = ({ categories, actions, tasks, onOpenTask, onUpdateTask, on
             status: 'todo',
             priority: 'medium',
             description: '',
-            checklist: [],
+            // Use the normalized data-model shape (checklists, not legacy checklist) and the
+            // standard empty arrays so the detail modal opened right after isn't missing
+            // fields (M13).
+            checklists: [],
             comments: [],
             attachments: [],
-            channels: action?.tags || []
+            channels: action?.tags || [],
+            countries: [],
+            otherLabels: [],
+            assignees: []
         };
         onAddTask(newTask);
         setTimeout(() => onOpenTask(newTask), 100);

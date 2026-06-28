@@ -42,7 +42,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             if(taskEndYear&&taskEndYear<selectedYear)return false;
             if(taskStartYear&&!taskEndYear&&taskStartYear!==selectedYear)return false;
         }
-        if(filters.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
+        if(filters.search){const q=filters.search.toLowerCase();if(!t.title.toLowerCase().includes(q)&&!(action?.name||'').toLowerCase().includes(q))return false;}
         if(filters.status.length>0&&!filters.status.includes(t.status))return false;
         if(filters.category.length>0&&!filters.category.includes(action?.categoryId))return false;
         if(filters.priority.length>0&&!filters.priority.includes(t.priority))return false;

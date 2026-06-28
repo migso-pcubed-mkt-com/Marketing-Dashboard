@@ -242,7 +242,7 @@ const App = () => {
             const newCurrentId = boardId === currentBoardId ? remaining[0].id : currentBoardId;
             if (boardId === currentBoardId) {
                 setCurrentBoardId(newCurrentId);
-                setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
+                setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
             }
             return { ...prev, currentBoardId: newCurrentId, boards: remaining };
         });
@@ -255,12 +255,20 @@ const App = () => {
             if (!source) return prev;
             const cloned = JSON.parse(JSON.stringify(source));
             const newId = `board-${crypto.randomUUID()}`;
-            // Regenerate IDs to avoid cross-board conflicts
+            // Regenerate IDs to avoid cross-board conflicts. Categories must be remapped too
+            // (and action.categoryId rewritten), otherwise the copy shares category ids with
+            // the source and the two cross-contaminate in combined view (M7).
+            const categoryIdMap = {};
+            cloned.categories = cloned.categories.map(c => {
+                const newCId = `cat-${crypto.randomUUID()}`;
+                categoryIdMap[c.id] = newCId;
+                return { ...c, id: newCId };
+            });
             const actionIdMap = {};
             cloned.actions = cloned.actions.map(a => {
                 const newAId = `a-${crypto.randomUUID()}`;
                 actionIdMap[a.id] = newAId;
-                return { ...a, id: newAId };
+                return { ...a, id: newAId, categoryId: categoryIdMap[a.categoryId] || a.categoryId };
             });
             cloned.tasks = cloned.tasks.map(t => ({
                 ...t,
@@ -1439,6 +1447,9 @@ const App = () => {
     const handleToggleMultiBoard = useCallback((enabled, ids) => {
         setMultiBoardMode(enabled);
         setSelectedBoardIds(ids || []);
+        // Reset filters: a category/member/channel filter scoped to one board can hide
+        // everything in the combined set (or the board switched to) (M6).
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
     }, []);
 
     // --- Trello sync ---
@@ -1898,7 +1909,7 @@ const App = () => {
                             {(filters.channel || []).map(c => { const ch = CONFIG.CHANNELS.find(x => x.id === c); return <div key={c} className="filter-chip">{ch?.name}<button onClick={() => setFilters({...filters, channel: filters.channel.filter(x => x !== c)})}>✕</button></div>; })}
                             {(filters.country || []).map(c => { const co = allCountries.find(x => x.id === c); return <div key={c} className="filter-chip">{co?.flag} {co?.name}<button onClick={() => setFilters({...filters, country: filters.country.filter(x => x !== c)})}>✕</button></div>; })}
                             {(filters.otherLabel || []).map(labelId => { const label = tasks.flatMap(t => t.otherLabels || []).find(l => l.id === labelId); return <div key={labelId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:label?.color||'#888',flexShrink:0}}/> {label?.name||'Label'}<button onClick={() => setFilters({...filters, otherLabel: filters.otherLabel.filter(x => x !== labelId)})}>✕</button></div>; })}
-                            {(filters.member || []).map(memberId => { const m = (currentBoard?.members || []).find(x => x.id === memberId); return <div key={memberId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}>{m?.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:14,height:14,borderRadius:'50%'}}/> : null} {m?.fullName||m?.username||'Member'}<button onClick={() => setFilters({...filters, member: filters.member.filter(x => x !== memberId)})}>✕</button></div>; })}
+                            {(filters.member || []).map(memberId => { const m = effectiveMembers.find(x => x.id === memberId); return <div key={memberId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}>{m?.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:14,height:14,borderRadius:'50%'}}/> : null} {m?.fullName||m?.username||'Member'}<button onClick={() => setFilters({...filters, member: filters.member.filter(x => x !== memberId)})}>✕</button></div>; })}
                             <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
                         </div>
                     )}

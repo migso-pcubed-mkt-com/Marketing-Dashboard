@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context.js';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { Icon } from './Icons.jsx';
 
 const AVATAR_COLORS = ['#6366f1','#f59e0b','#22c55e','#ef4444','#3b82f6','#d97706','#8b5cf6','#ec4899','#14b8a6','#f97316'];
@@ -26,6 +27,13 @@ const MemberManagementModal = ({ board, onClose, onUpdateMembers }) => {
     const [editName, setEditName] = useState('');
     const [editUsername, setEditUsername] = useState('');
     const [showImport, setShowImport] = useState(false);
+    const focusTrapRef = useFocusTrap(true);
+    // Escape-to-close + focus trap + dialog ARIA (M18 — this modal had none).
+    useEffect(() => {
+        const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); onClose(); } };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [onClose]);
 
     const handleAdd = () => {
         const trimmed = newName.trim();
@@ -83,14 +91,14 @@ const MemberManagementModal = ({ board, onClose, onUpdateMembers }) => {
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)' }} onClick={onClose}/>
-            <div style={{
+            <div ref={focusTrapRef} role="dialog" aria-modal="true" aria-labelledby="member-mgmt-title" style={{
                 position: 'relative', background: 'var(--bg-primary)', borderRadius: 'var(--radius-xl)',
                 boxShadow: 'var(--shadow-xl)', width: 440, maxWidth: '90vw', maxHeight: '80vh',
                 display: 'flex', flexDirection: 'column', zIndex: 1
             }}>
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px 0' }}>
-                    <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Manage Members</h2>
+                    <h2 id="member-mgmt-title" style={{ fontSize: 16, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Manage Members</h2>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
                         <Icon.Close/>
                     </button>
