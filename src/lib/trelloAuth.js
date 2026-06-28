@@ -84,6 +84,10 @@ export const startTrelloLogin = async () => {
         };
 
         const handleMessage = (event) => {
+            // Only accept the token from our own callback page (same origin). Without this,
+            // any window/iframe able to postMessage during the OAuth window could inject a
+            // token (login CSRF / token fixation). The callback posts from window.location.origin.
+            if (event.origin !== window.location.origin) return;
             const token = extractToken(event.data);
             if (token) acceptToken(token);
         };

@@ -494,7 +494,17 @@ const App = () => {
 
     // Restore Trello user from localStorage on mount
     useEffect(() => {
-        restoreTrelloUser().then(user => { if (user) { setTrelloUser(user); setAuthenticated(true); } }).catch(() => {});
+        // The initial `authenticated` state is optimistic (true if a trello_user_token
+        // string exists, regardless of validity). restoreTrelloUser validates it against
+        // Trello and removes it if invalid/expired. If validation fails and the user is
+        // not a guest, downgrade to unauthenticated so an expired/forged token can't
+        // bypass the AuthGate (M4). Guests (sessionStorage.guest_auth) stay authenticated.
+        const hadToken = !!localStorage.getItem('trello_user_token');
+        const failAuth = () => { if (!sessionStorage.getItem('guest_auth')) setAuthenticated(false); };
+        restoreTrelloUser().then(user => {
+            if (user) { setTrelloUser(user); setAuthenticated(true); }
+            else if (hadToken) failAuth();
+        }).catch(failAuth);
     }, []);
 
     const handleTrelloLogin = useCallback(async () => {

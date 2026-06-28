@@ -4,12 +4,13 @@
 const TRELLO_BASE = 'https://api.trello.com/1';
 
 export default async function handler(req, res) {
-    // CORS configuration — restrict to known origins in production
+    // CORS configuration — reflect any origin only when unrestricted (ALLOWED_ORIGIN
+    // unset, i.e. dev). When ALLOWED_ORIGIN is set, always return that exact value so
+    // browsers block other origins. (Previous code had a dead ternary and a spoofable
+    // `origin.includes('localhost')` substring match.)
     const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';
     const origin = req.headers.origin || '';
-    const corsOrigin = allowedOrigin === '*' || origin.includes('localhost')
-        ? (origin || '*')
-        : (origin === allowedOrigin ? allowedOrigin : allowedOrigin);
+    const corsOrigin = allowedOrigin === '*' ? (origin || '*') : allowedOrigin;
     res.setHeader('Access-Control-Allow-Origin', corsOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Trello-Token');
@@ -37,27 +38,28 @@ export default async function handler(req, res) {
         return res.status(200).json({ appKey: TRELLO_API_KEY });
     }
 
-    // GET /api/trello?action=me — Return current member profile (requires token)
+    // GET /api/trello?action=me — Return the CALLER's member profile.
+    // Must use the per-user token only (never the server env token) — otherwise an
+    // unauthenticated caller would learn the server account's identity (M2).
     if (req.method === 'GET' && action === 'me') {
-        console.log('Trello /me: hasApiKey:', !!TRELLO_API_KEY, 'apiKeyLen:', TRELLO_API_KEY?.length, 'hasToken:', !!TRELLO_TOKEN, 'tokenLen:', TRELLO_TOKEN?.length, 'tokenSource:', userToken ? 'header' : 'env');
         if (!TRELLO_API_KEY) {
-            return res.status(500).json({ error: 'Trello API key not configured on server', hasApiKey: false, hasToken: !!TRELLO_TOKEN });
+            return res.status(500).json({ error: 'Trello API key not configured on server', hasApiKey: false, hasToken: false });
         }
-        if (!TRELLO_TOKEN) {
+        if (!userToken) {
             return res.status(401).json({ error: 'No token provided', hasApiKey: true, hasToken: false });
         }
-        const authParams = `key=${TRELLO_API_KEY}&token=${TRELLO_TOKEN}`;
+        const authParams = `key=${TRELLO_API_KEY}&token=${userToken}`;
         const url = `${TRELLO_BASE}/members/me?${authParams}&fields=id,fullName,username,avatarUrl`;
         const response = await fetch(url);
         if (!response.ok) {
             const errBody = await response.text().catch(() => '');
-            console.error('Trello /members/me error:', response.status, errBody, 'tokenLen:', TRELLO_TOKEN.length);
+            console.error('Trello /members/me error:', response.status, 'tokenLen:', userToken.length);
             return res.status(response.status).json({
                 error: 'Trello rejected the token',
                 details: errBody,
                 trelloStatus: response.status,
-                tokenLength: TRELLO_TOKEN.length,
-                hint: TRELLO_TOKEN.length < 64 ? 'Token seems too short — Trello tokens are typically 64 hex chars. The verification code shown on screen may not be the full API token.' : null
+                tokenLength: userToken.length,
+                hint: userToken.length < 64 ? 'Token seems too short — Trello tokens are typically 64 hex chars. The verification code shown on screen may not be the full API token.' : null
             });
         }
         const member = await response.json();
