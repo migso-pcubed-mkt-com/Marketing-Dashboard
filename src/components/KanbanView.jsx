@@ -464,9 +464,16 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                             }
                                         }
                                     }else if(viewMode==='country'){
-                                        const targetCountry=col.key==='_unassigned'?[]:[col.key];
+                                        // Only change country membership on a genuine move to a
+                                        // different country column. A same-column reorder must NOT
+                                        // overwrite a multi-country task's other countries (M10).
+                                        const dt=tasks.find(t=>t.id===draggedId);
                                         const bu=batchUpdates.find(u=>u.id===draggedId);
-                                        if(bu)bu.changes.countries=targetCountry;
+                                        if(bu&&dt){
+                                            const cur=dt.countries||[];
+                                            const alreadyInTarget=col.key==='_unassigned'?cur.length===0:cur.includes(col.key);
+                                            if(!alreadyInTarget)bu.changes.countries=col.key==='_unassigned'?[]:[col.key];
+                                        }
                                     }else if(viewMode==='category'){
                                         const dt=tasks.find(t=>t.id===draggedId);
                                         if(dt){
