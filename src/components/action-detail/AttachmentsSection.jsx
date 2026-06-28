@@ -1,4 +1,5 @@
 import { memo, useRef } from 'react';
+import { sanitizeUrl } from '../../lib/markdown.jsx';
 
 const AttachmentsSection = ({
     attachments, isReadOnly, sectionCard, sectionLabel,
@@ -22,7 +23,7 @@ const AttachmentsSection = ({
                         return (
                             <div key={att.id || att.name} className="flex items-center gap-3 p-2 rounded" style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-light)' }}>
                                 {thumb ? <img src={thumb} alt={att.name} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} /> : <span style={{ fontSize: 16, flexShrink: 0 }}>📎</span>}
-                                <a href={att.url || att.data || '#'} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                                <a href={sanitizeUrl(att.url || att.data, { allowData: true })} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
                                     <span className="truncate">{att.name}</span>
                                 </a>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>

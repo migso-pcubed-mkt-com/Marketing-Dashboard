@@ -102,7 +102,15 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         if(!isReadOnly)onUpdateAction(action.id,finalForm);
         onClose();
     };
-    const handleDelete=()=>{if(onDeleteAction&&window.confirm('Are you sure you want to delete this action?')){onDeleteAction(action.id);onClose();}};
+    // Keep a ref to the latest handleClose so the Escape listener (whose effect deps do
+    // NOT include `form`) always saves the current form. Without this, editing a field
+    // that doesn't toggle a sub-form (budget/priority/tags) and pressing Escape reverted
+    // the edit (stale handleClose closing over an older form).
+    const handleCloseRef=useRef(handleClose);
+    handleCloseRef.current=handleClose;
+    // The in-app "Delete action?" confirmation popup (showConfirmDelete) is the only path
+    // to handleDelete, so the extra native window.confirm here was a redundant 2nd prompt.
+    const handleDelete=()=>{if(onDeleteAction){onDeleteAction(action.id);onClose();}};
     const handleStatusChange=(taskId,newStatus)=>{onUpdateTask(taskId,{status:newStatus});};
     const addChannel=(id)=>setForm({...form,tags:[...(form.tags||[]),id]});
     const removeChannel=(id)=>setForm({...form,tags:(form.tags||[]).filter(c=>c!==id)});
@@ -231,7 +239,7 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
                 if(showAddGroup){setShowAddGroup(false);setNewGroupName('');return;}
                 if(addingTaskGroup){setAddingTaskGroup(null);setNewTaskTitle('');return;}
                 if(addTaskPickerGroup){setAddTaskPickerGroup(null);return;}
-                handleClose();
+                handleCloseRef.current();
                 return;
             }
             if(e.key==='Delete'&&!isReadOnly&&!descriptionEditing&&!editingGroupName&&!addingTaskGroup&&!showAddGroup){

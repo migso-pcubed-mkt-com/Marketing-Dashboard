@@ -74,6 +74,7 @@ const App = () => {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [dataLoaded, setDataLoaded] = useState(false);
     const [loadCompleted, setLoadCompleted] = useState(false); // true only after cloud/local data fully loaded — gates auto-save
+    const [loadFailed, setLoadFailed] = useState(false); // true when cloud load failed AND no local backup → boardData stays null (degraded preview)
     const [fileSha, setFileSha] = useState(() => {
         return localStorage.getItem('github_file_sha') || '';
     });
@@ -439,6 +440,10 @@ const App = () => {
             if (fallbackData) {
                 setBoardData(fallbackData);
                 setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
+            } else {
+                // No cloud data loaded and no local backup → don't pretend the seed
+                // data is editable (mutations would silently no-op). Surface it instead.
+                setLoadFailed(true);
             }
             setLoadCompleted(true);
         }, 5000);
@@ -457,6 +462,8 @@ const App = () => {
                     // Save to localStorage as backup
                     boardDataRef.current = result;
                     saveToLocalStorage();
+                } else {
+                    setLoadFailed(true);
                 }
                 clearTimeout(timeoutId);
                 setLoadCompleted(true);
@@ -467,6 +474,10 @@ const App = () => {
                 if (fallbackData) {
                     setBoardData(fallbackData);
                     setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
+                } else {
+                    // Cloud load threw (network/RLS) and no local backup exists: keep
+                    // boardData null and warn the user instead of silently no-opping edits.
+                    setLoadFailed(true);
                 }
                 setLoadCompleted(true);
             }
@@ -535,6 +546,12 @@ const App = () => {
         if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); }
         const delay = useSupabase ? 1000 : 2000;
         const doSave = async () => {
+            // The scheduled timer has fired — this save is now executing, not "pending".
+            // Clear the ref so the Realtime / GitHub-poll / visibilitychange guards (which
+            // treat a truthy autoSaveTimeoutRef as "unsaved local changes pending → ignore
+            // remote data") don't stay permanently blocked after the first save. The retry
+            // branch below re-sets it because a save is then genuinely still scheduled.
+            autoSaveTimeoutRef.current = null;
             if (isUserInteractingRef.current || isSyncInProgress()) {
                 autoSaveTimeoutRef.current = setTimeout(doSave, 500);
                 return;
@@ -1732,6 +1749,12 @@ const App = () => {
                 {isOffline && (
                     <div style={{background:'#f59e0b',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
                         📡 Offline — changes saved locally. Will sync when back online.
+                    </div>
+                )}
+                {loadFailed && !boardData && (
+                    <div style={{background:'#ef4444',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
+                        <span>⚠️ Your data could not be loaded (network/server issue). This is a preview — changes will NOT be saved.</span>
+                        <button onClick={() => window.location.reload()} style={{background:'#fff',color:'#ef4444',border:'none',borderRadius:4,padding:'3px 10px',fontSize:12,fontWeight:600,cursor:'pointer'}}>Reload</button>
                     </div>
                 )}
                 {otherTabActive && !isOffline && (
