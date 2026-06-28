@@ -1460,6 +1460,7 @@ const App = () => {
             // Capture pre-sync timestamps to detect local edits made during sync
             const preSyncTaskMap = new Map((currentBoard.tasks || []).map(t => [t.id, t.updatedAt]));
             const preSyncActionMap = new Map((currentBoard.actions || []).map(a => [a.id, a.updatedAt]));
+            const preSyncCategoryMap = new Map((currentBoard.categories || []).map(c => [c.id, c.updatedAt]));
             const preSyncTaskIds = new Set((currentBoard.tasks || []).map(t => t.id));
             const preSyncActionIds = new Set((currentBoard.actions || []).map(a => a.id));
             const preSyncCategoryIds = new Set((currentBoard.categories || []).map(c => c.id));
@@ -1476,7 +1477,7 @@ const App = () => {
                 const { categories: mergedCategories, tasks: mergedTasks, actions: mergedActions } = mergePostSync({
                     syncedBoard, liveBoard,
                     preSyncCategoryIds, preSyncTaskIds, preSyncActionIds,
-                    preSyncTaskMap, preSyncActionMap
+                    preSyncTaskMap, preSyncActionMap, preSyncCategoryMap
                 });
 
                 return {

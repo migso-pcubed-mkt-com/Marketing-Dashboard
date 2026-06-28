@@ -4,11 +4,17 @@
 export const mergePostSync = ({
     syncedBoard, liveBoard,
     preSyncCategoryIds, preSyncTaskIds, preSyncActionIds,
-    preSyncTaskMap, preSyncActionMap
+    preSyncTaskMap, preSyncActionMap, preSyncCategoryMap
 }) => {
     const liveTaskIds = new Set(liveBoard.tasks.map(t => t.id));
     const liveActionIds = new Set(liveBoard.actions.map(a => a.id));
     const liveCategoryIds = new Set(liveBoard.categories.map(c => c.id));
+
+    // True when an entity's live updatedAt is strictly newer than the snapshot taken
+    // before sync started → the user edited it during the sync window.
+    const editedDuringSync = (live, preSyncUpdatedAt) =>
+        live && preSyncUpdatedAt && live.updatedAt !== preSyncUpdatedAt
+        && new Date(live.updatedAt).getTime() > new Date(preSyncUpdatedAt).getTime();
 
     // ── Merge categories ──
     const mergedCategories = [];
@@ -19,7 +25,16 @@ export const mergePostSync = ({
             processedCategoryIds.add(syncedCat.id);
             continue;
         }
-        mergedCategories.push(syncedCat);
+        const liveCat = liveBoard.categories.find(c => c.id === syncedCat.id);
+        const preSyncUpdatedAt = preSyncCategoryMap?.get(syncedCat.id);
+        // Category renamed/recolored/reordered locally during sync → keep the live edit,
+        // only adopt the Trello link id from the synced result (M16). Without this, the
+        // synced (pre-edit) category overwrote the user's in-flight rename/color/order.
+        if (editedDuringSync(liveCat, preSyncUpdatedAt)) {
+            mergedCategories.push({ ...liveCat, trelloListId: syncedCat.trelloListId || liveCat.trelloListId });
+        } else {
+            mergedCategories.push(syncedCat);
+        }
         processedCategoryIds.add(syncedCat.id);
     }
     // Add categories created during sync (not in pre-sync AND not in synced result)
@@ -56,11 +71,17 @@ export const mergePostSync = ({
         }
         processedTaskIds.add(syncedTask.id);
     }
-    // Add tasks created during sync (not in pre-sync snapshot = brand new)
+    // Add tasks created during sync (brand new), OR preserve a task that was edited
+    // locally during sync but vanished from the synced result because Trello deleted it in
+    // the same window — dropping it would lose the user's in-flight edit (M15).
     for (const task of liveBoard.tasks) {
-        if (!processedTaskIds.has(task.id) && !preSyncTaskIds.has(task.id)) {
-            mergedTasks.push(task);
+        if (processedTaskIds.has(task.id)) continue;
+        if (!preSyncTaskIds.has(task.id)) {
+            mergedTasks.push(task); // brand new during sync
+        } else if (editedDuringSync(task, preSyncTaskMap.get(task.id))) {
+            mergedTasks.push(task); // edited locally during sync + Trello-deleted → keep local edit
         }
+        // else: existed pre-sync, untouched locally, absent from Trello → genuine deletion
     }
 
     // ── Merge actions ──
@@ -88,9 +109,13 @@ export const mergePostSync = ({
         processedActionIds.add(syncedAction.id);
     }
     for (const action of liveBoard.actions) {
-        if (!processedActionIds.has(action.id) && !preSyncActionIds.has(action.id)) {
-            mergedActions.push(action);
+        if (processedActionIds.has(action.id)) continue;
+        if (!preSyncActionIds.has(action.id)) {
+            mergedActions.push(action); // brand new during sync
+        } else if (editedDuringSync(action, preSyncActionMap.get(action.id))) {
+            mergedActions.push(action); // edited locally during sync + Trello-deleted → keep local edit
         }
+        // else: existed pre-sync, untouched locally, absent from Trello → genuine deletion
     }
 
     return {

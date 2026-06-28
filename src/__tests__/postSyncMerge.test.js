@@ -260,4 +260,75 @@ describe('mergePostSync', () => {
         expect(result.tasks).toHaveLength(2);
         expect(result.tasks.find(t => t.id === 't-new')).toBeTruthy();
     });
+
+    // ════════════════════════════════════════════
+    // M15: task edited locally during sync but Trello-deleted in the same window
+    // ════════════════════════════════════════════
+    it('preserves a task edited locally during sync even if Trello deleted it (M15)', () => {
+        const preSyncTaskIds = new Set(['t-1', 't-2']);
+        const preSyncActionIds = new Set(['a-1']);
+        const preSyncCategoryIds = new Set(['cat-1']);
+        const preSyncTaskMap = new Map([['t-1', T.OLD], ['t-2', T.OLD]]);
+        const preSyncActionMap = new Map([['a-1', T.OLD]]);
+
+        // Trello deleted BOTH t-1 and t-2 → neither is in the synced result.
+        const syncedBoard = {
+            id: 'board-1',
+            categories: [{ id: 'cat-1', name: 'Cat' }],
+            actions: [{ id: 'a-1', name: 'Act', categoryId: 'cat-1', updatedAt: T.MID }],
+            tasks: []
+        };
+        const liveBoard = {
+            id: 'board-1',
+            categories: [{ id: 'cat-1', name: 'Cat' }],
+            actions: [{ id: 'a-1', name: 'Act', categoryId: 'cat-1', updatedAt: T.OLD }],
+            tasks: [
+                { id: 't-1', title: 'Edited during sync', actionId: 'a-1', updatedAt: T.NEW }, // user edited
+                { id: 't-2', title: 'Untouched', actionId: 'a-1', updatedAt: T.OLD }            // not touched
+            ]
+        };
+
+        const result = mergePostSync({
+            syncedBoard, liveBoard,
+            preSyncCategoryIds, preSyncTaskIds, preSyncActionIds,
+            preSyncTaskMap, preSyncActionMap
+        });
+
+        // t-1 (edited locally) is preserved; t-2 (untouched + Trello-deleted) is dropped.
+        expect(result.tasks.find(t => t.id === 't-1')?.title).toBe('Edited during sync');
+        expect(result.tasks.find(t => t.id === 't-2')).toBeUndefined();
+    });
+
+    // ════════════════════════════════════════════
+    // M16: category renamed locally during sync must not be overwritten by synced result
+    // ════════════════════════════════════════════
+    it('preserves a category renamed locally during sync (M16)', () => {
+        const preSyncCategoryIds = new Set(['cat-1']);
+        const preSyncCategoryMap = new Map([['cat-1', T.OLD]]);
+        const preSyncTaskIds = new Set([]);
+        const preSyncActionIds = new Set([]);
+        const preSyncTaskMap = new Map();
+        const preSyncActionMap = new Map();
+
+        const syncedBoard = {
+            id: 'board-1',
+            categories: [{ id: 'cat-1', name: 'Old name', trelloListId: 'list-9' }],
+            actions: [], tasks: []
+        };
+        const liveBoard = {
+            id: 'board-1',
+            categories: [{ id: 'cat-1', name: 'Renamed during sync', updatedAt: T.NEW }],
+            actions: [], tasks: []
+        };
+
+        const result = mergePostSync({
+            syncedBoard, liveBoard,
+            preSyncCategoryIds, preSyncTaskIds, preSyncActionIds,
+            preSyncTaskMap, preSyncActionMap, preSyncCategoryMap
+        });
+
+        const cat = result.categories.find(c => c.id === 'cat-1');
+        expect(cat.name).toBe('Renamed during sync'); // local rename kept
+        expect(cat.trelloListId).toBe('list-9');       // Trello link id merged from synced
+    });
 });
