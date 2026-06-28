@@ -147,6 +147,18 @@ function indexVerticalMergeFragments(merges) {
     return fragments;
 }
 
+// Non-origin cells on a horizontal merge's top row. The origin cell already emits a
+// single signal spanning the whole merge (endCol/endMonth), so these covered cells must
+// be skipped — otherwise a COLOURED horizontal merge produced one duplicate overlapping
+// task per covered month (the colour fill bypassed the "no content" skip) (M14).
+function indexHorizontalMergeFragments(merges) {
+    const fragments = new Set();
+    for (const m of merges || []) {
+        for (let c = m.s.c + 1; c <= m.e.c; c++) fragments.add(`${m.s.r}:${c}`);
+    }
+    return fragments;
+}
+
 function getLabel(row, labelCol = 0) {
     for (let c = labelCol; c < row.length; c++) {
         if (!isEmptyCell(row[c])) return cellToString(row[c]);
@@ -196,6 +208,7 @@ export function analyzeSheet(sheet) {
 
     const mergeOrigins = indexMergesByOrigin(merges);
     const verticalFragments = indexVerticalMergeFragments(merges);
+    const horizontalFragments = indexHorizontalMergeFragments(merges);
 
     const rows = [];
     for (let r = header.rowIdx + 1; r < data.length; r++) {
@@ -204,7 +217,7 @@ export function analyzeSheet(sheet) {
 
         const monthSignals = [];
         for (const { monthIdx, col } of monthEntries) {
-            if (verticalFragments.has(`${r}:${col}`)) continue;
+            if (verticalFragments.has(`${r}:${col}`) || horizontalFragments.has(`${r}:${col}`)) continue;
             const value = row[col];
             const merge = mergeOrigins.get(`${r}:${col}`);
             const hasContent = !isEmptyCell(value);
@@ -366,7 +379,7 @@ export function buildBoard(sheet, analysis, options = {}) {
                 const isBudget = sig.isNumeric;
                 const title = (isBudget || sig.hasColorOnly)
                     ? `${row.label || action.name} — ${monthLabel}`
-                    : (sig.value || `${row.label} (${monthLabel})`);
+                    : (sig.value || `${row.label || action.name} (${monthLabel})`);
                 const task = {
                     id: genId('task'),
                     actionId: action.id,

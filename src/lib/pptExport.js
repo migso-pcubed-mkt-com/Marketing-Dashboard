@@ -42,9 +42,17 @@ const contrastText = (hex) => {
 // Date helpers (reused from Excel timeline logic)
 // ─────────────────────────────────────────────
 
+// Parse a 'YYYY-MM-DD' (or ISO) string as a LOCAL date. `new Date('2026-03-01')` parses
+// as UTC midnight — a day earlier in negative-UTC zones — which shifts every bar's grid
+// position by a day (M27). Build the date from the string's own fields instead.
+const parseLocalDate = (iso) => {
+    const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+};
+
 const clampToYear = (iso, year, fallback) => {
     if (!iso) return fallback;
-    const d = new Date(iso);
+    const d = parseLocalDate(iso);
     if (d.getFullYear() < year) return new Date(year, 0, 1);
     if (d.getFullYear() > year) return new Date(year, 11, 31);
     return d;
@@ -205,11 +213,17 @@ export async function exportTimelinePPT(categories, actions, tasks, year, boardN
         const u1 = dateToGridUnit(start, year);
         const endPlus = new Date(end);
         endPlus.setDate(endPlus.getDate() + 1);
-        const u2 = Math.min(12, dateToGridUnit(endPlus, year));
+        // end+1 rolls into the NEXT year for tasks ending Dec 31 (or spanning past the
+        // year). dateToGridUnit would then read month 0 → grid unit 0, making u2 < u1 and
+        // silently dropping the bar (blank row). Treat a rollover as the end of the grid (M17).
+        const u2 = endPlus.getFullYear() > year ? 12 : Math.min(12, dateToGridUnit(endPlus, year));
         if (u2 <= u1) continue;
 
+        const gridRight = gridLeft + labelW + 12 * monthW;
         const barX = gridLeft + labelW + u1 * monthW + 0.02;
-        const barW = Math.max(0.15, (u2 - u1) * monthW - 0.04);
+        // Clamp width so a near-December bar (or the 0.15 minimum) can't spill past the
+        // grid's right edge (M28).
+        const barW = Math.min(Math.max(0.15, (u2 - u1) * monthW - 0.04), gridRight - barX);
         const rowY = dataRowYOffsets[i];
         const barY = rowY + rowH * 0.15;
         const barH = rowH * 0.7;
