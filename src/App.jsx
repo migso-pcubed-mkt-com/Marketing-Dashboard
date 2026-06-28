@@ -75,6 +75,7 @@ const App = () => {
     const [dataLoaded, setDataLoaded] = useState(false);
     const [loadCompleted, setLoadCompleted] = useState(false); // true only after cloud/local data fully loaded — gates auto-save
     const [loadFailed, setLoadFailed] = useState(false); // true when cloud load failed AND no local backup → boardData stays null (degraded preview)
+    const [realtimeFlushNonce, setRealtimeFlushNonce] = useState(0); // bumped to flush a save deferred during the realtime guard window (M5)
     const [fileSha, setFileSha] = useState(() => {
         return localStorage.getItem('github_file_sha') || '';
     });
@@ -331,6 +332,11 @@ const App = () => {
     const syncRealtimeGuardRef = useRef(false);
     const pendingRealtimeRef = useRef(null);
     const serverUpdatedAtRef = useRef(null);
+    // M5: the exact boardData object applied by the last Realtime merge (reference identity),
+    // a flag for a genuine user edit made during the 2s realtime guard window, and a nonce
+    // that re-runs the auto-save effect once the window closes so that edit gets persisted.
+    const lastRealtimeBoardRef = useRef(null);
+    const pendingRealtimeEditRef = useRef(false);
 
     const saveToLocalStorage = () => {
         saveToLocalStorageFn(boardDataRef);
@@ -369,6 +375,26 @@ const App = () => {
         } else {
             saveToLocalStorage();
             return true;
+        }
+    };
+
+    // Pre-save optimistic-concurrency check. If another client saved since our last known
+    // server timestamp, fetch and merge their changes into boardDataRef (and the UI) BEFORE
+    // we overwrite the cloud. Shared by the debounced auto-save, the manual Sync button, and
+    // the reconnect ("back online") save so none of them clobbers concurrent remote edits
+    // (M3). No-op without Supabase, inside the recent-undo window, or when nothing changed.
+    const preSaveOccMerge = async () => {
+        if (!useSupabase || !serverUpdatedAtRef.current || isRecentUndo()) return;
+        try {
+            const server = await fetchServerState(serverUpdatedAtRef.current);
+            if (server && server.updated_at !== serverUpdatedAtRef.current && server.board_data?.version === 2) {
+                const merged = mergeBoardsEntityLevel(boardDataRef.current, server.board_data);
+                boardDataRef.current = merged;
+                serverUpdatedAtRef.current = server.updated_at;
+                setBoardData(merged);
+            }
+        } catch (e) {
+            console.warn('Pre-save conflict check failed (continuing):', e.message);
         }
     };
 
@@ -556,7 +582,15 @@ const App = () => {
 
     // Auto-save with debounce
     useEffect(() => {
-        if (!dataLoaded || !loadCompleted || !boardData || isReceivingRealtimeRef.current) return;
+        if (!dataLoaded || !loadCompleted || !boardData) return;
+        if (isReceivingRealtimeRef.current) {
+            // Inside the Realtime guard window. If this boardData is the very object the
+            // Realtime merge just applied, it's not a local edit — skip. If it's a different
+            // object, the user edited during the window; remember it so the save is flushed
+            // when the window closes (M5) instead of being silently dropped.
+            if (boardData !== lastRealtimeBoardRef.current) pendingRealtimeEditRef.current = true;
+            return;
+        }
         setSavingStatus('saving');
         if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); }
         const delay = useSupabase ? 1000 : 2000;
@@ -571,22 +605,10 @@ const App = () => {
                 autoSaveTimeoutRef.current = setTimeout(doSave, 500);
                 return;
             }
-            // Pre-save conflict check: detect if another user saved since our last sync.
-            // Skipped inside the recent-undo window so the server echo of the pre-undo
-            // state can't sneak back into boardDataRef on the way to Supabase.
-            if (useSupabase && serverUpdatedAtRef.current && !isRecentUndo()) {
-                try {
-                    // Pass our last-known timestamp so the helper skips fetching board_data
-                    // when nothing has changed (the common case) — avoids egress on every save.
-                    const server = await fetchServerState(serverUpdatedAtRef.current);
-                    if (server && server.updated_at !== serverUpdatedAtRef.current && server.board_data?.version === 2) {
-                        boardDataRef.current = mergeBoardsEntityLevel(boardDataRef.current, server.board_data);
-                        serverUpdatedAtRef.current = server.updated_at;
-                    }
-                } catch (e) {
-                    console.warn('Pre-save conflict check failed (continuing):', e.message);
-                }
-            }
+            // Pre-save conflict check (shared helper): merge any concurrent remote save
+            // into boardDataRef + the UI before we overwrite the cloud. Skipped inside the
+            // recent-undo window so the server echo of the pre-undo state can't sneak back.
+            await preSaveOccMerge();
             // Stamp a save ID so Realtime can detect our own echo
             const saveId = crypto.randomUUID();
             lastSaveIdRef.current = saveId;
@@ -614,7 +636,7 @@ const App = () => {
         };
         autoSaveTimeoutRef.current = setTimeout(doSave, delay);
         return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); };
-    }, [boardData, dataLoaded, loadCompleted, githubToken]);
+    }, [boardData, dataLoaded, loadCompleted, githubToken, realtimeFlushNonce]);
 
     // Flush pending save on tab close / navigation away
     useEffect(() => {
@@ -692,8 +714,10 @@ const App = () => {
             setIsOffline(false);
             showNotification('✅ Back online — syncing...');
             // Delay save to let Realtime reconnect and deliver pending events first
-            setTimeout(() => {
+            setTimeout(async () => {
                 if (boardDataRef.current && dataLoaded) {
+                    // Merge any remote edits made while we were offline before overwriting (M3).
+                    await preSaveOccMerge();
                     saveData();
                 }
             }, 2000);
@@ -753,14 +777,24 @@ const App = () => {
             };
             // Entity-level merge: preserves local edits to different entities
             setBoardData(prev => {
-                if (!prev?.boards) return incoming;
-                return mergeBoardsEntityLevel(prev, incoming);
+                const merged = !prev?.boards ? incoming : mergeBoardsEntityLevel(prev, incoming);
+                // Remember the exact object applied so the auto-save effect can tell this
+                // Realtime update apart from a genuine user edit during the guard window (M5).
+                lastRealtimeBoardRef.current = merged;
+                return merged;
             });
         }
         if (d.updated_at) serverUpdatedAtRef.current = d.updated_at;
         saveToLocalStorage();
         showNotification('✅ Synced with team');
-        setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
+        setTimeout(() => {
+            isReceivingRealtimeRef.current = false;
+            // If the user edited during the window, the save was deferred — flush it now.
+            if (pendingRealtimeEditRef.current) {
+                pendingRealtimeEditRef.current = false;
+                setRealtimeFlushNonce(n => n + 1);
+            }
+        }, 2000);
     };
 
     // Realtime sync
@@ -870,7 +904,7 @@ const App = () => {
 
     const showNotification = useCallback((msg) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); }, []);
 
-    const handleSync = useCallback(() => saveData(), []);
+    const handleSync = useCallback(async () => { await preSaveOccMerge(); return saveData(); }, []);
 
     // Pick a label suffix from the diff between current entity and incoming
     // updates, so distinct user actions get distinct history labels and never
