@@ -84,6 +84,24 @@ const ActionDetailModal=({categories,action,tasks,onClose,onUpdateAction,onUpdat
         }));
     },[action.comments, action.attachments]);
 
+    // Re-sync externally-changed action fields (e.g. a background Trello sync that ran while
+    // this modal was open) into the form, but ONLY for fields the user hasn't edited locally
+    // (form value still equals the previous action value). Without this, closing the modal
+    // wrote the stale form value back over the freshly synced one (minor-M12).
+    const prevActionRef=useRef(action);
+    useEffect(()=>{
+        const prev=prevActionRef.current;
+        prevActionRef.current=action;
+        if(action.updatedAt===prev.updatedAt)return;
+        const SYNC_FIELDS=['name','description','startDate','dueDate','status','budget','priority','tags','channels','countries','otherLabels','assignees'];
+        setForm(f=>{
+            const next={...f};
+            for(const k of SYNC_FIELDS){if(JSON.stringify(f[k])===JSON.stringify(prev[k]))next[k]=action[k];}
+            return next;
+        });
+        if(!descriptionEditing)setDescriptionDraft(action.description||'');
+    },[action,descriptionEditing]);
+
     useEffect(()=>{
         if(descriptionEditing&&descEditableRef.current){
             const html=markdownToHtml(descriptionDraft);

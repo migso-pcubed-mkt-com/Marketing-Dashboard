@@ -289,7 +289,11 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
             }
             return normalized;
         });
-    },[task]);
+        // The description editor has its own draft state — re-sync it from the external
+        // update too, unless the user is actively editing it (minor-M19). Without this the
+        // displayed description stayed stale after a Trello sync changed it.
+        if(!descriptionEditing)setDescriptionDraft(task.description||'');
+    },[task,descriptionEditing]);
 
     // Handle Delete key to delete task
     useEffect(()=>{
