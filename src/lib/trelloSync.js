@@ -144,11 +144,20 @@ export const validateBoardIntegrity = (board) => {
         return true;
     });
 
-    // Repair: ensure default actions exist for each category in card-as-task mode
+    // Repair: ensure default actions exist for each category. A default action is only
+    // structurally required in card-as-task Trello mode (where every action must be
+    // isDefault) or for a category with no actions at all (placeholder). Do NOT inject a
+    // phantom default into a non-Trello (or card-as-action) category that already has real
+    // non-default actions — that was polluting every non-Trello board (M2).
     if (board.trelloSync?.syncMode !== 'card-as-action') {
+        // card-as-task boards (have a trelloBoardId) require a default action per category.
+        // Non-Trello boards only need a placeholder for a category with NO actions — they
+        // must NOT get a phantom default when they already have real non-default actions (M2).
+        const isCardAsTaskBoard = !!board.trelloSync?.trelloBoardId;
         for (const cat of (board.categories || [])) {
-            const hasDefault = validActions.some(a => a.categoryId === cat.id && a.isDefault);
-            if (!hasDefault) {
+            const catActions = validActions.filter(a => a.categoryId === cat.id);
+            const hasDefault = catActions.some(a => a.isDefault);
+            if (!hasDefault && (isCardAsTaskBoard || catActions.length === 0)) {
                 const now = new Date().toISOString();
                 validActions.push({
                     id: `a-${crypto.randomUUID()}`,
