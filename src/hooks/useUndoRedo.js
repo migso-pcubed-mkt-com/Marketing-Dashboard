@@ -14,6 +14,15 @@ const SYNC_FIELDS_TASK = ['title','description','startDate','dueDate','status','
 const SYNC_FIELDS_ACTION = ['name','description','startDate','dueDate','budget','priority','tags','channels','countries','otherLabels','status','order','categoryId','assignees'];
 const SYNC_FIELDS_CATEGORY = ['name','color','order'];
 
+// Serialize board state for the history buffer, omitting transient save-only fields
+// (_saveId, stamped by the auto-save) so a cloud-save echo isn't mistaken for an edit —
+// otherwise materializeTip records a spurious entry and the first undo is a no-op.
+const serializeForHistory = (data) => {
+    if (!data || typeof data !== 'object') return JSON.stringify(data);
+    const { _saveId, ...rest } = data;
+    return JSON.stringify(rest);
+};
+
 const mapById = (arr) => {
     const m = new Map();
     (arr || []).forEach(x => { if (x?.id) m.set(x.id, x); });
@@ -153,6 +162,11 @@ export default function useUndoRedo(setBoardData, getCurrentState) {
     // gate Realtime merges and the pre-save conflict fetch for a short window
     // so an incoming echo of the pre-undo state can't silently revert the UI.
     const recentUndoRef = useRef(0);
+    // True when the current tip was reached via a restore (undo/redo/jumpTo landing at the
+    // end), so the live state IS already history[tip] (modulo restoreSnapshot's updatedAt
+    // bump). materializeTip must then NOT re-capture it — otherwise a redo-to-tip followed
+    // by undo records a spurious entry and wastes one undo press. Cleared by a genuine edit.
+    const restoredAtTipRef = useRef(false);
 
     const [, forceUpdate] = useState(0);
 
@@ -179,11 +193,12 @@ export default function useUndoRedo(setBoardData, getCurrentState) {
         const getter = getCurrentStateRef.current;
         if (!getter) return;
         if (indexRef.current !== historyRef.current.length - 1) return; // not at the tip
+        if (restoredAtTipRef.current) return; // tip reached via restore — live is already history[tip]
         let cur;
         try { cur = getter(); } catch { return; }
         if (!cur) return;
         let json;
-        try { json = JSON.stringify(cur); } catch { return; }
+        try { json = serializeForHistory(cur); } catch { return; }
         const tip = historyRef.current[indexRef.current];
         if (tip && tip.json === json) return; // live already captured — nothing to do
         historyRef.current.push({ json, label: tip ? tip.label : '', timestamp: Date.now() });
@@ -200,9 +215,10 @@ export default function useUndoRedo(setBoardData, getCurrentState) {
         if (isUndoRedoRef.current) return;
         if (suspendedRef.current) return;
         if (!boardData) return;
+        restoredAtTipRef.current = false; // a genuine edit — the tip is no longer a pure restore
 
         let json;
-        try { json = JSON.stringify(boardData); }
+        try { json = serializeForHistory(boardData); }
         catch (e) { console.warn('useUndoRedo: failed to serialize state, skipping snapshot', e); return; }
 
         if (indexRef.current < historyRef.current.length - 1) {
@@ -239,6 +255,9 @@ export default function useUndoRedo(setBoardData, getCurrentState) {
     const applyRestore = useCallback((restored) => {
         isUndoRedoRef.current = true;
         recentUndoRef.current = Date.now();
+        // Record whether this restore landed at the tip — undo/redo/jumpTo set indexRef
+        // before calling applyRestore, so this reflects the post-move position.
+        restoredAtTipRef.current = indexRef.current === historyRef.current.length - 1;
         setBoardData(current => restoreSnapshot(current, restored));
         setTimeout(() => { isUndoRedoRef.current = false; }, 0);
     }, [setBoardData]);

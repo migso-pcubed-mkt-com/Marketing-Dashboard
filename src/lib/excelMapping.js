@@ -151,9 +151,14 @@ function indexVerticalMergeFragments(merges) {
 // single signal spanning the whole merge (endCol/endMonth), so these covered cells must
 // be skipped — otherwise a COLOURED horizontal merge produced one duplicate overlapping
 // task per covered month (the colour fill bypassed the "no content" skip) (M14).
-function indexHorizontalMergeFragments(merges) {
+function indexHorizontalMergeFragments(merges, monthCols) {
     const fragments = new Set();
     for (const m of merges || []) {
+        // Only skip covered cells when the merge ORIGIN is itself a month column — its single
+        // spanning signal already represents them. A merge originating in a label/non-month
+        // column and spanning into months must NOT skip its month cells, or the row loses all
+        // month signals and gets misclassified as a category.
+        if (!monthCols.has(m.s.c)) continue;
         for (let c = m.s.c + 1; c <= m.e.c; c++) fragments.add(`${m.s.r}:${c}`);
     }
     return fragments;
@@ -208,7 +213,7 @@ export function analyzeSheet(sheet) {
 
     const mergeOrigins = indexMergesByOrigin(merges);
     const verticalFragments = indexVerticalMergeFragments(merges);
-    const horizontalFragments = indexHorizontalMergeFragments(merges);
+    const horizontalFragments = indexHorizontalMergeFragments(merges, new Set(monthEntries.map(e => e.col)));
 
     const rows = [];
     for (let r = header.rowIdx + 1; r < data.length; r++) {

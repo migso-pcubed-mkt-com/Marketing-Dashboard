@@ -95,6 +95,28 @@ describe('analyzeSheet', () => {
         expect(a.rows[0].monthSignals[0].endMonthIdx).toBe(2);
     });
 
+    it('keeps a colored horizontal merge that ORIGINATES in the label column as an action', () => {
+        const sheet = {
+            data: [
+                ['Actions', 'Jan', 'Feb', 'Mar'],
+                ['Campaign', '', '', '']
+            ],
+            // Merge originates in the label column (col 0) and spans into the month columns.
+            merges: [{ s: { r: 1, c: 0 }, e: { r: 1, c: 3 } }],
+            // Covered month cells are colour-blocked.
+            cellColors: [
+                [null, null, null, null],
+                [null, 'FF00C000', 'FF00C000', 'FF00C000']
+            ]
+        };
+        const a = analyzeSheet(sheet);
+        // The month columns must NOT all be skipped (which would zero the signals and
+        // misclassify the row as a category). The horizontal-fragment skip only applies when
+        // the merge origin is itself a month column.
+        expect(a.rows[0].suggested).toBe('action');
+        expect(a.rows[0].monthSignals.length).toBeGreaterThan(0);
+    });
+
     it('skips vertical merge fragments so later rows do not duplicate the value', () => {
         const sheet = {
             data: [

@@ -81,4 +81,20 @@ describe('useUndoRedo — undo/redo sequencing (regression for the pre-change sn
         act(() => { result.current.undo(); });
         expect(nameOf(get())).toBe('AAA');
     });
+
+    it('a cloud-save echo (_saveId stamp) does not waste an undo press', () => {
+        let live = make('orig');
+        const setBoardData = (u) => { live = typeof u === 'function' ? u(live) : u; };
+        const { result } = renderHook(() => useUndoRedo(setBoardData, () => live));
+        act(() => { result.current.pushState(live, 'e1'); });
+        live = make('AAA');
+        act(() => { result.current.undo(); }); // -> orig
+        act(() => { result.current.redo(); });  // -> AAA (materialized tip, no _saveId)
+        // The auto-save stamps a transient _saveId on the live state — not a real edit.
+        live = { ...live, _saveId: 'save-1' };
+        act(() => { result.current.undo(); });
+        // Must undo the AAA edit (land on orig), not register the _saveId as an edit and
+        // leave us on a functionally-identical AAA (a wasted/no-op undo press).
+        expect(nameOf(live)).toBe('orig');
+    });
 });
