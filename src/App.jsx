@@ -70,6 +70,7 @@ const App = () => {
 
     const [syncing, setSyncing] = useState(false);
     const [savingStatus, setSavingStatus] = useState(null);
+    const [cloudSaveDegraded, setCloudSaveDegraded] = useState(false); // true when the last save reached neither Supabase nor GitHub (local-only)
     const [selectedTask, setSelectedTask] = useState(null);
     const [selectedAction, setSelectedAction] = useState(null);
     const [notification, setNotification] = useState(null);
@@ -377,6 +378,7 @@ const App = () => {
             const result = await saveToSupabase(boardDataRef, setSyncing, showNotification, serverUpdatedAtRef);
             if (result) {
                 saveToLocalStorage();
+                setCloudSaveDegraded(false);
                 return true;
             }
             // Supabase failed — try GitHub as fallback
@@ -385,17 +387,20 @@ const App = () => {
                 const ghResult = await saveToGitHub(boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification);
                 if (ghResult) {
                     saveToLocalStorage();
+                    setCloudSaveDegraded(false); // data is safe in the cloud (GitHub)
                     showNotification('⚠️ Saved to GitHub (Supabase unavailable)');
                     return true;
                 }
             }
-            // Both failed — save to localStorage and warn user
+            // Both failed — save to localStorage and surface a persistent degraded banner
             saveToLocalStorage();
+            setCloudSaveDegraded(true);
             showNotification('⚠️ Cloud save failed — data saved locally only');
             return false;
         } else if (githubToken) {
             const result = await saveToGitHub(boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification);
-            if (result) saveToLocalStorage();
+            if (result) { saveToLocalStorage(); setCloudSaveDegraded(false); }
+            else setCloudSaveDegraded(true);
             return result;
         } else {
             saveToLocalStorage();
@@ -564,11 +569,26 @@ const App = () => {
         // confirmed-invalid case so an expired/forged token can't bypass the AuthGate (M4) —
         // but a transient blip must NOT eject a valid user. Guests stay authenticated.
         const hadToken = !!localStorage.getItem('trello_user_token');
+        if (!hadToken) return; // guest / no token — nothing to restore
         const failAuth = () => { if (!sessionStorage.getItem('guest_auth')) setAuthenticated(false); };
-        restoreTrelloUser().then(user => {
-            if (user) { setTrelloUser(user); setAuthenticated(true); }
-            else if (hadToken) failAuth(); // confirmed invalid token → require re-auth
-        }).catch(() => { /* transient (offline/outage) — keep optimistic auth, don't eject */ });
+        // Retry with backoff on transient failures (network/outage/5xx): a valid user is
+        // never ejected, and once Trello recovers the user is reconnected (trelloUser set →
+        // presence, "My tasks", Trello push all come back) WITHOUT requiring a page reload.
+        const delays = [2000, 5000, 15000, 30000, 60000];
+        let attempt = 0, cancelled = false, timer = null;
+        const tryRestore = () => {
+            if (cancelled || trelloUserRef.current) return; // already reconnected
+            restoreTrelloUser().then(user => {
+                if (cancelled) return;
+                if (user) { setTrelloUser(user); setAuthenticated(true); }
+                else failAuth(); // confirmed invalid token (401/403) → require re-auth
+            }).catch(() => {
+                if (cancelled || attempt >= delays.length) return; // give up after the last delay (keep optimistic auth)
+                timer = setTimeout(tryRestore, delays[attempt++]);
+            });
+        };
+        tryRestore();
+        return () => { cancelled = true; if (timer) clearTimeout(timer); };
     }, []);
 
     const handleTrelloLogin = useCallback(async () => {
@@ -1937,6 +1957,11 @@ const App = () => {
                 {isOffline && (
                     <div style={{background:'#f59e0b',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
                         📡 Offline — changes saved locally. Will sync when back online.
+                    </div>
+                )}
+                {cloudSaveDegraded && !isOffline && (
+                    <div style={{background:'#ef4444',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
+                        ⚠️ Cloud save is failing — your changes are saved on this device only and may be lost if you clear data or switch devices. Retrying automatically…
                     </div>
                 )}
                 {loadFailed && !boardData && (

@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-06-28 (QA hardening sweep + Escape-to-close save fix: detail-modal Escape no longer discards edits when focus is outside an input; Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs, 2-pass OCC + visibilitychange Realtime catch-up, Timeline drag-down true swap, PPT Timeline black-text-in-shape, Excel import v11 modal + colour cells, typed history labels)
+> Last updated: 2026-06-29 (Collaboration hardening: M18 deletion tombstones, explicit conflict notification, Supabase presence indicators, Trello auth reconnect-retry, persistent degraded-save banner; + Escape-to-close save fix. Earlier: Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs, 2-pass OCC + visibilitychange Realtime catch-up, Excel import v11 modal, typed history labels)
 
 ---
 
@@ -446,7 +446,10 @@ When a Trello card is deleted or archived, the ACTION itself (not just its tasks
 The "local changed, Trello didn't" push path for checklist items uses `buildSelectiveCheckItemUpdate` (NOT `mapTaskToCheckItemUpdate`). The selective version only includes `state` when it actually changed from baseline. When nothing changed (only order), it returns `null` and the API call is skipped entirely. This prevents Trello "marked incomplete" activity spam during reorder-only pushes.
 
 ### Save fallback cascading
-`saveData()` tries Supabase first. If Supabase fails and GitHub token is available, falls back to GitHub. If both fail, saves to localStorage only and warns the user. Do NOT remove the fallback chain — without it, a Supabase outage silently loses unsaved data.
+`saveData()` tries Supabase first. If Supabase fails and GitHub token is available, falls back to GitHub. If both fail, saves to localStorage only and warns the user. Do NOT remove the fallback chain — without it, a Supabase outage silently loses unsaved data. When **both** cloud targets fail, `setCloudSaveDegraded(true)` raises a **persistent red banner** ("Cloud save is failing — saved on this device only…") that stays until a cloud save succeeds (`setCloudSaveDegraded(false)` on Supabase OR GitHub success). The banner is gated on `!isOffline` (offline has its own amber banner). This makes the local-only degraded state honest instead of a fleeting toast.
+
+### Trello auth reconnect retry
+The mount restore effect retries `restoreTrelloUser()` with backoff `[2s,5s,15s,30s,60s]` on **transient** failures (network/outage/5xx) and stops on success or a confirmed-invalid 401/403 (which ejects to re-auth). A valid user is never logged out by a blip, and once Trello recovers the user is reconnected (presence, "My tasks", Trello push) WITHOUT a page reload. Guarded by `trelloUserRef.current` (stop once reconnected) + a `cancelled` flag on unmount. Do NOT collapse this back to a single attempt — a transient startup blip would otherwise leave a logged-in user stuck as guest-capability until manual reload.
 
 ### saveToSupabase legacy-column fallback
 `saveToSupabase` success path writes **only** `board_data` + `updated_at` (legacy `categories`/`actions`/`tasks` are fully contained inside `board_data`, writing them duplicates ~20-40 % of payload per save). On error (typically `board_data` column missing because migration wasn't run), the catch retries with legacy columns + `board_data: null`. The null is critical — without it, stale `board_data` persists in Supabase, causing the Realtime handler to use old data (echo filter fails on mismatched `_saveId`, handler prefers stale `board_data` over fresh legacy columns). Do NOT remove `board_data: null` from the fallback. Do NOT re-introduce legacy column writes in the success path — `loadFromSupabase` and `processRealtimePayload` only fall back to legacy columns when `board_data` is missing/non-v2, so the success-path columns are dead weight.
