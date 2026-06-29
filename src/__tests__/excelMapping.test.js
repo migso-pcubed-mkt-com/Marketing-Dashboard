@@ -153,6 +153,49 @@ describe('analyzeSheet', () => {
         expect(a.rows[0].suggested).toBe('action');
     });
 
+    it('treats the THEME-<n> sentinel as a colour signal (Microsoft accent themes 2-9)', () => {
+        const sheet = {
+            data: [['Actions', 'Jan', 'Feb', 'Mar'], ['Theme highlight', '', '', '']],
+            merges: [],
+            cellColors: [[null, null, null, null], [null, null, 'THEME-4', null]],
+        };
+        const a = analyzeSheet(sheet);
+        expect(a.rows[0].monthSignals).toHaveLength(1);
+        expect(a.rows[0].monthSignals[0].hasColorOnly).toBe(true);
+        expect(a.rows[0].suggested).toBe('action');
+    });
+
+    it('ignores a uniform row-background fill (template styling, not 6 per-cell highlights)', () => {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+        const bg = 'FFB7DEE8';
+        const sheet = {
+            data: [['Categories', ...months], ['Styled category row', '', '', '', '', '', '']],
+            merges: [],
+            cellColors: [
+                [null, null, null, null, null, null, null],
+                [null, bg, bg, bg, bg, bg, bg], // whole row one colour → background, not signals
+            ],
+        };
+        const a = analyzeSheet(sheet);
+        expect(a.rows[0].monthSignals).toHaveLength(0);
+    });
+
+    it('a cell whose fill differs from the row background still counts as a signal', () => {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+        const bg = 'FFB7DEE8', hi = 'FFFF0000';
+        const sheet = {
+            data: [['Actions', ...months], ['Mixed row', '', '', '', '', '', '']],
+            merges: [],
+            cellColors: [
+                [null, null, null, null, null, null, null],
+                [null, bg, bg, bg, hi, bg, bg], // 5× bg (background) + 1 distinct highlight at Apr
+            ],
+        };
+        const a = analyzeSheet(sheet);
+        expect(a.rows[0].monthSignals).toHaveLength(1);
+        expect(a.rows[0].monthSignals[0].monthIdx).toBe(3); // Apr
+    });
+
     it('ignores neutral fills (white, transparent, pure black) on otherwise empty cells', () => {
         const sheet = {
             data: [
