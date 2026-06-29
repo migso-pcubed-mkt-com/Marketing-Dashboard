@@ -63,7 +63,7 @@ Marketing Project Tracker for MIGSO-PCUBED. Single-page React app managing **Cat
 - **React 18** + **Vite 5** (ES Modules, no CDN/Babel/UMD)
 - **Tailwind CSS 3** via PostCSS (not CDN)
 - **Supabase JS SDK** (`@supabase/supabase-js`)
-- **Vitest** for unit tests (589 tests across 21 files)
+- **Vitest** for unit + integration tests (661 tests across 26 files) — incl. `views.integration.test.jsx` (jsdom/RTL smoke render of every view with realistic seed data, which catches "component crashes with real data" regressions a pure-helper test would miss — e.g. the missing-icon empty-board crash)
 - **TypeScript 6** progressive (`strict:false`, `allowJs:true`, `noEmit:true`) — 4 files migrated so far
 - **ESLint 8** (`.eslintrc.cjs`) — 25 warnings remaining (unused vars)
 - **@tanstack/react-virtual** for Kanban column virtualization
@@ -101,7 +101,7 @@ src/
 │   ├── useUndoRedo.js   # History ring buffer (MAX=60), timestamps, jumpTo/suspend/resume/getHistory, 400ms coalescing
 │   ├── useFocusTrap.ts  # Focus trap for modals (TypeScript)
 │   └── useTouchDrag.ts  # Touch DnD hook (long-press 300ms, TypeScript)
-├── __tests__/           # Vitest unit tests (536 tests, 17 files)
+├── __tests__/           # Vitest unit + integration tests (661 tests, 26 files)
 .eslintrc.cjs            # ESLint config
 tsconfig.json            # TypeScript config (noEmit, allowJs, progressive)
 api/
@@ -114,7 +114,7 @@ api/
 ```bash
 npm run dev        # Vite dev server — port 5173, proxies /api → localhost:3000
 npm run build      # Production build → dist/
-npm test           # Run Vitest tests (536 tests, 17 files)
+npm test           # Run Vitest tests (661 tests, 26 files)
 npm run test:watch # Watch mode
 npm run lint       # ESLint check
 npm run typecheck  # TypeScript check (tsc --noEmit)
