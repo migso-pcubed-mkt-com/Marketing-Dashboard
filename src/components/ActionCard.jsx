@@ -32,10 +32,17 @@ const ActionCard = ({action, tasks, categories, onOpen, onMoveAction, onReorderA
     const handleDrop = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!onReorderAction || !dragOverPosition) return;
+        if (!onReorderAction) return;
         const draggedId = e.dataTransfer.getData('actionId');
         if (draggedId && draggedId !== action.id) {
-            onReorderAction(draggedId, action.id, dragOverPosition);
+            // dragLeave can clear dragOverPosition just before drop — fall back to computing
+            // before/after from the drop event so the reorder isn't silently lost (minor-M11).
+            let position = dragOverPosition;
+            if (!position && cardRef.current) {
+                const rect = cardRef.current.getBoundingClientRect();
+                position = e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+            }
+            onReorderAction(draggedId, action.id, position || 'before');
         }
         setDragOverPosition(null);
     };

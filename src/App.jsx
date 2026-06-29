@@ -11,7 +11,8 @@ import {
     saveSnapshot,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
-import { mergeBoardsEntityLevel } from './lib/realtimeMerge.js';
+import { mergeBoardsEntityLevel, mergeBoardsEntityLevelWithMeta } from './lib/realtimeMerge.js';
+import { addTombstones, pruneEnvelopeTombstones } from './lib/tombstones.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
 import { mergePostSync } from './lib/postSyncMerge.js';
 import { applyTaskUpdate, applyBatchTaskUpdate, applyActionUpdate, computeTagPropagation, applyTaskReorder } from './lib/handlers';
@@ -23,6 +24,8 @@ import OnboardingOverlay from './components/OnboardingOverlay.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
 import FilterSidebar from './components/FilterSidebar.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
+import PresenceIndicator from './components/PresenceIndicator.jsx';
+import { buildPresenceState, derivePresenceList } from './lib/presence.js';
 import AuthGate from './components/AuthGate.jsx';
 import { ViewSkeleton } from './components/Skeletons.jsx';
 import { useFilters } from './hooks/useFilters.js';
@@ -50,6 +53,13 @@ const API_BASE_URL = typeof window !== 'undefined'
     ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
     : '';
 
+// Human-readable message for a collaborative merge that discarded local versions
+// (a teammate's concurrent edit to the same item won last-write-wins). Surfaced instead
+// of the silent "✅ Synced with team" so the user knows their view changed under them.
+const conflictMessage = (conflicts) => conflicts.length === 1
+    ? `⚠️ "${conflicts[0].name}" was changed by a teammate — their version was applied`
+    : `⚠️ ${conflicts.length} items were changed by teammates — their versions were applied`;
+
 const App = () => {
     const darkMode = false;
     const [currentView, setCurrentView] = useState('kanban');
@@ -60,6 +70,7 @@ const App = () => {
 
     const [syncing, setSyncing] = useState(false);
     const [savingStatus, setSavingStatus] = useState(null);
+    const [cloudSaveDegraded, setCloudSaveDegraded] = useState(false); // true when the last save reached neither Supabase nor GitHub (local-only)
     const [selectedTask, setSelectedTask] = useState(null);
     const [selectedAction, setSelectedAction] = useState(null);
     const [notification, setNotification] = useState(null);
@@ -74,6 +85,8 @@ const App = () => {
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [dataLoaded, setDataLoaded] = useState(false);
     const [loadCompleted, setLoadCompleted] = useState(false); // true only after cloud/local data fully loaded — gates auto-save
+    const [loadFailed, setLoadFailed] = useState(false); // true when cloud load failed AND no local backup → boardData stays null (degraded preview)
+    const [realtimeFlushNonce, setRealtimeFlushNonce] = useState(0); // bumped to flush a save deferred during the realtime guard window (M5)
     const [fileSha, setFileSha] = useState(() => {
         return localStorage.getItem('github_file_sha') || '';
     });
@@ -97,6 +110,10 @@ const App = () => {
     });
     const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
     const [otherTabActive, setOtherTabActive] = useState(false);
+    const [collaborators, setCollaborators] = useState([]); // other people present on the board (Supabase presence)
+    const sessionIdRef = useRef(null);
+    if (sessionIdRef.current === null) sessionIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random());
+    const presenceChannelRef = useRef(null);
     const [realtimeConnected, setRealtimeConnected] = useState(null); // null = not applicable, true = connected, false = disconnected
     const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_done'));
     const trelloSyncIntervalRef = useRef(null);
@@ -145,7 +162,7 @@ const App = () => {
     const { filters, setFilters, showFilterSidebar, setShowFilterSidebar, searchInputRef, visibleTasks, visibleActions, activeFilterCount, filteredTasks, filteredBudget, isFiltered } = useFilters(tasks, actions);
 
     // --- Undo/Redo + History panel ---
-    const { pushState, undo, redo, jumpTo, clear: clearHistory, getHistory, suspend: suspendHistory, resume: resumeHistory, canUndo, canRedo, isUndoRedoRef, recentUndoRef, currentIndex: historyCurrentIndex } = useUndoRedo(setBoardData);
+    const { pushState, undo, redo, jumpTo, clear: clearHistory, getHistory, suspend: suspendHistory, resume: resumeHistory, canUndo, canRedo, isUndoRedoRef, recentUndoRef, currentIndex: historyCurrentIndex } = useUndoRedo(setBoardData, () => boardDataRef.current);
     // Window (ms) during which incoming Realtime events + pre-save merge fetches are
     // blocked after an undo/redo/jumpTo. Without this guard, the server echo of the
     // pre-undo state would silently overwrite the restored board before the user
@@ -240,9 +257,11 @@ const App = () => {
             const newCurrentId = boardId === currentBoardId ? remaining[0].id : currentBoardId;
             if (boardId === currentBoardId) {
                 setCurrentBoardId(newCurrentId);
-                setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]});
+                setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
             }
-            return { ...prev, currentBoardId: newCurrentId, boards: remaining };
+            // Board-level tombstone (M18) so the deleted board doesn't resurrect from a peer's
+            // stale copy on the next collaborative merge.
+            return { ...prev, currentBoardId: newCurrentId, boards: remaining, boardDeletions: addTombstones(prev.boardDeletions, [{ id: boardId, type: 'board' }]) };
         });
         showNotification('🗑️ Board deleted');
     }, [currentBoardId]);
@@ -253,12 +272,20 @@ const App = () => {
             if (!source) return prev;
             const cloned = JSON.parse(JSON.stringify(source));
             const newId = `board-${crypto.randomUUID()}`;
-            // Regenerate IDs to avoid cross-board conflicts
+            // Regenerate IDs to avoid cross-board conflicts. Categories must be remapped too
+            // (and action.categoryId rewritten), otherwise the copy shares category ids with
+            // the source and the two cross-contaminate in combined view (M7).
+            const categoryIdMap = {};
+            cloned.categories = cloned.categories.map(c => {
+                const newCId = `cat-${crypto.randomUUID()}`;
+                categoryIdMap[c.id] = newCId;
+                return { ...c, id: newCId };
+            });
             const actionIdMap = {};
             cloned.actions = cloned.actions.map(a => {
                 const newAId = `a-${crypto.randomUUID()}`;
                 actionIdMap[a.id] = newAId;
-                return { ...a, id: newAId };
+                return { ...a, id: newAId, categoryId: categoryIdMap[a.categoryId] || a.categoryId };
             });
             cloned.tasks = cloned.tasks.map(t => ({
                 ...t,
@@ -330,6 +357,12 @@ const App = () => {
     const syncRealtimeGuardRef = useRef(false);
     const pendingRealtimeRef = useRef(null);
     const serverUpdatedAtRef = useRef(null);
+    // M5: the exact boardData object applied by the last Realtime merge (reference identity),
+    // a flag for a genuine user edit made during the 2s realtime guard window, and a nonce
+    // that re-runs the auto-save effect once the window closes so that edit gets persisted.
+    const lastRealtimeBoardRef = useRef(null);
+    const pendingRealtimeEditRef = useRef(false);
+    const skipNextAutoSaveRef = useRef(false); // one-shot: skip the save re-triggered by preSaveOccMerge's setBoardData
 
     const saveToLocalStorage = () => {
         saveToLocalStorageFn(boardDataRef);
@@ -345,6 +378,7 @@ const App = () => {
             const result = await saveToSupabase(boardDataRef, setSyncing, showNotification, serverUpdatedAtRef);
             if (result) {
                 saveToLocalStorage();
+                setCloudSaveDegraded(false);
                 return true;
             }
             // Supabase failed — try GitHub as fallback
@@ -353,21 +387,49 @@ const App = () => {
                 const ghResult = await saveToGitHub(boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification);
                 if (ghResult) {
                     saveToLocalStorage();
+                    setCloudSaveDegraded(false); // data is safe in the cloud (GitHub)
                     showNotification('⚠️ Saved to GitHub (Supabase unavailable)');
                     return true;
                 }
             }
-            // Both failed — save to localStorage and warn user
+            // Both failed — save to localStorage and surface a persistent degraded banner
             saveToLocalStorage();
+            setCloudSaveDegraded(true);
             showNotification('⚠️ Cloud save failed — data saved locally only');
             return false;
         } else if (githubToken) {
             const result = await saveToGitHub(boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification);
-            if (result) saveToLocalStorage();
+            if (result) { saveToLocalStorage(); setCloudSaveDegraded(false); }
+            else setCloudSaveDegraded(true);
             return result;
         } else {
             saveToLocalStorage();
             return true;
+        }
+    };
+
+    // Pre-save optimistic-concurrency check. If another client saved since our last known
+    // server timestamp, fetch and merge their changes into boardDataRef (and the UI) BEFORE
+    // we overwrite the cloud. Shared by the debounced auto-save, the manual Sync button, and
+    // the reconnect ("back online") save so none of them clobbers concurrent remote edits
+    // (M3). No-op without Supabase, inside the recent-undo window, or when nothing changed.
+    const preSaveOccMerge = async () => {
+        if (!useSupabase || !serverUpdatedAtRef.current || isRecentUndo()) return;
+        try {
+            const server = await fetchServerState(serverUpdatedAtRef.current);
+            if (server && server.updated_at !== serverUpdatedAtRef.current && server.board_data?.version === 2) {
+                const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(boardDataRef.current, server.board_data);
+                boardDataRef.current = merged;
+                serverUpdatedAtRef.current = server.updated_at;
+                if (conflicts.length) showNotification(conflictMessage(conflicts));
+                // The in-flight save already persists `merged` (via boardDataRef). Showing it
+                // in the UI re-fires the auto-save effect; skip that one redundant save so a
+                // detected conflict doesn't cause a second cloud write + duplicate Trello sync.
+                skipNextAutoSaveRef.current = true;
+                setBoardData(merged);
+            }
+        } catch (e) {
+            console.warn('Pre-save conflict check failed (continuing):', e.message);
         }
     };
 
@@ -387,9 +449,11 @@ const App = () => {
                 }
                 return;
             }
-            // Undo: Ctrl+Z / Cmd+Z
+            // Undo: Ctrl+Z / Cmd+Z — blocked in read-only (combined view / guest) so the
+            // keyboard shortcut can't mutate board data that the UI otherwise locks.
             if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
                 e.preventDefault();
+                if (isReadOnly) return;
                 const label = undo();
                 if (label) { setNotification('↩ Undo: ' + label); setTimeout(() => setNotification(null), 3000); }
                 return;
@@ -397,6 +461,7 @@ const App = () => {
             // Redo: Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y / Cmd+Y
             if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
                 e.preventDefault();
+                if (isReadOnly) return;
                 const label = redo();
                 if (label) { setNotification('↪ Redo: ' + label); setTimeout(() => setNotification(null), 3000); }
                 return;
@@ -408,8 +473,14 @@ const App = () => {
             }
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
             if (e.key === 'Escape') {
-                if (selectedTask) setSelectedTask(null);
-                else if (selectedAction) setSelectedAction(null);
+                // Task/Action detail modals own their Escape handling (save-then-close via
+                // their own window keydown listener). App must NOT close them here: App's
+                // document listener fires before the modal's window listener in the bubble
+                // phase, so setSelectedTask/Action(null) would unmount the modal synchronously
+                // and tear down its window listener BEFORE the save-on-close runs. That
+                // silently discarded any edit made while focus was outside an input (e.g. on
+                // <body> after a blur). Leave the close to the modal's handleClose.
+                if (selectedTask || selectedAction) { /* handled by the modal's own Escape (saves then closes) */ }
                 else if (showCategoriesModal) setShowCategoriesModal(false);
                 else if (showCreateDropdown) setShowCreateDropdown(false);
                 else if (showNewActionModal) setShowNewActionModal(false);
@@ -423,7 +494,9 @@ const App = () => {
         };
         document.addEventListener('keydown', handleKeyPress);
         return () => document.removeEventListener('keydown', handleKeyPress);
-    }, [selectedTask, selectedAction, showCategoriesModal, showNewActionModal, showNewTaskModal, showFilterSidebar, showCreateDropdown, undo, redo]);
+        // Note: handleCreateNewTask is a stable useCallback([]) so it's intentionally
+        // omitted from deps (and would be a TDZ reference here — it's defined later).
+    }, [selectedTask, selectedAction, showCategoriesModal, showNewActionModal, showNewTaskModal, showFilterSidebar, showCreateDropdown, undo, redo, isReadOnly]);
 
     // Data loading on mount
     useEffect(() => {
@@ -439,6 +512,10 @@ const App = () => {
             if (fallbackData) {
                 setBoardData(fallbackData);
                 setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
+            } else {
+                // No cloud data loaded and no local backup → don't pretend the seed
+                // data is editable (mutations would silently no-op). Surface it instead.
+                setLoadFailed(true);
             }
             setLoadCompleted(true);
         }, 5000);
@@ -452,11 +529,14 @@ const App = () => {
                     result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
                 }
                 if (result) {
+                    result = pruneEnvelopeTombstones(result); // GC expired deletion tombstones (M18)
                     setBoardData(result);
                     setCurrentBoardId(result.currentBoardId || 'board-default');
                     // Save to localStorage as backup
                     boardDataRef.current = result;
                     saveToLocalStorage();
+                } else {
+                    setLoadFailed(true);
                 }
                 clearTimeout(timeoutId);
                 setLoadCompleted(true);
@@ -467,6 +547,10 @@ const App = () => {
                 if (fallbackData) {
                     setBoardData(fallbackData);
                     setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
+                } else {
+                    // Cloud load threw (network/RLS) and no local backup exists: keep
+                    // boardData null and warn the user instead of silently no-opping edits.
+                    setLoadFailed(true);
                 }
                 setLoadCompleted(true);
             }
@@ -478,7 +562,33 @@ const App = () => {
 
     // Restore Trello user from localStorage on mount
     useEffect(() => {
-        restoreTrelloUser().then(user => { if (user) { setTrelloUser(user); setAuthenticated(true); } }).catch(() => {});
+        // The initial `authenticated` state is optimistic (true if a trello_user_token
+        // string exists, regardless of validity). restoreTrelloUser validates it against
+        // Trello: it returns null ONLY for a confirmed-invalid token (401/403) and throws a
+        // transient error for network/outage. Downgrade to unauthenticated only on the
+        // confirmed-invalid case so an expired/forged token can't bypass the AuthGate (M4) —
+        // but a transient blip must NOT eject a valid user. Guests stay authenticated.
+        const hadToken = !!localStorage.getItem('trello_user_token');
+        if (!hadToken) return; // guest / no token — nothing to restore
+        const failAuth = () => { if (!sessionStorage.getItem('guest_auth')) setAuthenticated(false); };
+        // Retry with backoff on transient failures (network/outage/5xx): a valid user is
+        // never ejected, and once Trello recovers the user is reconnected (trelloUser set →
+        // presence, "My tasks", Trello push all come back) WITHOUT requiring a page reload.
+        const delays = [2000, 5000, 15000, 30000, 60000];
+        let attempt = 0, cancelled = false, timer = null;
+        const tryRestore = () => {
+            if (cancelled || trelloUserRef.current) return; // already reconnected
+            restoreTrelloUser().then(user => {
+                if (cancelled) return;
+                if (user) { setTrelloUser(user); setAuthenticated(true); }
+                else failAuth(); // confirmed invalid token (401/403) → require re-auth
+            }).catch(() => {
+                if (cancelled || attempt >= delays.length) return; // give up after the last delay (keep optimistic auth)
+                timer = setTimeout(tryRestore, delays[attempt++]);
+            });
+        };
+        tryRestore();
+        return () => { cancelled = true; if (timer) clearTimeout(timer); };
     }, []);
 
     const handleTrelloLogin = useCallback(async () => {
@@ -530,31 +640,36 @@ const App = () => {
 
     // Auto-save with debounce
     useEffect(() => {
-        if (!dataLoaded || !loadCompleted || !boardData || isReceivingRealtimeRef.current) return;
+        if (!dataLoaded || !loadCompleted || !boardData) return;
+        // Skip exactly one cycle when preSaveOccMerge merged a remote conflict into the UI —
+        // that data was already persisted by the in-flight save, so re-saving it is redundant.
+        if (skipNextAutoSaveRef.current) { skipNextAutoSaveRef.current = false; return; }
+        if (isReceivingRealtimeRef.current) {
+            // Inside the Realtime guard window. If this boardData is the very object the
+            // Realtime merge just applied, it's not a local edit — skip. If it's a different
+            // object, the user edited during the window; remember it so the save is flushed
+            // when the window closes (M5) instead of being silently dropped.
+            if (boardData !== lastRealtimeBoardRef.current) pendingRealtimeEditRef.current = true;
+            return;
+        }
         setSavingStatus('saving');
         if (autoSaveTimeoutRef.current) { clearTimeout(autoSaveTimeoutRef.current); }
         const delay = useSupabase ? 1000 : 2000;
         const doSave = async () => {
+            // The scheduled timer has fired — this save is now executing, not "pending".
+            // Clear the ref so the Realtime / GitHub-poll / visibilitychange guards (which
+            // treat a truthy autoSaveTimeoutRef as "unsaved local changes pending → ignore
+            // remote data") don't stay permanently blocked after the first save. The retry
+            // branch below re-sets it because a save is then genuinely still scheduled.
+            autoSaveTimeoutRef.current = null;
             if (isUserInteractingRef.current || isSyncInProgress()) {
                 autoSaveTimeoutRef.current = setTimeout(doSave, 500);
                 return;
             }
-            // Pre-save conflict check: detect if another user saved since our last sync.
-            // Skipped inside the recent-undo window so the server echo of the pre-undo
-            // state can't sneak back into boardDataRef on the way to Supabase.
-            if (useSupabase && serverUpdatedAtRef.current && !isRecentUndo()) {
-                try {
-                    // Pass our last-known timestamp so the helper skips fetching board_data
-                    // when nothing has changed (the common case) — avoids egress on every save.
-                    const server = await fetchServerState(serverUpdatedAtRef.current);
-                    if (server && server.updated_at !== serverUpdatedAtRef.current && server.board_data?.version === 2) {
-                        boardDataRef.current = mergeBoardsEntityLevel(boardDataRef.current, server.board_data);
-                        serverUpdatedAtRef.current = server.updated_at;
-                    }
-                } catch (e) {
-                    console.warn('Pre-save conflict check failed (continuing):', e.message);
-                }
-            }
+            // Pre-save conflict check (shared helper): merge any concurrent remote save
+            // into boardDataRef + the UI before we overwrite the cloud. Skipped inside the
+            // recent-undo window so the server echo of the pre-undo state can't sneak back.
+            await preSaveOccMerge();
             // Stamp a save ID so Realtime can detect our own echo
             const saveId = crypto.randomUUID();
             lastSaveIdRef.current = saveId;
@@ -582,7 +697,7 @@ const App = () => {
         };
         autoSaveTimeoutRef.current = setTimeout(doSave, delay);
         return () => { if (autoSaveTimeoutRef.current) clearTimeout(autoSaveTimeoutRef.current); };
-    }, [boardData, dataLoaded, loadCompleted, githubToken]);
+    }, [boardData, dataLoaded, loadCompleted, githubToken, realtimeFlushNonce]);
 
     // Flush pending save on tab close / navigation away
     useEffect(() => {
@@ -591,12 +706,14 @@ const App = () => {
                 clearTimeout(postSaveSyncTimeoutRef.current);
                 postSaveSyncTimeoutRef.current = null;
             }
-            if (autoSaveTimeoutRef.current && boardDataRef.current) {
+            if (autoSaveTimeoutRef.current) {
                 clearTimeout(autoSaveTimeoutRef.current);
                 autoSaveTimeoutRef.current = null;
-                // Synchronous localStorage save — guaranteed to complete before page unloads
-                saveToLocalStorage();
             }
+            // Always mirror current state to localStorage on unload — covers a pending
+            // debounced save AND an in-flight save (autoSaveTimeoutRef is null during the
+            // latter now that doSave clears it at start). Synchronous, completes before unload.
+            if (boardDataRef.current) saveToLocalStorage();
         };
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => {
@@ -620,9 +737,10 @@ const App = () => {
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.hidden) {
-                if (autoSaveTimeoutRef.current && boardDataRef.current) {
-                    saveToLocalStorage();
-                }
+                // Mirror current state to localStorage when the tab is hidden — covers a
+                // pending debounced save AND an in-flight save (autoSaveTimeoutRef is null
+                // during the latter now that doSave clears it at start).
+                if (boardDataRef.current) saveToLocalStorage();
                 return;
             }
             if (!useSupabase || !loadCompletedRef.current || !serverUpdatedAtRef.current) return;
@@ -660,8 +778,10 @@ const App = () => {
             setIsOffline(false);
             showNotification('✅ Back online — syncing...');
             // Delay save to let Realtime reconnect and deliver pending events first
-            setTimeout(() => {
+            setTimeout(async () => {
                 if (boardDataRef.current && dataLoaded) {
+                    // Merge any remote edits made while we were offline before overwriting (M3).
+                    await preSaveOccMerge();
                     saveData();
                 }
             }, 2000);
@@ -700,11 +820,54 @@ const App = () => {
         };
     }, []);
 
+    // Collaborator presence via Supabase Realtime "presence" (who else has the board open).
+    // No-op without Supabase (guest/offline) so nothing breaks without a connection.
+    // Created once; a second effect re-tracks when identity or active board changes.
+    const trelloUserRef = useRef(trelloUser); trelloUserRef.current = trelloUser;
+    const currentBoardIdRef = useRef(currentBoardId); currentBoardIdRef.current = currentBoardId;
+    useEffect(() => {
+        if (!useSupabase || !dataLoaded) return;
+        let channel;
+        try {
+            const sessionId = sessionIdRef.current;
+            const selfId = () => trelloUserRef.current?.id || sessionId;
+            channel = supabaseClient.channel('board_presence', { config: { presence: { key: sessionId } } });
+            const refresh = () => {
+                try { setCollaborators(derivePresenceList(channel.presenceState(), selfId())); }
+                catch (_) { /* ignore presence read errors */ }
+            };
+            channel
+                .on('presence', { event: 'sync' }, refresh)
+                .on('presence', { event: 'join' }, refresh)
+                .on('presence', { event: 'leave' }, refresh)
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        channel.track(buildPresenceState(trelloUserRef.current, currentBoardIdRef.current, sessionId)).catch(() => {});
+                    }
+                });
+            presenceChannelRef.current = channel;
+        } catch (_) { /* presence is best-effort */ }
+        return () => {
+            presenceChannelRef.current = null;
+            setCollaborators([]);
+            try { channel?.untrack?.(); supabaseClient.removeChannel(channel); } catch (_) { /* noop */ }
+        };
+    }, [dataLoaded]);
+
+    // Re-broadcast presence when the logged-in user or the active board changes.
+    useEffect(() => {
+        const ch = presenceChannelRef.current;
+        if (!ch) return;
+        try { ch.track(buildPresenceState(trelloUser, currentBoardId, sessionIdRef.current)).catch(() => {}); }
+        catch (_) { /* noop */ }
+    }, [trelloUser, currentBoardId]);
+
     // Process a Realtime payload: validate, entity-level merge, save backup
     const processRealtimePayload = (payload) => {
         const d = payload.new;
         isReceivingRealtimeRef.current = true;
         let incoming = null;
+        let realtimeConflicts = [];
         if (d.board_data && d.board_data.version === 2) {
             incoming = d.board_data;
         } else if (d.categories) {
@@ -719,16 +882,36 @@ const App = () => {
                     return integrity.board;
                 })
             };
-            // Entity-level merge: preserves local edits to different entities
-            setBoardData(prev => {
-                if (!prev?.boards) return incoming;
-                return mergeBoardsEntityLevel(prev, incoming);
-            });
+            // Entity-level merge: preserves local edits to different entities.
+            // Compute the merge OUTSIDE the setState updater (off boardDataRef.current, the
+            // same base preSaveOccMerge trusts) so the conflict side-effect isn't driven from
+            // inside the updater (which React re-invokes under StrictMode) — see review 4.1.
+            const prevBoard = boardDataRef.current;
+            let applied;
+            if (!prevBoard?.boards) {
+                applied = incoming;
+            } else {
+                const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(prevBoard, incoming);
+                applied = merged;
+                realtimeConflicts = conflicts;
+            }
+            // Remember the exact object applied so the auto-save effect can tell this
+            // Realtime update apart from a genuine user edit during the guard window (M5).
+            lastRealtimeBoardRef.current = applied;
+            setBoardData(applied);
+            saveToLocalStorage();
+            if (realtimeConflicts.length) showNotification(conflictMessage(realtimeConflicts));
+            else showNotification('✅ Synced with team');
         }
         if (d.updated_at) serverUpdatedAtRef.current = d.updated_at;
-        saveToLocalStorage();
-        showNotification('✅ Synced with team');
-        setTimeout(() => { isReceivingRealtimeRef.current = false; }, 2000);
+        setTimeout(() => {
+            isReceivingRealtimeRef.current = false;
+            // If the user edited during the window, the save was deferred — flush it now.
+            if (pendingRealtimeEditRef.current) {
+                pendingRealtimeEditRef.current = false;
+                setRealtimeFlushNonce(n => n + 1);
+            }
+        }, 2000);
     };
 
     // Realtime sync
@@ -777,10 +960,21 @@ const App = () => {
                             showNotification('🔄 Syncing with team...');
                             const result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
                             if (result) {
-                                // Entity-level merge for GitHub polling too
-                                setBoardData(prev => prev?.boards ? mergeBoardsEntityLevel(prev, result) : result);
+                                // Entity-level merge for GitHub polling too — computed off the
+                                // current ref OUTSIDE the updater so the conflict notification
+                                // isn't a side-effect inside setState (review 4.1).
+                                const prevBoard = boardDataRef.current;
+                                let applied = result, ghConflicts = [];
+                                if (prevBoard?.boards) {
+                                    const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(prevBoard, result);
+                                    applied = merged; ghConflicts = conflicts;
+                                }
+                                setBoardData(applied);
+                                if (ghConflicts.length) showNotification(conflictMessage(ghConflicts));
+                                else showNotification('✅ Synced with team');
+                            } else {
+                                showNotification('✅ Synced with team');
                             }
-                            showNotification('✅ Synced with team');
                         }
                     }
                 } catch (_) { /* polling error — silent */ }
@@ -838,7 +1032,7 @@ const App = () => {
 
     const showNotification = useCallback((msg) => { setNotification(msg); setTimeout(() => setNotification(null), 3000); }, []);
 
-    const handleSync = useCallback(() => saveData(), []);
+    const handleSync = useCallback(async () => { await preSaveOccMerge(); return saveData(); }, []);
 
     // Pick a label suffix from the diff between current entity and incoming
     // updates, so distinct user actions get distinct history labels and never
@@ -932,9 +1126,12 @@ const App = () => {
         setActions(prev => applyActionUpdate(prev, actionId, updates));
         const linkedTasks = tasks.filter(t => t.actionId === actionId);
         const batchUpdates = computeTagPropagation(oldAction, updates, linkedTasks);
-        if (batchUpdates.length > 0) handleBatchUpdateTasks(batchUpdates);
+        // Apply tag propagation directly (no separate pushState): the action's snapshot
+        // above already captured the whole board pre-change, so a second history entry
+        // would force the user to press undo twice for one logical edit. (M7)
+        if (batchUpdates.length > 0) setTasks(prev => applyBatchTaskUpdate(prev, batchUpdates));
         showNotification('✅ Action updated');
-    }, [actions, tasks, setActions, handleBatchUpdateTasks, showNotification, pushState]);
+    }, [actions, tasks, setActions, setTasks, showNotification, pushState]);
 
     const handleDeleteAction = useCallback(async (actionId) => {
         const actionForLabel = actions.find(a => a.id === actionId);
@@ -955,6 +1152,10 @@ const App = () => {
                 ...b,
                 actions: b.actions.filter(a => a.id !== actionId),
                 tasks: b.tasks.filter(t => t.actionId !== actionId),
+                deletions: addTombstones(b.deletions, [
+                    { id: actionId, type: 'action' },
+                    ...b.tasks.filter(t => t.actionId === actionId).map(t => ({ id: t.id, type: 'task' }))
+                ]),
                 trelloSync: {
                     ...b.trelloSync,
                     _recentlyDeletedCardIds: [
@@ -975,8 +1176,16 @@ const App = () => {
             try { await archiveTrelloCard(action.trelloCardId); }
             catch(e) { console.warn('Failed to archive Trello card:', e); }
         }
-        setActions(prev => prev.filter(a => a.id !== actionId));
-        setTasks(prev => prev.filter(t => t.actionId !== actionId));
+        // Single atomic update: filter action + its tasks and record tombstones together (M18).
+        updateCurrentBoard(b => ({
+            ...b,
+            actions: b.actions.filter(a => a.id !== actionId),
+            tasks: b.tasks.filter(t => t.actionId !== actionId),
+            deletions: addTombstones(b.deletions, [
+                { id: actionId, type: 'action' },
+                ...b.tasks.filter(t => t.actionId === actionId).map(t => ({ id: t.id, type: 'task' }))
+            ])
+        }));
         showNotification('🗑️ Action deleted');
     }, [actions, currentBoard, isReadOnly, updateCurrentBoard, setActions, setTasks, showNotification, pushState]);
 
@@ -1118,6 +1327,7 @@ const App = () => {
                 updateCurrentBoard(b => ({
                     ...b,
                     tasks: b.tasks.filter(t => t.id !== taskId),
+                    deletions: addTombstones(b.deletions, [{ id: taskId, type: 'task' }]),
                     trelloSync: { ...b.trelloSync, _recentlyDeletedCardIds: [...(b.trelloSync?._recentlyDeletedCardIds || []), { id: task.trelloCardId, at: Date.now() }] }
                 }));
                 try { await archiveTrelloCard(task.trelloCardId); }
@@ -1129,7 +1339,11 @@ const App = () => {
                 catch(e) { console.warn('Failed to delete Trello checklist item:', e); }
             }
         }
-        setTasks(prev => prev.filter(t => t.id !== taskId));
+        updateCurrentBoard(b => ({
+            ...b,
+            tasks: b.tasks.filter(t => t.id !== taskId),
+            deletions: addTombstones(b.deletions, [{ id: taskId, type: 'task' }])
+        }));
         showNotification('🗑️ Task deleted');
     }, [tasks, currentBoard, isReadOnly, updateCurrentBoard, setTasks, showNotification, pushState]);
 
@@ -1187,17 +1401,27 @@ const App = () => {
         const actionIds = new Set(catActions.map(a => a.id));
         const deletedCardIds = tasks.filter(t => actionIds.has(t.actionId) && t.trelloCardId).map(t => ({ id: t.trelloCardId, at: Date.now() }));
         const deletedListId = category?.trelloListId ? [{ id: category.trelloListId, at: Date.now() }] : [];
-        updateCurrentBoard(b => ({
-            ...b,
-            categories: b.categories.filter(c => c.id !== catId),
-            actions: b.actions.filter(a => a.categoryId !== catId),
-            tasks: b.tasks.filter(t => !actionIds.has(t.actionId)),
-            trelloSync: {
-                ...b.trelloSync,
-                _recentlyDeletedCardIds: [...(b.trelloSync?._recentlyDeletedCardIds || []), ...deletedCardIds],
-                _recentlyDeletedListIds: [...(b.trelloSync?._recentlyDeletedListIds || []), ...deletedListId]
-            }
-        }));
+        updateCurrentBoard(b => {
+            const delActionIds = b.actions.filter(a => a.categoryId === catId).map(a => a.id);
+            const delActionIdSet = new Set(delActionIds);
+            const delTaskIds = b.tasks.filter(t => delActionIdSet.has(t.actionId)).map(t => t.id);
+            return {
+                ...b,
+                categories: b.categories.filter(c => c.id !== catId),
+                actions: b.actions.filter(a => a.categoryId !== catId),
+                tasks: b.tasks.filter(t => !delActionIdSet.has(t.actionId)),
+                deletions: addTombstones(b.deletions, [
+                    { id: catId, type: 'category' },
+                    ...delActionIds.map(id => ({ id, type: 'action' })),
+                    ...delTaskIds.map(id => ({ id, type: 'task' }))
+                ]),
+                trelloSync: {
+                    ...b.trelloSync,
+                    _recentlyDeletedCardIds: [...(b.trelloSync?._recentlyDeletedCardIds || []), ...deletedCardIds],
+                    _recentlyDeletedListIds: [...(b.trelloSync?._recentlyDeletedListIds || []), ...deletedListId]
+                }
+            };
+        });
         // Archive linked Trello list (if not guest/read-only)
         if (category?.trelloListId && !isReadOnly) {
             try { await archiveTrelloList(category.trelloListId); }
@@ -1250,9 +1474,13 @@ const App = () => {
             }
         }
         const groupTaskIds = new Set(groupTasks.map(t => t.id));
-        setTasks(prev => prev.filter(t => !groupTaskIds.has(t.id)));
+        updateCurrentBoard(b => ({
+            ...b,
+            tasks: b.tasks.filter(t => !groupTaskIds.has(t.id)),
+            deletions: addTombstones(b.deletions, [...groupTaskIds].map(id => ({ id, type: 'task' })))
+        }));
         showNotification(`🗑️ Group "${groupName}" deleted (${groupTasks.length} task(s))`);
-    }, [tasks, currentBoard, isReadOnly, setTasks, showNotification]);
+    }, [tasks, currentBoard, isReadOnly, updateCurrentBoard, setTasks, showNotification]);
 
     // Add a task within a specific checklist group in an action card
     const handleAddTaskInGroup = useCallback((actionId, groupName, title) => {
@@ -1370,6 +1598,9 @@ const App = () => {
     const handleToggleMultiBoard = useCallback((enabled, ids) => {
         setMultiBoardMode(enabled);
         setSelectedBoardIds(ids || []);
+        // Reset filters: a category/member/channel filter scoped to one board can hide
+        // everything in the combined set (or the board switched to) (M6).
+        setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
     }, []);
 
     // --- Trello sync ---
@@ -1425,6 +1656,7 @@ const App = () => {
             // Capture pre-sync timestamps to detect local edits made during sync
             const preSyncTaskMap = new Map((currentBoard.tasks || []).map(t => [t.id, t.updatedAt]));
             const preSyncActionMap = new Map((currentBoard.actions || []).map(a => [a.id, a.updatedAt]));
+            const preSyncCategoryMap = new Map((currentBoard.categories || []).map(c => [c.id, c.updatedAt]));
             const preSyncTaskIds = new Set((currentBoard.tasks || []).map(t => t.id));
             const preSyncActionIds = new Set((currentBoard.actions || []).map(a => a.id));
             const preSyncCategoryIds = new Set((currentBoard.categories || []).map(c => c.id));
@@ -1441,7 +1673,7 @@ const App = () => {
                 const { categories: mergedCategories, tasks: mergedTasks, actions: mergedActions } = mergePostSync({
                     syncedBoard, liveBoard,
                     preSyncCategoryIds, preSyncTaskIds, preSyncActionIds,
-                    preSyncTaskMap, preSyncActionMap
+                    preSyncTaskMap, preSyncActionMap, preSyncCategoryMap
                 });
 
                 return {
@@ -1543,7 +1775,9 @@ const App = () => {
         } finally {
             resumeHistory();
         }
-    }, [currentBoard, trelloSyncStatus, suspendHistory, resumeHistory, handleTrelloLogout]);
+        // trelloUser is read as `isGuest = !trelloUser` inside — must be a dep so the
+        // ref-based polling picks up login/logout (guest read-only ↔ full sync) (M3-minor).
+    }, [currentBoard, trelloSyncStatus, suspendHistory, resumeHistory, handleTrelloLogout, trelloUser]);
 
     // Keep ref pointing to latest handleTrelloSync (avoids stale closure in setInterval)
     useEffect(() => { handleTrelloSyncRef.current = handleTrelloSync; }, [handleTrelloSync]);
@@ -1734,6 +1968,17 @@ const App = () => {
                         📡 Offline — changes saved locally. Will sync when back online.
                     </div>
                 )}
+                {cloudSaveDegraded && !isOffline && (
+                    <div style={{background:'#ef4444',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
+                        ⚠️ Cloud save is failing — your changes are saved on this device only and may be lost if you clear data or switch devices. Retrying automatically…
+                    </div>
+                )}
+                {loadFailed && !boardData && (
+                    <div style={{background:'#ef4444',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:12}}>
+                        <span>⚠️ Your data could not be loaded (network/server issue). This is a preview — changes will NOT be saved.</span>
+                        <button onClick={() => window.location.reload()} style={{background:'#fff',color:'#ef4444',border:'none',borderRadius:4,padding:'3px 10px',fontSize:12,fontWeight:600,cursor:'pointer'}}>Reload</button>
+                    </div>
+                )}
                 {otherTabActive && !isOffline && (
                     <div style={{background:'#f97316',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
                         ⚠️ This app is open in another tab — simultaneous edits may cause data conflicts.
@@ -1764,6 +2009,7 @@ const App = () => {
                             <span className="stat-pill"><strong>{isFiltered ? `${(filteredBudget/1000).toFixed(0)}k / ${(totalBudget/1000).toFixed(0)}k€` : `${(totalBudget/1000).toFixed(0)}k€`}</strong> budget</span>
                         </div>
                         <div className="toolbar-spacer"/>
+                        <PresenceIndicator collaborators={collaborators}/>
                         {!isReadOnly && <button className="v11-btn-icon" onClick={() => setShowHistoryPanel(true)} title="History" style={{padding:'6px 8px',marginRight:4,color:'var(--text-secondary)'}}><Icon.History size={14}/></button>}
                         <div className="new-btn-container" ref={exportDropdownRef}>
                             <button className="v11-btn-secondary" onClick={() => {setShowCreateDropdown(false);setShowExportDropdown(!showExportDropdown);}}><Icon.Download size={13}/><span>Export</span></button>
@@ -1820,7 +2066,7 @@ const App = () => {
                             {(filters.channel || []).map(c => { const ch = CONFIG.CHANNELS.find(x => x.id === c); return <div key={c} className="filter-chip">{ch?.name}<button onClick={() => setFilters({...filters, channel: filters.channel.filter(x => x !== c)})}>✕</button></div>; })}
                             {(filters.country || []).map(c => { const co = allCountries.find(x => x.id === c); return <div key={c} className="filter-chip">{co?.flag} {co?.name}<button onClick={() => setFilters({...filters, country: filters.country.filter(x => x !== c)})}>✕</button></div>; })}
                             {(filters.otherLabel || []).map(labelId => { const label = tasks.flatMap(t => t.otherLabels || []).find(l => l.id === labelId); return <div key={labelId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:label?.color||'#888',flexShrink:0}}/> {label?.name||'Label'}<button onClick={() => setFilters({...filters, otherLabel: filters.otherLabel.filter(x => x !== labelId)})}>✕</button></div>; })}
-                            {(filters.member || []).map(memberId => { const m = (currentBoard?.members || []).find(x => x.id === memberId); return <div key={memberId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}>{m?.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:14,height:14,borderRadius:'50%'}}/> : null} {m?.fullName||m?.username||'Member'}<button onClick={() => setFilters({...filters, member: filters.member.filter(x => x !== memberId)})}>✕</button></div>; })}
+                            {(filters.member || []).map(memberId => { const m = effectiveMembers.find(x => x.id === memberId); return <div key={memberId} className="filter-chip" style={{display:'flex',alignItems:'center',gap:4}}>{m?.avatarUrl ? <img src={m.avatarUrl} alt="" style={{width:14,height:14,borderRadius:'50%'}}/> : null} {m?.fullName||m?.username||'Member'}<button onClick={() => setFilters({...filters, member: filters.member.filter(x => x !== memberId)})}>✕</button></div>; })}
                             <span className="clear-filters" onClick={() => setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[]})}>Clear all</span>
                         </div>
                     )}

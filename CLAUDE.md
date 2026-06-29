@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-05-12 (Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs, 2-pass OCC + visibilitychange Realtime catch-up, Timeline drag-down true swap, PPT Timeline black-text-in-shape, Excel import v11 modal + colour cells, typed history labels)
+> Last updated: 2026-06-29 (Collaboration hardening: M18 deletion tombstones, explicit conflict notification, Supabase presence indicators, Trello auth reconnect-retry, persistent degraded-save banner; + Escape-to-close save fix. Earlier: Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs, 2-pass OCC + visibilitychange Realtime catch-up, Excel import v11 modal, typed history labels)
 
 ---
 
@@ -63,7 +63,7 @@ Marketing Project Tracker for MIGSO-PCUBED. Single-page React app managing **Cat
 - **React 18** + **Vite 5** (ES Modules, no CDN/Babel/UMD)
 - **Tailwind CSS 3** via PostCSS (not CDN)
 - **Supabase JS SDK** (`@supabase/supabase-js`)
-- **Vitest** for unit tests (589 tests across 21 files)
+- **Vitest** for unit + integration tests (661 tests across 26 files) — incl. `views.integration.test.jsx` (jsdom/RTL smoke render of every view with realistic seed data, which catches "component crashes with real data" regressions a pure-helper test would miss — e.g. the missing-icon empty-board crash)
 - **TypeScript 6** progressive (`strict:false`, `allowJs:true`, `noEmit:true`) — 4 files migrated so far
 - **ESLint 8** (`.eslintrc.cjs`) — 25 warnings remaining (unused vars)
 - **@tanstack/react-virtual** for Kanban column virtualization
@@ -101,7 +101,7 @@ src/
 │   ├── useUndoRedo.js   # History ring buffer (MAX=60), timestamps, jumpTo/suspend/resume/getHistory, 400ms coalescing
 │   ├── useFocusTrap.ts  # Focus trap for modals (TypeScript)
 │   └── useTouchDrag.ts  # Touch DnD hook (long-press 300ms, TypeScript)
-├── __tests__/           # Vitest unit tests (536 tests, 17 files)
+├── __tests__/           # Vitest unit + integration tests (661 tests, 26 files)
 .eslintrc.cjs            # ESLint config
 tsconfig.json            # TypeScript config (noEmit, allowJs, progressive)
 api/
@@ -114,7 +114,7 @@ api/
 ```bash
 npm run dev        # Vite dev server — port 5173, proxies /api → localhost:3000
 npm run build      # Production build → dist/
-npm test           # Run Vitest tests (536 tests, 17 files)
+npm test           # Run Vitest tests (661 tests, 26 files)
 npm run test:watch # Watch mode
 npm run lint       # ESLint check
 npm run typecheck  # TypeScript check (tsc --noEmit)
@@ -297,6 +297,12 @@ Bidirectional sync of the board name via `resolveBoardNameSync(localName, trello
 
 ## Known Pitfalls
 
+### Deletion tombstones (M18) — deletes must not resurrect in collaborative merge
+`src/lib/tombstones.js` records `{ id, type, deletedAt }` tombstones on `board.deletions` (entities) and `boardData.boardDeletions` (whole boards). The entity-level merge (`mergeEntitiesByTimestamp`) treats a locally-present-but-incoming-absent entity as "new locally" and re-adds it — so without tombstones, a peer's stale copy resurrects anything another user deleted. The merge now takes a `tombMap` (`tombstoneMap(mergedDeletions)`) and drops any entity whose latest tombstone `deletedAt` is **at-or-newer** than its own `updatedAt`. An edit *after* a deletion (newer `updatedAt`) still wins → last-write-wins between edit & delete. All four entity deletion handlers (`handleDeleteTask`/`handleDeleteAction`/`handleDeleteCategory`/`handleDeleteTaskGroup`) + `handleDeleteBoard` record tombstones via `addTombstones(b.deletions, [...])` inside their `updateCurrentBoard`/`setBoardData` updater (atomic with the filter). Tombstones are unioned (newest per id) in `mergeBoardsEntityLevel`. **GC is owned exclusively by `pruneEnvelopeTombstones` (on load/save) — `mergeTombstones` does NOT prune during a merge** (a fast-clock peer or the merging machine's clock could otherwise GC a tombstone a still-stale replica needs → resurrection). `addTombstones` (deletion handlers) prunes; `mergeTombstones` (merge) only unions. The merge also enforces **referential integrity** (drops a task whose `actionId`/an action whose `categoryId` no longer resolves in the merged set) so a concurrent "delete action + peer adds task to it" can't leave an orphan, and the board-level fallback `(finalBoards.length || mergedBoardDeletions.length) ? finalBoards : mergedBoards` must keep the tombstone guard so deleting the only board in a merge can't resurrect it. Conflict detection (`mergeBoardsEntityLevelWithMeta`) runs in the App merge call sites computed OFF `boardDataRef.current` BEFORE `setBoardData` (never as a side-effect inside the updater). **Undo needs no special handling**: `deletions` is part of `boardData` so it flows through history serialization — undo restores the pre-deletion snapshot (no tombstone) with `restoreSnapshot` bumping the re-added entity's `updatedAt` to now (beats any peer's lingering tombstone); redo restores the materialized post-deletion tip (with tombstone). Do NOT add tombstone logic to the Trello sync engine — Trello is the source of truth there and self-heals on next sync. Do NOT change the `del >= updatedAt` comparison to strict `>` — the tie-break must favor deletion.
+
+### Escape-to-close must not bypass the modal's save-on-close
+App.jsx's global `document` keydown listener must NOT close `selectedTask`/`selectedAction` on Escape (`setSelectedTask/Action(null)`). Those detail modals own their Escape handling via their own `window` keydown listener → `handleClose` (saves the form, then `onClose`). The `document` listener fires **before** the modal's `window` listener in the bubble phase, so closing from App unmounts the modal synchronously and tears down its `window` listener before the save-on-close runs → any edit made while focus was outside an input (e.g. on `<body>` after a blur) was silently discarded. App's Escape block leaves `selectedTask || selectedAction` to the modal and only handles the other overlays (categories, create dropdown, New Action/Task modals — those are creation flows where Escape = cancel-without-save is correct). Do NOT re-add a `setSelectedTask/Action(null)` Escape branch in App. App's line `if (e.target.tagName === 'INPUT' || 'TEXTAREA' || isContentEditable) return;` previously masked the bug (it skipped App's handler while a field was focused), so it only reproduced after a blur.
+
 ### Checklist position sync direction
 `pushTaskExtrasToTrello(task, card, isPushWinner)` — positions are only pushed to Trello when `isPushWinner=true` (local won last-write-wins). When `isPushWinner=false`, local checklists/items are reordered to match Trello positions. Do NOT remove the `isPushWinner` parameter or always push positions — this causes Trello reorder to be overwritten. `mergeTrelloExtrasIntoTask` must also capture `order` from Trello `pos` on both checklist and item objects, and sort arrays by `order` — without this, the position pull from `pushTaskExtrasToTrello` gets overwritten.
 
@@ -440,7 +446,10 @@ When a Trello card is deleted or archived, the ACTION itself (not just its tasks
 The "local changed, Trello didn't" push path for checklist items uses `buildSelectiveCheckItemUpdate` (NOT `mapTaskToCheckItemUpdate`). The selective version only includes `state` when it actually changed from baseline. When nothing changed (only order), it returns `null` and the API call is skipped entirely. This prevents Trello "marked incomplete" activity spam during reorder-only pushes.
 
 ### Save fallback cascading
-`saveData()` tries Supabase first. If Supabase fails and GitHub token is available, falls back to GitHub. If both fail, saves to localStorage only and warns the user. Do NOT remove the fallback chain — without it, a Supabase outage silently loses unsaved data.
+`saveData()` tries Supabase first. If Supabase fails and GitHub token is available, falls back to GitHub. If both fail, saves to localStorage only and warns the user. Do NOT remove the fallback chain — without it, a Supabase outage silently loses unsaved data. When **both** cloud targets fail, `setCloudSaveDegraded(true)` raises a **persistent red banner** ("Cloud save is failing — saved on this device only…") that stays until a cloud save succeeds (`setCloudSaveDegraded(false)` on Supabase OR GitHub success). The banner is gated on `!isOffline` (offline has its own amber banner). This makes the local-only degraded state honest instead of a fleeting toast.
+
+### Trello auth reconnect retry
+The mount restore effect retries `restoreTrelloUser()` with backoff `[2s,5s,15s,30s,60s]` on **transient** failures (network/outage/5xx) and stops on success or a confirmed-invalid 401/403 (which ejects to re-auth). A valid user is never logged out by a blip, and once Trello recovers the user is reconnected (presence, "My tasks", Trello push) WITHOUT a page reload. Guarded by `trelloUserRef.current` (stop once reconnected) + a `cancelled` flag on unmount. Do NOT collapse this back to a single attempt — a transient startup blip would otherwise leave a logged-in user stuck as guest-capability until manual reload.
 
 ### saveToSupabase legacy-column fallback
 `saveToSupabase` success path writes **only** `board_data` + `updated_at` (legacy `categories`/`actions`/`tasks` are fully contained inside `board_data`, writing them duplicates ~20-40 % of payload per save). On error (typically `board_data` column missing because migration wasn't run), the catch retries with legacy columns + `board_data: null`. The null is critical — without it, stale `board_data` persists in Supabase, causing the Realtime handler to use old data (echo filter fails on mismatched `_saveId`, handler prefers stale `board_data` over fresh legacy columns). Do NOT remove `board_data: null` from the fallback. Do NOT re-introduce legacy column writes in the success path — `loadFromSupabase` and `processRealtimePayload` only fall back to legacy columns when `board_data` is missing/non-v2, so the success-path columns are dead weight.
@@ -468,6 +477,9 @@ The Realtime handler checks `autoSaveTimeoutRef.current` — if a debounced save
 
 ### Concurrent tab detection via BroadcastChannel
 `BroadcastChannel('mkt_dashboard_tabs')` detects other open tabs. Messages: `tab-open` (announce), `tab-ack` (reply), `tab-close` (leaving). Orange banner warns user of conflict risk. `beforeunload` sends `tab-close`. Do NOT use localStorage-based detection — BroadcastChannel is more reliable and doesn't trigger storage events.
+
+### Collaborator presence (Supabase Realtime presence)
+`src/lib/presence.js` (pure helpers: `buildPresenceState`/`derivePresenceList`/`colorForId`/`initialsOf`) + `PresenceIndicator.jsx` (stacked avatar row in the toolbar) show who else has the board open across *users* (vs BroadcastChannel which is same-browser tabs only). App.jsx subscribes a dedicated `supabaseClient.channel('board_presence', { config: { presence: { key: sessionId } } })` in a create-once effect (deps `[dataLoaded]`) and re-`track()`s on `[trelloUser, currentBoardId]`. `sessionIdRef` is a per-tab UUID; identity `id` is the Trello id (or sessionId for guests). `derivePresenceList` excludes self by person `id` and dedupes multi-tab. **All presence ops are best-effort** — wrapped in try/catch and gated on `useSupabase`, so guest/offline/no-Supabase simply shows no avatars (indicator renders null for an empty list). Do NOT put presence on the `app_data_changes` channel — that effect re-subscribes on many deps and would thrash `track()`.
 
 ### _saveId echo filter for Realtime
 Each auto-save stamps a `_saveId` (UUID) on `boardDataRef.current`. The Realtime handler compares incoming `_saveId` with `lastSaveIdRef.current` — if they match, it's our own echo and is skipped. This replaces reliance on the fixed 3s `justSavedTimestampRef` guard for echo detection. The 3s guard and `syncRealtimeGuardRef` (8s post-sync) are kept as additional safety layers. Do NOT remove any of the three guards — they cover different edge cases (saveId = echo detection, 3s = rapid saves, 8s = post-sync window).

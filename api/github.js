@@ -2,12 +2,12 @@
 // This function secures your GitHub token by keeping it server-side
 
 export default async function handler(req, res) {
-    // CORS configuration — restrict to known origins in production
+    // CORS configuration — reflect any origin only when unrestricted (ALLOWED_ORIGIN
+    // unset, i.e. dev); otherwise always return the configured origin so browsers block
+    // others. (Previous code had a dead ternary + a spoofable localhost substring match.)
     const allowedOrigin = process.env.ALLOWED_ORIGIN || '*';
     const origin = req.headers.origin || '';
-    const corsOrigin = allowedOrigin === '*' || origin.includes('localhost')
-        ? (origin || '*')
-        : (origin === allowedOrigin ? allowedOrigin : allowedOrigin);
+    const corsOrigin = allowedOrigin === '*' ? (origin || '*') : allowedOrigin;
     res.setHeader('Access-Control-Allow-Origin', corsOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -82,29 +82,39 @@ export default async function handler(req, res) {
             }
 
             const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`;
-
-            const body = {
-                message,
-                content,
-                branch: GITHUB_CONFIG.branch
+            const ghHeaders = {
+                'Authorization': `Bearer ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
             };
 
-            // Add SHA if provided (for updates)
-            if (sha) {
-                body.sha = sha;
-            }
+            const putWithSha = (useSha) => {
+                const body = { message, content, branch: GITHUB_CONFIG.branch };
+                if (useSha) body.sha = useSha;
+                return fetch(url, { method: 'PUT', headers: ghHeaders, body: JSON.stringify(body) });
+            };
 
             console.log('Saving with SHA:', sha ? sha.substring(0, 8) + '...' : 'none (new file)');
+            let response = await putWithSha(sha);
 
-            const response = await fetch(url, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${GITHUB_TOKEN}`,
-                    'Accept': 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
+            // Auto-resolve SHA conflicts: GitHub returns 409 (or 422 when the supplied sha
+            // is stale) if another writer updated data.json since we read the SHA. Re-fetch
+            // the latest SHA and retry once (last-write-wins; the app merges before saving).
+            if (response.status === 409 || response.status === 422) {
+                try {
+                    const latest = await fetch(`${url}?ref=${GITHUB_CONFIG.branch}`, {
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'Cache-Control': 'no-cache' }
+                    });
+                    if (latest.ok) {
+                        const latestData = await latest.json();
+                        console.warn('⚠️ GitHub SHA conflict — retrying with latest SHA', latestData.sha?.substring(0, 8));
+                        response = await putWithSha(latestData.sha);
+                    }
+                } catch (e) {
+                    console.error('SHA conflict re-fetch failed:', e.message);
+                }
+            }
 
             if (!response.ok) {
                 const errorText = await response.text();

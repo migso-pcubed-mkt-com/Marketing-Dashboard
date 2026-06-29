@@ -1,5 +1,5 @@
 import { memo, useRef } from 'react';
-import { WysiwygToolbar, SimpleMarkdown } from '../../lib/markdown.jsx';
+import { WysiwygToolbar, SimpleMarkdown, sanitizeUrl } from '../../lib/markdown.jsx';
 import MentionInput from '../MentionInput.jsx';
 
 const CommentsSection = ({
@@ -49,7 +49,7 @@ const CommentsSection = ({
                             {comment.attachments?.length > 0 && (
                                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
                                     {comment.attachments.map(att => (
-                                        <a key={att.id || att.name} href={att.url || att.data || '#'} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 4, background: 'var(--accent-light)', textDecoration: 'none' }}>📎 {att.name}</a>
+                                        <a key={att.id || att.name} href={sanitizeUrl(att.url || att.data, { allowData: true })} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 3, padding: '2px 6px', borderRadius: 4, background: 'var(--accent-light)', textDecoration: 'none' }}>📎 {att.name}</a>
                                     ))}
                                 </div>
                             )}

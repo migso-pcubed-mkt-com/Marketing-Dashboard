@@ -17,17 +17,36 @@ const DashboardView = ({categories, actions, tasks, members = [], boardGroups = 
     const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const actionBudgetTotal = actions.reduce((s, a) => s + (a.budget || 0), 0);
     const totalBudget = actionBudgetTotal + tasks.reduce((s, t) => s + (t.budget || 0), 0);
-    const spentBudget = tasks.filter(t => ['completed', 'inprogress'].includes(t.status)).reduce((s, t) => s + (t.budget || 0), 0);
+    // Budget "spent" = budgets of completed/in-progress tasks PLUS the budget of any action
+    // that has started (≥1 completed/in-progress task). Previously action budgets were in the
+    // total but never in spent, so spent could never approach total (M16).
+    const startedActionIds = new Set(tasks.filter(t => ['completed', 'inprogress'].includes(t.status)).map(t => t.actionId));
+    const spentBudget = actions.filter(a => startedActionIds.has(a.id)).reduce((s, a) => s + (a.budget || 0), 0)
+        + tasks.filter(t => ['completed', 'inprogress'].includes(t.status)).reduce((s, t) => s + (t.budget || 0), 0);
     const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-    const currentMonth = new Date().getMonth();
-    const currentTasks = tasks.filter(t => t.month === currentMonth);
-    const overdueTasks = tasks.filter(t => t.status !== 'completed' && (t.month < currentMonth || (t.dueDate && new Date(t.dueDate) < new Date())));
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const pad = (n) => String(n).padStart(2, '0');
+    const todayStr = `${currentYear}-${pad(currentMonth + 1)}-${pad(now.getDate())}`; // local, timezone-safe
+    const monthOfStr = (ds) => (ds ? parseInt(String(ds).slice(5, 7), 10) - 1 : null);
+    const yearOfStr = (ds) => (ds ? parseInt(String(ds).slice(0, 4), 10) : null);
+    // "This month" = tasks whose due/start date is in the current calendar month AND year
+    // (was matching the month index in ANY year — M14).
+    const currentTasks = tasks.filter(t => {
+        const ds = t.dueDate || t.startDate;
+        return ds ? (monthOfStr(ds) === currentMonth && yearOfStr(ds) === currentYear) : (t.month === currentMonth);
+    });
+    // Overdue = not completed AND due date strictly before today, compared as 'YYYY-MM-DD'
+    // strings to avoid (a) flagging future-year tasks via a year-agnostic month index (M9)
+    // and (b) flagging tasks due *today* as overdue from UTC-midnight parsing (M15).
+    const overdueTasks = tasks.filter(t => t.status !== 'completed' && t.dueDate && t.dueDate < todayStr);
 
     // Members stats
     const memberStats = members.map(m => {
         const memberTasks = tasks.filter(t => (t.assignees || []).includes(m.id));
         const completed = memberTasks.filter(t => t.status === 'completed').length;
-        const overdue = memberTasks.filter(t => t.status !== 'completed' && t.dueDate && new Date(t.dueDate) < new Date()).length;
+        const overdue = memberTasks.filter(t => t.status !== 'completed' && t.dueDate && t.dueDate < todayStr).length;
         return { ...m, taskCount: memberTasks.length, completed, overdue, pct: memberTasks.length > 0 ? Math.round((completed / memberTasks.length) * 100) : 0 };
     }).filter(m => m.taskCount > 0).sort((a, b) => b.taskCount - a.taskCount);
 
@@ -59,9 +78,12 @@ const DashboardView = ({categories, actions, tasks, members = [], boardGroups = 
                 <div className="space-y-4">
                     {(() => {
                         // One renderer reused by the single-board path and each per-board group.
-                        const renderCategoryBar = (cat) => {
-                            const catActions = actions.filter(a => a.categoryId === cat.id);
-                            const catTasks = tasks.filter(t => catActions.some(a => a.id === t.actionId));
+                        // scopeActions/scopeTasks default to the global arrays, but in combined
+                        // view each board passes its OWN actions/tasks so boards that share a
+                        // category/action id (e.g. a duplicated board) don't cross-contaminate (M17).
+                        const renderCategoryBar = (cat, scopeActions = actions, scopeTasks = tasks) => {
+                            const catActions = scopeActions.filter(a => a.categoryId === cat.id);
+                            const catTasks = scopeTasks.filter(t => catActions.some(a => a.id === t.actionId));
                             const catCompleted = catTasks.filter(t => t.status === 'completed').length;
                             const catPct = catTasks.length > 0 ? Math.round((catCompleted / catTasks.length) * 100) : 0;
                             const catBudget = catActions.reduce((s, a) => s + (a.budget || 0), 0) + catTasks.reduce((s, t) => s + (t.budget || 0), 0);
@@ -81,12 +103,12 @@ const DashboardView = ({categories, actions, tasks, members = [], boardGroups = 
                                         {g.boardName}
                                     </div>
                                     <div className="space-y-3">
-                                        {g.categories.map(renderCategoryBar)}
+                                        {g.categories.map(cat => renderCategoryBar(cat, g.actions, g.tasks))}
                                     </div>
                                 </div>
                             ));
                         }
-                        return categories.map(renderCategoryBar);
+                        return categories.map(cat => renderCategoryBar(cat));
                     })()}
                 </div>
             </div>

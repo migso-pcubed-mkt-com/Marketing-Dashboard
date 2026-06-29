@@ -123,10 +123,16 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         if(!isReadOnly)onUpdate(task.id,form);
         onClose();
     };
+    // Keep a ref to the LATEST handleClose so the Escape listener (registered once)
+    // always saves the current form instead of the stale mount-time form. Without
+    // this, pressing Escape reverted all unsaved edits (the [] effect captured the
+    // first-render handleClose closing over the initial form).
+    const handleCloseRef=useRef(handleClose);
+    handleCloseRef.current=handleClose;
 
     // Escape key to close
     useEffect(()=>{
-        const handleKeyDown=(e)=>{if(e.key==='Escape'){e.preventDefault();handleClose();}};
+        const handleKeyDown=(e)=>{if(e.key==='Escape'){e.preventDefault();handleCloseRef.current();}};
         window.addEventListener('keydown',handleKeyDown);
         return()=>window.removeEventListener('keydown',handleKeyDown);
     },[]);
@@ -260,6 +266,10 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
         if(autoSaveTimerRef.current)clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current=setTimeout(()=>{
             onUpdate(task.id,{checklists:form.checklists,comments:form.comments,attachments:form.attachments});
+            // Mark the debounced save as flushed so the external-sync re-sync effect
+            // (which preserves local edits while a save is pending) stops treating this
+            // as "pending" forever and can accept Trello updates again.
+            autoSaveTimerRef.current=null;
         },500);
         return()=>{if(autoSaveTimerRef.current)clearTimeout(autoSaveTimerRef.current);};
     },[form.checklists,form.comments,form.attachments]);
@@ -279,7 +289,11 @@ const TaskDetailModal=({categories,task,action,actions,onClose,onUpdate,onDelete
             }
             return normalized;
         });
-    },[task]);
+        // The description editor has its own draft state — re-sync it from the external
+        // update too, unless the user is actively editing it (minor-M19). Without this the
+        // displayed description stayed stale after a Trello sync changed it.
+        if(!descriptionEditing)setDescriptionDraft(task.description||'');
+    },[task,descriptionEditing]);
 
     // Handle Delete key to delete task
     useEffect(()=>{

@@ -19,7 +19,19 @@ describe('migrateToV2', () => {
         expect(result.boards[0].id).toBe('board-default');
         expect(result.boards[0].categories).toEqual(v1.categories);
         expect(result.boards[0].actions).toEqual(v1.actions);
-        expect(result.boards[0].tasks).toEqual(v1.tasks);
+        // Tasks are passed through but with checklists normalized (M26).
+        expect(result.boards[0].tasks).toEqual([{ id: 't1', title: 'Task1', checklists: [] }]);
+    });
+
+    it('normalizes legacy flat task.checklist into grouped checklists on v1 migration (M26)', () => {
+        const v1 = {
+            categories: [{ id: 'c1', name: 'Cat1' }],
+            tasks: [{ id: 't1', title: 'T', checklist: [{ id: 'i1', text: 'do', done: true }] }]
+        };
+        const task = migrateToV2(v1).boards[0].tasks[0];
+        expect(task.checklist).toBeUndefined();          // legacy flat field removed
+        expect(task.checklists).toHaveLength(1);          // wrapped into a group
+        expect(task.checklists[0].items).toEqual([{ id: 'i1', text: 'do', done: true }]);
     });
 
     it('returns fresh defaults for null/corrupt data', () => {

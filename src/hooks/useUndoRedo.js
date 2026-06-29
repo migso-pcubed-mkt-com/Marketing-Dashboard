@@ -10,9 +10,18 @@ const DEFAULT_COALESCE_MS = 400;
 // restored values winning and pushes them back to Trello. Without this,
 // undo would silently lose the push because the snapshot's updatedAt
 // predates trelloLastModified and LWW would pull from Trello instead.
-const SYNC_FIELDS_TASK = ['title','description','startDate','dueDate','status','priority','budget','month','channels','countries','otherLabels','order','assignees','trelloChecklistName','trelloChecklistId','checklist','swimLane','actionId'];
-const SYNC_FIELDS_ACTION = ['name','description','budget','priority','tags','channels','countries','otherLabels','status','order','categoryId','assignees'];
+const SYNC_FIELDS_TASK = ['title','description','startDate','dueDate','status','priority','budget','month','channels','countries','otherLabels','order','assignees','trelloChecklistName','trelloChecklistId','checklist','checklists','swimLane','actionId'];
+const SYNC_FIELDS_ACTION = ['name','description','startDate','dueDate','budget','priority','tags','channels','countries','otherLabels','status','order','categoryId','assignees'];
 const SYNC_FIELDS_CATEGORY = ['name','color','order'];
+
+// Serialize board state for the history buffer, omitting transient save-only fields
+// (_saveId, stamped by the auto-save) so a cloud-save echo isn't mistaken for an edit —
+// otherwise materializeTip records a spurious entry and the first undo is a no-op.
+const serializeForHistory = (data) => {
+    if (!data || typeof data !== 'object') return JSON.stringify(data);
+    const { _saveId, ...rest } = data;
+    return JSON.stringify(rest);
+};
 
 const mapById = (arr) => {
     const m = new Map();
@@ -144,7 +153,7 @@ export function restoreSnapshot(current, snapshot) {
     return { ...snapshot, boards: newBoards };
 }
 
-export default function useUndoRedo(setBoardData) {
+export default function useUndoRedo(setBoardData, getCurrentState) {
     const historyRef = useRef([]);
     const indexRef = useRef(-1);
     const isUndoRedoRef = useRef(false);
@@ -153,11 +162,48 @@ export default function useUndoRedo(setBoardData) {
     // gate Realtime merges and the pre-save conflict fetch for a short window
     // so an incoming echo of the pre-undo state can't silently revert the UI.
     const recentUndoRef = useRef(0);
+    // True when the current tip was reached via a restore (undo/redo/jumpTo landing at the
+    // end), so the live state IS already history[tip] (modulo restoreSnapshot's updatedAt
+    // bump). materializeTip must then NOT re-capture it — otherwise a redo-to-tip followed
+    // by undo records a spurious entry and wastes one undo press. Cleared by a genuine edit.
+    const restoredAtTipRef = useRef(false);
 
     const [, forceUpdate] = useState(0);
 
-    const canUndo = indexRef.current > 0;
+    // Keep the latest current-state getter in a ref so materializeTip can be a stable
+    // useCallback (and thus a clean dependency of undo/jumpTo) without re-subscribing
+    // the keyboard effect / context value on every render.
+    const getCurrentStateRef = useRef(getCurrentState);
+    getCurrentStateRef.current = getCurrentState;
+
+    // pushState records the PRE-change state before each edit, so the latest (live)
+    // state is never in the buffer until we capture it. "At the tip" (index === last
+    // entry) therefore means there may be an un-recorded live edit ahead — undo must be
+    // available there too. Without this, a single edit could not be undone and the first
+    // undo after several edits skipped one step.
+    const atTip = historyRef.current.length > 0 && indexRef.current === historyRef.current.length - 1;
+    const canUndo = indexRef.current > 0 || atTip;
     const canRedo = indexRef.current < historyRef.current.length - 1;
+
+    // Capture the live (post-last-edit) state as a new history entry the first time the
+    // user steps back from the tip. pushState only stores pre-change snapshots, so the
+    // live state would otherwise be lost — making undo overshoot by one and redo unable
+    // to return to the latest edit. Idempotent: no-op if the tip already equals live.
+    const materializeTip = useCallback(() => {
+        const getter = getCurrentStateRef.current;
+        if (!getter) return;
+        if (indexRef.current !== historyRef.current.length - 1) return; // not at the tip
+        if (restoredAtTipRef.current) return; // tip reached via restore — live is already history[tip]
+        let cur;
+        try { cur = getter(); } catch { return; }
+        if (!cur) return;
+        let json;
+        try { json = serializeForHistory(cur); } catch { return; }
+        const tip = historyRef.current[indexRef.current];
+        if (tip && tip.json === json) return; // live already captured — nothing to do
+        historyRef.current.push({ json, label: tip ? tip.label : '', timestamp: Date.now() });
+        indexRef.current = historyRef.current.length - 1;
+    }, []);
 
     // pushState(boardData, label, { coalesceMs })
     // label: describes the user-visible change (e.g. "Task 'Foo' updated")
@@ -169,9 +215,10 @@ export default function useUndoRedo(setBoardData) {
         if (isUndoRedoRef.current) return;
         if (suspendedRef.current) return;
         if (!boardData) return;
+        restoredAtTipRef.current = false; // a genuine edit — the tip is no longer a pure restore
 
         let json;
-        try { json = JSON.stringify(boardData); }
+        try { json = serializeForHistory(boardData); }
         catch (e) { console.warn('useUndoRedo: failed to serialize state, skipping snapshot', e); return; }
 
         if (indexRef.current < historyRef.current.length - 1) {
@@ -208,11 +255,17 @@ export default function useUndoRedo(setBoardData) {
     const applyRestore = useCallback((restored) => {
         isUndoRedoRef.current = true;
         recentUndoRef.current = Date.now();
+        // Record whether this restore landed at the tip — undo/redo/jumpTo set indexRef
+        // before calling applyRestore, so this reflects the post-move position.
+        restoredAtTipRef.current = indexRef.current === historyRef.current.length - 1;
         setBoardData(current => restoreSnapshot(current, restored));
         setTimeout(() => { isUndoRedoRef.current = false; }, 0);
     }, [setBoardData]);
 
     const undo = useCallback(() => {
+        // Capture the live state as the tip so this undo lands on the immediately
+        // previous state (not skipping one) and redo can return to the latest edit.
+        materializeTip();
         if (indexRef.current <= 0) return null;
 
         indexRef.current -= 1;
@@ -224,9 +277,10 @@ export default function useUndoRedo(setBoardData) {
         applyRestore(restored);
         forceUpdate(n => n + 1);
         return entry.label;
-    }, [applyRestore]);
+    }, [applyRestore, materializeTip]);
 
     const redo = useCallback(() => {
+        // redo moves forward through already-recorded entries; no tip materialization.
         if (indexRef.current >= historyRef.current.length - 1) return null;
 
         indexRef.current += 1;
@@ -241,6 +295,9 @@ export default function useUndoRedo(setBoardData) {
     }, [applyRestore]);
 
     const jumpTo = useCallback((targetIndex) => {
+        // Materialize the live tip first so a jump backward from the tip can be
+        // redone/jumped forward to the latest edit (same rationale as undo).
+        materializeTip();
         if (targetIndex < 0 || targetIndex >= historyRef.current.length) return null;
         if (targetIndex === indexRef.current) return null;
 
@@ -253,7 +310,7 @@ export default function useUndoRedo(setBoardData) {
         applyRestore(restored);
         forceUpdate(n => n + 1);
         return entry.label;
-    }, [applyRestore]);
+    }, [applyRestore, materializeTip]);
 
     const clear = useCallback(() => {
         historyRef.current = [];

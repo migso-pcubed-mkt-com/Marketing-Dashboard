@@ -42,7 +42,7 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
             if(taskEndYear&&taskEndYear<selectedYear)return false;
             if(taskStartYear&&!taskEndYear&&taskStartYear!==selectedYear)return false;
         }
-        if(filters.search&&!t.title.toLowerCase().includes(filters.search.toLowerCase()))return false;
+        if(filters.search){const q=filters.search.toLowerCase();if(!t.title.toLowerCase().includes(q)&&!(action?.name||'').toLowerCase().includes(q))return false;}
         if(filters.status.length>0&&!filters.status.includes(t.status))return false;
         if(filters.category.length>0&&!filters.category.includes(action?.categoryId))return false;
         if(filters.priority.length>0&&!filters.priority.includes(t.priority))return false;
@@ -464,9 +464,16 @@ const KanbanView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTask
                                             }
                                         }
                                     }else if(viewMode==='country'){
-                                        const targetCountry=col.key==='_unassigned'?[]:[col.key];
+                                        // Only change country membership on a genuine move to a
+                                        // different country column. A same-column reorder must NOT
+                                        // overwrite a multi-country task's other countries (M10).
+                                        const dt=tasks.find(t=>t.id===draggedId);
                                         const bu=batchUpdates.find(u=>u.id===draggedId);
-                                        if(bu)bu.changes.countries=targetCountry;
+                                        if(bu&&dt){
+                                            const cur=dt.countries||[];
+                                            const alreadyInTarget=col.key==='_unassigned'?cur.length===0:cur.includes(col.key);
+                                            if(!alreadyInTarget)bu.changes.countries=col.key==='_unassigned'?[]:[col.key];
+                                        }
                                     }else if(viewMode==='category'){
                                         const dt=tasks.find(t=>t.id===draggedId);
                                         if(dt){

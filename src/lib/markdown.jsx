@@ -3,6 +3,23 @@ import React from 'react';
 // Escape HTML entities to prevent XSS via innerHTML
 const escapeHtml = (str) => str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+// Sanitize a link URL to prevent stored XSS via javascript:/data:/vbscript: schemes.
+// Allows only safe explicit schemes (http/https/mailto/tel/ftp) plus relative,
+// anchor and protocol-relative links. Anything with an unrecognised scheme → '#'.
+// Used by BOTH render paths (markdownToHtml innerHTML + SimpleMarkdown React).
+export const sanitizeUrl = (url, { allowData = false } = {}) => {
+    if (url == null) return '#';
+    const raw = String(url).trim();
+    // Strip control chars / whitespace that can obfuscate the scheme (e.g. "java\tscript:")
+    const probe = raw.replace(/[\u0000-\u0020\u007f-\u00a0]/g, '').toLowerCase();
+    const scheme = probe.match(/^([a-z][a-z0-9+.-]*):/);
+    const allowed = ['http', 'https', 'mailto', 'tel', 'ftp'];
+    if (allowData) allowed.push('data');
+    if (scheme && !allowed.includes(scheme[1])) return '#';
+    // No scheme (relative/anchor/protocol-relative) or an allowed scheme → keep original
+    return raw;
+};
+
 // Convert markdown to HTML for contentEditable
 export const markdownToHtml = (md) => {
     if (!md) return '';
@@ -49,7 +66,7 @@ export const markdownToHtml = (md) => {
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
     html = html.replace(/~~(.+?)~~/g, '<s>$1</s>');
     html = html.replace(/`([^`]+?)`/g, '<code style="background:var(--bg-secondary);padding:1px 4px;border-radius:3px;font-size:0.9em">$1</code>');
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" style="color:var(--accent)">$1</a>');
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => `<a href="${sanitizeUrl(url)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">${text}</a>`);
     return html;
 };
 
@@ -152,7 +169,7 @@ export const SimpleMarkdown = ({ text }) => {
             else if (match[3]) parts.push(React.createElement('em', { key: k++ }, match[3]));
             else if (match[4]) parts.push(React.createElement('del', { key: k++, style: { color: 'var(--text-muted)' } }, match[4]));
             else if (match[5]) parts.push(React.createElement('code', { key: k++, style: { background: 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 3, fontSize: '0.88em', fontFamily: 'var(--font-mono, monospace)' } }, match[5]));
-            else if (match[6] && match[7]) parts.push(React.createElement('a', { key: k++, href: match[7], target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--accent)', textDecoration: 'underline' } }, match[6]));
+            else if (match[6] && match[7]) parts.push(React.createElement('a', { key: k++, href: sanitizeUrl(match[7]), target: '_blank', rel: 'noopener noreferrer', style: { color: 'var(--accent)', textDecoration: 'underline' } }, match[6]));
             else if (match[8]) parts.push(React.createElement('span', { key: k++, style: { color: 'var(--accent)', fontWeight: 600, background: 'var(--accent-light)', borderRadius: 3, padding: '0 3px' } }, '@' + match[8]));
             remaining = remaining.slice(match.index + match[0].length);
         }

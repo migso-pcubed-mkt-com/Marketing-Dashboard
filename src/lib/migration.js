@@ -45,7 +45,14 @@ export function migrateToV2(data) {
                 updatedAt: new Date().toISOString(),
                 categories: data.categories,
                 actions: data.actions || [],
-                tasks: data.tasks || []
+                // Normalize legacy flat task.checklist → grouped task.checklists so the
+                // progress badge and exports (which read task.checklists) aren't empty (M26).
+                tasks: (data.tasks || []).map(t => {
+                    if (t.checklists && Array.isArray(t.checklists)) return t;
+                    const out = { ...t, checklists: normalizeTaskChecklists(t) };
+                    delete out.checklist; // drop the legacy flat field
+                    return out;
+                })
             }]
         };
     }

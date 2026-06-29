@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { markdownToHtml, htmlToMarkdown } from '../lib/markdown.jsx';
+import { markdownToHtml, htmlToMarkdown, sanitizeUrl } from '../lib/markdown.jsx';
 
 describe('markdownToHtml', () => {
     it('returns empty string for falsy input', () => {
@@ -69,6 +69,57 @@ describe('markdownToHtml', () => {
         const result = markdownToHtml('[Google](https://google.com)');
         expect(result).toContain('href=');
         expect(result).toContain('Google');
+    });
+
+    it('neutralizes javascript: links (stored XSS) in the innerHTML render path', () => {
+        const result = markdownToHtml('[click](javascript:alert(1))');
+        expect(result).not.toContain('javascript:');
+        expect(result).toContain('href="#"');
+    });
+
+    it('neutralizes data:text/html and vbscript: links', () => {
+        expect(markdownToHtml('[x](data:text/html,<script>alert(1)</script>)')).toContain('href="#"');
+        expect(markdownToHtml('[x](vbscript:msgbox(1))')).toContain('href="#"');
+    });
+
+    it('keeps legitimate http/https/mailto links', () => {
+        expect(markdownToHtml('[a](https://x.com)')).toContain('href="https://x.com"');
+        expect(markdownToHtml('[a](mailto:x@y.com)')).toContain('href="mailto:x@y.com"');
+    });
+});
+
+describe('sanitizeUrl', () => {
+    it('blocks javascript:/vbscript:/data: schemes (returns #)', () => {
+        expect(sanitizeUrl('javascript:alert(1)')).toBe('#');
+        expect(sanitizeUrl('JavaScript:alert(1)')).toBe('#');
+        expect(sanitizeUrl('vbscript:msgbox(1)')).toBe('#');
+        expect(sanitizeUrl('data:text/html,<script>')).toBe('#');
+    });
+
+    it('blocks scheme obfuscated with control chars / whitespace', () => {
+        expect(sanitizeUrl('java\tscript:alert(1)')).toBe('#');
+        expect(sanitizeUrl('  javascript:alert(1)')).toBe('#');
+        expect(sanitizeUrl('java\nscript:alert(1)')).toBe('#');
+    });
+
+    it('allows http/https/mailto/tel and relative/anchor URLs', () => {
+        expect(sanitizeUrl('https://x.com/a?b=1')).toBe('https://x.com/a?b=1');
+        expect(sanitizeUrl('http://x.com')).toBe('http://x.com');
+        expect(sanitizeUrl('mailto:a@b.com')).toBe('mailto:a@b.com');
+        expect(sanitizeUrl('/relative/path')).toBe('/relative/path');
+        expect(sanitizeUrl('#anchor')).toBe('#anchor');
+        expect(sanitizeUrl('example.com/path')).toBe('example.com/path');
+    });
+
+    it('permits data: only when allowData is set (attachment payloads)', () => {
+        expect(sanitizeUrl('data:image/png;base64,AAAA', { allowData: true })).toBe('data:image/png;base64,AAAA');
+        // javascript: is still blocked even with allowData
+        expect(sanitizeUrl('javascript:alert(1)', { allowData: true })).toBe('#');
+    });
+
+    it('returns # for nullish input', () => {
+        expect(sanitizeUrl(null)).toBe('#');
+        expect(sanitizeUrl(undefined)).toBe('#');
     });
 });
 

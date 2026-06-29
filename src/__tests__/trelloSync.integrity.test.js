@@ -233,6 +233,25 @@ describe('validateBoardIntegrity', () => {
         expect(result.board.actions).toHaveLength(0);
     });
 
+    it('does NOT inject a phantom default into a non-Trello category that has real actions (M2)', () => {
+        const board = {
+            categories: [{ id: 'c1', name: 'Marketing' }],
+            actions: [{ id: 'a1', name: 'Real action', categoryId: 'c1', isDefault: false }],
+            tasks: []
+            // no trelloSync → non-Trello board
+        };
+        const result = validateBoardIntegrity(board);
+        expect(result.board.actions).toHaveLength(1);
+        expect(result.board.actions.some(a => a.isDefault)).toBe(false);
+    });
+
+    it('still creates a placeholder default for an EMPTY non-Trello category', () => {
+        const board = { categories: [{ id: 'c1', name: 'Empty' }], actions: [], tasks: [] };
+        const result = validateBoardIntegrity(board);
+        expect(result.board.actions).toHaveLength(1);
+        expect(result.board.actions[0].isDefault).toBe(true);
+    });
+
     it('creates default action with correct fields', () => {
         const board = {
             categories: [{ id: 'c1', name: 'Dev' }],

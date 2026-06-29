@@ -69,7 +69,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             return date;
         }
         return new Date(year,0,1);
-    },[zoom,colWidth]);
+    },[zoom,colWidth,selectedYear,weekBase]); // selectedYear/weekBase were captured stale (M20)
 
     // Scroll to a specific date in the current zoom level
     const scrollToDate=useCallback((targetDate)=>{
@@ -102,7 +102,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         // Center the date in the viewport
         const viewportWidth=timelineRef.current.clientWidth;
         timelineRef.current.scrollLeft=scrollPosition-viewportWidth/2+250; // +250 for left column
-    },[zoom,colWidth]);
+    },[zoom,colWidth,selectedYear,weekBase]); // selectedYear/weekBase were captured stale (M20)
 
     // Save center date before zoom change and restore after
     const handleZoomChange=useCallback((newZoom)=>{
@@ -153,7 +153,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             originalStart:task.startDate,
             originalEnd:task.dueDate
         });
-    },[isUserInteractingRef]);
+    },[isUserInteractingRef,isReadOnly]); // isReadOnly was captured stale (M22)
 
     const endResize=useCallback(()=>{
         document.body.classList.remove('resizing');
@@ -456,9 +456,11 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
                 const adjustedIndex=draggedIndex<targetIndex?insertIndex-1:insertIndex;
                 reordered.splice(adjustedIndex,0,removed);
 
-                // Update order property
-                const updates=reordered.map((t,idx)=>({id:t.id,order:idx}));
-                updates.forEach(({id,order})=>onUpdateTask(id,{order}));
+                // Update order via a single atomic batch (N separate onUpdateTask calls can
+                // lose intermediate updates through React state batching) (M23).
+                const updates=reordered.map((t,idx)=>({id:t.id,changes:{order:idx}}));
+                if(onBatchUpdateTasks)onBatchUpdateTasks(updates);
+                else updates.forEach(({id,changes})=>onUpdateTask(id,changes));
             }
         }else{
             // Move task to different action - preserve start/due dates
@@ -803,7 +805,9 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
         // We need this to know whether the user is moving DOWN or UP within the action.
         let dragStartLane=0;
         if(sameAction){
-            const actionTasksAll=tasks.filter(t=>t.actionId===targetAction.id);
+            // Use filteredTasks (what the rows actually render) so the computed lane matches
+            // the user's view when a filter/search is active — `tasks` includes hidden ones (M21).
+            const actionTasksAll=filteredTasks.filter(t=>t.actionId===targetAction.id);
             const{swimLanes:preDragLanes}=calculateSwimLanes(actionTasksAll,null,layoutParams);
             dragStartLane=preDragLanes[taskId]??(draggedTask.swimLane||0);
         }
@@ -820,7 +824,7 @@ const TimelineView=({categories,actions,tasks,onOpenTask,onOpenAction,onUpdateTa
             if(!draggedPos)return[];
             const dStart=draggedPos.left;
             const dEnd=draggedPos.left+draggedPos.width;
-            const siblings=tasks.filter(t=>t.actionId===targetAction.id&&t.id!==taskId);
+            const siblings=filteredTasks.filter(t=>t.actionId===targetAction.id&&t.id!==taskId);
             const{swimLanes:rendered}=calculateSwimLanes(siblings,null,layoutParams);
             const out=[];
             for(const t of siblings){

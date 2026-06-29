@@ -24,7 +24,9 @@ export function useFilters(tasks, actions) {
         if (!activeFilterCount) return visibleTasks;
         return visibleTasks.filter(t => {
             const act = actions.find(a => a.id === t.actionId);
-            if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase())) return false;
+            // Match the parent action name too, so the toolbar count agrees with the Kanban
+            // (which surfaces actions whose name matches the search) (M24).
+            if (filters.search) { const q = filters.search.toLowerCase(); if (!t.title.toLowerCase().includes(q) && !(act?.name || '').toLowerCase().includes(q)) return false; }
             if (filters.status.length > 0 && !filters.status.includes(t.status)) return false;
             if (filters.category.length > 0 && !filters.category.includes(act?.categoryId)) return false;
             if (filters.priority.length > 0 && !filters.priority.includes(t.priority)) return false;
