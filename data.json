@@ -86461,7 +86461,7 @@
       "id": "board-15b69eea-df76-47b9-8622-d177a3198ab8",
       "name": "2026 Global M&C Task forces",
       "createdAt": "2026-06-05T13:37:34.027Z",
-      "updatedAt": "2026-06-25T12:55:55.555Z",
+      "updatedAt": "2026-06-29T08:28:24.905Z",
       "categories": [
         {
           "id": "cat-2d8ec7a7-9c6f-46f8-9e52-afb1a7698f83",
@@ -93131,7 +93131,7 @@
         "trelloBoardId": "6751c00487edabd6476c72dd",
         "trelloBoardName": "2026 Global M&C Task forces",
         "trelloBoardUrl": "https://trello.com/b/QhK62nR1/2026-global-mc-task-forces",
-        "lastSyncAt": "2026-06-25T12:55:55.555Z",
+        "lastSyncAt": "2026-06-29T08:28:24.905Z",
         "syncEnabled": true,
         "pollIntervalMs": 120000,
         "syncMode": "card-as-task",
@@ -93231,7 +93231,7 @@
       }
     }
   ],
-  "_saveId": "9822dba8-b087-41c6-98ec-3c556e7f8f05",
+  "_saveId": "35a0c2e8-b0e9-431c-941d-fbd380b18b91",
   "version": 2,
   "currentBoardId": "board-15b69eea-df76-47b9-8622-d177a3198ab8",
   "timestamp": 1782721467850
