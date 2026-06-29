@@ -12,6 +12,7 @@ import {
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
 import { mergeBoardsEntityLevel } from './lib/realtimeMerge.js';
+import { addTombstones, pruneEnvelopeTombstones } from './lib/tombstones.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
 import { mergePostSync } from './lib/postSyncMerge.js';
 import { applyTaskUpdate, applyBatchTaskUpdate, applyActionUpdate, computeTagPropagation, applyTaskReorder } from './lib/handlers';
@@ -244,7 +245,9 @@ const App = () => {
                 setCurrentBoardId(newCurrentId);
                 setFilters({search:'',status:[],category:[],priority:[],channel:[],country:[],otherLabel:[],member:[],showArchived:false});
             }
-            return { ...prev, currentBoardId: newCurrentId, boards: remaining };
+            // Board-level tombstone (M18) so the deleted board doesn't resurrect from a peer's
+            // stale copy on the next collaborative merge.
+            return { ...prev, currentBoardId: newCurrentId, boards: remaining, boardDeletions: addTombstones(prev.boardDeletions, [{ id: boardId, type: 'board' }]) };
         });
         showNotification('🗑️ Board deleted');
     }, [currentBoardId]);
@@ -507,6 +510,7 @@ const App = () => {
                     result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
                 }
                 if (result) {
+                    result = pruneEnvelopeTombstones(result); // GC expired deletion tombstones (M18)
                     setBoardData(result);
                     setCurrentBoardId(result.currentBoardId || 'board-default');
                     // Save to localStorage as backup
@@ -1050,6 +1054,10 @@ const App = () => {
                 ...b,
                 actions: b.actions.filter(a => a.id !== actionId),
                 tasks: b.tasks.filter(t => t.actionId !== actionId),
+                deletions: addTombstones(b.deletions, [
+                    { id: actionId, type: 'action' },
+                    ...b.tasks.filter(t => t.actionId === actionId).map(t => ({ id: t.id, type: 'task' }))
+                ]),
                 trelloSync: {
                     ...b.trelloSync,
                     _recentlyDeletedCardIds: [
@@ -1070,8 +1078,16 @@ const App = () => {
             try { await archiveTrelloCard(action.trelloCardId); }
             catch(e) { console.warn('Failed to archive Trello card:', e); }
         }
-        setActions(prev => prev.filter(a => a.id !== actionId));
-        setTasks(prev => prev.filter(t => t.actionId !== actionId));
+        // Single atomic update: filter action + its tasks and record tombstones together (M18).
+        updateCurrentBoard(b => ({
+            ...b,
+            actions: b.actions.filter(a => a.id !== actionId),
+            tasks: b.tasks.filter(t => t.actionId !== actionId),
+            deletions: addTombstones(b.deletions, [
+                { id: actionId, type: 'action' },
+                ...b.tasks.filter(t => t.actionId === actionId).map(t => ({ id: t.id, type: 'task' }))
+            ])
+        }));
         showNotification('🗑️ Action deleted');
     }, [actions, currentBoard, isReadOnly, updateCurrentBoard, setActions, setTasks, showNotification, pushState]);
 
@@ -1213,6 +1229,7 @@ const App = () => {
                 updateCurrentBoard(b => ({
                     ...b,
                     tasks: b.tasks.filter(t => t.id !== taskId),
+                    deletions: addTombstones(b.deletions, [{ id: taskId, type: 'task' }]),
                     trelloSync: { ...b.trelloSync, _recentlyDeletedCardIds: [...(b.trelloSync?._recentlyDeletedCardIds || []), { id: task.trelloCardId, at: Date.now() }] }
                 }));
                 try { await archiveTrelloCard(task.trelloCardId); }
@@ -1224,7 +1241,11 @@ const App = () => {
                 catch(e) { console.warn('Failed to delete Trello checklist item:', e); }
             }
         }
-        setTasks(prev => prev.filter(t => t.id !== taskId));
+        updateCurrentBoard(b => ({
+            ...b,
+            tasks: b.tasks.filter(t => t.id !== taskId),
+            deletions: addTombstones(b.deletions, [{ id: taskId, type: 'task' }])
+        }));
         showNotification('🗑️ Task deleted');
     }, [tasks, currentBoard, isReadOnly, updateCurrentBoard, setTasks, showNotification, pushState]);
 
@@ -1282,17 +1303,27 @@ const App = () => {
         const actionIds = new Set(catActions.map(a => a.id));
         const deletedCardIds = tasks.filter(t => actionIds.has(t.actionId) && t.trelloCardId).map(t => ({ id: t.trelloCardId, at: Date.now() }));
         const deletedListId = category?.trelloListId ? [{ id: category.trelloListId, at: Date.now() }] : [];
-        updateCurrentBoard(b => ({
-            ...b,
-            categories: b.categories.filter(c => c.id !== catId),
-            actions: b.actions.filter(a => a.categoryId !== catId),
-            tasks: b.tasks.filter(t => !actionIds.has(t.actionId)),
-            trelloSync: {
-                ...b.trelloSync,
-                _recentlyDeletedCardIds: [...(b.trelloSync?._recentlyDeletedCardIds || []), ...deletedCardIds],
-                _recentlyDeletedListIds: [...(b.trelloSync?._recentlyDeletedListIds || []), ...deletedListId]
-            }
-        }));
+        updateCurrentBoard(b => {
+            const delActionIds = b.actions.filter(a => a.categoryId === catId).map(a => a.id);
+            const delActionIdSet = new Set(delActionIds);
+            const delTaskIds = b.tasks.filter(t => delActionIdSet.has(t.actionId)).map(t => t.id);
+            return {
+                ...b,
+                categories: b.categories.filter(c => c.id !== catId),
+                actions: b.actions.filter(a => a.categoryId !== catId),
+                tasks: b.tasks.filter(t => !delActionIdSet.has(t.actionId)),
+                deletions: addTombstones(b.deletions, [
+                    { id: catId, type: 'category' },
+                    ...delActionIds.map(id => ({ id, type: 'action' })),
+                    ...delTaskIds.map(id => ({ id, type: 'task' }))
+                ]),
+                trelloSync: {
+                    ...b.trelloSync,
+                    _recentlyDeletedCardIds: [...(b.trelloSync?._recentlyDeletedCardIds || []), ...deletedCardIds],
+                    _recentlyDeletedListIds: [...(b.trelloSync?._recentlyDeletedListIds || []), ...deletedListId]
+                }
+            };
+        });
         // Archive linked Trello list (if not guest/read-only)
         if (category?.trelloListId && !isReadOnly) {
             try { await archiveTrelloList(category.trelloListId); }
@@ -1345,9 +1376,13 @@ const App = () => {
             }
         }
         const groupTaskIds = new Set(groupTasks.map(t => t.id));
-        setTasks(prev => prev.filter(t => !groupTaskIds.has(t.id)));
+        updateCurrentBoard(b => ({
+            ...b,
+            tasks: b.tasks.filter(t => !groupTaskIds.has(t.id)),
+            deletions: addTombstones(b.deletions, [...groupTaskIds].map(id => ({ id, type: 'task' })))
+        }));
         showNotification(`🗑️ Group "${groupName}" deleted (${groupTasks.length} task(s))`);
-    }, [tasks, currentBoard, isReadOnly, setTasks, showNotification]);
+    }, [tasks, currentBoard, isReadOnly, updateCurrentBoard, setTasks, showNotification]);
 
     // Add a task within a specific checklist group in an action card
     const handleAddTaskInGroup = useCallback((actionId, groupName, title) => {
