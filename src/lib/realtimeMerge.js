@@ -4,6 +4,27 @@
 
 import { mergeTombstones, tombstoneMap, isTombstoned } from './tombstones.js';
 
+// Fields that are bookkeeping noise, not user-visible content. Two entity versions that
+// differ ONLY in these are "the same" for conflict-notification purposes (no surprise to
+// the user), so they never raise a conflict.
+const VOLATILE_FIELDS = new Set([
+    'updatedAt', 'createdAt', 'orderUpdatedAt', '_saveId',
+    '_trelloBaseline', '_inheritChannels', '_inheritCountries', '_inheritOtherLabels',
+    'trelloLastModified', 'dateLastActivity',
+]);
+
+const contentSignature = (e) => {
+    if (!e || typeof e !== 'object') return JSON.stringify(e);
+    const keys = Object.keys(e).filter(k => !VOLATILE_FIELDS.has(k)).sort();
+    return JSON.stringify(keys.map(k => [k, e[k]]));
+};
+
+// True when two versions of the same entity differ in user-visible content.
+const meaningfullyDiffers = (a, b) => contentSignature(a) !== contentSignature(b);
+
+const entityName = (e, type) =>
+    (type === 'task' ? e?.title : e?.name) || (type ? type[0].toUpperCase() + type.slice(1) : 'Item');
+
 /**
  * Merge two arrays of entities by updatedAt timestamp.
  * For entities in both: keep the one with newer updatedAt.
@@ -13,8 +34,13 @@ import { mergeTombstones, tombstoneMap, isTombstoned } from './tombstones.js';
  * `tombMap` (optional, `Map<id, deletedAtMs>` from `tombstoneMap`) drops any entity
  * whose latest deletion tombstone is at-or-newer than its `updatedAt` (M18) — this is
  * what stops a deleted entity from resurrecting via a peer's stale copy.
+ *
+ * `conflictSink` (optional array) + `entityType`: when incoming wins over a meaningfully
+ * different local version (a local edit is discarded), a `{ id, type, name }` record is
+ * pushed so the caller can surface a non-silent "a teammate's change replaced yours"
+ * notification instead of merging silently.
  */
-export const mergeEntitiesByTimestamp = (localEntities = [], incomingEntities = [], tombMap = null) => {
+export const mergeEntitiesByTimestamp = (localEntities = [], incomingEntities = [], tombMap = null, conflictSink = null, entityType = null) => {
     const localMap = new Map((localEntities || []).map(e => [e.id, e]));
     const result = [];
     const processedIds = new Set();
@@ -28,6 +54,10 @@ export const mergeEntitiesByTimestamp = (localEntities = [], incomingEntities = 
             const localTime = local.updatedAt ? new Date(local.updatedAt).getTime() : 0;
             const incomingTime = incoming.updatedAt ? new Date(incoming.updatedAt).getTime() : 0;
             chosen = localTime > incomingTime ? local : incoming;
+            // Conflict = the local version is being discarded for a different-content incoming one.
+            if (conflictSink && chosen === incoming && meaningfullyDiffers(local, incoming)) {
+                conflictSink.push({ id: incoming.id, type: entityType, name: entityName(incoming, entityType) });
+            }
         } else {
             // Only in incoming — new from another user
             chosen = incoming;
@@ -48,6 +78,19 @@ export const mergeEntitiesByTimestamp = (localEntities = [], incomingEntities = 
 };
 
 /**
+ * Like `mergeBoardsEntityLevel` but also returns the list of conflicts (local versions
+ * discarded for a different-content incoming one) so the caller can notify the user.
+ * @returns {{ merged: object, conflicts: Array<{id,type,name}> }}
+ */
+export const mergeBoardsEntityLevelWithMeta = (localBoardData, incomingBoardData) => {
+    if (!localBoardData?.boards) return { merged: incomingBoardData, conflicts: [] };
+    if (!incomingBoardData?.boards) return { merged: localBoardData, conflicts: [] };
+    const conflicts = [];
+    const merged = mergeBoards(localBoardData, incomingBoardData, conflicts);
+    return { merged, conflicts };
+};
+
+/**
  * Merge two boardData objects at entity level.
  * Categories, actions, tasks are merged by updatedAt timestamp.
  * Board metadata (trelloSync, members) uses selective preservation.
@@ -55,6 +98,10 @@ export const mergeEntitiesByTimestamp = (localEntities = [], incomingEntities = 
 export const mergeBoardsEntityLevel = (localBoardData, incomingBoardData) => {
     if (!localBoardData?.boards) return incomingBoardData;
     if (!incomingBoardData?.boards) return localBoardData;
+    return mergeBoards(localBoardData, incomingBoardData, null);
+};
+
+const mergeBoards = (localBoardData, incomingBoardData, conflictSink) => {
 
     // Board-level tombstones (M18): a board deleted by one client must not resurrect
     // from a peer's stale copy. Merged union of envelope-level `boardDeletions`.
@@ -88,9 +135,9 @@ export const mergeBoardsEntityLevel = (localBoardData, incomingBoardData) => {
         return {
             ...localBoard,
             ...incomingBoard,
-            categories: mergeEntitiesByTimestamp(localBoard.categories, incomingBoard.categories, entityTombMap),
-            actions: mergeEntitiesByTimestamp(localBoard.actions, incomingBoard.actions, entityTombMap),
-            tasks: mergeEntitiesByTimestamp(localBoard.tasks, incomingBoard.tasks, entityTombMap),
+            categories: mergeEntitiesByTimestamp(localBoard.categories, incomingBoard.categories, entityTombMap, conflictSink, 'category'),
+            actions: mergeEntitiesByTimestamp(localBoard.actions, incomingBoard.actions, entityTombMap, conflictSink, 'action'),
+            tasks: mergeEntitiesByTimestamp(localBoard.tasks, incomingBoard.tasks, entityTombMap, conflictSink, 'task'),
             deletions: mergedDeletions,
             trelloSync: mergedSync,
             members: incomingBoard.members || localBoard.members,

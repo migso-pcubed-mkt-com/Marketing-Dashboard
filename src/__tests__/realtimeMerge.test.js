@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeEntitiesByTimestamp, mergeBoardsEntityLevel } from '../lib/realtimeMerge.js';
+import { mergeEntitiesByTimestamp, mergeBoardsEntityLevel, mergeBoardsEntityLevelWithMeta } from '../lib/realtimeMerge.js';
 
 const T = {
     OLD: '2026-04-01T10:00:00.000Z',
@@ -253,5 +253,69 @@ describe('mergeBoardsEntityLevel', () => {
         expect(tasks.find(t => t.id === 't2').status).toBe('completed');
         expect(tasks.find(t => t.id === 't3').title).toBe('Unchanged');
         expect(tasks.find(t => t.id === 't4').title).toBe('C: brand new task');
+    });
+});
+
+// ─── mergeBoardsEntityLevelWithMeta — conflict reporting ───
+
+describe('mergeBoardsEntityLevelWithMeta', () => {
+    const makeBoard = (id, tasks, actions = [], categories = []) => ({
+        version: 2, currentBoardId: id,
+        boards: [{ id, name: 'Test Board', categories, actions, tasks }],
+    });
+
+    it('reports a conflict when a teammate edit (incoming) discards a different local version', () => {
+        const local = makeBoard('b1', [{ id: 't1', title: 'My local title', updatedAt: T.OLD }]);
+        const incoming = makeBoard('b1', [{ id: 't1', title: 'Teammate title', updatedAt: T.NEW }]);
+        const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(local, incoming);
+        expect(merged.boards[0].tasks[0].title).toBe('Teammate title');
+        expect(conflicts).toHaveLength(1);
+        expect(conflicts[0]).toMatchObject({ id: 't1', type: 'task', name: 'Teammate title' });
+    });
+
+    it('does NOT report a conflict when the local edit wins (local newer)', () => {
+        const local = makeBoard('b1', [{ id: 't1', title: 'My newer title', updatedAt: T.NEW }]);
+        const incoming = makeBoard('b1', [{ id: 't1', title: 'Stale title', updatedAt: T.OLD }]);
+        const { conflicts } = mergeBoardsEntityLevelWithMeta(local, incoming);
+        expect(conflicts).toHaveLength(0);
+    });
+
+    it('does NOT report a conflict for an identical-content incoming echo (only updatedAt differs)', () => {
+        const local = makeBoard('b1', [{ id: 't1', title: 'Same', status: 'todo', updatedAt: T.OLD }]);
+        const incoming = makeBoard('b1', [{ id: 't1', title: 'Same', status: 'todo', updatedAt: T.NEW }]);
+        const { conflicts } = mergeBoardsEntityLevelWithMeta(local, incoming);
+        expect(conflicts).toHaveLength(0);
+    });
+
+    it('does NOT report a conflict for a brand-new incoming entity (no local version discarded)', () => {
+        const local = makeBoard('b1', []);
+        const incoming = makeBoard('b1', [{ id: 't9', title: 'New from teammate', updatedAt: T.NEW }]);
+        const { conflicts } = mergeBoardsEntityLevelWithMeta(local, incoming);
+        expect(conflicts).toHaveLength(0);
+    });
+
+    it('reports conflicts across categories, actions, and tasks with the right names', () => {
+        const local = makeBoard('b1',
+            [{ id: 't1', title: 'task local', updatedAt: T.OLD }],
+            [{ id: 'a1', name: 'action local', updatedAt: T.OLD }],
+            [{ id: 'c1', name: 'cat local', updatedAt: T.OLD }],
+        );
+        const incoming = makeBoard('b1',
+            [{ id: 't1', title: 'task remote', updatedAt: T.NEW }],
+            [{ id: 'a1', name: 'action remote', updatedAt: T.NEW }],
+            [{ id: 'c1', name: 'cat remote', updatedAt: T.NEW }],
+        );
+        const { conflicts } = mergeBoardsEntityLevelWithMeta(local, incoming);
+        expect(conflicts.map(c => c.type).sort()).toEqual(['action', 'category', 'task']);
+        expect(conflicts.find(c => c.type === 'task').name).toBe('task remote');
+        expect(conflicts.find(c => c.type === 'action').name).toBe('action remote');
+    });
+
+    it('mergeBoardsEntityLevel still returns just the board (back-compat)', () => {
+        const local = makeBoard('b1', [{ id: 't1', title: 'x', updatedAt: T.OLD }]);
+        const incoming = makeBoard('b1', [{ id: 't1', title: 'y', updatedAt: T.NEW }]);
+        const result = mergeBoardsEntityLevel(local, incoming);
+        expect(result.boards[0].tasks[0].title).toBe('y');
+        expect(result.conflicts).toBeUndefined();
     });
 });

@@ -11,7 +11,7 @@ import {
     saveSnapshot,
     base64EncodeUnicode, base64DecodeUnicode
 } from './lib/storage.js';
-import { mergeBoardsEntityLevel } from './lib/realtimeMerge.js';
+import { mergeBoardsEntityLevel, mergeBoardsEntityLevelWithMeta } from './lib/realtimeMerge.js';
 import { addTombstones, pruneEnvelopeTombstones } from './lib/tombstones.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
 import { mergePostSync } from './lib/postSyncMerge.js';
@@ -50,6 +50,13 @@ const TrelloExportModal = lazy(() => import('./components/TrelloExportModal.jsx'
 const API_BASE_URL = typeof window !== 'undefined'
     ? (window.location.hostname === 'localhost' ? 'http://localhost:3000' : window.location.origin)
     : '';
+
+// Human-readable message for a collaborative merge that discarded local versions
+// (a teammate's concurrent edit to the same item won last-write-wins). Surfaced instead
+// of the silent "✅ Synced with team" so the user knows their view changed under them.
+const conflictMessage = (conflicts) => conflicts.length === 1
+    ? `⚠️ "${conflicts[0].name}" was changed by a teammate — their version was applied`
+    : `⚠️ ${conflicts.length} items were changed by teammates — their versions were applied`;
 
 const App = () => {
     const darkMode = false;
@@ -400,9 +407,10 @@ const App = () => {
         try {
             const server = await fetchServerState(serverUpdatedAtRef.current);
             if (server && server.updated_at !== serverUpdatedAtRef.current && server.board_data?.version === 2) {
-                const merged = mergeBoardsEntityLevel(boardDataRef.current, server.board_data);
+                const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(boardDataRef.current, server.board_data);
                 boardDataRef.current = merged;
                 serverUpdatedAtRef.current = server.updated_at;
+                if (conflicts.length) showNotification(conflictMessage(conflicts));
                 // The in-flight save already persists `merged` (via boardDataRef). Showing it
                 // in the UI re-fires the auto-save effect; skip that one redundant save so a
                 // detected conflict doesn't cause a second cloud write + duplicate Trello sync.
@@ -791,6 +799,7 @@ const App = () => {
         const d = payload.new;
         isReceivingRealtimeRef.current = true;
         let incoming = null;
+        let realtimeConflicts = [];
         if (d.board_data && d.board_data.version === 2) {
             incoming = d.board_data;
         } else if (d.categories) {
@@ -807,7 +816,9 @@ const App = () => {
             };
             // Entity-level merge: preserves local edits to different entities
             setBoardData(prev => {
-                const merged = !prev?.boards ? incoming : mergeBoardsEntityLevel(prev, incoming);
+                if (!prev?.boards) { lastRealtimeBoardRef.current = incoming; return incoming; }
+                const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(prev, incoming);
+                realtimeConflicts = conflicts;
                 // Remember the exact object applied so the auto-save effect can tell this
                 // Realtime update apart from a genuine user edit during the guard window (M5).
                 lastRealtimeBoardRef.current = merged;
@@ -816,7 +827,8 @@ const App = () => {
         }
         if (d.updated_at) serverUpdatedAtRef.current = d.updated_at;
         saveToLocalStorage();
-        showNotification('✅ Synced with team');
+        if (realtimeConflicts.length) showNotification(conflictMessage(realtimeConflicts));
+        else showNotification('✅ Synced with team');
         setTimeout(() => {
             isReceivingRealtimeRef.current = false;
             // If the user edited during the window, the save was deferred — flush it now.
@@ -874,9 +886,18 @@ const App = () => {
                             const result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
                             if (result) {
                                 // Entity-level merge for GitHub polling too
-                                setBoardData(prev => prev?.boards ? mergeBoardsEntityLevel(prev, result) : result);
+                                let ghConflicts = [];
+                                setBoardData(prev => {
+                                    if (!prev?.boards) return result;
+                                    const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(prev, result);
+                                    ghConflicts = conflicts;
+                                    return merged;
+                                });
+                                if (ghConflicts.length) { showNotification(conflictMessage(ghConflicts)); }
+                                else showNotification('✅ Synced with team');
+                            } else {
+                                showNotification('✅ Synced with team');
                             }
-                            showNotification('✅ Synced with team');
                         }
                     }
                 } catch (_) { /* polling error — silent */ }
