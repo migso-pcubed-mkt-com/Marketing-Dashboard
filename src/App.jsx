@@ -882,21 +882,28 @@ const App = () => {
                     return integrity.board;
                 })
             };
-            // Entity-level merge: preserves local edits to different entities
-            setBoardData(prev => {
-                if (!prev?.boards) { lastRealtimeBoardRef.current = incoming; return incoming; }
-                const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(prev, incoming);
+            // Entity-level merge: preserves local edits to different entities.
+            // Compute the merge OUTSIDE the setState updater (off boardDataRef.current, the
+            // same base preSaveOccMerge trusts) so the conflict side-effect isn't driven from
+            // inside the updater (which React re-invokes under StrictMode) — see review 4.1.
+            const prevBoard = boardDataRef.current;
+            let applied;
+            if (!prevBoard?.boards) {
+                applied = incoming;
+            } else {
+                const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(prevBoard, incoming);
+                applied = merged;
                 realtimeConflicts = conflicts;
-                // Remember the exact object applied so the auto-save effect can tell this
-                // Realtime update apart from a genuine user edit during the guard window (M5).
-                lastRealtimeBoardRef.current = merged;
-                return merged;
-            });
+            }
+            // Remember the exact object applied so the auto-save effect can tell this
+            // Realtime update apart from a genuine user edit during the guard window (M5).
+            lastRealtimeBoardRef.current = applied;
+            setBoardData(applied);
+            saveToLocalStorage();
+            if (realtimeConflicts.length) showNotification(conflictMessage(realtimeConflicts));
+            else showNotification('✅ Synced with team');
         }
         if (d.updated_at) serverUpdatedAtRef.current = d.updated_at;
-        saveToLocalStorage();
-        if (realtimeConflicts.length) showNotification(conflictMessage(realtimeConflicts));
-        else showNotification('✅ Synced with team');
         setTimeout(() => {
             isReceivingRealtimeRef.current = false;
             // If the user edited during the window, the save was deferred — flush it now.
@@ -953,15 +960,17 @@ const App = () => {
                             showNotification('🔄 Syncing with team...');
                             const result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
                             if (result) {
-                                // Entity-level merge for GitHub polling too
-                                let ghConflicts = [];
-                                setBoardData(prev => {
-                                    if (!prev?.boards) return result;
-                                    const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(prev, result);
-                                    ghConflicts = conflicts;
-                                    return merged;
-                                });
-                                if (ghConflicts.length) { showNotification(conflictMessage(ghConflicts)); }
+                                // Entity-level merge for GitHub polling too — computed off the
+                                // current ref OUTSIDE the updater so the conflict notification
+                                // isn't a side-effect inside setState (review 4.1).
+                                const prevBoard = boardDataRef.current;
+                                let applied = result, ghConflicts = [];
+                                if (prevBoard?.boards) {
+                                    const { merged, conflicts } = mergeBoardsEntityLevelWithMeta(prevBoard, result);
+                                    applied = merged; ghConflicts = conflicts;
+                                }
+                                setBoardData(applied);
+                                if (ghConflicts.length) showNotification(conflictMessage(ghConflicts));
                                 else showNotification('✅ Synced with team');
                             } else {
                                 showNotification('✅ Synced with team');

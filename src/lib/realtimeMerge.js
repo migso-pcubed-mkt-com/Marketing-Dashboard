@@ -15,8 +15,14 @@ const VOLATILE_FIELDS = new Set([
 
 const contentSignature = (e) => {
     if (!e || typeof e !== 'object') return JSON.stringify(e);
-    const keys = Object.keys(e).filter(k => !VOLATILE_FIELDS.has(k)).sort();
-    return JSON.stringify(keys.map(k => [k, e[k]]));
+    try {
+        const keys = Object.keys(e).filter(k => !VOLATILE_FIELDS.has(k)).sort();
+        return JSON.stringify(keys.map(k => [k, e[k]]));
+    } catch {
+        // Non-serializable (circular ref / BigInt) — never let conflict detection throw
+        // and break the merge. Return null so meaningfullyDiffers treats it as "differs".
+        return null;
+    }
 };
 
 // True when two versions of the same entity differ in user-visible content.
@@ -132,12 +138,26 @@ const mergeBoards = (localBoardData, incomingBoardData, conflictSink) => {
             }
         }
 
+        const mergedCategories = mergeEntitiesByTimestamp(localBoard.categories, incomingBoard.categories, entityTombMap, conflictSink, 'category');
+        const mergedActionsRaw = mergeEntitiesByTimestamp(localBoard.actions, incomingBoard.actions, entityTombMap, conflictSink, 'action');
+        const mergedTasksRaw = mergeEntitiesByTimestamp(localBoard.tasks, incomingBoard.tasks, entityTombMap, conflictSink, 'task');
+
+        // Referential integrity: drop entities orphaned by a concurrent parent deletion —
+        // e.g. one client deletes an action (tombstoning it) while a peer adds a task to it.
+        // Without this the merge keeps the task (no tombstone of its own) under a now-deleted
+        // action → an orphan that renders under no Kanban column. Entities with no parent ref
+        // are left untouched (they pre-date the relation or are valid roots).
+        const catIds = new Set(mergedCategories.map(c => c.id));
+        const mergedActions = mergedActionsRaw.filter(a => !a.categoryId || catIds.has(a.categoryId));
+        const actionIds = new Set(mergedActions.map(a => a.id));
+        const mergedTasks = mergedTasksRaw.filter(t => !t.actionId || actionIds.has(t.actionId));
+
         return {
             ...localBoard,
             ...incomingBoard,
-            categories: mergeEntitiesByTimestamp(localBoard.categories, incomingBoard.categories, entityTombMap, conflictSink, 'category'),
-            actions: mergeEntitiesByTimestamp(localBoard.actions, incomingBoard.actions, entityTombMap, conflictSink, 'action'),
-            tasks: mergeEntitiesByTimestamp(localBoard.tasks, incomingBoard.tasks, entityTombMap, conflictSink, 'task'),
+            categories: mergedCategories,
+            actions: mergedActions,
+            tasks: mergedTasks,
             deletions: mergedDeletions,
             trelloSync: mergedSync,
             members: incomingBoard.members || localBoard.members,
@@ -166,7 +186,12 @@ const mergeBoards = (localBoardData, incomingBoardData, conflictSink) => {
     return {
         ...localBoardData,
         ...incomingBoardData,
-        boards: finalBoards.length ? finalBoards : mergedBoards,
+        // The `mergedBoards` fallback exists only to never blank the app to zero boards in
+        // some degenerate non-deletion case. It must NOT run when boards were tombstoned —
+        // otherwise an emptied `finalBoards` (all boards deleted) resurrects them. When a
+        // deletion is in play, trust `finalBoards` even if empty (the last-board delete guard
+        // upstream means a real session never tombstones its only board).
+        boards: (finalBoards.length || mergedBoardDeletions.length) ? finalBoards : mergedBoards,
         ...(mergedBoardDeletions.length ? { boardDeletions: mergedBoardDeletions } : {}),
     };
 };

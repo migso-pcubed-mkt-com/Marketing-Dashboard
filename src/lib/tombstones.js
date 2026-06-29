@@ -23,18 +23,9 @@ const toMs = (iso) => {
     return Number.isNaN(t) ? 0 : t;
 };
 
-/**
- * Union-merge tombstone entries into an existing tombstone array.
- * - Dedupes by id, keeping the newest `deletedAt`.
- * - New entries without an explicit `deletedAt` are stamped with `now`.
- * - Prunes entries older than TOMBSTONE_TTL_MS.
- *
- * @param {Array<{id,type,deletedAt}>} existing
- * @param {Array<{id,type,deletedAt}>} entries  new deletions (or another tombstone array to merge)
- * @param {number} now  epoch ms (injectable for tests)
- * @returns {Array<{id,type,deletedAt}>}
- */
-export const addTombstones = (existing = [], entries = [], now = Date.now()) => {
+// Union two tombstone lists by id, keeping the newest deletedAt; stamp missing deletedAt
+// with `now`. Returns a Map<id, {id,type,deletedAt}>. Shared by add/merge below.
+const unionById = (lists, now) => {
     const nowIso = new Date(now).toISOString();
     const byId = new Map();
     const put = (raw) => {
@@ -46,14 +37,32 @@ export const addTombstones = (existing = [], entries = [], now = Date.now()) => 
             byId.set(raw.id, { id: raw.id, type: raw.type || cur?.type, deletedAt });
         }
     };
-    (existing || []).forEach(put);
-    (entries || []).forEach(put);
+    for (const list of lists) (list || []).forEach(put);
+    return byId;
+};
+
+/**
+ * Union-merge tombstone entries into an existing tombstone array AND prune by TTL.
+ * Used by the deletion handlers (record a deletion) and by `pruneEnvelopeTombstones`.
+ * Dedupes by id (newest deletedAt), stamps missing deletedAt with `now`, drops entries
+ * older than TOMBSTONE_TTL_MS.
+ */
+export const addTombstones = (existing = [], entries = [], now = Date.now()) => {
+    const byId = unionById([existing, entries], now);
     const cutoff = now - TOMBSTONE_TTL_MS;
     return [...byId.values()].filter((t) => toMs(t.deletedAt) >= cutoff);
 };
 
-/** Alias — merging two tombstone arrays is the same union operation. */
-export const mergeTombstones = addTombstones;
+/**
+ * Union two tombstone arrays WITHOUT TTL pruning — used during the collaborative merge.
+ * Pruning during a merge would let the merging machine's clock (or a fast-clock peer)
+ * GC a tombstone that a still-stale replica needs, resurrecting the entity. GC is owned
+ * exclusively by `pruneEnvelopeTombstones` on load/save. Dedupes by id (newest deletedAt).
+ */
+export const mergeTombstones = (a = [], b = [], now = Date.now()) => {
+    const byId = unionById([a, b], now);
+    return [...byId.values()];
+};
 
 /**
  * Build a `Map<id, deletedAtMs>` (newest deletion per id) from a tombstone array.

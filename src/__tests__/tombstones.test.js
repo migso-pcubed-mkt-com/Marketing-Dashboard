@@ -226,3 +226,45 @@ describe('tombstones — pruneEnvelopeTombstones', () => {
         expect(pruneEnvelopeTombstones(data, ms(T.NEW))).toBe(data);
     });
 });
+
+// Regression guards for adversarial-review fixes (board-fallback resurrection, orphan
+// drop, no-prune-during-merge).
+describe('tombstones — merge hardening (review fixes)', () => {
+    const board = (id, { tasks = [], actions = [], categories = [], deletions } = {}) => ({
+        version: 2, currentBoardId: id,
+        boards: [{ id, name: 'B', categories, actions, tasks, ...(deletions ? { deletions } : {}) }],
+    });
+
+    it('deleting the ONLY board in the merge does not resurrect it via the fallback', () => {
+        // local (A): the board was deleted (boards empty) but a tombstone remains.
+        const local = { version: 2, currentBoardId: 'b1', boards: [], boardDeletions: [{ id: 'b1', type: 'board', deletedAt: T.MID }] };
+        // incoming (B): stale, still has b1.
+        const incoming = { version: 2, currentBoardId: 'b1', boards: [{ id: 'b1', name: 'X', categories: [], actions: [], tasks: [], updatedAt: T.OLD }] };
+        const result = mergeBoardsEntityLevel(local, incoming);
+        expect(result.boards.map(b => b.id)).toEqual([]); // NOT resurrected by the fallback
+    });
+
+    it('drops a task orphaned by a concurrent action deletion', () => {
+        // local (A): deleted action a1 (tombstone), category c1 kept.
+        const local = board('b1', { categories: [{ id: 'c1', name: 'C', updatedAt: T.OLD }], actions: [], tasks: [], deletions: [{ id: 'a1', type: 'action', deletedAt: T.MID }] });
+        // incoming (B): stale — still has a1, AND a peer added task t2 under a1 (no tombstone of its own).
+        const incoming = board('b1', {
+            categories: [{ id: 'c1', name: 'C', updatedAt: T.OLD }],
+            actions: [{ id: 'a1', name: 'A', categoryId: 'c1', updatedAt: T.OLD }],
+            tasks: [{ id: 't2', actionId: 'a1', title: 'peer add', updatedAt: T.NEW }],
+        });
+        const result = mergeBoardsEntityLevel(local, incoming);
+        expect(result.boards[0].actions.map(a => a.id)).toEqual([]); // a1 dropped (tombstoned)
+        expect(result.boards[0].tasks.map(t => t.id)).toEqual([]);   // t2 dropped (would be orphan under deleted a1)
+    });
+
+    it('merge does NOT prune an expired tombstone (GC is load/save only) — no zombie resurrection', () => {
+        const expired = new Date(NOW - TOMBSTONE_TTL_MS - DAY).toISOString();        // 31 days old
+        const evenOlder = new Date(NOW - TOMBSTONE_TTL_MS - 2 * DAY).toISOString();   // task last touched before that
+        const local = board('b1', { tasks: [{ id: 't1', title: 'zombie', updatedAt: evenOlder }] });
+        const incoming = board('b1', { tasks: [], deletions: [{ id: 't1', type: 'task', deletedAt: expired }] });
+        const result = mergeBoardsEntityLevel(local, incoming);
+        expect(result.boards[0].tasks).toHaveLength(0);                 // tombstone still honoured
+        expect(result.boards[0].deletions.map(d => d.id)).toContain('t1');
+    });
+});
