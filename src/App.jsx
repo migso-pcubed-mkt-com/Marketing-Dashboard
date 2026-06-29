@@ -24,6 +24,8 @@ import OnboardingOverlay from './components/OnboardingOverlay.jsx';
 import { Icon, StatusIcon } from './components/Icons.jsx';
 import FilterSidebar from './components/FilterSidebar.jsx';
 import HistoryPanel from './components/HistoryPanel.jsx';
+import PresenceIndicator from './components/PresenceIndicator.jsx';
+import { buildPresenceState, derivePresenceList } from './lib/presence.js';
 import AuthGate from './components/AuthGate.jsx';
 import { ViewSkeleton } from './components/Skeletons.jsx';
 import { useFilters } from './hooks/useFilters.js';
@@ -107,6 +109,10 @@ const App = () => {
     });
     const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
     const [otherTabActive, setOtherTabActive] = useState(false);
+    const [collaborators, setCollaborators] = useState([]); // other people present on the board (Supabase presence)
+    const sessionIdRef = useRef(null);
+    if (sessionIdRef.current === null) sessionIdRef.current = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random());
+    const presenceChannelRef = useRef(null);
     const [realtimeConnected, setRealtimeConnected] = useState(null); // null = not applicable, true = connected, false = disconnected
     const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_done'));
     const trelloSyncIntervalRef = useRef(null);
@@ -793,6 +799,48 @@ const App = () => {
             channel.close();
         };
     }, []);
+
+    // Collaborator presence via Supabase Realtime "presence" (who else has the board open).
+    // No-op without Supabase (guest/offline) so nothing breaks without a connection.
+    // Created once; a second effect re-tracks when identity or active board changes.
+    const trelloUserRef = useRef(trelloUser); trelloUserRef.current = trelloUser;
+    const currentBoardIdRef = useRef(currentBoardId); currentBoardIdRef.current = currentBoardId;
+    useEffect(() => {
+        if (!useSupabase || !dataLoaded) return;
+        let channel;
+        try {
+            const sessionId = sessionIdRef.current;
+            const selfId = () => trelloUserRef.current?.id || sessionId;
+            channel = supabaseClient.channel('board_presence', { config: { presence: { key: sessionId } } });
+            const refresh = () => {
+                try { setCollaborators(derivePresenceList(channel.presenceState(), selfId())); }
+                catch (_) { /* ignore presence read errors */ }
+            };
+            channel
+                .on('presence', { event: 'sync' }, refresh)
+                .on('presence', { event: 'join' }, refresh)
+                .on('presence', { event: 'leave' }, refresh)
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        channel.track(buildPresenceState(trelloUserRef.current, currentBoardIdRef.current, sessionId)).catch(() => {});
+                    }
+                });
+            presenceChannelRef.current = channel;
+        } catch (_) { /* presence is best-effort */ }
+        return () => {
+            presenceChannelRef.current = null;
+            setCollaborators([]);
+            try { channel?.untrack?.(); supabaseClient.removeChannel(channel); } catch (_) { /* noop */ }
+        };
+    }, [dataLoaded]);
+
+    // Re-broadcast presence when the logged-in user or the active board changes.
+    useEffect(() => {
+        const ch = presenceChannelRef.current;
+        if (!ch) return;
+        try { ch.track(buildPresenceState(trelloUser, currentBoardId, sessionIdRef.current)).catch(() => {}); }
+        catch (_) { /* noop */ }
+    }, [trelloUser, currentBoardId]);
 
     // Process a Realtime payload: validate, entity-level merge, save backup
     const processRealtimePayload = (payload) => {
@@ -1927,6 +1975,7 @@ const App = () => {
                             <span className="stat-pill"><strong>{isFiltered ? `${(filteredBudget/1000).toFixed(0)}k / ${(totalBudget/1000).toFixed(0)}k€` : `${(totalBudget/1000).toFixed(0)}k€`}</strong> budget</span>
                         </div>
                         <div className="toolbar-spacer"/>
+                        <PresenceIndicator collaborators={collaborators}/>
                         {!isReadOnly && <button className="v11-btn-icon" onClick={() => setShowHistoryPanel(true)} title="History" style={{padding:'6px 8px',marginRight:4,color:'var(--text-secondary)'}}><Icon.History size={14}/></button>}
                         <div className="new-btn-container" ref={exportDropdownRef}>
                             <button className="v11-btn-secondary" onClick={() => {setShowCreateDropdown(false);setShowExportDropdown(!showExportDropdown);}}><Icon.Download size={13}/><span>Export</span></button>
