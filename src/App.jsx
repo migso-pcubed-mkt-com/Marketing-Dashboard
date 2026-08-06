@@ -9,8 +9,10 @@ import {
     loadFromLocalStorage as loadFromLocalStorageFn,
     saveToLocalStorage as saveToLocalStorageFn,
     saveSnapshot,
-    base64EncodeUnicode, base64DecodeUnicode
+    base64EncodeUnicode, base64DecodeUnicode,
+    getCloudSaveDiagnostics
 } from './lib/storage.js';
+import { resolveInitialBoardId, buildBoardSearch } from './lib/boardUrl.js';
 import { mergeBoardsEntityLevel, mergeBoardsEntityLevelWithMeta } from './lib/realtimeMerge.js';
 import { addTombstones, pruneEnvelopeTombstones } from './lib/tombstones.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
@@ -71,6 +73,7 @@ const App = () => {
     const [syncing, setSyncing] = useState(false);
     const [savingStatus, setSavingStatus] = useState(null);
     const [cloudSaveDegraded, setCloudSaveDegraded] = useState(false); // true when the last save reached neither Supabase nor GitHub (local-only)
+    const [cloudSaveDiag, setCloudSaveDiag] = useState(null); // { supabase, github } — last failure reason per target, shown in the degraded banner
     const [selectedTask, setSelectedTask] = useState(null);
     const [selectedAction, setSelectedAction] = useState(null);
     const [notification, setNotification] = useState(null);
@@ -394,13 +397,14 @@ const App = () => {
             }
             // Both failed — save to localStorage and surface a persistent degraded banner
             saveToLocalStorage();
+            setCloudSaveDiag(getCloudSaveDiagnostics());
             setCloudSaveDegraded(true);
             showNotification('⚠️ Cloud save failed — data saved locally only');
             return false;
         } else if (githubToken) {
             const result = await saveToGitHub(boardDataRef, fileShaRef, setFileSha, setSyncing, showNotification);
             if (result) { saveToLocalStorage(); setCloudSaveDegraded(false); }
-            else setCloudSaveDegraded(true);
+            else { setCloudSaveDiag(getCloudSaveDiagnostics()); setCloudSaveDegraded(true); }
             return result;
         } else {
             saveToLocalStorage();
@@ -506,12 +510,15 @@ const App = () => {
             setDataLoaded(true);
         }, 100);
 
+        // Honor a shared ?board=<id> link over the envelope's stored currentBoardId
+        const pickBoardId = (envelope) => resolveInitialBoardId(envelope, typeof window !== 'undefined' ? window.location.search : '');
+
         const timeoutId = setTimeout(() => {
             console.warn('⏱️ Loading timeout, using default data');
             const fallbackData = loadFromLocalStorageFn(showNotification);
             if (fallbackData) {
                 setBoardData(fallbackData);
-                setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
+                setCurrentBoardId(pickBoardId(fallbackData));
             } else {
                 // No cloud data loaded and no local backup → don't pretend the seed
                 // data is editable (mutations would silently no-op). Surface it instead.
@@ -524,14 +531,22 @@ const App = () => {
             try {
                 let result;
                 if (useSupabase) {
-                    result = await loadFromSupabase(showNotification, serverUpdatedAtRef);
+                    try {
+                        result = await loadFromSupabase(showNotification, serverUpdatedAtRef);
+                    } catch (supErr) {
+                        // Supabase down/paused/deleted — fall back to GitHub (data.json holds
+                        // the full envelope) before resorting to the device-local backup.
+                        // This keeps the documented Supabase → GitHub → localStorage chain.
+                        console.warn('Supabase load failed, falling back to GitHub:', supErr?.message);
+                        result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
+                    }
                 } else {
                     result = await loadDataFromGitHub(setFileSha, showNotification, () => loadFromLocalStorageFn(showNotification));
                 }
                 if (result) {
                     result = pruneEnvelopeTombstones(result); // GC expired deletion tombstones (M18)
                     setBoardData(result);
-                    setCurrentBoardId(result.currentBoardId || 'board-default');
+                    setCurrentBoardId(pickBoardId(result));
                     // Save to localStorage as backup
                     boardDataRef.current = result;
                     saveToLocalStorage();
@@ -546,7 +561,7 @@ const App = () => {
                 const fallbackData = loadFromLocalStorageFn(showNotification);
                 if (fallbackData) {
                     setBoardData(fallbackData);
-                    setCurrentBoardId(fallbackData.currentBoardId || 'board-default');
+                    setCurrentBoardId(pickBoardId(fallbackData));
                 } else {
                     // Cloud load threw (network/RLS) and no local backup exists: keep
                     // boardData null and warn the user instead of silently no-opping edits.
@@ -559,6 +574,20 @@ const App = () => {
 
         return () => { clearTimeout(mountTimer); clearTimeout(timeoutId); };
     }, []);
+
+    // Shareable per-board URL — keep ?board=<id> in sync with the selected board so the
+    // address bar is always a direct link to the current board. replaceState (not
+    // pushState) so switching boards doesn't pollute browser history. The param is
+    // removed in combined multi-board view (the URL identifies a single board).
+    useEffect(() => {
+        if (!dataLoaded || !boardData) return;
+        try {
+            const nextSearch = buildBoardSearch(window.location.search, multiBoardMode ? null : currentBoardId);
+            if (nextSearch !== window.location.search) {
+                window.history.replaceState(null, '', `${window.location.pathname}${nextSearch}${window.location.hash}`);
+            }
+        } catch (_e) { /* history API unavailable (tests/old browsers) — non-fatal */ }
+    }, [currentBoardId, dataLoaded, boardData, multiBoardMode]);
 
     // Restore Trello user from localStorage on mount
     useEffect(() => {
@@ -1970,7 +1999,14 @@ const App = () => {
                 )}
                 {cloudSaveDegraded && !isOffline && (
                     <div style={{background:'#ef4444',color:'#fff',textAlign:'center',padding:'6px 12px',fontSize:13,fontWeight:600}}>
-                        ⚠️ Cloud save is failing — your changes are saved on this device only and may be lost if you clear data or switch devices. Retrying automatically…
+                        <div>⚠️ Cloud save is failing — your changes are saved on this device only and may be lost if you clear data or switch devices. Retrying automatically…</div>
+                        {(cloudSaveDiag?.supabase || cloudSaveDiag?.github) && (
+                            <div style={{fontSize:11,fontWeight:400,opacity:0.9,marginTop:2}}>
+                                {cloudSaveDiag.supabase && <span>Supabase: {cloudSaveDiag.supabase}</span>}
+                                {cloudSaveDiag.supabase && cloudSaveDiag.github && <span> · </span>}
+                                {cloudSaveDiag.github && <span>GitHub: {cloudSaveDiag.github}</span>}
+                            </div>
+                        )}
                     </div>
                 )}
                 {loadFailed && !boardData && (

@@ -36,35 +36,82 @@ export default async function handler(req, res) {
         path: 'data.json'
     };
 
+    const ghGetHeaders = {
+        'Authorization': `Bearer ${GITHUB_TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Cache-Control': 'no-cache'
+    };
+    const apiRoot = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}`;
+
+    // The Contents API only inlines base64 content for files < 1 MB. Between 1 and
+    // 100 MB it returns the metadata (sha/size) with an empty content field — and some
+    // media types reject the request entirely. data.json exceeds 1 MB, so resolve the
+    // sha via the parent directory listing (no size limit) and the content via the Git
+    // Blobs API (base64 up to 100 MB).
+    const fetchShaFromDirListing = async () => {
+        const dir = GITHUB_CONFIG.path.includes('/') ? GITHUB_CONFIG.path.slice(0, GITHUB_CONFIG.path.lastIndexOf('/')) : '';
+        const listResp = await fetch(`${apiRoot}/contents/${dir}?ref=${GITHUB_CONFIG.branch}`, { headers: ghGetHeaders });
+        if (!listResp.ok) return null;
+        const entries = await listResp.json();
+        const entry = Array.isArray(entries) && entries.find(e => e.path === GITHUB_CONFIG.path);
+        return entry ? { sha: entry.sha, size: entry.size } : null;
+    };
+
+    const fetchBlobBase64 = async (sha) => {
+        const blobResp = await fetch(`${apiRoot}/git/blobs/${sha}`, { headers: ghGetHeaders });
+        if (!blobResp.ok) return null;
+        const blob = await blobResp.json();
+        return blob && blob.encoding === 'base64' ? blob.content : null;
+    };
+
+    // Make expired/revoked token failures self-explanatory for the client banner.
+    const tokenHint = (status) => (status === 401 || status === 403)
+        ? ' — GITHUB_TOKEN in Vercel is likely expired or revoked; regenerate it in GitHub and update the Vercel environment variable'
+        : '';
+
     try {
         // GET - Load data from GitHub
         if (req.method === 'GET') {
             console.log('📥 GET request - Loading from GitHub...');
 
-            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
+            const url = `${apiRoot}/contents/${GITHUB_CONFIG.path}?ref=${GITHUB_CONFIG.branch}`;
+            const response = await fetch(url, { method: 'GET', headers: ghGetHeaders });
 
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${GITHUB_TOKEN}`,
-                    'Accept': 'application/vnd.github.v3+json',
-                    'Cache-Control': 'no-cache'
-                }
-            });
+            let data = null;
+            if (response.ok) {
+                data = await response.json();
+            } else if (response.status !== 404) {
+                // Non-404 failure (e.g. 403 "too_large" on big files): try the
+                // dir-listing + blob route before giving up.
+                const meta = await fetchShaFromDirListing();
+                if (meta) data = { sha: meta.sha, size: meta.size, content: '' };
+            }
 
-            if (!response.ok) {
-                const errorText = await response.text();
+            if (!data) {
+                const errorText = response.ok ? '' : await response.text().catch(() => '');
                 console.error('GitHub API error:', response.status, errorText);
-
                 return res.status(response.status).json({
-                    error: `GitHub API error: ${response.status}`,
+                    error: `GitHub API error: ${response.status}${tokenHint(response.status)}`,
                     details: errorText
                 });
             }
 
-            const data = await response.json();
-            console.log('✅ Loaded from GitHub. SHA:', data.sha.substring(0, 8));
+            // Large file (1-100 MB): content comes back empty — fetch it via the Blobs API.
+            if (!data.content && data.sha) {
+                const blobContent = await fetchBlobBase64(data.sha);
+                if (blobContent) {
+                    data.content = blobContent;
+                    data.encoding = 'base64';
+                } else {
+                    console.error('GitHub blob fetch failed for sha', data.sha?.substring(0, 8));
+                    return res.status(502).json({
+                        error: 'GitHub blob fetch failed',
+                        details: `File ${GITHUB_CONFIG.path} is larger than 1 MB and the blob API call failed`
+                    });
+                }
+            }
 
+            console.log('✅ Loaded from GitHub. SHA:', data.sha.substring(0, 8));
             return res.status(200).json(data);
         }
 
@@ -81,7 +128,7 @@ export default async function handler(req, res) {
                 });
             }
 
-            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/contents/${GITHUB_CONFIG.path}`;
+            const url = `${apiRoot}/contents/${GITHUB_CONFIG.path}`;
             const ghHeaders = {
                 'Authorization': `Bearer ${GITHUB_TOKEN}`,
                 'Accept': 'application/vnd.github.v3+json',
@@ -102,14 +149,19 @@ export default async function handler(req, res) {
             // the latest SHA and retry once (last-write-wins; the app merges before saving).
             if (response.status === 409 || response.status === 422) {
                 try {
-                    const latest = await fetch(`${url}?ref=${GITHUB_CONFIG.branch}`, {
-                        method: 'GET',
-                        headers: { 'Authorization': `Bearer ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'Cache-Control': 'no-cache' }
-                    });
+                    // File GET can fail or omit sha handling for files > 1 MB — the
+                    // directory listing always returns the sha regardless of file size.
+                    let latestSha = null;
+                    const latest = await fetch(`${url}?ref=${GITHUB_CONFIG.branch}`, { method: 'GET', headers: ghGetHeaders });
                     if (latest.ok) {
-                        const latestData = await latest.json();
-                        console.warn('⚠️ GitHub SHA conflict — retrying with latest SHA', latestData.sha?.substring(0, 8));
-                        response = await putWithSha(latestData.sha);
+                        latestSha = (await latest.json()).sha;
+                    } else {
+                        const meta = await fetchShaFromDirListing();
+                        latestSha = meta?.sha || null;
+                    }
+                    if (latestSha) {
+                        console.warn('⚠️ GitHub SHA conflict — retrying with latest SHA', latestSha.substring(0, 8));
+                        response = await putWithSha(latestSha);
                     }
                 } catch (e) {
                     console.error('SHA conflict re-fetch failed:', e.message);
@@ -128,7 +180,7 @@ export default async function handler(req, res) {
                 console.error('GitHub save error:', response.status, errorDetails);
 
                 return res.status(response.status).json({
-                    error: `GitHub save error: ${response.status}`,
+                    error: `GitHub save error: ${response.status}${tokenHint(response.status)}`,
                     details: errorDetails
                 });
             }
