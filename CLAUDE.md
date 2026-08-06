@@ -1,7 +1,7 @@
 # CLAUDE.md — Marketing Dashboard
 
 > Memory file for Claude Code. Loaded automatically at session start.
-> Last updated: 2026-06-29 (Collaboration hardening: M18 deletion tombstones, explicit conflict notification, Supabase presence indicators, Trello auth reconnect-retry, persistent degraded-save banner; + Escape-to-close save fix. Earlier: Combined view polish, KPIs By Country, PPT Timeline table + action details, undo→sync un-archive fix, sync watchdogs, 2-pass OCC + visibilitychange Realtime catch-up, Excel import v11 modal, typed history labels)
+> Last updated: 2026-08-06 (Cloud-save resilience: GitHub proxy large-file support via Blobs API, real Supabase→GitHub→localStorage load chain, per-target failure reasons in degraded banner; + shareable per-board URLs `?board=<id>`. Earlier: M18 deletion tombstones, conflict notification, presence indicators, Trello auth reconnect-retry, Escape-to-close save fix)
 
 ---
 
@@ -86,6 +86,7 @@ src/
 │   ├── trelloSync.js    # Bidirectional sync engine
 │   ├── trelloAuth.js    # Trello OAuth login/restore/logout
 │   ├── pptExport.js     # PowerPoint export (Timeline + Kanban) via pptxgenjs — editable native shapes
+│   ├── boardUrl.js      # Shareable per-board URL helpers (?board=<id> — get/build/resolve)
 │   └── migration.js     # v1→v2 data migration
 ├── components/
 │   ├── ErrorBoundary.jsx       # Error boundary wrapper for views
@@ -162,7 +163,9 @@ Migration from v1 (flat) → v2 is automatic via `src/lib/migration.js`.
 | Fallback | localStorage | Key: `marketing_tracker_backup`. Snapshot ring buffer: single key `mkt_snapshot_0`, 48h TTL (legacy slots 1/2 auto-cleaned on load) |
 | Attachments | Supabase Storage | Bucket: `attachments`. Falls back to base64 data URLs if Storage unavailable. `uploadAttachment()` / `deleteAttachment()` in `storage.js` |
 
-**Load order**: Supabase → GitHub → localStorage. `localStorage` is backup only — never primary.
+**Load order**: Supabase → GitHub → localStorage. `localStorage` is backup only — never primary. A Supabase load failure (thrown) falls back to `loadDataFromGitHub` before localStorage — do NOT collapse this back to Supabase-or-localStorage: with Supabase down, GitHub `data.json` is the only cross-device source.
+
+**Shareable board URLs**: the selected board + view are mirrored into `?board=<boardId>&view=<view>` (`src/lib/boardUrl.js` + a `replaceState` effect in App.jsx). On load, a valid `?board=` param wins over the envelope's `currentBoardId`, and `?view=` (kanban/timeline/calendar/dashboard, alias `kpis`) seeds `currentView`. The board param is removed in combined multi-board view; the view param is omitted for the default kanban view.
 
 **Offline mode**: `navigator.onLine` detection — saves to localStorage only + yellow banner. Auto-resync on reconnect.
 
@@ -353,7 +356,13 @@ Narrow bars (< 80px) spill their title onto the timeline background to the right
 `excelMapping.js` exposes `parseWorkbook` (async — xlsx data + exceljs fill colours), `detectMonthHeader(data)` (scans first 20 rows, picks the row with the most distinct month matches — strict full-cell pattern + ≤12-char length so "Marketing" no longer matches "Mar"), `analyzeSheet(sheet)` → `{ kind:'grid'|'list', rows:[{ rowIdx, label, monthSignals, suggested:'empty'|'category'|'action', level }] }`, `buildBoard(sheet, analysis, { year, boardName, overrides })`, `analyzeWorkbook(parsed)` (one analysis per sheet), and the legacy `detectColumnMappings` + `buildBoardFromList` path for column-shaped workbooks. The grid algorithm is deliberately simple: any row below the month header with a label and NO month-cell content is a **category**; any row with month-cell content is an **action** with one task per filled cell (numeric → budget task titled `<row> — <month>`, text → titled task with the cell value as title); horizontal merges extend a single signal across consecutive months; vertical merge fragments are skipped so the value isn't double-counted on the second row. Categories with zero actions get a default placeholder action so the data model stays consistent with `handleAddCategory`. Each workbook sheet becomes a separate **board** — `ExcelImportModal` shows a sheet-tab bar in the review step where the user toggles inclusion, edits the board name, and overrides any auto-classification (`category` ↔ `action` ↔ `empty`). The "Apply to similar" button reuses the row's original auto-suggestion to propagate the override. The preview step lists every board with its category/action/task counts before commit. `App.jsx#handleExcelImport` accepts either a single preview (legacy) or an array of boards and appends them all in one `setBoardData` call. Reference workbooks `public/2026 Country Marketing Plan framework.xlsx` (3 sheets) and `public/2026 MC Strategy Roadmap.xlsx` (1 sheet, 8 horizontal merges) are guarded by regression tests in `src/__tests__/excelMapping.test.js`. **Coloured-cell signals** support both explicit ARGB and **theme-based fills**: `parseWorkbook` records a `THEME-<n>` sentinel for Microsoft theme fills (accent themes 2-9; themes 0/1 = white/black defaults ignored) since `fill.fgColor.argb` is undefined for them. `findRowBackgroundFill` then skips cells whose fill matches a row's dominant background (>half the filled month cells AND ≥4 occurrences) so a uniformly theme-styled "category" row isn't misread as an action with 12 month tasks — only fills that differ from the row background count as per-cell highlights.
 
 ### GitHub SHA conflicts
-Always fetch latest SHA before PUT. Auto-resolve on 409/sha-mismatch: re-fetch then retry.
+Always fetch latest SHA before PUT. Auto-resolve on 409/sha-mismatch: re-fetch then retry (in `api/github.js`, with a directory-listing fallback for the sha when the file GET fails).
+
+### GitHub Contents API 1 MB limit — data.json is ~4 MB
+The Contents API only inlines base64 content for files < 1 MB; larger files come back with empty `content` (or a `too_large` error depending on media type). `api/github.js` GET therefore falls back to the parent directory listing (sha, any size) + the Git Blobs API (base64 up to 100 MB). Client-side, `loadDataFromGitHub` treats an empty `content` as a failure and continues the fallback chain instead of `JSON.parse('')` throwing. Do NOT revert the proxy to a single contents GET — GitHub load would silently break again as soon as data.json exceeds 1 MB.
+
+### Degraded-save banner shows per-target causes
+`storage.js` records the last failure reason per cloud target (`getCloudSaveDiagnostics()` — e.g. "unreachable — the Supabase project may be paused or deleted", "HTTP 401 … GITHUB_TOKEN likely expired"); `saveData` snapshots it into `cloudSaveDiag` state when raising the banner. Keep the diagnostics actionable — infra failures (paused Supabase project, expired Vercel `GITHUB_TOKEN`) are invisible from the client otherwise.
 
 ### UTF-8 on GitHub API
 Explicitly encode/decode UTF-8 in `api/github.js` load and save functions.

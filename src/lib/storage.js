@@ -50,6 +50,19 @@ export const base64DecodeUnicode = (str) => {
     return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
 };
 
+// --- Cloud-save diagnostics ---
+// Last failure reason per cloud target, shown in the persistent degraded-save banner
+// so the user can act on the real cause (paused Supabase project, expired GitHub
+// token…) instead of a generic "cloud save is failing".
+const cloudSaveDiagnostics = { supabase: null, github: null };
+export const getCloudSaveDiagnostics = () => ({ ...cloudSaveDiagnostics });
+
+const NETWORK_ERROR_RE = /failed to fetch|fetch failed|networkerror|name_not_resolved|enotfound|load failed/i;
+const describeNetworkError = (message, unreachableHint) => {
+    const msg = String(message || '');
+    return NETWORK_ERROR_RE.test(msg) ? unreachableHint : msg;
+};
+
 // --- Supabase ---
 
 export const loadFromSupabase = async (showNotification, serverUpdatedAtRef) => {
@@ -139,9 +152,12 @@ export const saveToSupabase = async (boardDataRef, setSyncing, showNotification,
             serverUpdatedAtRef.current = data.updated_at;
         }
 
+        cloudSaveDiagnostics.supabase = null;
         return true;
     } catch (e) {
         console.error('Error saving to Supabase:', e);
+        cloudSaveDiagnostics.supabase = describeNetworkError(e.message,
+            'unreachable — the Supabase project may be paused or deleted (check the Supabase dashboard)');
         showNotification(`❌ Save error: ${e.message}`);
         return false;
     } finally {
@@ -184,6 +200,13 @@ export const loadDataFromGitHub = async (setFileSha, showNotification, loadFromL
         const response = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' } });
         if (response.ok) {
             const data = await response.json();
+            // Contents API inlines no content for files > 1 MB — the api/github proxy
+            // fetches the blob in that case, but guard against an older deployment
+            // returning an empty content field (JSON.parse('') would throw).
+            if (!data.content) {
+                showNotification('⚠️ GitHub returned no file content, local backup loaded');
+                return loadFromLocalStorageFn();
+            }
             const decodedContent = base64DecodeUnicode(data.content.replace(/\n/g, '').replace(/\s/g, ''));
             const content = JSON.parse(decodedContent);
 
@@ -239,11 +262,13 @@ export const saveToGitHub = async (boardDataRef, fileShaRef, setFileSha, setSync
         if (response.ok) {
             const data = await response.json();
             setFileSha(data.content.sha);
+            cloudSaveDiagnostics.github = null;
             return true;
         } else {
             const errorText = await response.text();
             let errorDetails;
             try { errorDetails = JSON.parse(errorText); } catch (e) { errorDetails = { message: errorText }; }
+            cloudSaveDiagnostics.github = `HTTP ${response.status}: ${errorDetails.error || errorDetails.message || 'save rejected'}`;
             if (response.status === 409 || errorDetails.details?.message?.includes('does not match')) {
                 if (confirm('File modified elsewhere. Overwrite?\n\nYES = Overwrite\nNO = Cancel')) {
                     showNotification('⚠️ Data reloaded. Save again.');
@@ -255,6 +280,8 @@ export const saveToGitHub = async (boardDataRef, fileShaRef, setFileSha, setSync
         }
     } catch (e) {
         console.error('Error saving to GitHub:', e);
+        cloudSaveDiagnostics.github = describeNetworkError(e.message,
+            'unreachable — network error while calling the /api/github proxy');
         showNotification(`❌ Error: ${e.message}`);
         return false;
     } finally {
