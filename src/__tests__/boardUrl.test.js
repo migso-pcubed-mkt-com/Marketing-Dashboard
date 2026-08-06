@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getBoardIdFromSearch, buildBoardSearch, resolveInitialBoardId } from '../lib/boardUrl.js';
+import { getBoardIdFromSearch, getViewFromSearch, buildBoardSearch, resolveInitialBoardId } from '../lib/boardUrl.js';
 
 describe('getBoardIdFromSearch', () => {
     it('extracts the board id from a search string', () => {
@@ -16,7 +16,33 @@ describe('getBoardIdFromSearch', () => {
     });
 });
 
+describe('getViewFromSearch', () => {
+    it('extracts a valid view', () => {
+        expect(getViewFromSearch('?view=timeline')).toBe('timeline');
+        expect(getViewFromSearch('?board=b1&view=calendar')).toBe('calendar');
+    });
+    it('accepts the kpis alias for dashboard, case-insensitively', () => {
+        expect(getViewFromSearch('?view=kpis')).toBe('dashboard');
+        expect(getViewFromSearch('?view=KPIs')).toBe('dashboard');
+        expect(getViewFromSearch('?view=Timeline')).toBe('timeline');
+    });
+    it('returns null for unknown or missing views', () => {
+        expect(getViewFromSearch('?view=nope')).toBeNull();
+        expect(getViewFromSearch('')).toBeNull();
+        expect(getViewFromSearch('?board=b1')).toBeNull();
+    });
+});
+
 describe('buildBoardSearch', () => {
+    it('sets the view param for non-default views', () => {
+        expect(buildBoardSearch('', 'b1', 'timeline')).toBe('?board=b1&view=timeline');
+    });
+    it('omits the view param for the default kanban view', () => {
+        expect(buildBoardSearch('?view=timeline', 'b1', 'kanban')).toBe('?board=b1');
+    });
+    it('drops an unknown view instead of writing it', () => {
+        expect(buildBoardSearch('', 'b1', 'wat')).toBe('?board=b1');
+    });
     it('sets the board param on an empty search', () => {
         expect(buildBoardSearch('', 'board-1')).toBe('?board=board-1');
     });

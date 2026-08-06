@@ -12,7 +12,7 @@ import {
     base64EncodeUnicode, base64DecodeUnicode,
     getCloudSaveDiagnostics
 } from './lib/storage.js';
-import { resolveInitialBoardId, buildBoardSearch } from './lib/boardUrl.js';
+import { resolveInitialBoardId, buildBoardSearch, getViewFromSearch } from './lib/boardUrl.js';
 import { mergeBoardsEntityLevel, mergeBoardsEntityLevelWithMeta } from './lib/realtimeMerge.js';
 import { addTombstones, pruneEnvelopeTombstones } from './lib/tombstones.js';
 import { syncWithTrello, isSyncInProgress, validateBoardIntegrity, enrichNewTaskWithTrelloMetadata } from './lib/trelloSync.js';
@@ -64,7 +64,9 @@ const conflictMessage = (conflicts) => conflicts.length === 1
 
 const App = () => {
     const darkMode = false;
-    const [currentView, setCurrentView] = useState('kanban');
+    // Honor a shared ?view=<kanban|timeline|calendar|dashboard> link on first render
+    const [currentView, setCurrentView] = useState(() =>
+        (typeof window !== 'undefined' && getViewFromSearch(window.location.search)) || 'kanban');
 
     // --- Multi-board state ---
     const [boardData, setBoardData] = useState(null);
@@ -575,19 +577,20 @@ const App = () => {
         return () => { clearTimeout(mountTimer); clearTimeout(timeoutId); };
     }, []);
 
-    // Shareable per-board URL — keep ?board=<id> in sync with the selected board so the
-    // address bar is always a direct link to the current board. replaceState (not
-    // pushState) so switching boards doesn't pollute browser history. The param is
-    // removed in combined multi-board view (the URL identifies a single board).
+    // Shareable per-board URL — keep ?board=<id> and ?view=<view> in sync with the
+    // selection so the address bar is always a direct link to the current board+view.
+    // replaceState (not pushState) so switching doesn't pollute browser history. The
+    // board param is removed in combined multi-board view (the URL identifies a single
+    // board); the view param is omitted for the default kanban view.
     useEffect(() => {
         if (!dataLoaded || !boardData) return;
         try {
-            const nextSearch = buildBoardSearch(window.location.search, multiBoardMode ? null : currentBoardId);
+            const nextSearch = buildBoardSearch(window.location.search, multiBoardMode ? null : currentBoardId, currentView);
             if (nextSearch !== window.location.search) {
                 window.history.replaceState(null, '', `${window.location.pathname}${nextSearch}${window.location.hash}`);
             }
         } catch (_e) { /* history API unavailable (tests/old browsers) — non-fatal */ }
-    }, [currentBoardId, dataLoaded, boardData, multiBoardMode]);
+    }, [currentBoardId, dataLoaded, boardData, multiBoardMode, currentView]);
 
     // Restore Trello user from localStorage on mount
     useEffect(() => {

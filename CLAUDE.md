@@ -165,7 +165,7 @@ Migration from v1 (flat) → v2 is automatic via `src/lib/migration.js`.
 
 **Load order**: Supabase → GitHub → localStorage. `localStorage` is backup only — never primary. A Supabase load failure (thrown) falls back to `loadDataFromGitHub` before localStorage — do NOT collapse this back to Supabase-or-localStorage: with Supabase down, GitHub `data.json` is the only cross-device source.
 
-**Shareable board URLs**: the selected board is mirrored into `?board=<boardId>` (`src/lib/boardUrl.js` + a `replaceState` effect in App.jsx). On load, a valid `?board=` param wins over the envelope's `currentBoardId`. The param is removed in combined multi-board view.
+**Shareable board URLs**: the selected board + view are mirrored into `?board=<boardId>&view=<view>` (`src/lib/boardUrl.js` + a `replaceState` effect in App.jsx). On load, a valid `?board=` param wins over the envelope's `currentBoardId`, and `?view=` (kanban/timeline/calendar/dashboard, alias `kpis`) seeds `currentView`. The board param is removed in combined multi-board view; the view param is omitted for the default kanban view.
 
 **Offline mode**: `navigator.onLine` detection — saves to localStorage only + yellow banner. Auto-resync on reconnect.
 
